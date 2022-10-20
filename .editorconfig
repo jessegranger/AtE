@@ -1,0 +1,7 @@
+﻿[*.cs]
+
+# IDE0011: Add braces
+dotnet_diagnostic.IDE0011.severity = suggestion
+
+[*.{cs,vb}]
+dotnet_style_prefer_auto_properties=true:suggestion
