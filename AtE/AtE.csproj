@@ -154,7 +154,6 @@
   <ItemGroup />
   <ItemGroup>
     <Content Include="Static\A2E.ico" />
-    <Content Include="Untitled.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
