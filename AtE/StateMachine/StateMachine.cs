@@ -36,7 +36,7 @@ namespace AtE {
 		///  </example>
 		public class Clear : State {
 			public Clear(State next) : base(next) { }
-			public override State OnTick() => Next;
+			public override State OnTick(long dt) => Next;
 		}
 
 		private Action<string> logDelegate;
@@ -49,7 +49,7 @@ namespace AtE {
 		public void TogglePause() => Paused = !Paused;
 		private bool Paused = false;
 
-		public override State OnTick() {
+		public override State OnTick(long dt) {
 			if ( Paused ) {
 				return this;
 			}
@@ -63,7 +63,7 @@ namespace AtE {
 						State curState = curNode.Value;
 						// that state is ticked once per frame
 						long tickStart = Time.ElapsedMilliseconds;
-						State gotoState = curState.OnTick();
+						State gotoState = curState.OnTick(dt);
 						long elapsed = Time.ElapsedMilliseconds - tickStart;
 						if ( false && elapsed > 100 ) {
 							Log($"OnTick: {curState.Name} took {elapsed} ms, cancelling...");

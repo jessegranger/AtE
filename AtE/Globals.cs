@@ -22,7 +22,7 @@ namespace AtE {
 			ImGuiController.NewFrame(dt);
 
 			// Advance all the states, which may call ImGui.Foo() functions to render things
-			Machine.OnTick();
+			Machine.OnTick(dt);
 
 			// Render the ImGui layer to vertexes and Draw them to the GPU
 			ImGuiController.Render(dt);
@@ -37,8 +37,8 @@ namespace AtE {
 		public static readonly Stopwatch Time = Stopwatch.StartNew();
 
 		public static void Run(State s) => Machine.Add(s);
-		public static void Run(Func<State, State> func) => Machine.Add(State.From(func));
-		public static void Run(string label, Func<State, State> func) => Machine.Add(State.From(label, func));
+		public static void Run(Func<State, long, State> func) => Machine.Add(State.From(func));
+		public static void Run(string label, Func<State, long, State> func) => Machine.Add(State.From(label, func));
 
 		public static void Log(params string[] line) => Debug.WriteLine(string.Join(" ", line));
 

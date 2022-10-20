@@ -24,7 +24,7 @@ namespace AtE {
 		public virtual State OnEnter() => this;
 
 		// OnTick gets called every frame (by a StateMachine), and should return the next State to continue with (usually itself).
-		public virtual State OnTick() => this;
+		public virtual State OnTick(long dt) => this;
 
 		// OnCancel gets called (by a StateMachine), to ask a State to clean up any incomplete work immediately (before returning).
 		public virtual void OnCancel() { }
@@ -57,14 +57,14 @@ namespace AtE {
 		public virtual string Describe() => $"{Name}{(Next == null ? " end" : " then " + Next.Describe())}";
 
 		// You can create a new State using any Func<State, State>
-		public static State From(string label, Func<State, State> func, State next = null) => new Runner(label, func, next);
-		public static State From(Func<State, State> func) => new Runner(func);
+		public static State From(string label, Func<State, long, State> func, State next = null) => new Runner(label, func, next);
+		public static State From(Func<State, long, State> func) => new Runner(func);
 		public static State From(Action func, State next = null) => new ActionState(func, next);
 
 		public static State WaitFor(uint duration, Func<bool> predicate, State next, State fail) {
-			long started = Time.ElapsedMilliseconds;
-			return State.From($"WaitFor({duration})", (state) =>
-				(Time.ElapsedMilliseconds - started) > duration ? fail :
+			long elapsed = 0;
+			return State.From($"WaitFor({duration})", (state, dt) =>
+				(elapsed += dt) > duration ? fail :
 					predicate() ? next :
 					state
 			);
@@ -72,7 +72,7 @@ namespace AtE {
 		private class ActionState : State {
 			public readonly Action Act;
 			public ActionState(Action action, State next = null) : base(next) => Act = action;
-			public override State OnTick() {
+			public override State OnTick(long dt) {
 				Act?.Invoke();
 				return Next;
 			}
@@ -81,20 +81,18 @@ namespace AtE {
 
 	public class Delay : State // Delay is a State that waits for a fixed number of milliseconds
 	{
-		private long started;
-		readonly uint ms;
-		public Delay(uint ms, State next = null) : base(next) => this.ms = ms;
-		public override State OnEnter() {
-			started = Time.ElapsedMilliseconds;
-			return this;
+		public long Remaining;
+		public Delay(uint ms, State next = null) : base(next) => this.Remaining = ms;
+		public override State OnTick(long dt) {
+			Remaining -= dt;
+			return Remaining > 0 ? this : Next;
 		}
-		public override State OnTick() => (Time.ElapsedMilliseconds - started) >= ms ? Next : (this);
-		public override string Name => $"Delay({ms})";
+		public override string Name => $"Delay({Remaining})";
 	}
 
 	class InputState : State {
 		protected InputState(State next = null) : base(next) { }
-		public override State OnTick() => Next;
+		public override State OnTick(long dt) => Next;
 	}
 
 	class KeyState : InputState {
@@ -104,20 +102,26 @@ namespace AtE {
 
 	class KeyDown : KeyState {
 		public KeyDown(Keys key, State next = null) : base(key, next) { }
-		public override State OnTick() {
+		public override State OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
-			Input.Dispatch(Input.KeyDownMessage(Key));
-			return Next;
+			if( dt > 0 ) {
+				Input.Dispatch(Input.KeyDownMessage(Key));
+				return Next;
+			}
+			return this;
 		}
 		public override string Name => $"KeyDown({Key})";
 	}
 
 	class KeyUp : KeyState {
 		public KeyUp(Keys key, State next = null) : base(key, next) { }
-		public override State OnTick() {
+		public override State OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
-			Input.Dispatch(Input.KeyUpMessage(Key));
-			return Next;
+			if( dt > 0 ) {
+				Input.Dispatch(Input.KeyUpMessage(Key));
+				return Next;
+			}
+			return this;
 		}
 		public override string Name => $"KeyUp({Key})";
 	}
@@ -153,7 +157,8 @@ namespace AtE {
 		}
 		public MoveMouse(Vector2 pos, State next = null) : this(pos.X , pos.Y, next) { }
 		// public MoveMouse(Element label, State next = null) : this(label?.GetClientRect().Center ?? Vector2.Zero, next) { }
-		public override State OnTick() {
+		public override State OnTick(long dt) {
+			if ( dt == 0 ) return this;
 			if ( X == 0 && Y == 0 ) {
 				Log($"Warn: MoveMouse to (0,0) attempted, skipped.");
 				return Next;
@@ -164,7 +169,8 @@ namespace AtE {
 	}
 	class LeftMouseDown : InputState {
 		public LeftMouseDown(State next = null) : base(next) { }
-		public override State OnTick() {
+		public override State OnTick(long dt) {
+			if ( dt == 0 ) return this;
 			Input.Dispatch(Input.MouseMessage(MouseFlag.LeftDown));
 			return Next;
 		}
@@ -172,7 +178,8 @@ namespace AtE {
 
 	class LeftMouseUp : InputState {
 		public LeftMouseUp(State next = null) : base(next) { }
-		public override State OnTick() {
+		public override State OnTick(long dt) {
+			if ( dt == 0 ) return this;
 			Input.Dispatch(Input.MouseMessage(MouseFlag.LeftUp));
 			return Next;
 		}
@@ -196,7 +203,8 @@ namespace AtE {
 
 	class RightMouseDown : InputState {
 		public RightMouseDown(State next = null) : base(next) { }
-		public override State OnTick() {
+		public override State OnTick(long dt) {
+			if ( dt == 0 ) return this;
 			Input.Dispatch(Input.MouseMessage(MouseFlag.RightDown));
 			return Next;
 		}
@@ -204,7 +212,8 @@ namespace AtE {
 
 	class RightMouseUp : InputState {
 		public RightMouseUp(State next = null) : base(next) { }
-		public override State OnTick() {
+		public override State OnTick(long dt) {
+			if ( dt == 0 ) return this;
 			Input.Dispatch(Input.MouseMessage(MouseFlag.RightUp));
 			return Next;
 		}
