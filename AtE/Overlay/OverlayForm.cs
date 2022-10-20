@@ -10,19 +10,13 @@ using static AtE.Win32;
 
 namespace AtE {
 
-	class AppForm : RenderForm {
-		private readonly ContextMenu contextMenu1;
-		private readonly NotifyIcon notifyIcon;
-		public AppForm() {
-			SuspendLayout();
+	class OverlayForm : RenderForm {
+		private readonly ContextMenu contextMenu1 = new ContextMenu();
+		private readonly NotifyIcon notifyIcon = new NotifyIcon();
+		public OverlayForm() {
+			// let the Designer have it's auto properties, so the VS editor works
+			InitializeComponent();
 
-			StartPosition = FormStartPosition.Manual;
-			Location = new Point(0, 0);
-			Size = new Size(800, 600);
-			FormBorderStyle = FormBorderStyle.None;
-			TopMost = true;
-
-			contextMenu1 = new ContextMenu();
 			var menuExit = new MenuItem() {
 				Index = 0,
 				Text = "Exit"
@@ -30,15 +24,11 @@ namespace AtE {
 			menuExit.Click += (sender, args) => Close();
 			contextMenu1.MenuItems.Add(menuExit);
 
-			notifyIcon = new NotifyIcon();
 			notifyIcon.ContextMenu = contextMenu1;
 			notifyIcon.Icon = Icon;
 			notifyIcon.Text = "Assistant to the Exile";
 			notifyIcon.Visible = true;
-			ShowInTaskbar = true;
-			BackColor = Color.Gray;
 
-			ResumeLayout(false);
 			BringToFront();
 
 		}
@@ -75,6 +65,24 @@ namespace AtE {
 			}
 			contextMenu1?.Dispose();
 			base.Dispose(disposing);
+		}
+
+		private void InitializeComponent() {
+			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(OverlayForm));
+			this.SuspendLayout();
+			// 
+			// AppForm
+			// 
+			this.BackColor = System.Drawing.Color.Gray;
+			this.ClientSize = new System.Drawing.Size(800, 600);
+			this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+			this.Name = "AppForm";
+			this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
+			this.Text = "Assistant to the Exile";
+			this.TopMost = true;
+			this.ResumeLayout(false);
+
 		}
 	}
 }

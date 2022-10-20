@@ -23,7 +23,7 @@ namespace AtE {
 		private static DepthStencilState deviceDepthStencilState;
 		private static RawColor4 clearColor = new RawColor4(0, 0, 0, 0);
 
-		public static void Initialise(AppForm RenderForm) {
+		public static void Initialise(OverlayForm RenderForm) {
 
 			Log("Creating DirectX 11 device...");
 			Bounds = new Rectangle(RenderForm.Left, RenderForm.Top, RenderForm.Width, RenderForm.Height);

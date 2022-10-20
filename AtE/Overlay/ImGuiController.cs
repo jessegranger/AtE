@@ -50,13 +50,13 @@ namespace AtE {
 		private static Buffer constantBuffer;
 
 		private static Device Device;
-		private static AppForm RenderForm;
+		private static OverlayForm RenderForm;
 
 		private static int sizeofImDrawVert = Utilities.SizeOf<ImDrawVert>();
 		private static int sizeofImDrawIdx = Utilities.SizeOf<ushort>();
 		private static int sizeofMatrix = Utilities.SizeOf<Matrix4x4>();
 
-		public static void Initialise(AppForm form) {
+		public static void Initialise(OverlayForm form) {
 
 			RenderForm = form;
 			Device = D3DController.Device;
@@ -292,7 +292,9 @@ namespace AtE {
 			Win32.GetCursorPos(out Point mousePoint);
 			IO.MousePos = new Vector2(mousePoint.X, mousePoint.Y);
 
-			// Not sure why we do this?:
+			// When the mouse interacts with an ImGui element, ImGui will set WantCaptureMouse = true
+			// This code then set IsTransparent = false, so that mouse events will flow and be captured.
+			// Once the mouse leaves the ImGui element area, the process is reversed.
 			if ( (IO.WantCaptureKeyboard || IO.WantCaptureMouse) && RenderForm.IsTransparent ) {
 				RenderForm.IsTransparent = false;
 			} else if ( !(IO.WantCaptureKeyboard || IO.WantCaptureMouse || RenderForm.IsTransparent) ) {
