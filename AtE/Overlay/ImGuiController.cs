@@ -25,10 +25,29 @@ namespace AtE {
 
 		public static void DrawCircle(Vector2 pos, float radius, Color color) => ImGuiController.DrawCircle(pos, radius, color);
 
-		public static void DrawFrame(Vector2 topLeft, Vector2 bottomRight, Color color) => ImGuiController.DrawFrame(topLeft, bottomRight, color);
+		public static void DrawFrame(Vector2 topLeft, Vector2 bottomRight, Color color, int thickness = 1) => ImGuiController.DrawFrame(topLeft, bottomRight, color, thickness);
+		public static void DrawFrame(RectangleF rect, Color color, int thickness = 1) => ImGuiController.DrawFrame(
+			new Vector2(rect.X, rect.Y),
+			new Vector2(rect.X + rect.Width, rect.Y + rect.Height),
+			color, thickness);
+
+		public static void DrawLine(Vector2 start, Vector2 end, Color color) => ImGuiController.DrawLine(start, end, color);
 
 		public static int ToRBGA(Color color) => (color.R << 24) | (color.B << 16) | (color.G << 8) | color.A;
 		public static int ToRGBA(Color color) => (color.R << 24) | (color.G << 16) | (color.B << 8) | color.A;
+
+
+		public static void DrawDebugGrid() {
+			var gridColor = Color.FromArgb(1, 55, 255, 255);
+			for(int x = 0; x < 1920; x += 100 ) {
+				DrawLine(new Vector2(x, 0), new Vector2(x, 1200), gridColor);
+				DrawText($"{x}", new Vector2(x+2, 1), gridColor);
+			}
+			for(int y = 0; y < 1200; y += 100 ) {
+				DrawLine(new Vector2(0, y), new Vector2(1920, y), gridColor);
+				DrawText($"{y}", new Vector2(2, y), gridColor);
+			}
+		}
 	}
 
 	internal static class ImGuiController {
@@ -123,9 +142,35 @@ namespace AtE {
 
 			RenderForm.MouseWheel += (sender, args) => IO.MouseWheel = args.Delta / 100f;
 
-			// not sure we need to set many of these up?
-			IO.KeyMap[(int)ImGuiKey.F12] = (int)Keys.F12;
-			IO.KeyMap[(int)ImGuiKey.Space] = (int)Keys.Space;
+			// Map Windows key codes into the ImGuiKey codes
+			IO.KeyMap[(int)ImGuiKey._1] = (int)Keys.D1;
+			IO.KeyMap[(int)ImGuiKey._2] = (int)Keys.D2;
+			IO.KeyMap[(int)ImGuiKey._3] = (int)Keys.D3;
+			IO.KeyMap[(int)ImGuiKey._4] = (int)Keys.D4;
+			IO.KeyMap[(int)ImGuiKey._5] = (int)Keys.D5;
+			IO.KeyMap[(int)ImGuiKey._6] = (int)Keys.D6;
+			IO.KeyMap[(int)ImGuiKey._7] = (int)Keys.D7;
+			IO.KeyMap[(int)ImGuiKey._8] = (int)Keys.D8;
+			IO.KeyMap[(int)ImGuiKey._9] = (int)Keys.D9;
+			IO.KeyMap[(int)ImGuiKey._0] = (int)Keys.D0;
+			IO.KeyMap[(int)ImGuiKey.Backspace] = (int)Keys.Back;
+			IO.KeyMap[(int)ImGuiKey.LeftArrow] = (int)Keys.Left;
+			IO.KeyMap[(int)ImGuiKey.RightArrow] = (int)Keys.Right;
+			IO.KeyMap[(int)ImGuiKey.UpArrow] = (int)Keys.Up;
+			IO.KeyMap[(int)ImGuiKey.DownArrow] = (int)Keys.Down;
+			IO.KeyMap[(int)ImGuiKey.LeftBracket] = (int)Keys.Oem6; // ?
+			IO.KeyMap[(int)ImGuiKey.LeftCtrl] = (int)Keys.LControlKey;
+			IO.KeyMap[(int)ImGuiKey.RightCtrl] = (int)Keys.RControlKey;
+			IO.KeyMap[(int)ImGuiKey.LeftAlt] = (int)Keys.LMenu;
+			IO.KeyMap[(int)ImGuiKey.RightAlt] = (int)Keys.RMenu;
+
+			// Find any of the key names that are the same and map them all, A, B, etc
+			HashSet<string> imGuiKeyNames = new HashSet<string>(Enum.GetNames(typeof(ImGuiKey)));
+			foreach( string keyName in Enum.GetNames(typeof(Keys)) ) {
+				if( imGuiKeyNames.Contains(keyName) ) {
+					IO.KeyMap[(int)Enum.Parse(typeof(ImGuiKey), keyName)] = (int)Enum.Parse(typeof(Keys), keyName);
+				}
+			}
 
 			RenderForm.KeyDown += (sender, args) => {
 				IO.KeyAlt = args.Alt;
@@ -345,13 +390,14 @@ namespace AtE {
 		public static void DrawFrame(Vector2 topLeft, Vector2 bottomRight, Color color, int thickness = 1) => textDrawListPtr.AddRect(topLeft, bottomRight, (uint)ToRBGA(color), 0f, ImDrawFlags.None, thickness);
 
 		public static void DrawCircle(Vector2 pos, float radius, Color color, int thickness = 1) => textDrawListPtr.AddCircle(pos, radius, (uint)ToRBGA(color), 0, thickness);
+		public static void DrawLine(Vector2 start, Vector2 end, Color color, int thickness = 1) => textDrawListPtr.AddLine(start, end, (uint)ToRBGA(color), thickness);
 
 		public static void Render(long dt) {
 
 			if ( IO.DisplaySize.X <= 0 || IO.DisplaySize.Y <= 0 ) {
 				return;
 			}
-		
+
 			// End the background text window created by NewFrame()
 			ImGui.End();
 
