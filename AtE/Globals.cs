@@ -2,45 +2,60 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace AtE {
 	public static partial class Globals {
 
-		public delegate void ActionDelegate();
-
-		private static StateMachine Machine = new StateMachine();
-
-		public static void Tick(long dt) {
-
-			// Clear the prior frame
-			D3DController.NewFrame();
-
-			// Start a new frame
-			ImGuiController.NewFrame(dt);
-
-			// Advance all the states, which may call ImGui.Foo() functions to render things
-			Machine.OnTick(dt);
-
-			// Render the ImGui layer to vertexes and Draw them to the GPU
-			ImGuiController.Render(dt);
-
-			// TODO: Render a Sprite layer?
-
-			// Finalize the rendering to the screen
-			D3DController.Render();
-
-		}
-
 		public static readonly Stopwatch Time = Stopwatch.StartNew();
 
-		public static void Run(State s) => Machine.Add(s);
-		public static void Run(Func<State, long, State> func) => Machine.Add(State.From(func));
-		public static void Run(string label, Func<State, long, State> func) => Machine.Add(State.From(label, func));
+		public delegate void ActionDelegate();
+
+		public static IEnumerable<T> Empty<T>() { yield break; }
+
+		public static IEnumerable<float> Range(float from, float to, float step = 1f) {
+			for (;from < to; from += step) {
+				yield return from;
+			}
+		}
+		public static IEnumerable<long> Range(long from, long to, long step = 1) {
+			for (;from < to; from += step) {
+				yield return from;
+			}
+		}
+
+		public static string Truncate(string tooLong, int maxLen) {
+			return tooLong.Length > maxLen ? tooLong.Substring(0, maxLen) : tooLong;
+		}
+
+		public static string Last(this string s, int n) => s.Substring(Math.Max(0, s.Length - n), Math.Min(s.Length, n));
+
+		public static int GetOffset<T>(string name) where T : struct =>
+			typeof(T).GetFields()
+				 .First(x => x.Name == name)
+				 .GetCustomAttribute<FieldOffsetAttribute>()
+				 .Value;
 
 		public static void Log(params string[] line) => Debug.WriteLine(string.Join(" ", line));
+
+		public static EventHandler<string> OnAreaChange;
+
+		public static void OnRelease(Keys key, Action act) {
+			bool downBefore = false;
+			Run($"KeyBind[{key}]", (self, dt) => {
+				if ( dt == 0 ) return self;
+				bool downNow = Input.IsKeyDown(key);
+				if ( downBefore && !downNow ) act();
+				downBefore = downNow;
+				return self;
+			});
+		}
+
 
 	}
 }
