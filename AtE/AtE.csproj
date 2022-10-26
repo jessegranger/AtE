@@ -105,7 +105,6 @@
     <Compile Include="Overlay\D3DController.cs" />
     <Compile Include="Globals.cs" />
     <Compile Include="Overlay\ImGuiController.cs" />
-    <Compile Include="Input.cs" />
     <Compile Include="Loader.cs" />
     <Compile Include="PoE\Components\Component.cs" />
     <Compile Include="PoE\Element.cs" />

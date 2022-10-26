@@ -106,7 +106,7 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
 			if( dt > 0 ) {
-				Input.Dispatch(Input.KeyDownMessage(Key));
+				SendInput(INPUT_KeyDown(Key));
 				return Next;
 			}
 			return this;
@@ -119,7 +119,7 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
 			if( dt > 0 ) {
-				Input.Dispatch(Input.KeyUpMessage(Key));
+				SendInput(INPUT_KeyUp(Key));
 				return Next;
 			}
 			return this;
@@ -164,7 +164,7 @@ namespace AtE {
 				Log($"Warn: MoveMouse to (0,0) attempted, skipped.");
 				return Next;
 			}
-			Input.Dispatch(Input.MouseMoveTo(new Vector2(X, Y)));
+			SendInput(INPUT_MouseMove(new Vector2(X, Y)));
 			return Next;
 		}
 	}
@@ -172,7 +172,7 @@ namespace AtE {
 		public LeftMouseDown(State next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			Input.Dispatch(Input.MouseMessage(MouseFlag.LeftDown));
+			SendInput(INPUT_Mouse(MouseFlag.LeftDown));
 			return Next;
 		}
 	}
@@ -181,7 +181,7 @@ namespace AtE {
 		public LeftMouseUp(State next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			Input.Dispatch(Input.MouseMessage(MouseFlag.LeftUp));
+			SendInput(INPUT_Mouse(MouseFlag.LeftUp));
 			return Next;
 		}
 	}
@@ -206,7 +206,7 @@ namespace AtE {
 		public RightMouseDown(State next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			Input.Dispatch(Input.MouseMessage(MouseFlag.RightDown));
+			SendInput(INPUT_Mouse(MouseFlag.RightDown));
 			return Next;
 		}
 	}
@@ -215,7 +215,7 @@ namespace AtE {
 		public RightMouseUp(State next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			Input.Dispatch(Input.MouseMessage(MouseFlag.RightUp));
+			SendInput(INPUT_Mouse(MouseFlag.RightUp));
 			return Next;
 		}
 	}

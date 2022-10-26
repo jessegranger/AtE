@@ -49,7 +49,7 @@ namespace AtE {
 			bool downBefore = false;
 			Run($"KeyBind[{key}]", (self, dt) => {
 				if ( dt == 0 ) return self;
-				bool downNow = Input.IsKeyDown(key);
+				bool downNow = Win32.IsKeyDown(key);
 				if ( downBefore && !downNow ) act();
 				downBefore = downNow;
 				return self;
