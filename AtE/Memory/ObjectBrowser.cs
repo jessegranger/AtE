@@ -55,6 +55,7 @@ namespace AtE {
 					}
 					itemCount++;
 				}
+				return;
 			}
 
 			if( type.GetInterface("IEnumerable") != null ) {
