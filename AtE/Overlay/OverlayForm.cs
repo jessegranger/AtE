@@ -10,7 +10,7 @@ using static AtE.Win32;
 
 namespace AtE {
 
-	class OverlayForm : RenderForm {
+	public class OverlayForm : RenderForm {
 		private readonly ContextMenu contextMenu1 = new ContextMenu();
 		private readonly NotifyIcon notifyIcon = new NotifyIcon();
 		public OverlayForm() {
@@ -40,12 +40,21 @@ namespace AtE {
 				if( value != trans ) {
 					trans = value;
 					if( trans ) {
-						Win32.SetTransparent(Handle);
+						SetTransparent();
 					} else {
-						Win32.SetNoTransparent(Handle);
+						SetNoTransparent();
 					}
 				}
 			}
+		}
+		public void SetTransparent() {
+			SetWindowLong(Handle, GWL_STYLE, new IntPtr(WS_VISIBLE));
+			SetWindowLong(Handle, GWL_EXSTYLE, new IntPtr(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST));
+		}
+
+		public void SetNoTransparent() {
+			SetWindowLong(Handle, GWL_STYLE, new IntPtr(WS_VISIBLE));
+			SetWindowLong(Handle, GWL_EXSTYLE, new IntPtr(WS_EX_LAYERED | WS_EX_TOPMOST));
 		}
 
 		public void ExtendFrameIntoClientArea(int top, int left, int right, int bottom) {
@@ -71,13 +80,13 @@ namespace AtE {
 			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(OverlayForm));
 			this.SuspendLayout();
 			// 
-			// AppForm
+			// OverlayForm
 			// 
 			this.BackColor = System.Drawing.Color.Gray;
 			this.ClientSize = new System.Drawing.Size(800, 600);
 			this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
 			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-			this.Name = "AppForm";
+			this.Name = "OverlayForm";
 			this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
 			this.Text = "Assistant to the Exile";
 			this.TopMost = true;
