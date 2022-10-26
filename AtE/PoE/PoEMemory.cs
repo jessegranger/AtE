@@ -310,9 +310,6 @@ namespace AtE {
 			}
 
 			GameRoot = new GameStateBase() { Address = gameStateBase };
-			// GameStateBaseAddr = new Address(0, gameStateBase);
-			// GameStateBase = Read<Offsets.GameStateBase>(GameStateBaseAddr);
-			// Run_ObjectBrowser("GameRoot", GameRoot);
 			Log($"PoEMemory: Game State Base is {GameRoot.Address}");
 			Debugger.RegisterOffset("GameRoot", GameRoot.Address);
 			Debugger.RegisterStructLabels<Offsets.GameStateBase>("GameRoot", GameRoot.Address);

@@ -9,9 +9,7 @@ namespace AtE {
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
 		/// </summary>
-		[StructLayout(LayoutKind.Explicit, Pack = 1)]
-		public struct Empty {
-		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Empty { }
 
 		public enum GameStateType : byte {
 			AreaLoadingState,
