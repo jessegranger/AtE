@@ -333,7 +333,7 @@ namespace AtE {
 			}
 
 			// InputUpdate:
-			IO.DeltaTime = dt;
+			IO.DeltaTime = dt / 1000f;
 			Win32.GetCursorPos(out Point mousePoint);
 			IO.MousePos = new Vector2(mousePoint.X, mousePoint.Y);
 
