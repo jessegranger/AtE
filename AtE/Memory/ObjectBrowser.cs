@@ -114,7 +114,7 @@ namespace AtE {
 
 			if ( type == typeof(IntPtr) ) {
 				ImGui.AlignTextToFramePadding();
-				ImGui.BulletText($"{label} ="); ImGui.SameLine();
+				ImGui.BulletText($"{label}"); ImGui.SameLine(0f, 2f);
 				ImGui_Address((IntPtr)value, "@");
 				return false;
 			}
