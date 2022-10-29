@@ -23,11 +23,18 @@ namespace AtE {
 		public static FloatRangeSetting FpsCap = new FloatRangeSetting("FPS Limit", 10, 60, 40);
 
 		public static ToggleSetting ShowDebugGrid = new ToggleSetting("Show Debug Grid", false);
+		public static ToggleSetting ShowDemoWindow = new ToggleSetting("Show Demo Window", false);
 
 		static CoreSettings() {
-			RunForever("ShowDebugGrid", () => {
+			RunForever("Debug Grid", () => {
 				if ( ShowDebugGrid ) {
 					DrawDebugGrid();
+				}
+			});
+
+			RunForever("Demo Window", () => {
+				if ( ShowDemoWindow ) {
+					ImGui.ShowDemoWindow();
 				}
 			});
 		}

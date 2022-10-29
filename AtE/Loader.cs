@@ -17,13 +17,12 @@ namespace AtE {
 			// Set up the transparent overly (with ImGui to draw on top of it)
 			Overlay.Initialise();
 
-			// Enable the Setting window
-			OnRelease(Keys.F12, Settings.Toggle);
-			RunForever("Settings Window", Settings.Render);
-
-			RunForever("Demo Window", ImGui.ShowDemoWindow);
-
+			// Set up the memory hooks
 			RunForever("PoEMemory", PoEMemory.OnTick);
+
+			// Enable the Setting window
+			RunForever("Settings Window", Settings.Render);
+			OnRelease(Keys.F12, Settings.Toggle);
 
 			// Render until we drop
 			Overlay.RenderLoop();
