@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -26,7 +27,6 @@ namespace AtE {
 				Log("RenderForm: OnLoad...");
 				// Set full transparency, where an undrawable (by windows) margin fills the whole form
 				RenderForm.ExtendFrameIntoClientArea(-1, -1, -1, -1);
-				// Sets a combination of Windows window-styles that cause the OverlayForm to not list in the status bar
 				RenderForm.IsTransparent = true;
 				var screen = Screen.FromHandle(RenderForm.Handle);
 				RenderForm.Size = new Size(screen.Bounds.Width, screen.Bounds.Height);
@@ -38,6 +38,8 @@ namespace AtE {
 
 			D3DController.CreateRenderStates(RenderForm.Width, RenderForm.Height);
 
+			// Sets the initial window styles, with RenderForm on top at first.
+			// Later, OnLoad will toggle this, and put RenderForm "behind" the DirectX render surface.
 			RenderForm.IsTransparent = false;
 
 			Log("Binding resize event...");
@@ -51,6 +53,17 @@ namespace AtE {
 
 			StateMachine.DefaultMachine.EnableLogging((s) => Log(s));
 
+		}
+
+		public static int Height => RenderForm.Height;
+		public static int Width => RenderForm.Width;
+		public static int Top => RenderForm.Top;
+		public static int Left => RenderForm.Left;
+		public static void Resize(long left, long top, long right, long bottom) {
+			long width = right - left;
+			long height = bottom - top;
+			RenderForm.Size = new Size((int)width, (int)height);
+			RenderForm.Location = new Point((int)left, (int)top);
 		}
 
 		public static double FPS { get; private set; }
