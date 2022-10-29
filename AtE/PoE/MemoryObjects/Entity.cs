@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using static AtE.Globals;
 
@@ -12,29 +14,44 @@ namespace AtE {
 			// && ent.ServerId > 0 && ent.ServerId < int.MaxValue
 			&& (ent.Path?.StartsWith("Metadata") ?? false);
 
-		public static Entity GetEntityById(ushort id) =>
-			PoEMemory.GameRoot?.InGameState.Entities.FirstOrDefault(e => e.Id == id);
+		public static Entity GetEntityById(ushort id) => PoEMemory.GameRoot?.InGameState.GetEntityById(id);
+
+		/// <summary>
+		/// Helper to get the Player from the GameRoot.
+		/// </summary>
+		/// <returns>The current Player Entity.</returns>
+		public static PlayerEntity GetPlayer() => PoEMemory.GameRoot?.InGameState?.Player;
+
+		/// <summary>
+		/// Helper to get the full Entity list from the InGameState (safely cached) from anywhere.
+		/// The result is only considered valid for this frame.
+		/// </summary>
+		/// <returns>An enumerable over the current entity list.</returns>
+		public static IEnumerable<Entity> GetEntities() => PoEMemory.GameRoot?.InGameState?.Entities;
+
+		public static void DrawTextAt(Entity ent, string text, Color color) {
+			var camera = PoEMemory.GameRoot?.InGameState?.WorldData?.Camera ?? default;
+			var pos = ent.GetComponent<Render>().Position;
+			DrawTextAt(ent.Id, camera.WorldToScreen(pos), text, color);
+		}
 
 	}
-	public class Entity : MemoryObject {
-		public Cached<Offsets.Entity> Cache;
+	public class Entity : MemoryObject<Offsets.Entity> {
 		public Cached<Offsets.EntityDetails> Details;
-		public Entity() {
-			Cache = CachedStruct<Offsets.Entity>(this);
-			Details = CachedStruct<Offsets.EntityDetails>(() => Cache.Value.ptrDetails);
-		}
+		public Entity() : base() =>
+			Details = CachedStruct<Offsets.EntityDetails>(() => Cache.ptrDetails);
 
 		/// <summary>
 		///  The remote id used by the PoE server to sync the ent.
 		///  Client-only effects do have Entity structure, but dont have Id.
 		/// </summary>
-		public uint Id => Cache.Value.Id;
+		public uint Id => Cache.Id;
 
 		public string Path => PoEMemory.TryReadString(Details.Value.ptrPath, Encoding.Unicode, out string ret) ? ret : null;
 
 		public bool HasComponent<T>() where T : MemoryObject, new() {
 			if ( Components == null ) Components = GetComponents();
-			return Components?.TryGetValue(typeof(T).Name, out var _) ?? false;
+			return Components?.ContainsKey(typeof(T).Name) ?? false;
 		}
 
 		public T GetComponent<T>() where T : MemoryObject, new() {
@@ -46,9 +63,6 @@ namespace AtE {
 			return null;
 		}
 
-		public Life Life => GetComponent<Life>();
-		public Actor Actor => GetComponent<Actor>();
-
 		private Dictionary<string, IntPtr> Components;
 
 		public Dictionary<string, IntPtr> GetComponents() {
@@ -57,7 +71,7 @@ namespace AtE {
 			var result = new Dictionary<string, IntPtr>();
 			// the entity has a list of ptr to Component
 			// managed by an ArrayHandle at ComponentsArray
-			var entityComponents = Cache.Value.ComponentsArray.GetItems<IntPtr>().ToArray();
+			var entityComponents = new ArrayHandle<IntPtr>(Cache.ComponentsArray).ToArray();
 			if( ! PoEMemory.TryRead(Details.Value.ptrComponentLookup, out Offsets.ComponentLookup lookup) ) {
 				return result;
 			}
@@ -156,32 +170,29 @@ namespace AtE {
 		}
 	}
 
-	/* see InGameState.GetEntities(), which re-implements this using the structs directly, and adds Entity caching
-	public class EntityList : MemoryObject, IEnumerable<Entity> {
-		public Cached<Offsets.EntityList> Cache;
-		public EntityList() => Cache = CachedStruct<Offsets.EntityList>(this);
-		IEnumerator IEnumerable.GetEnumerator() => null;
-		public IEnumerator<Entity> GetEnumerator() {
-			IntPtr cursor = Cache.Value.Head;
-			int count = 0;
-			while( PoEMemory.TryRead(cursor, out Offsets.EntityListNode node) ) {
-				yield return new Entity() { Address = node.Entity };
-				count += 1;
-				cursor = node.Third;
-				if ( cursor == IntPtr.Zero || cursor == Cache.Value.Head || count > 2 ) yield break;
-			}
-		}
+	/// <summary>
+	/// This is a helper class that adds a few features to an Entity that is also the LocalPlayer.
+	/// Players are just normal Entities (with a Player component).
+	/// </summary>
+	public class PlayerEntity : Entity {
+		/// <summary>
+		/// Where to find data about HP, Mana, ES, etc.
+		/// </summary>
+		public Life Life => GetComponent<Life>();
+
+		/// <summary>
+		/// Where to find data about your Skills, and the DeployedObjects they create.
+		/// </summary>
+		public Actor Actor => GetComponent<Actor>();
+
+		public Stats Stats => GetComponent<Stats>();
+
+		public Buffs Buffs => GetComponent<Buffs>();
+
+		private Render render;
+		public Vector3 Position => (IsValid(render) ? render : render = GetComponent<Render>())?.Position ?? Vector3.Zero; 
+		public Vector3 Bounds => (IsValid(render) ? render : render = GetComponent<Render>())?.Bounds ?? Vector3.Zero; 
 	}
-	public class EntityListNode : MemoryObject {
-		public Cached<Offsets.EntityListNode> Cache;
-		public EntityListNode() => Cache = CachedStruct<Offsets.EntityListNode>(this);
-		public EntityListNode(Offsets.EntityListNode node) =>
-			Cache = new Cached<Offsets.EntityListNode>(() => node);
-		public Entity Entity => new Entity() { Address = Cache.Value.Entity };
-		public EntityListNode First => new EntityListNode() { Address = Cache.Value.First };
-		public EntityListNode Second => new EntityListNode() { Address = Cache.Value.Second };
-		public EntityListNode Third => new EntityListNode() { Address = Cache.Value.Third };
-	}
-	*/
+
 
 }
