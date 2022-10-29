@@ -20,25 +20,18 @@ namespace AtE {
 
 	}
 
-
 	/// <summary>
-	/// These are array control structures used throughout PoE.
+	/// The managed side of an Offsets.ArrayHandle native array.
 	/// </summary>
-	public struct ArrayHandle {
-		public IntPtr Head;
-		public IntPtr Tail;
-		public IEnumerable<T> GetItems<T>() where T : unmanaged {
-			IntPtr cursor = Head;
-			int size = Marshal.SizeOf(typeof(T));
-			if ( !IsValid(cursor) || size == 0 ) yield break;
-			IntPtr tail = Tail;
-			while ( cursor.ToInt64() < tail.ToInt64() ) {
-				if ( PoEMemory.TryRead(cursor, out T result) ) {
-					yield return result;
-				}
-				cursor += size;
-			}
-		}
+	/// <typeparam name="T">A struct for the layout of each record in the array.</typeparam>
+	public class ArrayHandle<T> : IEnumerable<T> where T : unmanaged {
+		public Offsets.ArrayHandle Handle;
+		public ArrayHandle(Offsets.ArrayHandle handle) => Handle = handle;
+
+		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+		public IEnumerator<T> GetEnumerator() => Handle.GetRecordPtrs(Marshal.SizeOf(typeof(T)))
+			.Select(ptr => PoEMemory.TryRead(ptr, out T result) ? result : default)
+			.GetEnumerator();
 	}
 
 	public static class PoEMemory {
@@ -105,9 +98,11 @@ namespace AtE {
 			if( end != -1 ) {
 				result = result.Substring(0, end);
 			}
+			result = result.TrimStart('?');
 			return !string.IsNullOrEmpty(result);
 		}
 
+		/*
 		/// <summary>
 		/// Read one value immediately, and throw on fail.
 		/// </summary>
@@ -120,10 +115,11 @@ namespace AtE {
 			}
 			throw new ArgumentException($"TryRead failed from address {loc}");
 		}
+		*/
 
-		private static bool TryOpenWindow(out Process result) {
+		private static bool TryOpenWindow(out Process result, out IntPtr hWnd) {
 			result = null;
-			IntPtr hWnd = Win32.FindWindow(WindowClass, WindowTitle);
+			hWnd = Win32.FindWindow(WindowClass, WindowTitle);
 			Win32.GetWindowThreadProcessId(hWnd, out uint pid);
 			if ( pid > 0 ) {
 				var process = Process.GetProcessById((int)pid);
@@ -204,10 +200,13 @@ namespace AtE {
 			&& GameRoot.Address != IntPtr.Zero;
 
 		private static long nextAttach = Time.ElapsedMilliseconds;
+		private static long nextCheckResize = Time.ElapsedMilliseconds + 3000;
 
 		public static void OnTick(long dt) {
+			// if( Time.ElapsedMilliseconds > nextCheckResize ) {
+			// }
+			ImGui.Begin("PoEMemory");
 			try {
-				ImGui.Begin("PoEMemory");
 				ImGui.AlignTextToFramePadding();
 				ImGui.Text($"Target: {IsValid(Target)}");
 				if ( IsValid(Target) ) {
@@ -224,10 +223,20 @@ namespace AtE {
 					}
 					
 					ImGui.AlignTextToFramePadding();
-					ImGui.Text($"Process Base: 0x{Target.MainModule.BaseAddress.ToInt64():X}");
+					ImGui.Text($"Process Base: {Globals.ToString(Target.MainModule.BaseAddress)}");
 					if( GameRoot == null ) {
 						ImGui.Text("GameRoot = null");
 						return;
+					}
+
+					if( Win32.GetWindowRect(Target.MainWindowHandle, out var rect) ) {
+						ImGui.Text($"Window: {rect.Top} {rect.Left} {rect.Width}x{rect.Height}");
+						if ( nextCheckResize < Time.ElapsedMilliseconds && (rect.Width != Overlay.Width || rect.Height != Overlay.Height) ) {
+							Log($"Need to resize overlay: {Target.MainWindowHandle} to {rect.Top} {rect.Left} {rect.Right} {rect.Bottom}");
+							Overlay.Resize(rect.Left, rect.Top, rect.Right, rect.Bottom);
+							nextCheckResize = Time.ElapsedMilliseconds + 300;
+						}
+					} else {
 					}
 
 					ImGui_Address(GameRoot.Address, "GameRoot Base:");
@@ -238,8 +247,8 @@ namespace AtE {
 
 				} else {
 					if ( Time.ElapsedMilliseconds > nextAttach ) {
-						if ( TryOpenWindow(out Target) ) {
-							TryAttach(Target);
+						if ( TryOpenWindow(out Target, out IntPtr hWnd) ) {
+							TryAttach(Target, hWnd);
 						}
 						nextAttach = Time.ElapsedMilliseconds + 5000;
 					} else {
@@ -270,7 +279,7 @@ namespace AtE {
 			}
 		}
 
-		public static void TryAttach(Process target) {
+		public static void TryAttach(Process target, IntPtr hWnd) {
 			if ( !IsValid(target) ) {
 				Log($"TryAttach: Invalid target.");
 				return;
