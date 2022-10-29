@@ -1,11 +1,27 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace AtE {
 
 
-	public static class Offsets {
+	public static partial class Offsets {
+
+		/// <summary>
+		/// The current version of this file.
+		/// </summary>
+		public const int VersionMajor = 1;
+		public const int VersionMinor = 0;
+		// Later, I think this file will get fetched directly from GitHub raw,
+		// and compiled, like a Plugin.
+
+		/// <summary>
+		/// The most recent version of PoE where at least some of this was tested.
+		/// </summary>
+		public const string PoEVersion = "3.19d";
+
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
 		/// </summary>
@@ -15,6 +31,59 @@ namespace AtE {
 			[FieldOffset(0x0)] public readonly int X;
 			[FieldOffset(0x4)] public readonly int Y;
 		}
+
+		// the PoE engine sometimes stores a string in this format that is either
+		// inline (if the string is short) or a pointer once capacity grows past 7
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct StringHandle {
+			[FieldOffset(0x00)] private readonly IntPtr strFullText; // when the capacity is > 7, this is a ptr to the full text
+			[FieldOffset(0x00)] private readonly byte byte0; // Unfortunately, C# cannot store byte[15] in a fixed struct :(
+			[FieldOffset(0x01)] private readonly byte byte1;
+			[FieldOffset(0x02)] private readonly byte byte2;
+			[FieldOffset(0x03)] private readonly byte byte3;
+			[FieldOffset(0x04)] private readonly byte byte4;
+			[FieldOffset(0x05)] private readonly byte byte5;
+			[FieldOffset(0x06)] private readonly byte byte6;
+			[FieldOffset(0x07)] private readonly byte byte7;
+			[FieldOffset(0x08)] private readonly byte byte8;
+			[FieldOffset(0x09)] private readonly byte byte9;
+			[FieldOffset(0x0a)] private readonly byte byte10;
+			[FieldOffset(0x0b)] private readonly byte byte11;
+			[FieldOffset(0x0c)] private readonly byte byte12;
+			[FieldOffset(0x0d)] private readonly byte byte13;
+			[FieldOffset(0x0e)] private readonly byte byte14; // never read as byte
+			[FieldOffset(0x0f)] private readonly byte byte15; // never read as byte
+			[FieldOffset(0x10)] public readonly long Length; // the current Length
+			[FieldOffset(0x18)] public readonly long Capacity; // the current Capacity
+			private byte[] bytes(params byte[] b) => b;
+
+			public string Value => Length <= Capacity && Capacity < 8
+				? Encoding.Unicode.GetString(bytes(
+					byte0, byte1, byte2, byte3,
+					byte4, byte5, byte6, byte7,
+					byte8, byte9, byte10, byte11,
+					byte12, byte13), 0, (int)(Length * 2))
+				: PoEMemory.TryReadString(strFullText, Encoding.Unicode, out string value) ? value : null;
+			// this is not ideal, this ref to PoEMemory is the only thing keeping
+			// this file from being directly portable to another project
+		}
+
+		/// <summary>
+		/// These are array control structures used throughout PoE.
+		/// </summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ArrayHandle {
+			[FieldOffset(0x00)] public IntPtr Head;
+			[FieldOffset(0x08)] public IntPtr Tail;
+			public IEnumerable<IntPtr> GetRecordPtrs(int recordSize) {
+				if ( Head == IntPtr.Zero ) yield break;
+				long head = Head.ToInt64();
+				long tail = Tail.ToInt64();
+				while(head < tail) {
+					yield return new IntPtr(head);
+					head += recordSize;
+				}
+			}
+		}
+	
 
 		public enum GameStateType : byte {
 			AreaLoadingState,
@@ -78,6 +147,7 @@ namespace AtE {
 			[FieldOffset(0x078)] public readonly IntPtr ptrWorldData;
 			[FieldOffset(0x098)] public readonly IntPtr ptrEntityLabelMap;
 			[FieldOffset(0x1A0)] public readonly IntPtr elemRoot;
+			[FieldOffset(0x1B0)] public readonly IntPtr elemInputFocus; // which element has input focus or null
 			[FieldOffset(0x1D8)] public readonly IntPtr elemHover; // element which is currently hovered
 			[FieldOffset(0x210)] public readonly int MousePosX;
 			[FieldOffset(0x214)] public readonly int MousePosY;
@@ -133,6 +203,19 @@ namespace AtE {
 			[FieldOffset(0x1C0)] public readonly uint HighlightBorderColor;
 			[FieldOffset(0x1C3)] public readonly bool isHighlighted;
 
+			[FieldOffset(0x478)] public readonly StringHandle strText;
+
+			[FieldOffset(0x5E0)] public readonly StringHandle strInputText;
+			[FieldOffset(0x608)] public readonly StringHandle strLongText;
+			[FieldOffset(0x628)] public readonly int inputMask1;
+			// these are masks like: 1011 1010 1010 1010 0011 1111
+			// inputMask1: changes with every change to strInput
+			[FieldOffset(0x62c)] public readonly int inputMask2;
+			// inputMask2 is always:
+			// AB AA AA 3F (1068149419) when field is empty
+			// 55 55 05 42 (1107645781) when strInput can be used
+			public const int inputMask2_HasInput = 1107645781;
+
 			// incorrect [FieldOffset(0x3D0)] public readonly long Tooltip;
 		}
 
@@ -146,6 +229,7 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Camera {
+			[FieldOffset(0x8)] public readonly Vector2i Size;
 			[FieldOffset(0x8)] public readonly int Width;
 			[FieldOffset(0xC)] public readonly int Height;
 			[FieldOffset(0x1C4)] public readonly float ZFar;
@@ -156,6 +240,17 @@ namespace AtE {
 																														// the last 3 floats in the matrix are the camera position
 																														// 0x80 + (128 - 12) = 0xF4
 			[FieldOffset(0xF4)] public readonly Vector3 Position; // the last 3 floats of the matrix are the X,Y,Z
+
+			public unsafe Vector2 WorldToScreen(Vector3 pos) {
+				Vector2 result; // put a struct on the stack
+				Vector4 coord = *(Vector4*)&pos;
+				coord.W = 1;
+				coord = Vector4.Transform(coord, Matrix);
+				coord = Vector4.Divide(coord, coord.W);
+				result.X = (coord.X + 1.0f) * (Width / 2f);
+				result.Y = (1.0f - coord.Y) * (Height / 2f);
+				return result;
+			}
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InGameState_Data {
 			[FieldOffset(0x0A8)] public readonly byte CurrentAreaLevel;
@@ -164,7 +259,7 @@ namespace AtE {
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
 			[FieldOffset(0x778)] public readonly IntPtr ServerData;
 			[FieldOffset(0x780)] public readonly IntPtr entPlayer; // ptr Entity
-			[FieldOffset(0x830)] public readonly IntPtr EntityList; // ptr EntityListNode
+			[FieldOffset(0x830)] public readonly IntPtr EntityListHead; // ptr EntityListNode
 			[FieldOffset(0x838)] public readonly long EntitiesCount;
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 		}
@@ -172,6 +267,12 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InGameState_UIElements {
 			[FieldOffset(0x250)] public readonly IntPtr GetQuests;
 			[FieldOffset(0x288)] public readonly IntPtr GameUI;
+			[FieldOffset(0x2a0)] public readonly IntPtr LifeBubble;
+			[FieldOffset(0x2a8)] public readonly IntPtr ManaBubble;
+			[FieldOffset(0x2c8)] public readonly IntPtr Flasks;
+			[FieldOffset(0x2d0)] public readonly IntPtr ExperienceBar;
+			[FieldOffset(0x2e8)] public readonly IntPtr OpenMenuPopoutButton ;
+			[FieldOffset(0x300)] public readonly IntPtr CurrentTime;
 			[FieldOffset(0x3D8)] public readonly IntPtr Mouse;
 			[FieldOffset(0x3E0)] public readonly IntPtr SkillBar;
 			[FieldOffset(0x3E8)] public readonly IntPtr HiddenSkillBar;
@@ -396,10 +497,6 @@ namespace AtE {
 			[FieldOffset(0x04)] public readonly int Value;
 		}
 
-		public enum GameStat : int {
-
-		}
-
 		// each skill gem has an array of these
 		// at any time the GemEffectPtr points to one struct in the array
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GemEffects {
@@ -508,7 +605,7 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Animated {
 			[FieldOffset(0x008)] public readonly IntPtr entOwner;
-			[FieldOffset(0x1C8)] public readonly IntPtr ptrToAnimatedEntityPtr;
+			[FieldOffset(0x1E8)] public readonly IntPtr ptrToAnimatedEntity;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_AreaTransition {
@@ -614,7 +711,7 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Buffs {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x158)] public readonly ArrayHandle Buffs; // of IntPtr to 
+			[FieldOffset(0x158)] public readonly ArrayHandle Buffs; // of IntPtr to Buff
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Charges {
@@ -968,6 +1065,121 @@ namespace AtE {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			[FieldOffset(0x28)] public readonly IntPtr entItem;
 		}
+
+
+		/// If a string is shorter than 8 chars (16 bytes of unicode),
+		/// it's cheaper to store the unicode bytes directly where the
+		/// pointer would be, instead.
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct UnicodeHandle {
+			[FieldOffset(0x00)] public readonly IntPtr strText;
+			[FieldOffset(0x00)] public readonly long Length;
+			[FieldOffset(0x08)] public readonly long Capacity;
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_EntityLabel {
+			// need to inspect this to figure out what's really going on,
+			// current UnicodeHandle struct is not right and original code is confusing
+			[FieldOffset(0x388)] public readonly UnicodeHandle textHandle;
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_ItemsOnGroundLabelRoot {
+			[FieldOffset(0x280)] public readonly ItemsOnGroundLabelEntry hoverLabel; // ptr to EntityLabel : Element
+			[FieldOffset(0x2A8)] public readonly IntPtr labelsOnGroundHead;
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemsOnGroundLabelEntry {
+			[FieldOffset(0x00)] public readonly IntPtr nextEntry;
+			[FieldOffset(0x08)] public readonly IntPtr prevEntry;
+			[FieldOffset(0x10)] public readonly IntPtr elemLabel;
+			[FieldOffset(0x18)] public readonly IntPtr entItem;
+			// this is valid but disabled for now since it makes the struct size so much bigger for little value
+			// [FieldOffset(0x398)] public readonly IntPtr Details; // ptr to ItemsOnGroundLabelEntryDetails
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemsOnGroundLabelEntryDetails {
+			[FieldOffset(0x38)] public readonly int FutureTime; // a time, in ms, in the future, measured relative to Environment.TickCount
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_InventoryRoot {
+			[FieldOffset(0x370)] public readonly InventoryArray InventoryList;
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InventoryArray {
+			[FieldOffset(0x00)] public readonly IntPtr None;
+			[FieldOffset(0x08)] public readonly IntPtr Helm; // ptr to Element_Inventory
+			[FieldOffset(0x10)] public readonly IntPtr Amulet;
+			[FieldOffset(0x18)] public readonly IntPtr Chest;
+			[FieldOffset(0x20)] public readonly IntPtr LWeapon;
+			[FieldOffset(0x28)] public readonly IntPtr RWeapon;
+			[FieldOffset(0x30)] public readonly IntPtr LWeaponSwap;
+			[FieldOffset(0x38)] public readonly IntPtr RWeaponSwap;
+			[FieldOffset(0x40)] public readonly IntPtr LRing;
+			[FieldOffset(0x48)] public readonly IntPtr RRing;
+			[FieldOffset(0x50)] public readonly IntPtr Gloves;
+			[FieldOffset(0x58)] public readonly IntPtr Belt;
+			[FieldOffset(0x60)] public readonly IntPtr Boots;
+			[FieldOffset(0x68)] public readonly IntPtr Backpack;
+			[FieldOffset(0x70)] public readonly IntPtr Flask;
+			[FieldOffset(0x78)] public readonly IntPtr Trinket;
+			[FieldOffset(0x80)] public readonly IntPtr LWeaponSkin;
+			[FieldOffset(0x88)] public readonly IntPtr LWeaponEffect;
+			[FieldOffset(0x90)] public readonly IntPtr LWeaponAddedEffect;
+			[FieldOffset(0x98)] public readonly IntPtr RWeaponSkin;
+			[FieldOffset(0xa0)] public readonly IntPtr RWeaponEffect;
+			[FieldOffset(0xa8)] public readonly IntPtr RWeaponAddedEffect;
+			[FieldOffset(0xb0)] public readonly IntPtr HelmSkin;
+			[FieldOffset(0xb8)] public readonly IntPtr HelmAttachment1;
+			[FieldOffset(0xc0)] public readonly IntPtr BodySkin;
+			[FieldOffset(0xc8)] public readonly IntPtr BodyAttachment;
+			[FieldOffset(0xd0)] public readonly IntPtr GlovesSkin;
+			[FieldOffset(0xd8)] public readonly IntPtr BootsSkin;
+			[FieldOffset(0xe0)] public readonly IntPtr Footprints;
+			[FieldOffset(0xe8)] public readonly IntPtr Apparition;
+			[FieldOffset(0xf0)] public readonly IntPtr CharacterEffect;
+			[FieldOffset(0xf8)] public readonly IntPtr Portrait;
+			[FieldOffset(0x100)] public readonly IntPtr PortraitFrame;
+			[FieldOffset(0x108)] public readonly IntPtr Pet1;
+			[FieldOffset(0x110)] public readonly IntPtr Pet2;
+			[FieldOffset(0x118)] public readonly IntPtr Portal;
+			[FieldOffset(0x120)] public readonly IntPtr HelmAttachment2;
+			[FieldOffset(0x128)] public readonly IntPtr Unknown37;
+			[FieldOffset(0x130)] public readonly IntPtr Cursor;
+			[FieldOffset(0x138)] public readonly IntPtr Unknown39;
+			[FieldOffset(0x140)] public readonly IntPtr Unknown40;
+			[FieldOffset(0x148)] public readonly IntPtr Unknown41;
+			[FieldOffset(0x150)] public readonly IntPtr Unknown42;
+			[FieldOffset(0x158)] public readonly IntPtr Unknown43;
+			[FieldOffset(0x160)] public readonly IntPtr Unknown44;
+			[FieldOffset(0x168)] public readonly IntPtr Unknown45;
+			[FieldOffset(0x170)] public readonly IntPtr GemMTXScrollPanel;
+			[FieldOffset(0x178)] public readonly IntPtr InventoryTabPanel;
+			[FieldOffset(0x180)] public readonly IntPtr CosmeticTabPanel;
+			[FieldOffset(0x188)] public readonly IntPtr GemMTX;
+			[FieldOffset(0x190)] public readonly IntPtr FullInventoryPanel;
+			[FieldOffset(0x198)] public readonly IntPtr FullCosmeticPanel;
+			[FieldOffset(0x1a0)] public readonly IntPtr LeveledGems;
+			[FieldOffset(0x1a8)] public readonly IntPtr LWeaponSwapTabPanel;
+			[FieldOffset(0x1b0)] public readonly IntPtr RWeaponSwapTabPanel;
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_Inventory {
+			[FieldOffset(0x260)] public readonly int MoveItemHoverState;
+			[FieldOffset(0x268)] public readonly IntPtr HoverItem; // to InventoryItem Element
+			// [FieldOffset(0x270)] public readonly Vector2i HoveredGridPosition;
+			[FieldOffset(0x270)] public readonly int XFake;
+			[FieldOffset(0x274)] public readonly int YFake;
+			// [FieldOffset(0x278)] public readonly Vector2i HoveredSlotPosition;
+			[FieldOffset(0x278)] public readonly int XReal;
+			[FieldOffset(0x27C)] public readonly int YReal;
+			[FieldOffset(0x288)] public readonly short CursorInInventory;
+			[FieldOffset(0x3E8)] public readonly long ItemCount;
+			[FieldOffset(0x46C)] public readonly Vector2i Size;
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_InventoryItem {
+			[FieldOffset(0x3F8)] public readonly IntPtr incorrectTooltip;
+			[FieldOffset(0x440)] public readonly IntPtr entItem;
+			[FieldOffset(0x448)] public readonly Vector2i InventPosition;
+			[FieldOffset(0x450)] public readonly int Width;
+			[FieldOffset(0x454)] public readonly int Height;
+		}
+
 	}
 
 }
