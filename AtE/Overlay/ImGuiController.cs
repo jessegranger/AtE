@@ -21,7 +21,11 @@ using MapFlags = SharpDX.Direct3D11.MapFlags;
 namespace AtE {
 	public static partial class Globals {
 
-		public static void DrawText(string text, Vector2 pos, Color color) => ImGuiController.DrawText(text, pos, color);
+		public static void DrawBottomLeftText(string text, Color color, float lineHeight = 14f) =>
+			DrawTextAt(0, new Vector2(4, Overlay.Height - 10 - lineHeight), text, color, -lineHeight);
+
+		public static void DrawTextAt(uint id, Vector2 pos, string text, Color color, float lineHeight = 14f) => ImGuiController.DrawTextAt(id, pos, text, color, lineHeight);
+		public static void DrawTextAt(Vector2 pos, string text, Color color) => ImGuiController.DrawText(text, pos, color);
 
 		public static void DrawCircle(Vector2 pos, float radius, Color color) => ImGuiController.DrawCircle(pos, radius, color);
 
@@ -41,11 +45,11 @@ namespace AtE {
 			var gridColor = Color.FromArgb(1, 55, 255, 255);
 			for(int x = 0; x < 1920; x += 100 ) {
 				DrawLine(new Vector2(x, 0), new Vector2(x, 1200), gridColor);
-				DrawText($"{x}", new Vector2(x+2, 1), gridColor);
+				DrawTextAt(new Vector2(x+2, 1), $"{x}", gridColor);
 			}
 			for(int y = 0; y < 1200; y += 100 ) {
 				DrawLine(new Vector2(0, y), new Vector2(1920, y), gridColor);
-				DrawText($"{y}", new Vector2(2, y), gridColor);
+				DrawTextAt(new Vector2(2, y), $"{y}", gridColor);
 			}
 		}
 	}
@@ -335,6 +339,7 @@ namespace AtE {
 			// InputUpdate:
 			IO.DeltaTime = dt / 1000f;
 			Win32.GetCursorPos(out Point mousePoint);
+			Win32.ScreenToClient(RenderForm.Handle, ref mousePoint);
 			IO.MousePos = new Vector2(mousePoint.X, mousePoint.Y);
 
 			// When the mouse interacts with an ImGui element, ImGui will set WantCaptureMouse = true
@@ -346,8 +351,10 @@ namespace AtE {
 				RenderForm.IsTransparent = true;
 			}
 
+
 			ImGui.NewFrame();
 
+			/*
 			ImGui.SetNextWindowContentSize(IO.DisplaySize);
 			ImGui.SetNextWindowPos(Vector2.Zero);
 			ImGui.Begin("Background Layer",
@@ -363,10 +370,13 @@ namespace AtE {
 					ImGuiWindowFlags.NoBringToFrontOnFocus |
 					ImGuiWindowFlags.NoBackground);
 			// backgroundDrawListPtr = ImGui.GetWindowDrawList();
+			// used to draw sprites?
 			ImGui.End();
+			*/
 
 			ImGui.SetNextWindowContentSize(IO.DisplaySize);
 			ImGui.SetNextWindowPos(Vector2.Zero);
+			ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(0, 0f));
 			ImGui.Begin("Text Layer",
 					ImGuiWindowFlags.NoTitleBar |
 					ImGuiWindowFlags.NoResize |
@@ -377,13 +387,34 @@ namespace AtE {
 					ImGuiWindowFlags.NoSavedSettings |
 					ImGuiWindowFlags.NoInputs |
 					ImGuiWindowFlags.NoFocusOnAppearing |
-					ImGuiWindowFlags.NoBackground);
+					ImGuiWindowFlags.NoBackground |
+					ImGuiWindowFlags.NoDecoration
+
+			);
+			ImGui.PopStyleVar(1);
 			textDrawListPtr = ImGui.GetWindowDrawList();
+			drawTextAtOffsets.Clear();
 		}
 
 		private static ImDrawListPtr textDrawListPtr;
 		// private static ImDrawListPtr backgroundDrawListPtr;
 
+		/// <summary>
+		/// Adds a line of text to a group of other text lines already on the screen.
+		/// Multiple calls with the same id will increment pos more each time.
+		/// </summary>
+		/// <param name="id">a text group id</param>
+		/// <param name="pos">the origin of the group</param>
+		/// <param name="text">the text of the line to add to the group</param>
+		/// <param name="color"></param>
+		public static void DrawTextAt(uint id, Vector2 pos, string text, Color color, float lineHeight = 14f) {
+			drawTextAtOffsets.TryGetValue(id, out float offset);
+			// ImGui.Text($"Debug: DrawTextAt {id} {pos} adjusted by {offset}: \"{text}\"");
+			pos.Y += offset;
+			DrawText(text, pos, color);
+			drawTextAtOffsets[id] = offset + lineHeight;
+		}
+		private static Dictionary<uint, float> drawTextAtOffsets = new Dictionary<uint, float>();
 
 		public static void DrawText(string text, Vector2 pos, Color color) => textDrawListPtr.AddText(pos, (uint)ToRBGA(color), text);
 
