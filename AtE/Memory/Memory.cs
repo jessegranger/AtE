@@ -12,6 +12,7 @@ using ImGuiNET;
 namespace AtE {
 
 	public static partial class Globals {
+
 		public static bool IsValid(IntPtr p) => p != IntPtr.Zero;
 
 		public static string ToString(IntPtr ptr) => $"(0x{ptr.ToInt64():X})";
@@ -75,15 +76,13 @@ namespace AtE {
 			get {
 				if ( lastFrame < Overlay.FrameCount ) {
 					lastFrame = Overlay.FrameCount;
-					val = Producer();
+					val = Producer != null ? Producer() : default;
 				}
 				return val;
 			}
 		}
 		public void Flush() => lastFrame = -1;
-		public Cached(Func<T> producer) {
-			Producer = producer;
-		}
+		public Cached(Func<T> producer) => Producer = producer;
 		public void Dispose() {
 			Producer = null;
 			val = default;
