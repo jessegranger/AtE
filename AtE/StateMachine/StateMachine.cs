@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Numerics;
 using static AtE.Globals;
 
 namespace AtE {
@@ -76,6 +77,7 @@ namespace AtE {
 				if ( Paused ) {
 					return this;
 				}
+				float targetDeltaTime = 1000f / CoreSettings.FpsCap.Value;
 				// iterate over the linked list of currently active states:
 				LinkedListNode<IState> curNode = States.First;
 				while ( curNode != null ) {
@@ -84,11 +86,16 @@ namespace AtE {
 						IState curState = curNode.Value;
 						// that state is ticked once per frame
 						ImGui.End();
-						long tickStart = Time.ElapsedMilliseconds;
+						var tickStart = Time.Elapsed;
 						IState gotoState = curState.OnTick(dt);
-						long elapsed = Time.ElapsedMilliseconds - tickStart;
+						var elapsed = Time.Elapsed - tickStart;
 						ImGui.Begin("StateMachine");
-						ImGui.Text($"{curState.Name} ({elapsed}ms) -> {gotoState?.Name}");
+						float share = (float)elapsed.TotalSeconds / targetDeltaTime;
+						ImGui.ProgressBar(share, new Vector2(250f, 0f), curState.Name);
+						ImGui.SameLine();
+						if( ImGui.Button($"X##{curState.Name}") ) {
+							gotoState = null;
+						}
 						/*
 						if ( elapsed > 100 ) {
 							Log($"OnTick: {curState.Name} took {elapsed} ms, cancelling...");
@@ -115,6 +122,7 @@ namespace AtE {
 					} catch ( Exception e ) {
 						Log(e.Message);
 						Log(e.StackTrace);
+						throw;
 					}
 					curNode = curNode.Next; // loop over the whole list
 				}
