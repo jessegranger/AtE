@@ -176,5 +176,18 @@ namespace AtE {
 		public static bool IsKeyDown(Keys key) => (Win32.GetAsyncKeyState(key) & 0x8000) == 0x8000;
 		/*  "If the most significant bit is set, the key is down, and if the least significant bit is set, the key was pressed after the previous call to GetAsyncKeyState." */
 
+
+		[StructLayout(LayoutKind.Sequential)]
+		public struct RECT {
+			public int Left;
+			public int Top;
+			public int Right;
+			public int Bottom;
+			public int Width => Right - Left;
+			public int Height => Bottom - Top;
+		}
+		[DllImport("user32.dll", SetLastError = true)] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+		[DllImport("user32.dll", SetLastError = true)] public static extern bool ClientToScreen(IntPtr hWnd, ref Point point);
+		[DllImport("user32.dll", SetLastError = true)] public static extern bool ScreenToClient(IntPtr hWnd, ref Point point);
 	}
 }
