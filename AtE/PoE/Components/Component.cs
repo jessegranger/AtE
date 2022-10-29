@@ -9,8 +9,19 @@ using static AtE.Globals;
 
 
 namespace AtE {
-	public abstract class Component<T> : MemoryObject<T> where T : unmanaged {
+	public static partial class Globals {
+		public static bool IsValid<T>(Component<T> c) where T : unmanaged => c != null && !c.IsDisposed;
+	}
+	public abstract class Component<T> : MemoryObject<T>, IDisposable where T : unmanaged {
 
+		public bool IsDisposed = false;
+		private bool isDisposing = false;
+		public override void Dispose() {
+			if ( isDisposing || IsDisposed ) return;
+			isDisposing = true;
+			base.Dispose();
+			IsDisposed = true;
+		}
 
 	}
 
@@ -41,19 +52,19 @@ namespace AtE {
 			new ActorAction() { Address = Cache.ptrAction };
 
 		public IEnumerable<ActorSkill> Skills =>
-			Cache.ActorSkillsHandle.GetItems<Offsets.ActorSkillArrayEntry>()
+			new ArrayHandle<Offsets.ActorSkillArrayEntry>(Cache.ActorSkillsHandle)
 				.Select(x => new ActorSkill(this) { Address = x.ActorSkillPtr })
 				.Where(x => x.IsValid());
 
 		internal IEnumerable<Offsets.ActorVaalSkillArrayEntry> VaalSkills =>
-			Cache.ActorVaalSkillsHandle.GetItems<Offsets.ActorVaalSkillArrayEntry>();
+			new ArrayHandle<Offsets.ActorVaalSkillArrayEntry>(Cache.ActorVaalSkillsHandle);
 
 		public IEnumerable<DeployedObject> DeployedObjects =>
-			Cache.DeployedObjectsHandle.GetItems<Offsets.DeployedObjectsArrayEntry>()
+			new ArrayHandle<Offsets.DeployedObjectsArrayEntry>(Cache.DeployedObjectsHandle)
 				.Select(x => new DeployedObject(this, x));
 
 		internal IEnumerable<Offsets.ActorSkillUIState> ActorSkillUIStates =>
-			Cache.ActorSkillUIStatesHandle.GetItems<Offsets.ActorSkillUIState>();
+			new ArrayHandle<Offsets.ActorSkillUIState>(Cache.ActorSkillUIStatesHandle);
 
 		internal bool IsOnCooldown(ushort skillId) => ActorSkillUIStates
 			.Where(s => s.SkillId == skillId)
@@ -119,8 +130,8 @@ namespace AtE {
 			SkillGem = null;
 			ActiveSkill?.Dispose();
 			ActiveSkill = null;
-			isDisposed = true;
 			base.Dispose();
+			isDisposed = true;
 		}
 
 		public bool IsValid() => SkillGem.Value.NamePtr != IntPtr.Zero;
@@ -141,7 +152,8 @@ namespace AtE {
 			? displayName
 			: null;
 
-		public bool IsOnCooldown => GetPlayer().GetComponent<Actor>().IsOnCooldown(Cache.Value.Id);
+		public bool IsOnCooldown => GetPlayer()?.GetComponent<Actor>()?.IsOnCooldown(Cache.Value.Id) ?? false;
+	
 		public bool CanBeUsed =>
 			Cache.Value.CanBeUsed == 1
 			&& Cache.Value.CanBeUsedWithWeapon == 1;
@@ -157,6 +169,7 @@ namespace AtE {
 
 	}
 
+	// Not a MemoryObject like the others, constructed directly from an Entry struct
 	public class DeployedObject : IDisposable {
 		private Offsets.DeployedObjectsArrayEntry Entry;
 		private Actor Actor;
@@ -177,18 +190,13 @@ namespace AtE {
 
 	public class Animated : Component<Offsets.Component_Animated> {
 
-		public Entity AnimatedObject =>
-			PoEMemory.TryRead(Cache.ptrToAnimatedEntityPtr, out IntPtr addr)
-			? new Entity() { Address = addr }
-			: null;
+		public Entity AnimatedObject => Cache.ptrToAnimatedEntity == IntPtr.Zero ? null :
+			new Entity() { Address = Cache.ptrToAnimatedEntity };
 	}
 
 
 	public class AreaTransition : Component<Offsets.Component_AreaTransition> {
 		public Offsets.AreaTransitionType TransitionType => Cache.TransitionType;
-	}
-	public static partial class Globals {
-		public static bool IsDoor(Entity ent) => ent.HasComponent<AreaTransition>();
 	}
 
 	public class Armour : Component<Offsets.Component_Armour> {
@@ -261,7 +269,7 @@ namespace AtE {
 	public class Buffs : MemoryObject<Offsets.Component_Buffs>, IEnumerable<Buff> {
 
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-		public IEnumerator<Buff> GetEnumerator() => Cache.Buffs.GetItems<IntPtr>()
+		public IEnumerator<Buff> GetEnumerator() => new ArrayHandle<IntPtr>(Cache.Buffs)
 			.Select(a => new Buff() { Address = a })
 			.GetEnumerator();
 	}
@@ -322,7 +330,7 @@ namespace AtE {
 	}
 	public class Inventories : Component<Offsets.Component_Inventories> {
 
-		public ArrayHandle Unknown => Cache.UnknownArray;
+		public ArrayHandle<IntPtr> Unknown => new ArrayHandle<IntPtr>(Cache.UnknownArray);
 	}
 
 	public class LimitedLifeSpan : Component<Offsets.Component_Empty> { }
@@ -364,19 +372,19 @@ namespace AtE {
 		public bool IsUsable => Cache.IsUsable == 1;
 
 		public IEnumerable<Offsets.UniqueNameEntry> NameEntries =>
-			Cache.UniqueName.GetItems<Offsets.UniqueNameEntry>();
+			new ArrayHandle<Offsets.UniqueNameEntry>(Cache.UniqueName);
 
 		// TODO: A managed wrapper for ItemModEntry, Name and the 4 values
-		public IEnumerable<Offsets.ItemModEntry> ExplicitMods => Cache.ExplicitModsArray.GetItems<Offsets.ItemModEntry>();
-		public IEnumerable<Offsets.ItemModEntry> ImplicitMods => Cache.ImplicitModsArray.GetItems<Offsets.ItemModEntry>();
-		public IEnumerable<Offsets.ItemModEntry> EnchantedMods => Cache.EnchantedModsArray.GetItems<Offsets.ItemModEntry>();
-		public IEnumerable<Offsets.ItemModEntry> ScourgeMods => Cache.ScourgeModsArray.GetItems<Offsets.ItemModEntry>();
+		public IEnumerable<Offsets.ItemModEntry> ExplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ExplicitModsArray);
+		public IEnumerable<Offsets.ItemModEntry> ImplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ImplicitModsArray);
+		public IEnumerable<Offsets.ItemModEntry> EnchantedMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.EnchantedModsArray);
+		public IEnumerable<Offsets.ItemModEntry> ScourgeMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ScourgeModsArray);
 
 		// TODO: A generic wrapper for a GameStatArray, as a Dictionar<GameStat, int>
-		public IEnumerable<Offsets.ItemStatEntry> ExplicitStats => Stats.Value.ExplicitStatsArray.GetItems<Offsets.ItemStatEntry>();
-		public IEnumerable<Offsets.ItemStatEntry> ImplicitStats => Stats.Value.ImplicitStatsArray.GetItems<Offsets.ItemStatEntry>();
-		public IEnumerable<Offsets.ItemStatEntry> EnchantedStats => Stats.Value.EnchantedStatsArray.GetItems<Offsets.ItemStatEntry>();
-		public IEnumerable<Offsets.ItemStatEntry> ScourgeStats => Stats.Value.ScourgeStatsArray.GetItems<Offsets.ItemStatEntry>();
+		public IEnumerable<Offsets.ItemStatEntry> ExplicitStats => new ArrayHandle<Offsets.ItemStatEntry>(Stats.Value.ExplicitStatsArray);
+		public IEnumerable<Offsets.ItemStatEntry> ImplicitStats => new ArrayHandle<Offsets.ItemStatEntry>(Stats.Value.ImplicitStatsArray);
+		public IEnumerable<Offsets.ItemStatEntry> EnchantedStats => new ArrayHandle<Offsets.ItemStatEntry>(Stats.Value.EnchantedStatsArray);
+		public IEnumerable<Offsets.ItemStatEntry> ScourgeStats => new ArrayHandle<Offsets.ItemStatEntry>(Stats.Value.ScourgeStatsArray);
 
 
 	}
@@ -387,7 +395,7 @@ namespace AtE {
 	public class Monster : Component<Offsets.Component_Empty> {
 	}
 	public class NPC : Component<Offsets.Component_NPC> {
-		public bool Hidden => Cache.Hidden == 1;
+		public bool Hidden => Cache.Hidden == 0;
 		public bool VisibleOnMiniMap => Cache.VisibleOnMinimap == 1;
 		public bool HasIconOverhead => Cache.Icon != IntPtr.Zero;
 	}
@@ -396,10 +404,11 @@ namespace AtE {
 
 		public Offsets.MonsterRarity Rarity => Cache.Rarity;
 
-		public IEnumerable<Offsets.ObjectMagicProperties_ModEntry> Mods => Cache.Mods.GetItems<Offsets.ObjectMagicProperties_ModEntry>();
+		public IEnumerable<Offsets.ObjectMagicProperties_ModEntry> Mods => new ArrayHandle<Offsets.ObjectMagicProperties_ModEntry>(Cache.Mods);
 
 		public IEnumerable<string> ModNames => Mods.Select(m =>
-			PoEMemory.TryReadString(m.ptrAt28, Encoding.Unicode, out string name) ? name : null);
+			PoEMemory.TryRead(m.ptrAt28, out IntPtr strName) &&
+			PoEMemory.TryReadString(strName, Encoding.Unicode, out string name) ? name : $"ptr28:{m.ptrAt28}->{strName}");
 	}
 
 	public class Pathfinding : Component<Offsets.Component_Pathfinding> {
@@ -438,12 +447,12 @@ namespace AtE {
 	}
 
 	public class Render : Component<Offsets.Component_Render> {
-		public Vector3 Pos => Cache.Pos;
+		public Vector3 Position => Cache.Pos;
 		public Vector3 Bounds => Cache.Bounds;
 		public Vector3 Rotation => Cache.Rotation;
 		public float Height => Cache.Height;
 
-		public string Name => Encoding.Unicode.GetString(Cache.Name.GetItems<byte>().ToArray());
+		public string Name => Encoding.Unicode.GetString(new ArrayHandle<byte>(Cache.Name).ToArray());
 	}
 
 	public class RenderItem : Component<Offsets.Component_RenderItem> {
@@ -483,8 +492,19 @@ namespace AtE {
 
 		public Stats() : base() => GameStats = CachedStruct<Offsets.GameStatArray>(() => Cache.GameStats);
 
+		private Dictionary<Offsets.GameStat, int> stats;
+		public Dictionary<Offsets.GameStat, int> GetStats() {
+			if ( stats == null ) {
+				stats = new Dictionary<Offsets.GameStat, int>();
+				foreach ( var entry in Entries ) {
+					stats[entry.Key] = entry.Value;
+				}
+			}
+			return stats;
+		}
+
 		public IEnumerable<Offsets.GameStatArrayEntry> Entries =>
-			GameStats.Value.Values.GetItems<Offsets.GameStatArrayEntry>();
+			new ArrayHandle<Offsets.GameStatArrayEntry>(GameStats.Value.Values);
 
 	}
 
