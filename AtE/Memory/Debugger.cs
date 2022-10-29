@@ -81,7 +81,7 @@ namespace AtE {
 					Type labelType = knownOffsets[selectedOffsets];
 					foreach ( FieldInfo field in labelType.GetFields() ) {
 						IntPtr labelAddr = BaseAddress
-							+ field.GetCustomAttribute<FieldOffsetAttribute>().Value;
+							+ (field.GetCustomAttribute<FieldOffsetAttribute>()?.Value ?? 0);
 						temporaryLabels[labelAddr] = knownOffsetNames[selectedOffsets] + "." + field.Name;
 					}
 				}
@@ -167,12 +167,15 @@ namespace AtE {
 							ImGui.Text($"0x{longValue:X}");
 							ImGui.TableNextColumn();
 							IntPtr ptr = new IntPtr(longValue);
-							if ( IsValid(new Element() { Address = ptr }) ) {
+							Element elem = new Element() { Address = ptr };
+							if ( IsValid(elem) ) {
 								ImGui.AlignTextToFramePadding();
 								ImGui.Text("ptr Element"); ImGui.SameLine();
 								if ( ImGui.Button($"B##{longValue:X}") ) {
 									Run_ObjectBrowser($"Unknown Element {longValue:X}",
 										new Element() { Address = ptr });
+								} else if( ImGui.IsItemHovered() ) {
+									DrawFrame(elem.GetClientRect(), Color.Yellow, 2);
 								}
 							} else if ( IsValid(new Entity() { Address = ptr }) ) {
 								ImGui.AlignTextToFramePadding();
