@@ -743,8 +743,8 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ChargeDetails {
-			[FieldOffset(0x14)] public readonly int PerUse;
-			[FieldOffset(0x18)] public readonly int Max;
+			[FieldOffset(0x14)] public readonly int Max;
+			[FieldOffset(0x18)] public readonly int PerUse;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Chest {
