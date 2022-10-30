@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ImGuiNET;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -55,6 +56,8 @@ namespace AtE {
 
 		}
 
+		public static bool HasFocus => RenderForm.HasFocus;
+
 		public static int Height => RenderForm.Height;
 		public static int Width => RenderForm.Width;
 		public static int Top => RenderForm.Top;
@@ -73,10 +76,11 @@ namespace AtE {
 			long lastRenderTime = Time.ElapsedMilliseconds - 16;
 			SharpDX.Windows.RenderLoop.Run(RenderForm, async () => {
 				FrameCount += 1;
-				float msPerFrame = (float)Math.Round(1000f / CoreSettings.FpsCap);
+				var settings = PluginBase.GetPlugin<CoreSettings>();
+				int msPerFrame = (int)Math.Round(1000f / settings.FPS_Maximum);
 				long dt = Time.ElapsedMilliseconds - lastRenderTime;
-				if ( CoreSettings.EnforceFpsCap && dt < msPerFrame ) {
-					await Task.Delay(3);
+				if ( settings.Enable_FPS_Maximum && dt < msPerFrame ) {
+					await Task.Delay((int)(msPerFrame - dt));
 					return;
 				}
 				FPS = dt == 0 ? 999d : 1000f / dt;
@@ -102,4 +106,15 @@ namespace AtE {
 			}, true);
 		}
 	}
+
+	public static partial class Globals {
+		private static bool showTODO = true;
+		public static void TODO(string task) { // just an idea
+			if( showTODO && ImGui.Begin("TODO", ref showTODO) ) {
+				ImGui.BulletText(task);
+				ImGui.End();
+			}
+		}
+	}
+
 }
