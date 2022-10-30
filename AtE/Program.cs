@@ -20,9 +20,11 @@ namespace AtE {
 			// Set up the memory hooks
 			RunForever("PoEMemory", PoEMemory.OnTick);
 
-			// Enable the Setting window
-			RunForever("Settings Window", Settings.Render);
-			OnRelease(Keys.F12, Settings.Toggle);
+			// Enable the Plugin system
+			Run(PluginBase.Machine);
+
+			// Enable the Console
+			Run(new Console());
 
 			// Render until we drop
 			Overlay.RenderLoop();
