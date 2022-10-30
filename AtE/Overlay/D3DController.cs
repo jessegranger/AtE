@@ -1,15 +1,12 @@
-﻿using SharpDX.Direct3D11;
+﻿using SharpDX.Direct3D;
+using SharpDX.Direct3D11;
 using SharpDX.DXGI;
 using SharpDX.Mathematics.Interop;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Device = SharpDX.Direct3D11.Device;
-using static AtE.Globals;
-using SharpDX.Direct3D;
 using System.Drawing;
+using static AtE.Globals;
+using Device = SharpDX.Direct3D11.Device;
+using Format = SharpDX.DXGI.Format;
 
 namespace AtE {
 	internal static class D3DController {
