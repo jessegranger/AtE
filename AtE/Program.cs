@@ -9,12 +9,12 @@ using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE {
-	static partial class Loader {
+	static partial class Program {
 
 
 		static void Main() {
 
-			// Set up the transparent overly (with ImGui to draw on top of it)
+			// Set up the transparent overly (with Direct3D and ImGui to draw on top of it)
 			Overlay.Initialise();
 
 			// Set up the memory hooks
