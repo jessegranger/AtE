@@ -26,7 +26,7 @@ namespace AtE {
 		public Inventory Belt => new Inventory() { Address = Inventories.Value.Belt };
 		public Inventory Boots => new Inventory() { Address = Inventories.Value.Boots };
 		public Inventory Backpack => new Inventory() { Address = Inventories.Value.Backpack };
-		public Inventory Flask => new Inventory() { Address = Inventories.Value.Flask };
+		public Inventory Flasks => new Inventory() { Address = Inventories.Value.Flask };
 		public Inventory Trinket => new Inventory() { Address = Inventories.Value.Trinket };
 		// public Inventory LWeaponSkin => new Inventory() { Address = Inventories.Value.LWeaponSkin };
 		// public Inventory LWeaponEffect => new Inventory() { Address = Inventories.Value.LWeaponEffect };
