@@ -13,6 +13,7 @@ namespace AtE {
 
 	public class Element : MemoryObject<Offsets.Element> {
 
+
 		public bool IsValid => Address != IntPtr.Zero && Cache.Self == Address;
 
 		public Element Self => Address == IntPtr.Zero || Cache.Self == IntPtr.Zero ? null
@@ -21,9 +22,15 @@ namespace AtE {
 		public Element Parent => Address == IntPtr.Zero || Cache.elemParent == IntPtr.Zero ? null
 			: new Element() { Address = Cache.elemParent };
 
+
+		private ArrayHandle<IntPtr> children;
 		public IEnumerable<Element> Children =>
-			new ArrayHandle<IntPtr>(Cache.Children)
-				.Select(a => new Element() { Address = a });
+			(children ?? (children = new ArrayHandle<IntPtr>(Cache.Children)))
+			.Select(a => new Element() { Address = a });
+
+		public Element GetChild(int index) =>
+			new Element() { Address = (children ?? (children = new ArrayHandle<IntPtr>(Cache.Children)))[index] };
+
 
 		public Vector2 Position => Cache.Position;
 		public float Scale => Address == IntPtr.Zero ? 1.0f : Cache.Scale;
