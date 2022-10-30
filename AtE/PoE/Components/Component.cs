@@ -37,8 +37,8 @@ namespace AtE {
 
 		public float CurManaRegen => Cache.ManaRegen;
 		public float CurHPRegen => Cache.Regen;
-		public int TotalReservedHP => Cache.ReservedFlatHP + (int)(1 + (Cache.MaxHP * (Cache.ReservedPercentHP / 10000d)));
-		public int TotalReservedMana => Cache.ReservedFlatMana + (int)(1 + (Cache.MaxMana * (Cache.ReservedPercentMana / 10000d)));
+		public int TotalReservedHP => Cache.ReservedFlatHP + (int)(0.5 + (Cache.MaxHP * (Cache.ReservedPercentHP / 10000d)));
+		public int TotalReservedMana => Cache.ReservedFlatMana + (int)(0.5 + (Cache.MaxMana * (Cache.ReservedPercentMana / 10000d)));
 
 	}
 
@@ -276,7 +276,8 @@ namespace AtE {
 
 	public static partial class Globals {
 		public static bool HasBuff(Entity ent, string buffName) =>
-			IsValid(ent) && ent.GetComponent<Buffs>().Any(buff => buff.Name?.Equals(buffName) ?? false);
+			buffName != null && IsValid(ent) &&
+			ent.GetComponent<Buffs>().Any(buff => buff.Name?.Equals(buffName) ?? false);
 	}
 
 	public class CapturedMonster : Component<Offsets.Component_Empty> { }
