@@ -15,7 +15,7 @@ namespace AtE {
 
 		public static bool IsValid(IntPtr p) => p != IntPtr.Zero;
 
-		public static string Format(IntPtr ptr) => $"(0x{ptr.ToInt64():X})";
+		public static string Format(IntPtr ptr) => $"<0x{ptr.ToInt64():X}>";
 
 		public static void ImGui_Address(IntPtr a, string label) {
 			ImGui.AlignTextToFramePadding();

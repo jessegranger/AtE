@@ -34,8 +34,7 @@ namespace AtE {
 
 		public static void DrawLine(Vector2 start, Vector2 end, Color color) => ImGuiController.DrawLine(start, end, color);
 
-		public static int ToRBGA(Color color) => (color.R << 24) | (color.B << 16) | (color.G << 8) | color.A;
-		public static int ToRGBA(Color color) => (color.R << 24) | (color.G << 16) | (color.B << 8) | color.A;
+		public static int ToRGBA(Color color) => (color.A << 24) | (color.B << 16) | (color.G << 8) | color.R;
 
 
 		public static void DrawDebugGrid() {
@@ -413,12 +412,12 @@ namespace AtE {
 		}
 		private static Dictionary<uint, float> drawTextAtOffsets = new Dictionary<uint, float>();
 
-		public static void DrawText(string text, Vector2 pos, Color color) => textDrawListPtr.AddText(pos, (uint)ToRBGA(color), text);
+		public static void DrawText(string text, Vector2 pos, Color color) => textDrawListPtr.AddText(pos, (uint)ToRGBA(color), text);
 
-		public static void DrawFrame(Vector2 topLeft, Vector2 bottomRight, Color color, int thickness = 1) => textDrawListPtr.AddRect(topLeft, bottomRight, (uint)ToRBGA(color), 0f, ImDrawFlags.None, thickness);
+		public static void DrawFrame(Vector2 topLeft, Vector2 bottomRight, Color color, int thickness = 1) => textDrawListPtr.AddRect(topLeft, bottomRight, (uint)ToRGBA(color), 0f, ImDrawFlags.None, thickness);
 
-		public static void DrawCircle(Vector2 pos, float radius, Color color, int thickness = 1) => textDrawListPtr.AddCircle(pos, radius, (uint)ToRBGA(color), 0, thickness);
-		public static void DrawLine(Vector2 start, Vector2 end, Color color, int thickness = 1) => textDrawListPtr.AddLine(start, end, (uint)ToRBGA(color), thickness);
+		public static void DrawCircle(Vector2 pos, float radius, Color color, int thickness = 1) => textDrawListPtr.AddCircle(pos, radius, (uint)ToRGBA(color), 0, thickness);
+		public static void DrawLine(Vector2 start, Vector2 end, Color color, int thickness = 1) => textDrawListPtr.AddLine(start, end, (uint)ToRGBA(color), thickness);
 
 		public static void Render(long dt) {
 

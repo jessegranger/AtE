@@ -133,9 +133,9 @@ namespace AtE {
 							}
 						}
 						if( ImGui.IsItemHovered( ) ) {
-							ImGui.PushStyleColor(ImGuiCol.Text, (uint)ToRBGA(Color.Orange));
+							ImGui.PushStyleColor(ImGuiCol.Text, (uint)ToRGBA(Color.Orange));
 						} else {
-							ImGui.PushStyleColor(ImGuiCol.Text, (uint)ToRBGA(Color.White));
+							ImGui.PushStyleColor(ImGuiCol.Text, (uint)ToRGBA(Color.White));
 						}
 
 						// the 8 columns of hex bytes:

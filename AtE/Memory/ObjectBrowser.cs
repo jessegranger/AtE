@@ -247,7 +247,7 @@ namespace AtE {
 					try {
 						ImGui_Object("Run_ObjectBrowser_"+label, label, value, new HashSet<int>());
 					} catch ( Exception e ) {
-						ImGui.PushStyleColor(ImGuiCol.Text, (uint)ToRBGA(Color.Red));
+						ImGui.PushStyleColor(ImGuiCol.Text, (uint)ToRGBA(Color.Red));
 						ImGui.Text(e.Message);
 						ImGui.TextWrapped(e.StackTrace);
 						ImGui.PopStyleColor();
