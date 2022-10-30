@@ -97,6 +97,9 @@
     <Compile Include="Memory\Debugger.cs" />
     <Compile Include="Memory\Memory.cs" />
     <Compile Include="Memory\ObjectBrowser.cs" />
+    <Compile Include="PoE\GameStat.cs" />
+    <Compile Include="PoE\MemoryObjects\Inventory.cs" />
+    <Compile Include="PoE\MemoryObjects\UIElementLibrary.cs" />
     <Compile Include="PoE\Offsets.cs" />
     <Compile Include="Overlay\Overlay.cs" />
     <Compile Include="Overlay\OverlayForm.cs">
@@ -107,8 +110,8 @@
     <Compile Include="Overlay\ImGuiController.cs" />
     <Compile Include="Loader.cs" />
     <Compile Include="PoE\Components\Component.cs" />
-    <Compile Include="PoE\Element.cs" />
-    <Compile Include="PoE\Entity.cs" />
+    <Compile Include="PoE\MemoryObjects\Element.cs" />
+    <Compile Include="PoE\MemoryObjects\Entity.cs" />
     <Compile Include="PoE\GameState.cs" />
     <Compile Include="PoE\PoEMemory.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -120,6 +123,7 @@
     <Compile Include="Win32.cs" />
     <EmbeddedResource Include="Overlay\OverlayForm.resx">
       <DependentUpon>OverlayForm.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -161,11 +165,10 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Static\A2E.ico" />
+    <Content Include="Static\App.ico" />
+    <Content Include="Static\GreenFlask.ico" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="PoE\UI\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
