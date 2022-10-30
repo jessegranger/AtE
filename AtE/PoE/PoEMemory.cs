@@ -181,6 +181,7 @@ namespace AtE {
 			return false;
 
 		}
+		public static bool TargetHasFocus = false; // => Target != null && Target.MainWindowHandle == Win32.GetForegroundWindow();
 
 		/// <summary>
 		/// True if a valid Process is open, we have an open Handle to it,
@@ -195,60 +196,31 @@ namespace AtE {
 		private static long nextCheckResize = Time.ElapsedMilliseconds + 3000;
 
 		public static void OnTick(long dt) {
-			// if( Time.ElapsedMilliseconds > nextCheckResize ) {
-			// }
-			ImGui.Begin("PoEMemory");
-			try {
-				ImGui.AlignTextToFramePadding();
-				ImGui.Text($"Target: {IsValid(Target)}");
-				if ( IsValid(Target) ) {
-					ImGui.SameLine();
-					ImGui.AlignTextToFramePadding();
-					ImGui.Text($"PID: {Target.Id}");
-					ImGui.SameLine();
-					ImGui.AlignTextToFramePadding();
-					ImGui.Text($"Handle: {Handle}");
-					ImGui.SameLine();
-					if( ImGui.Button("Detach") ) {
-						Detach();
-						return;
-					}
-					
-					ImGui.AlignTextToFramePadding();
-					ImGui.Text($"Process Base: {Globals.Format(Target.MainModule.BaseAddress)}");
-					if( GameRoot == null ) {
-						ImGui.Text("GameRoot = null");
-						return;
-					}
+			TargetHasFocus = Target != null && Target.MainWindowHandle == Win32.GetForegroundWindow();
 
-					if( Win32.GetWindowRect(Target.MainWindowHandle, out var rect) ) {
-						ImGui.Text($"Window: {rect.Top} {rect.Left} {rect.Width}x{rect.Height}");
-						if ( nextCheckResize < Time.ElapsedMilliseconds && (rect.Width != Overlay.Width || rect.Height != Overlay.Height) ) {
+			if ( Attached ) {
+
+				// check if we need to resize the overlay based on target window changing
+				if ( nextCheckResize < Time.ElapsedMilliseconds ) {
+					if ( Win32.GetWindowRect(Target.MainWindowHandle, out var rect) ) {
+						if ( rect.Width != Overlay.Width || rect.Height != Overlay.Height ) {
 							Log($"Need to resize overlay: {Target.MainWindowHandle} to {rect.Top} {rect.Left} {rect.Right} {rect.Bottom}");
 							Overlay.Resize(rect.Left, rect.Top, rect.Right, rect.Bottom);
 							nextCheckResize = Time.ElapsedMilliseconds + 300;
 						}
-					} else {
-					}
-
-					ImGui_Address(GameRoot.Address, "GameRoot Base:");
-					ImGui.SameLine();
-					if( ImGui.Button("B##GameRoot") ) {
-						Run_ObjectBrowser("GameRoot", GameRoot);
-					}
-
-				} else {
-					if ( Time.ElapsedMilliseconds > nextAttach ) {
-						if ( TryOpenWindow(out Target, out IntPtr hWnd) ) {
-							TryAttach(Target, hWnd);
-						}
-						nextAttach = Time.ElapsedMilliseconds + 5000;
-					} else {
-						ImGui.Text($"Attaching in {(int)(nextAttach - Time.ElapsedMilliseconds) / 1000}s...");
 					}
 				}
-			} finally {
-				ImGui.End();
+
+			} else {
+
+				// try to find a window to attach to
+				if ( Time.ElapsedMilliseconds > nextAttach ) {
+					if ( TryOpenWindow(out Target, out IntPtr hWnd) ) {
+						TryAttach(Target, hWnd);
+					}
+					nextAttach = Time.ElapsedMilliseconds + 5000;
+				}
+
 			}
 			return;
 		}
@@ -306,7 +278,7 @@ namespace AtE {
 			}
 
 			// the place in code plus the array index + 0xC has the address of the GameStateBase
-			if( ! TryRead(matchAddress + localOffset, out Offsets.GameStateBase_Ref baseRefs) ) {
+			if ( !TryRead(matchAddress + localOffset, out Offsets.GameStateBase_Ref baseRefs) ) {
 				Log($"PoEMemory: Failed to find GameStateBase.");
 				Detach();
 				return;
@@ -314,7 +286,7 @@ namespace AtE {
 
 			GameRoot = new GameStateBase() { Address = baseRefs.ptrToGameStateBasePtr };
 			Log($"PoEMemory: Game State Base is {Format(GameRoot.Address)}");
-			if( !GameRoot.IsValid ) {
+			if ( !GameRoot.IsValid ) {
 				Log($"PoEMemory: Game State Base resulted in an invalid GameRoot.");
 				Detach();
 				return;
