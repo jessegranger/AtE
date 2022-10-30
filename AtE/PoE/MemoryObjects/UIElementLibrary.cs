@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static AtE.Globals;
 
 namespace AtE {
 	public class UIElementLibrary : MemoryObject<Offsets.InGameState_UIElements> {
@@ -11,7 +12,7 @@ namespace AtE {
 		public Element GameUI => new Element() { Address = Cache.GameUI };
 		public Element LifeBubble => new Element() { Address = Cache.LifeBubble };
 		public Element ManaBubble => new Element() { Address = Cache.ManaBubble };
-		public Element Flasks => new Element() { Address = Cache.Flasks };
+		public FlaskPanel Flasks => new FlaskPanel() { Address = Cache.Flasks };
 		public Element ExperienceBar => new Element() { Address = Cache.ExperienceBar };
 		public Element OpenMenuPopoutButton => new Element() { Address = Cache.OpenMenuPopoutButton } ;
 		public Element CurrentTime => new Element() { Address = Cache.CurrentTime };
@@ -87,4 +88,6 @@ namespace AtE {
 		public Element SkillBarNotifyPanel1 => new Element() { Address = Cache.SkillBarNotifyPanel1 };
 		public Element ItemOnGroundTooltip => new Element() { Address = Cache.ItemOnGroundTooltip };
 	}
+
+
 }
