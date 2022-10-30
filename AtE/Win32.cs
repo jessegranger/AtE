@@ -189,5 +189,9 @@ namespace AtE {
 		[DllImport("user32.dll", SetLastError = true)] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 		[DllImport("user32.dll", SetLastError = true)] public static extern bool ClientToScreen(IntPtr hWnd, ref Point point);
 		[DllImport("user32.dll", SetLastError = true)] public static extern bool ScreenToClient(IntPtr hWnd, ref Point point);
+		[DllImport("user32.dll", SetLastError = true)] public static extern IntPtr GetForegroundWindow();
+		[DllImport("user32.dll", SetLastError = true)] public static extern IntPtr GetActiveWindow();
+
+
 	}
 }
