@@ -274,6 +274,11 @@ namespace AtE {
 			.GetEnumerator();
 	}
 
+	public static partial class Globals {
+		public static bool HasBuff(Entity ent, string buffName) =>
+			IsValid(ent) && ent.GetComponent<Buffs>().Any(buff => buff.Name?.Equals(buffName) ?? false);
+	}
+
 	public class CapturedMonster : Component<Offsets.Component_Empty> { }
 
 
@@ -375,10 +380,10 @@ namespace AtE {
 			new ArrayHandle<Offsets.UniqueNameEntry>(Cache.UniqueName);
 
 		// TODO: A managed wrapper for ItemModEntry, Name and the 4 values
-		public IEnumerable<Offsets.ItemModEntry> ExplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ExplicitModsArray);
-		public IEnumerable<Offsets.ItemModEntry> ImplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ImplicitModsArray);
-		public IEnumerable<Offsets.ItemModEntry> EnchantedMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.EnchantedModsArray);
-		public IEnumerable<Offsets.ItemModEntry> ScourgeMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ScourgeModsArray);
+		public IEnumerable<ItemMod> ExplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ExplicitModsArray).Select(e => new ItemMod(e));
+		public IEnumerable<ItemMod> ImplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ImplicitModsArray).Select(e => new ItemMod(e));
+		public IEnumerable<ItemMod> EnchantedMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.EnchantedModsArray).Select(e => new ItemMod(e));
+		public IEnumerable<ItemMod> ScourgeMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ScourgeModsArray).Select(e => new ItemMod(e));
 
 		// TODO: A generic wrapper for a GameStatArray, as a Dictionar<GameStat, int>
 		public IEnumerable<Offsets.ItemStatEntry> ExplicitStats => new ArrayHandle<Offsets.ItemStatEntry>(Stats.Value.ExplicitStatsArray);
@@ -386,6 +391,20 @@ namespace AtE {
 		public IEnumerable<Offsets.ItemStatEntry> EnchantedStats => new ArrayHandle<Offsets.ItemStatEntry>(Stats.Value.EnchantedStatsArray);
 		public IEnumerable<Offsets.ItemStatEntry> ScourgeStats => new ArrayHandle<Offsets.ItemStatEntry>(Stats.Value.ScourgeStatsArray);
 
+	}
+	public class ItemMod {
+		private Offsets.ItemModEntry Entry;
+		private Cached<Offsets.ItemModEntryNames> Names;
+		public ItemMod(Offsets.ItemModEntry entry) {
+			Entry = entry;
+			Names = CachedStruct<Offsets.ItemModEntryNames>(() => entry.ptrItemModEntryNames);
+		}
+		public string GroupName => PoEMemory.TryReadString(Names.Value.strGroupName, Encoding.Unicode, out string name) ? name : null;
+		public string DisplayName => PoEMemory.TryReadString(Names.Value.strDisplayName, Encoding.Unicode, out string name) ? name : null;
+		public int Value1 => Entry.Value1;
+		public int Value2 => Entry.Value2;
+		public int Value3 => Entry.Value3;
+		public int Value4 => Entry.Value4;
 
 	}
 
