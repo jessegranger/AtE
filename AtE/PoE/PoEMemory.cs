@@ -26,10 +26,21 @@ namespace AtE {
 	/// <typeparam name="T">A struct for the layout of each record in the array.</typeparam>
 	public class ArrayHandle<T> : IEnumerable<T> where T : unmanaged {
 		public Offsets.ArrayHandle Handle;
-		public ArrayHandle(Offsets.ArrayHandle handle) => Handle = handle;
+		public ArrayHandle(Offsets.ArrayHandle handle) {
+			Handle = handle;
+			sizeOfContainedType = Marshal.SizeOf(typeof(T));
+		}
+
+		private int sizeOfContainedType;
+
+		public T this[int index] {
+			get => PoEMemory.TryRead(Handle.GetRecordPtr(index, sizeOfContainedType), out T result) ? result : default;
+		}
+
+		public int Length => Handle.ItemCount(sizeOfContainedType);
 
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-		public IEnumerator<T> GetEnumerator() => Handle.GetRecordPtrs(Marshal.SizeOf(typeof(T)))
+		public IEnumerator<T> GetEnumerator() => Handle.GetRecordPtrs(sizeOfContainedType)
 			.Select(ptr => PoEMemory.TryRead(ptr, out T result) ? result : default)
 			.GetEnumerator();
 	}
@@ -57,10 +68,6 @@ namespace AtE {
 		/// The GameStateBase structure, with the main GameState array pointers
 		/// </summary>
 		public static GameStateBase GameRoot;
-
-		private static IntPtr GameStateBasePtr; // two temporary pointers that get followed to find GameStateBase
-		private static IntPtr GameStateBasePtrPtr; // see: GameStateBasePtrHop1, Hop2, in Offsets
-
 
 		/// <summary>
 		/// Try to read an array of unmanaged objects from the attached Process.
@@ -102,21 +109,6 @@ namespace AtE {
 			return !string.IsNullOrEmpty(result);
 		}
 
-		/*
-		/// <summary>
-		/// Read one value immediately, and throw on fail.
-		/// </summary>
-		/// <typeparam name="T">An unmanaged type</typeparam>
-		/// <param name="loc">A virtual memory address</param>
-		/// <returns>The resulting value</returns>
-		public static T Read<T>(IntPtr loc) where T : unmanaged {
-			if ( TryRead(loc, out T result) ) {
-				return result;
-			}
-			throw new ArgumentException($"TryRead failed from address {loc}");
-		}
-		*/
-
 		private static bool TryOpenWindow(out Process result, out IntPtr hWnd) {
 			result = null;
 			hWnd = Win32.FindWindow(WindowClass, WindowTitle);
@@ -137,6 +129,7 @@ namespace AtE {
 		// TODO: might be helpful later to have a FindInHeap (that enumerates allocated pages and scans them)
 
 		// TODO: if we need to search many patterns, we can do them all in one pass over exeImage for better cache usage
+		// eg, we don't currently scan for the file patterns to parse the data files yet
 
 		private static bool TryFindPatternInExe(out IntPtr result, string mask, params byte[] pattern) {
 			result = IntPtr.Zero;
@@ -177,7 +170,7 @@ namespace AtE {
 						}
 						if ( thisMatchScore == pattern.Length ) {
 							result = new IntPtr(baseAddress.ToInt64() + offset);
-							Log($"PoEMemory: Found pattern at {result} sanity check: {exeImage[offset]:X} should equal {pattern[0]:X}");
+							Log($"PoEMemory: Found pattern at {Format(result)}");
 							return true;
 						}
 					} else {
@@ -185,7 +178,6 @@ namespace AtE {
 					}
 				}
 			}
-			ImGui.Text($"Best Match: {bestMatch:X} score {bestMatchScore} out of {pattern.Length} bytes");
 			return false;
 
 		}
@@ -223,7 +215,7 @@ namespace AtE {
 					}
 					
 					ImGui.AlignTextToFramePadding();
-					ImGui.Text($"Process Base: {Globals.ToString(Target.MainModule.BaseAddress)}");
+					ImGui.Text($"Process Base: {Globals.Format(Target.MainModule.BaseAddress)}");
 					if( GameRoot == null ) {
 						ImGui.Text("GameRoot = null");
 						return;
@@ -299,50 +291,44 @@ namespace AtE {
 			}
 
 			// Patterns are based from ExileApi Memory.cs
-			if ( !TryFindPatternInExe(out GameStateBasePtrPtr, Offsets.GameStateBase_SearchMask, Offsets.GameStateBase_SearchPattern) ) {
-				Log($"PoEMemory: Failed to find GameStateBasePtrPtr.");
+			if ( !TryFindPatternInExe(out IntPtr matchAddress, Offsets.GameStateBase_SearchMask, Offsets.GameStateBase_SearchPattern) ) {
+				Log($"PoEMemory: Failed to find search pattern in memory.");
+				Detach();
+				return;
+			}
+			Log($"PoEMemory: Game State Base Search Pattern matched at {Format(matchAddress)}");
+			// this first location is in the code section where the pattern matched (at the start of the pattern)
+			// so skip 8, read an integer from there in the code that is a local offset to a global in the code section
+			if ( !TryRead(matchAddress + Offsets.GameStateBase_SearchPattern.Length, out int localOffset) ) {
+				Log($"PoEMemory: Failed to read a localOffset after the search pattern.");
 				Detach();
 				return;
 			}
 
-			if ( !TryRead(GameStateBasePtrPtr + Offsets.GameStateBasePtrHop1, out int tmpPtr) ) {
-				Log($"PoEMemory: Failed to find GameStateBasePtr.");
-				Detach();
-				return;
-			}
-
-			GameStateBasePtr = GameStateBasePtrPtr + tmpPtr + Offsets.GameStateBasePtrHop2;
-			if ( !TryRead(GameStateBasePtr, out IntPtr gameStateBase) ) {
+			// the place in code plus the array index + 0xC has the address of the GameStateBase
+			if( ! TryRead(matchAddress + localOffset, out Offsets.GameStateBase_Ref baseRefs) ) {
 				Log($"PoEMemory: Failed to find GameStateBase.");
 				Detach();
 				return;
 			}
 
-			GameRoot = new GameStateBase() { Address = gameStateBase };
-			Log($"PoEMemory: Game State Base is {GameRoot.Address}");
+			GameRoot = new GameStateBase() { Address = baseRefs.ptrToGameStateBasePtr };
+			Log($"PoEMemory: Game State Base is {Format(GameRoot.Address)}");
+			if( !GameRoot.IsValid ) {
+				Log($"PoEMemory: Game State Base resulted in an invalid GameRoot.");
+				Detach();
+				return;
+			}
 			Debugger.RegisterOffset("GameRoot", GameRoot.Address);
 			Debugger.RegisterStructLabels<Offsets.GameStateBase>("GameRoot", GameRoot.Address);
 
 			Debugger.RegisterOffset("InGameState", GameRoot.InGameState.Address);
 			Debugger.RegisterStructLabels<Offsets.InGameState>("InGameState", GameRoot.InGameState.Address);
-			// Debugger.RegisterStructLabels<Offsets.InGameState_Data>("InGameState.Data", GameRoot.InGameState.Cache.Value.ptrData);
 
 			OnAreaChange += (sender, area) => {
 				Log("OnAreaChange: " + area);
 			};
 
-			// The ActiveGameStates list is a PoEMemoryList (not fixed size)
-
-		}
-
-		private static void DecorateForDebugger(Element cursor, string label) {
-			// walks the UI tree from a root, marking all the nodes with labels in the Debugger
-			Debugger.RegisterOffset(label, cursor.Address);
-			int index = 0;
-			foreach(Element child in cursor.Children) {
-				DecorateForDebugger(child, label + "." + index);
-				index++;
-			}
 		}
 
 	}
