@@ -14,20 +14,48 @@ namespace AtE {
 	/// <summary>
 	/// Most classes just want to extend from State,
 	/// but if you really need to be State-like and have another base class.
-	/// Any class can implement this, and participate in Run(), et al
+	/// Any class can implement this, and participate in Run(), StateMachines, et al
 	/// </summary>
 	public interface IState {
+		/// <summary>
+		/// The display name for the State.
+		/// </summary>
 		string Name { get; }
+		/// <summary>
+		/// This is called once by a StateMachine before the first OnTick().
+		/// Usually return `this` to continue, but can return a different State here,
+		/// as a way to cancel/pre-empt.
+		/// </summary>
+		/// <returns>A new State to replace this one, or this.</returns>
 		IState OnEnter();
+		/// <summary>
+		/// This is called every frame by any StateMachine to which it is Add()'ed.
+		/// </summary>
+		/// <param name="dt">The ms elapsed since the previous call to OnTick</param>
+		/// <returns>A new State to replace this one, or this.</returns>
 		IState OnTick(long dt);
+		/// <summary>
+		/// Called if a StateMachine needs to cancel/pre-empt this operation.
+		/// The State should try to unwind cleanly if possible.
+		/// </summary>
 		void OnCancel();
+		/// <summary>
+		/// Once this State's work is done (if it ever is), this public State lets others configure what State to transition to.
+		/// This means, for a typical State, OnTick should `return Next;` when all other work is finished.
+		/// </summary>
 		IState Next { get; set; }
+		/// <summary>
+		/// The last State at the end of the current sequence of Next.Next.Next, (aka a "plan").
+		/// Appending to a plan means assigning to `Tail().Next`.
+		/// </summary>
+		/// <returns>The first State where Next is null, in the chain of Next States.</returns>
 		IState Tail();
 	}
 	public abstract class State : IState {
 
 		// 'Next' defines the default State we will go to when this State is complete.
-		// This value is just a suggestion, the real value is what gets returned by OnTick
+		// This value is just a suggestion, to construct "plan" sequences,
+		// the real transition happens as a result of what gets returned by OnTick.
 		public IState Next { get; set; } = null;
 
 		public State(IState next = null) => Next = next;
@@ -105,7 +133,7 @@ namespace AtE {
 		public KeyDown(Keys key, State next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
-			if( dt > 0 ) {
+			if( dt > 0 && PoEMemory.TargetHasFocus ) {
 				SendInput(INPUT_KeyDown(Key));
 				return Next;
 			}
@@ -118,7 +146,7 @@ namespace AtE {
 		public KeyUp(Keys key, State next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
-			if( dt > 0 ) {
+			if( dt > 0 && PoEMemory.TargetHasFocus ) {
 				SendInput(INPUT_KeyUp(Key));
 				return Next;
 			}
@@ -160,6 +188,7 @@ namespace AtE {
 		// public MoveMouse(Element label, State next = null) : this(label?.GetClientRect().Center ?? Vector2.Zero, next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
+			if ( !PoEMemory.TargetHasFocus ) return Next;
 			if ( X == 0 && Y == 0 ) {
 				Log($"Warn: MoveMouse to (0,0) attempted, skipped.");
 				return Next;
@@ -172,6 +201,7 @@ namespace AtE {
 		public LeftMouseDown(State next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
+			if ( !PoEMemory.TargetHasFocus ) return Next;
 			SendInput(INPUT_Mouse(MouseFlag.LeftDown));
 			return Next;
 		}
@@ -181,6 +211,7 @@ namespace AtE {
 		public LeftMouseUp(State next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
+			if ( !PoEMemory.TargetHasFocus ) return Next;
 			SendInput(INPUT_Mouse(MouseFlag.LeftUp));
 			return Next;
 		}
@@ -206,6 +237,7 @@ namespace AtE {
 		public RightMouseDown(State next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
+			if ( !PoEMemory.TargetHasFocus ) return Next;
 			SendInput(INPUT_Mouse(MouseFlag.RightDown));
 			return Next;
 		}
@@ -215,6 +247,7 @@ namespace AtE {
 		public RightMouseUp(State next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
+			if ( !PoEMemory.TargetHasFocus ) return Next;
 			SendInput(INPUT_Mouse(MouseFlag.RightUp));
 			return Next;
 		}
@@ -262,5 +295,22 @@ namespace AtE {
 							new LeftMouseUp(new Delay(duration,
 								new KeyUp(Keys.LShiftKey, next)))))))))) { }
 
+	}
+
+	public class HotKey : State {
+		public Keys Key;
+		public HotKey(Keys key) {
+			Key = key;
+			StateMachine.DefaultMachine.Add(this);
+		}
+		public bool IsUp => !IsDown;
+		public bool IsDown = false;
+		public bool IsReleased = false;
+		public override IState OnTick(long dt) {
+			bool downNow = IsKeyDown(Key);
+			IsReleased = IsDown && !downNow;
+			IsDown = downNow;
+			return this;
+		}
 	}
 }
