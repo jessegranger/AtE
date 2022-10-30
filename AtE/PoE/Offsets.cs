@@ -44,19 +44,19 @@ namespace AtE {
 			[FieldOffset(0x05)] private readonly byte byte5;
 			[FieldOffset(0x06)] private readonly byte byte6;
 			[FieldOffset(0x07)] private readonly byte byte7;
-			[FieldOffset(0x08)] private readonly byte byte8;
-			[FieldOffset(0x09)] private readonly byte byte9;
+			[FieldOffset(0x08)] private readonly byte byte8; // once Capacity > 7, the last 8 bytes are used for different things in different places,
+			[FieldOffset(0x09)] private readonly byte byte9; // sometimes it holds a pointer to a class, sometimes empty
 			[FieldOffset(0x0a)] private readonly byte byte10;
 			[FieldOffset(0x0b)] private readonly byte byte11;
 			[FieldOffset(0x0c)] private readonly byte byte12;
 			[FieldOffset(0x0d)] private readonly byte byte13;
-			[FieldOffset(0x0e)] private readonly byte byte14; // never read as byte
+			[FieldOffset(0x0e)] private readonly byte byte14; // never read as byte, once capacity is high enough to use this it starts using the pointer
 			[FieldOffset(0x0f)] private readonly byte byte15; // never read as byte
 			[FieldOffset(0x10)] public readonly long Length; // the current Length
 			[FieldOffset(0x18)] public readonly long Capacity; // the current Capacity
 			private byte[] bytes(params byte[] b) => b;
 
-			public string Value => Length <= Capacity && Capacity < 8
+			public string Value => Length > 0 && Capacity > 0 && Length <= Capacity && Capacity < 8
 				? Encoding.Unicode.GetString(bytes(
 					byte0, byte1, byte2, byte3,
 					byte4, byte5, byte6, byte7,
@@ -68,11 +68,31 @@ namespace AtE {
 		}
 
 		/// <summary>
-		/// These are array control structures used throughout PoE.
+		/// Array control structures used throughout PoE.
 		/// </summary>
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ArrayHandle {
 			[FieldOffset(0x00)] public IntPtr Head;
 			[FieldOffset(0x08)] public IntPtr Tail;
+
+			public int ItemCount(int recordSize) => (int)((Tail.ToInt64() - Head.ToInt64()) / recordSize);
+			/// <summary>
+			/// Get a pointer to the start of the i-th entry in the array.
+			/// </summary>
+			/// <param name="recordSize">Usually from sizeof or Marshal.SizeOf</param>
+			/// <returns></returns>
+			public IntPtr GetRecordPtr(int i, int recordSize) {
+				if ( Head == IntPtr.Zero || Tail == IntPtr.Zero ) return IntPtr.Zero;
+				long head = Head.ToInt64();
+				var len = Tail.ToInt64() - head;
+				var n = i * recordSize;
+				if ( n < 0 || n >= len ) return IntPtr.Zero;
+				return new IntPtr(head + (i * recordSize));
+			}
+			/// <summary>
+			/// Yield all the entries (as pointers to their start address in memory).
+			/// </summary>
+			/// <param name="recordSize">Usually from sizeof or Marshal.SizeOf</param>
+			/// <returns></returns>
 			public IEnumerable<IntPtr> GetRecordPtrs(int recordSize) {
 				if ( Head == IntPtr.Zero ) yield break;
 				long head = Head.ToInt64();
@@ -100,7 +120,6 @@ namespace AtE {
 			LoadingState,
 			InvalidState
 		}
-		public struct None { }
 
 		public readonly static string WindowClass = "POEWindowClass";
 		public readonly static string WindowTitle = "Path of Exile";
@@ -109,8 +128,11 @@ namespace AtE {
 		public readonly static byte[] GameStateBase_SearchPattern = new byte[] {
 			0x48, 0x8b, 0xf1, 0x33, 0xed, 0x48, 0x39, 0x2d
 		};
-		public readonly static int GameStateBasePtrHop1 = 0x8;
-		public readonly static int GameStateBasePtrHop2 = 0xC;
+		// after you find the pattern match, skip to the end of the pattern match, then read a local offset found there in the instruction
+		// the match + localOffset is address of a pointer to the game state base
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GameStateBase_Ref {
+			[FieldOffset(0x0C)] public readonly IntPtr ptrToGameStateBasePtr;
+		}
 
 		// GameStateBase members:
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GameStateBase {
@@ -836,7 +858,7 @@ namespace AtE {
 			[FieldOffset(0x04)] public readonly int Value2;
 			[FieldOffset(0x08)] public readonly int Value3;
 			[FieldOffset(0x12)] public readonly int Value4;
-			[FieldOffset(0x28)] public readonly IntPtr ptrNames; // ptr to ItemModEntryNames
+			[FieldOffset(0x28)] public readonly IntPtr ptrItemModEntryNames;
 			[FieldOffset(0x30)] public readonly IntPtr Padding; // so size = 0x38
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemModEntryNames {
