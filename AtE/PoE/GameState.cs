@@ -271,14 +271,13 @@ namespace AtE {
 
 	public static partial class Globals {
 
-		public static Entity GetFlask(int index) {
-			// PoEMemory.GameRoot.InGameState.UIElements.InventoryPanel.Flasks.VisibleItems
-			return null;
-		}
+		public static UIElementLibrary GetUI() => PoEMemory.GameRoot?.InGameState?.UIElements ?? default;
+	
 
 		public static Vector2 WorldToScreen(Vector3 pos) => (PoEMemory.GameRoot?.InGameState?.WorldData?.Camera ?? default).WorldToScreen(pos);
 		public static void DrawTextAt(Vector3 pos, string text, Color color) => DrawTextAt(WorldToScreen(pos), text, color);
 
+		public static bool IsValid(GameStateBase state) => state != null && state.IsValid;
 		public static bool IsValid(AreaLoadingState state) => state != null && state.Kind == Offsets.GameStateType.AreaLoadingState;
 		public static bool IsValid(EscapeState state) => state != null && state.Kind == Offsets.GameStateType.EscapeState;
 		public static bool IsValid(InGameState state) => state != null && state.Kind == Offsets.GameStateType.InGameState;
