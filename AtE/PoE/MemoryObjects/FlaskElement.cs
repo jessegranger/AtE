@@ -1,15 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE {
 
+	public static partial class Globals {
+		public static Entity GetFlask(int index) => GetUI()?.Flasks?.GetFlask(index)?.Item;
+		public static IEnumerable<FlaskEntity> GetFlasks() => GetUI()?.Flasks?.Flasks.Select(f => f.Item) ?? Empty<FlaskEntity>();
+	}
 	public class FlaskElement : Element {
 		public Cached<Offsets.Element_InventoryItem> Details;
 		public FlaskElement() : base() => Details = CachedStruct<Offsets.Element_InventoryItem>(() => Address);
+		public FlaskElement(int flaskIndex) : this() => FlaskIndex = flaskIndex;
 
-		public FlaskEntity Item => new FlaskEntity() { Address = Details.Value.entItem };
+		public int FlaskIndex;
+
+		public FlaskEntity Item => new FlaskEntity(FlaskIndex) { Address = Details.Value.entItem };
 	}
 
 	/// <summary>
@@ -34,11 +42,19 @@ namespace AtE {
 		public int ManaHealAmount;
 		public bool Enchanted_UseWhenFull;
 		public bool Enchanted_UseWhenHitRare;
+		public int FlaskIndex;
+		public Keys Key => (Keys.D1 + FlaskIndex);
+
+		public FlaskEntity() : base() { }
+		public FlaskEntity(int flaskIndex) : this() => FlaskIndex = flaskIndex;
 
 		// Not the same as the flask itself being active
 		// To find that, we would need to know the parent element, and find the little progress bar UI element
 		// which is a sibling of the Element that emitted this instance
-		public bool IsBuffActive => BaseData == null ? false : HasBuff(GetPlayer(), BaseData.BuffName);
+		public bool IsBuffActive => HasBuff(GetPlayer(), BaseData?.BuffName);
+
+		public Mods Mods => GetComponent<Mods>();
+		public string debugPath;
 
 		public new IntPtr Address { get => base.Address;
 			set {
@@ -46,7 +62,8 @@ namespace AtE {
 				base.Address = value;
 				if( value != IntPtr.Zero ) {
 					float qualityFactor = (100 + GetComponent<Quality>().ItemQuality) / 100f;
-					if( FlaskData.Records.TryGetValue(Path.Split('/').Last(), out FlaskData BaseData) ) {
+					string path = Path.Split('/').Last();
+					if( FlaskData.Records.TryGetValue(path, out BaseData) ) {
 						Duration = (int)(BaseData.Duration * qualityFactor);
 						LifeHealAmount = (int)(BaseData.HealAmount * qualityFactor);
 						ManaHealAmount = (int)(BaseData.ManaAmount * qualityFactor);
@@ -89,7 +106,7 @@ namespace AtE {
 			}
 		}
 
-		public FlaskElement GetFlask(int flaskIndex) => new FlaskElement() {
+		public FlaskElement GetFlask(int flaskIndex) => new FlaskElement(flaskIndex) {
 			Address = GetChild(0)?.GetChild(flaskIndexToChildIndex[flaskIndex])?.Address ?? IntPtr.Zero
 		};
 
