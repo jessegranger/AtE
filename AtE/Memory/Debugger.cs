@@ -24,13 +24,12 @@ namespace AtE {
 			ViewAddress = addr;
 			BaseAddress = addr;
 			InputAddress = $"{(long)addr:X16}";
-			Id = $"Debugger@{Globals.ToString(addr)}";
+			Id = $"Debugger@{Globals.Format(addr)}";
 			Log($"Debugger: created to view {ViewAddress}");
 		}
 
 		private static Dictionary<IntPtr, string> globalKnownOffsets = new Dictionary<IntPtr, string>();
 		public static void RegisterOffset(string label, IntPtr addr) => globalKnownOffsets[new IntPtr((((long)addr)/8)*8)] = label;
-
 
 		private byte[] sample;
 		private long lastSampleTime;

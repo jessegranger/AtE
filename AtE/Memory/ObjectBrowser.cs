@@ -24,10 +24,11 @@ namespace AtE {
 			if ( (!type.IsValueType)
 				&& seen.Contains(hash) ) {
 				ImGui.BulletText($"*dup* {label} = {type.Name} hash {hash}");
-				// label = "*cycle* " + label;
 				return;
 			}
+
 			seen.Add(hash);
+
 			if ( type.IsArray ) {
 				object[] array = (object[])value;
 				// if ( ImGui.BeginChild(id + "_array", new Vector2(-1f, 200f), false, ImGuiWindowFlags.AlwaysAutoResize) ) {

@@ -15,12 +15,12 @@ namespace AtE {
 
 		public static bool IsValid(IntPtr p) => p != IntPtr.Zero;
 
-		public static string ToString(IntPtr ptr) => $"(0x{ptr.ToInt64():X})";
+		public static string Format(IntPtr ptr) => $"(0x{ptr.ToInt64():X})";
 
 		public static void ImGui_Address(IntPtr a, string label) {
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text(label); ImGui.SameLine(0f, 2f);
-			var str = ToString(a);
+			var str = Format(a);
 			ImGui.Text(str);
 			ImGui.SameLine();
 			if( ImGui.Button($"M##{str}") ) {
