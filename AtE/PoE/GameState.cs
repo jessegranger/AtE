@@ -31,7 +31,7 @@ namespace AtE {
 				base.Address = value;
 
 				if ( base.Address != IntPtr.Zero ) {
-					Log($"GameStateBase: Loading from ${base.Address}...");
+					Log($"GameStateBase: Loading from ${Format(base.Address)}...");
 					InGameState = new InGameState() { Address = Cache.Value.InGameState.ptrToGameState };
 					EscapeState = new EscapeState() { Address = Cache.Value.EscapeState.ptrToGameState };
 					AreaLoadingState = new AreaLoadingState() { Address = Cache.Value.AreaLoadingState.ptrToGameState };
@@ -44,10 +44,12 @@ namespace AtE {
 					if ( IsValid(AreaLoadingState) ) {
 						StateMachine.DefaultMachine.Add(AreaLoadingState);
 					}
-					Run_ObjectBrowser($"GameStateBase @ 0x{(long)value:X}", this);
 				}
 			}
 		}
+
+		public bool IsValid => base.Address != IntPtr.Zero
+			&& Cache.Value.ActiveGameStates.ItemCount(Marshal.SizeOf(typeof(Offsets.GameStateArrayEntry))) > 0;
 
 		public GameStateBase() : base() => Cache = CachedStruct<Offsets.GameStateBase>(this);
 
@@ -268,6 +270,11 @@ namespace AtE {
 	}
 
 	public static partial class Globals {
+
+		public static Entity GetFlask(int index) {
+			// PoEMemory.GameRoot.InGameState.UIElements.InventoryPanel.Flasks.VisibleItems
+			return null;
+		}
 
 		public static Vector2 WorldToScreen(Vector3 pos) => (PoEMemory.GameRoot?.InGameState?.WorldData?.Camera ?? default).WorldToScreen(pos);
 		public static void DrawTextAt(Vector3 pos, string text, Color color) => DrawTextAt(WorldToScreen(pos), text, color);
