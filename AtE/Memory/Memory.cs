@@ -28,6 +28,8 @@ namespace AtE {
 				Run(new Debugger(a).WithKnownAddress(label, a));
 			}
 		}
+
+		public static bool IsValid<T>(MemoryObject<T> m) where T : unmanaged => m != null && m.Address != IntPtr.Zero;
 	}
 
 	/// <summary>
