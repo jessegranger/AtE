@@ -55,12 +55,6 @@ namespace AtE {
 			return next;
 		}
 
-		private Action<string> logDelegate;
-		public void EnableLogging(Action<string> logger) => logDelegate = logger;
-		public void DisableLogging() => logDelegate = null;
-		private void Log(string s) => logDelegate?.Invoke(GetType().Name + s);
-
-
 		public override IState OnTick(long dt) {
 			// Each State in the States list will be ticked once each frame
 			if ( Paused ) {
@@ -137,12 +131,14 @@ namespace AtE {
 		/// </summary>
 		/// <param name="state"></param>
 		public void Remove(IState state) {
-			if ( state != null ) States.Remove(state);
+			if ( state != null ) {
+				States.Remove(state);
+			}
 		}
-		public void RemoveAll(Type stateType) {
-			LinkedListNode<IState> cur = States.First;
-			while ( cur != null ) {
-				cur = cur.Value.GetType() == stateType ? RemoveAndContinue(States, cur) : cur.Next;
+		public void RemoveAll(Type removeType) {
+			LinkedListNode<IState> cursor = States.First;
+			while ( cursor != null ) {
+				cursor = cursor.Value.GetType() == removeType ? RemoveAndContinue(States, cursor) : cursor.Next;
 			}
 		}
 

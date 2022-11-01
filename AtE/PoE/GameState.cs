@@ -11,8 +11,7 @@ using System.Drawing;
 
 namespace AtE {
 
-	public class GameStateBase : MemoryObject, IDisposable {
-		public Cached<Offsets.GameStateBase> Cache;
+	public class GameRoot : MemoryObject<Offsets.GameRoot>, IDisposable {
 
 		// Address gets assigned after the constructor finishes
 		// (because the usage is always new T() { Address = xxx })
@@ -32,10 +31,10 @@ namespace AtE {
 
 				if ( base.Address != IntPtr.Zero ) {
 					Log($"GameStateBase: Loading from ${Format(base.Address)}...");
-					InGameState = new InGameState() { Address = Cache.Value.InGameState.ptrToGameState };
-					EscapeState = new EscapeState() { Address = Cache.Value.EscapeState.ptrToGameState };
-					AreaLoadingState = new AreaLoadingState() { Address = Cache.Value.AreaLoadingState.ptrToGameState };
-					// the other states are here in the Cache.Value if we want them, but they are useless
+					InGameState = new InGameState() { Address = Cache.InGameState.ptrToGameState };
+					EscapeState = new EscapeState() { Address = Cache.EscapeState.ptrToGameState };
+					AreaLoadingState = new AreaLoadingState() { Address = Cache.AreaLoadingState.ptrToGameState };
+					// the other states are here in the Cache if we want them, but they are useless
 
 					if ( IsValid(InGameState) ) {
 						StateMachine.DefaultMachine.Add(InGameState);
@@ -49,9 +48,8 @@ namespace AtE {
 		}
 
 		public bool IsValid => base.Address != IntPtr.Zero
-			&& Cache.Value.ActiveGameStates.ItemCount(Marshal.SizeOf(typeof(Offsets.GameStateArrayEntry))) > 0;
+			&& Cache.ActiveGameStates.ItemCount(Marshal.SizeOf(typeof(Offsets.GameStateArrayEntry))) > 0;
 
-		public GameStateBase() : base() => Cache = CachedStruct<Offsets.GameStateBase>(this);
 
 		public InGameState InGameState;
 		public EscapeState EscapeState;
@@ -61,7 +59,7 @@ namespace AtE {
 		public bool IsActive() => ActiveGameStates.Any(s => s.Address == Address);
 
 		private IEnumerable<GameState> ActiveGameStates =>
-			new ArrayHandle<Offsets.GameStateArrayEntry>(Cache.Value.ActiveGameStates)
+			new ArrayHandle<Offsets.GameStateArrayEntry>(Cache.ActiveGameStates)
 				.Select(x => new GameState() { Address = x.ptrToGameState });
 
 		public bool IsDisposed { get; private set; } = false;
@@ -90,11 +88,11 @@ namespace AtE {
 			: Offsets.GameStateType.InvalidState;
 
 		public string Name => $"{Kind}";
-		public virtual IState OnTick(long dt) {
-			return this;
-		}
-		public IState OnEnter() => this;
-		public void OnCancel() { }
+
+		// Implement the IState interface, so sub-classes can run in a StateMachine
+		public virtual IState OnTick(long dt) => this;
+		public virtual IState OnEnter() => this;
+		public virtual void OnCancel() { }
 		public IState Next { get; set; } = null;
 		public IState Tail() => Next == null ? this : Next.Tail();
 
@@ -146,7 +144,14 @@ namespace AtE {
 		public Element Hovered => Cache.elemHover == IntPtr.Zero ? null :
 			new Element() { Address = Cache.elemHover };
 
+		/// <summary>
+		/// Is there some UI Element currently capturing keyboard input.
+		/// Eg, one of the filter inputs on a stash tab.
+		/// </summary>
 		public bool HasInputFocus => Cache.elemInputFocus != IntPtr.Zero;
+		/// <summary>
+		/// Returns the UI Element that has currently captured keyboard input.
+		/// </summary>
 		public Element Focused => Cache.elemInputFocus == IntPtr.Zero ? null :
 			new Element() { Address = Cache.elemInputFocus};
 
@@ -254,16 +259,10 @@ namespace AtE {
 		}
 	}
 
-	public class ChangePasswordState : GameState { }
-	public class LoginState : GameState { }
 	public class PreGameState : GameState<Offsets.PreGameState> {
 		public Element UIRoot => Address == IntPtr.Zero ? null :
 			new Element() { Address = Cache.UIRoot };
 	}
-	public class CreateCharacterState : GameState { }
-	public class SelectCharacterState : GameState { }
-	public class DeleteCharacterState : GameState { }
-	public class LoadingState : GameState { }
 
 	public class WorldData : MemoryObject<Offsets.WorldData> {
 		public Offsets.Camera Camera => Cache.Camera;
@@ -272,12 +271,11 @@ namespace AtE {
 	public static partial class Globals {
 
 		public static UIElementLibrary GetUI() => PoEMemory.GameRoot?.InGameState?.UIElements ?? default;
-	
 
 		public static Vector2 WorldToScreen(Vector3 pos) => (PoEMemory.GameRoot?.InGameState?.WorldData?.Camera ?? default).WorldToScreen(pos);
 		public static void DrawTextAt(Vector3 pos, string text, Color color) => DrawTextAt(WorldToScreen(pos), text, color);
 
-		public static bool IsValid(GameStateBase state) => state != null && state.IsValid;
+		public static bool IsValid(GameRoot state) => state != null && state.IsValid;
 		public static bool IsValid(AreaLoadingState state) => state != null && state.Kind == Offsets.GameStateType.AreaLoadingState;
 		public static bool IsValid(EscapeState state) => state != null && state.Kind == Offsets.GameStateType.EscapeState;
 		public static bool IsValid(InGameState state) => state != null && state.Kind == Offsets.GameStateType.InGameState;

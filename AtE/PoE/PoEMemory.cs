@@ -67,7 +67,7 @@ namespace AtE {
 		/// <summary>
 		/// The GameStateBase structure, with the main GameState array pointers
 		/// </summary>
-		public static GameStateBase GameRoot;
+		public static GameRoot GameRoot;
 
 		/// <summary>
 		/// Try to read an array of unmanaged objects from the attached Process.
@@ -196,9 +196,11 @@ namespace AtE {
 		private static long nextCheckResize = Time.ElapsedMilliseconds + 3000;
 
 		public static void OnTick(long dt) {
-			TargetHasFocus = Target != null && Target.MainWindowHandle == Win32.GetForegroundWindow();
+			TargetHasFocus = false;
 
 			if ( Attached ) {
+				TargetHasFocus = Target.MainWindowHandle == Win32.GetForegroundWindow();
+				ImGuiController.Enabled = Overlay.HasFocus || TargetHasFocus;
 
 				// check if we need to resize the overlay based on target window changing
 				if ( nextCheckResize < Time.ElapsedMilliseconds ) {
@@ -226,6 +228,7 @@ namespace AtE {
 		}
 
 		public static void Detach() {
+			OnAreaChange = null;
 			if ( Target != null ) {
 				Log($"PoEMemory: Detaching from process...");
 				Target.Dispose();
@@ -263,7 +266,7 @@ namespace AtE {
 			}
 
 			// Patterns are based from ExileApi Memory.cs
-			if ( !TryFindPatternInExe(out IntPtr matchAddress, Offsets.GameStateBase_SearchMask, Offsets.GameStateBase_SearchPattern) ) {
+			if ( !TryFindPatternInExe(out IntPtr matchAddress, Offsets.GameRoot_SearchMask, Offsets.GameRoot_SearchPattern) ) {
 				Log($"PoEMemory: Failed to find search pattern in memory.");
 				Detach();
 				return;
@@ -271,35 +274,33 @@ namespace AtE {
 			Log($"PoEMemory: Game State Base Search Pattern matched at {Format(matchAddress)}");
 			// this first location is in the code section where the pattern matched (at the start of the pattern)
 			// so skip 8, read an integer from there in the code that is a local offset to a global in the code section
-			if ( !TryRead(matchAddress + Offsets.GameStateBase_SearchPattern.Length, out int localOffset) ) {
+			if ( !TryRead(matchAddress + Offsets.GameRoot_SearchPattern.Length, out int localOffset) ) {
 				Log($"PoEMemory: Failed to read a localOffset after the search pattern.");
 				Detach();
 				return;
 			}
 
 			// the place in code plus the array index + 0xC has the address of the GameStateBase
-			if ( !TryRead(matchAddress + localOffset, out Offsets.GameStateBase_Ref baseRefs) ) {
-				Log($"PoEMemory: Failed to find GameStateBase.");
+			if ( !TryRead(matchAddress + localOffset, out Offsets.GameRoot_Ref baseRefs) ) {
+				Log($"PoEMemory: Failed to find GameRoot.");
 				Detach();
 				return;
 			}
 
-			GameRoot = new GameStateBase() { Address = baseRefs.ptrToGameStateBasePtr };
+			GameRoot = new GameRoot() { Address = baseRefs.ptrToGameRootPtr };
 			Log($"PoEMemory: Game State Base is {Format(GameRoot.Address)}");
 			if ( !GameRoot.IsValid ) {
-				Log($"PoEMemory: Game State Base resulted in an invalid GameRoot.");
+				Log($"PoEMemory: Game State Base address resulted in an invalid GameRoot.");
 				Detach();
 				return;
 			}
 			Debugger.RegisterOffset("GameRoot", GameRoot.Address);
-			Debugger.RegisterStructLabels<Offsets.GameStateBase>("GameRoot", GameRoot.Address);
+			Debugger.RegisterStructLabels<Offsets.GameRoot>("GameRoot", GameRoot.Address);
 
 			Debugger.RegisterOffset("InGameState", GameRoot.InGameState.Address);
 			Debugger.RegisterStructLabels<Offsets.InGameState>("InGameState", GameRoot.InGameState.Address);
 
-			OnAreaChange += (sender, area) => {
-				Log("OnAreaChange: " + area);
-			};
+			OnAreaChange += (sender, area) => Log("OnAreaChange: " + area);
 
 		}
 
