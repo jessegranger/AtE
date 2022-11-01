@@ -297,20 +297,4 @@ namespace AtE {
 
 	}
 
-	public class HotKey : State {
-		public Keys Key;
-		public HotKey(Keys key) {
-			Key = key;
-			StateMachine.DefaultMachine.Add(this);
-		}
-		public bool IsUp => !IsDown;
-		public bool IsDown = false;
-		public bool IsReleased = false;
-		public override IState OnTick(long dt) {
-			bool downNow = IsKeyDown(Key);
-			IsReleased = IsDown && !downNow;
-			IsDown = downNow;
-			return this;
-		}
-	}
 }
