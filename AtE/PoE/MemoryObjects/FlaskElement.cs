@@ -34,14 +34,23 @@ namespace AtE {
 		// bunch of fields that we have to parse from iterating ItemMods, so we only do it when Address changes
 		public bool IsInstant;
 		public bool IsInstantOnLowLife;
-		public int MaxCharges; // the value in Charges component is unscaled by ItemMods like "Increased Charges"
-		public int CurCharges;
-		public int ChargesPerUse;
+		public int Charges_Max; // the value in Charges component is unscaled by ItemMods like "Increased Charges"
+		public int Charges_Cur;
+		public int Charges_Per;
 		public int Duration; // similarly, Duration is (base duration * quality) * ItemMods like "Increased Duration"
 		public int LifeHealAmount;
 		public int ManaHealAmount;
+		// we have to iterate the mods anyway, so dont force everyone else to do it too
 		public bool Enchanted_UseWhenFull;
 		public bool Enchanted_UseWhenHitRare;
+		public bool Effect_NotRemovedOnFullMana;
+		public bool Cures_Poisoned;
+		public bool Cures_Bleeding;
+		public bool Cures_Frozen;
+		public bool Cures_Ignited;
+		public bool Cures_Shocked;
+		public bool Cures_Curse;
+
 		public int FlaskIndex;
 		public Keys Key => (Keys.D1 + FlaskIndex);
 
@@ -54,12 +63,15 @@ namespace AtE {
 		public bool IsBuffActive => HasBuff(GetPlayer(), BaseData?.BuffName);
 
 		public Mods Mods => GetComponent<Mods>();
-		public string debugPath;
 
 		public new IntPtr Address { get => base.Address;
 			set {
-				if ( value == base.Address ) return;
+				if ( value == base.Address ) {
+					return;
+				}
+
 				base.Address = value;
+
 				if( value != IntPtr.Zero ) {
 					float qualityFactor = (100 + GetComponent<Quality>().ItemQuality) / 100f;
 					string path = Path.Split('/').Last();
@@ -69,11 +81,53 @@ namespace AtE {
 						ManaHealAmount = (int)(BaseData.ManaAmount * qualityFactor);
 					}
 					var charges = GetComponent<Charges>();
-					MaxCharges = charges.Max;
-					CurCharges = charges.Current;
-					ChargesPerUse = charges.PerUse;
+					Charges_Max = charges.Max;
+					Charges_Cur = charges.Current;
+					Charges_Per = charges.PerUse;
 					var mods = GetComponent<Mods>();
-					// TODO: scan the mods, adjust the above fields
+					foreach(var mod in mods.EnchantedMods ) {
+						string groupName = mod.GroupName;
+						if ( groupName.StartsWith("FlaskEnchantmentInjectorOnFullCharges") ) {
+							Enchanted_UseWhenFull = true;
+						} else if ( groupName.StartsWith("FlaskEnchantmentInjectorOnHittingRareOrUnique") ) {
+							Enchanted_UseWhenHitRare = true;
+						}
+					}
+					foreach ( var mod in mods.ExplicitMods ) {
+						string groupName = mod.GroupName;
+						if ( groupName.StartsWith("FlaskIncreasedDuration") ) {
+							Duration = (int)(Duration * ((100 + mod.Values.First()) / 100f));
+						} else if ( groupName.StartsWith("FlaskExtraCharges") ) {
+							Charges_Max += mod.Values.First();
+						} else if ( groupName.StartsWith("FlaskInstantRecoveryOnLowLife") ) {
+							IsInstantOnLowLife = true;
+							int lessRecovery = mod.Values.Skip(1).First(); // like -27
+							float recoveryFactor = (100 + lessRecovery) / 100f;
+							LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
+						} else if ( groupName.StartsWith("FlaskFullInstantRecovery") || groupName.StartsWith("FlaskPartialInstantRecovery") ) {
+							IsInstant = true;
+							int lessRecovery = mod.Values.Skip(1).First(); // like -27
+							float recoveryFactor = (100 + lessRecovery) / 100f;
+							LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
+						} else if ( groupName.StartsWith("FlaskPoisonImmunity") ) {
+							Cures_Poisoned = true;
+						} else if ( groupName.StartsWith("FlaskBleedCorruptingBloodImmunity") ) {
+							Cures_Bleeding = true;
+						} else if ( groupName.StartsWith("FlaskShockImmunity") ) {
+							Cures_Shocked = true;
+						} else if ( groupName.StartsWith("FlaskIgniteImmunity") ) {
+							Cures_Ignited = true;
+						} else if ( groupName.StartsWith("FlaskChillFreezeImmunity") ) {
+							Cures_Frozen = true;
+						} else if ( groupName.StartsWith("FlaskEffectNotRemovedOnFullMana") ) {
+							Effect_NotRemovedOnFullMana = true;
+							ManaHealAmount = (int)(ManaHealAmount * .70f);
+							Duration = (int)(Duration * .70f);
+						} else if ( groupName.StartsWith("FlaskCurseImmunity") ) {
+							Cures_Curse = true;
+						}
+
+					}
 				}
 			}
 		}
@@ -115,8 +169,8 @@ namespace AtE {
 	}
 
 	/// <summary>
+	/// Some data to make flasks useful is stored manually.
 	/// Access to the game data files is spotty and complex.
-	/// Some stable mandatory data to make flasks useful is stored manually.
 	/// </summary>
 	public class FlaskData {
 		public string Path; // just the last chunk
@@ -133,7 +187,7 @@ namespace AtE {
 		}
 		public static readonly Dictionary<string, FlaskData> Records = new Dictionary<string, FlaskData>() {
 			{  "FlaskLife1", new FlaskData("FlaskLife1", 70, 0, 3000, "flask_effect_life") }, // the Life durations are a bit off after 3.19
-			{  "FlaskLife2", new FlaskData("FlaskLife2", 150, 0, 3000, "flask_effect_life") },
+			{  "FlaskLife2", new FlaskData("FlaskLife2", 150, 0, 3000, "flask_effect_life") }, // but the buff names are the most useful part
 			{  "FlaskLife3", new FlaskData("FlaskLife3", 250, 0, 3000, "flask_effect_life") },
 			{  "FlaskLife4", new FlaskData("FlaskLife4", 360, 0, 3000, "flask_effect_life") },
 			{  "FlaskLife5", new FlaskData("FlaskLife5", 640, 0, 3000, "flask_effect_life") },
