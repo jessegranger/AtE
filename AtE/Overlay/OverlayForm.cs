@@ -58,12 +58,6 @@ namespace AtE {
 		}
 
 		/// <summary>
-		/// When true, ImGui will "capture" the keyboard and mouse, and ImGui input methods will work.
-		/// When false, input events flow only to the underlying window.
-		/// </summary>
-		public bool HasFocus => !trans;
-
-		/// <summary>
 		/// Tell the Window Manager that the window frame covers part of the Form.
 		/// By passing in -1, -1, -1, -1 (using a custom Margin struct that allows this),
 		/// we are able to have a margin that covers the whole form no matter the size.

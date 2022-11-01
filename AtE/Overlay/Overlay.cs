@@ -52,11 +52,9 @@ namespace AtE {
 
 			};
 
-			StateMachine.DefaultMachine.EnableLogging((s) => Log(s));
-
 		}
 
-		public static bool HasFocus => RenderForm.HasFocus;
+		public static bool HasFocus => Win32.GetForegroundWindow() == RenderForm.Handle; // !RenderForm.IsTransparent;
 
 		public static int Height => RenderForm.Height;
 		public static int Width => RenderForm.Width;
@@ -81,7 +79,9 @@ namespace AtE {
 				long dt = Time.ElapsedMilliseconds - lastRenderTime;
 				if ( settings.Enable_FPS_Maximum && dt < msPerFrame ) {
 					await Task.Delay((int)(msPerFrame - dt));
-					return;
+					return; // using await give much more accurate timing
+					// but the return here is mandatory, as control resumes on a new thread after an await
+					// so the return immediately ends that thread, and the next frame can begin on the old thread
 				}
 				FPS = dt == 0 ? 999d : 1000f / dt;
 				lastRenderTime += dt;
@@ -104,16 +104,6 @@ namespace AtE {
 				D3DController.Render();
 
 			}, true);
-		}
-	}
-
-	public static partial class Globals {
-		private static bool showTODO = true;
-		public static void TODO(string task) { // just an idea
-			if( showTODO && ImGui.Begin("TODO", ref showTODO) ) {
-				ImGui.BulletText(task);
-				ImGui.End();
-			}
 		}
 	}
 
