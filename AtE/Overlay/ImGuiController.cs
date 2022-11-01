@@ -36,7 +36,7 @@ namespace AtE {
 
 		public static int ToRGBA(Color color) => (color.A << 24) | (color.B << 16) | (color.G << 8) | color.R;
 
-
+		/* How to debug the draw coordinates
 		public static void DrawDebugGrid() {
 			var gridColor = Color.FromArgb(1, 55, 255, 255);
 			for(int x = 0; x < 1920; x += 100 ) {
@@ -48,9 +48,14 @@ namespace AtE {
 				DrawTextAt(new Vector2(2, y), $"{y}", gridColor);
 			}
 		}
+		*/
+
 	}
 
 	internal static class ImGuiController {
+
+		// toggle this off to disable all drawing on the ImGui layer
+		public static bool Enabled = true;
 
 		private static IntPtr Context;
 		private static ImGuiIOPtr IO;
@@ -328,9 +333,13 @@ namespace AtE {
 		}
 
 		public static void NewFrame(long dt) {
+			if ( !Enabled ) {
+				return;
+			}
 			if ( IO.DisplaySize.X <= 0 || IO.DisplaySize.Y <= 0 ) {
 				return;
 			}
+
 
 			// InputUpdate:
 			IO.DeltaTime = dt / 1000f;
@@ -420,6 +429,9 @@ namespace AtE {
 		public static void DrawLine(Vector2 start, Vector2 end, Color color, int thickness = 1) => textDrawListPtr.AddLine(start, end, (uint)ToRGBA(color), thickness);
 
 		public static void Render(long dt) {
+			if ( !Enabled ) {
+				return;
+			}
 
 			if ( IO.DisplaySize.X <= 0 || IO.DisplaySize.Y <= 0 ) {
 				return;
