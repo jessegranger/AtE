@@ -7,6 +7,11 @@ using System.Text;
 namespace AtE {
 
 
+	/// <summary>
+	/// This class is as close as I can get to a complete map of Path of Exile
+	/// memory layout.
+	/// Most of this was extracted from now defunct https://github.com/queuete/ExileApi
+	/// </summary>
 	public static partial class Offsets {
 
 		/// <summary>
@@ -14,8 +19,6 @@ namespace AtE {
 		/// </summary>
 		public const int VersionMajor = 1;
 		public const int VersionMinor = 0;
-		// Later, I think this file will get fetched directly from GitHub raw,
-		// and compiled, like a Plugin.
 
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
@@ -45,7 +48,7 @@ namespace AtE {
 			[FieldOffset(0x06)] private readonly byte byte6;
 			[FieldOffset(0x07)] private readonly byte byte7;
 			[FieldOffset(0x08)] private readonly byte byte8; // once Capacity > 7, the last 8 bytes are used for different things in different places,
-			[FieldOffset(0x09)] private readonly byte byte9; // sometimes it holds a pointer to a class, sometimes empty
+			[FieldOffset(0x09)] private readonly byte byte9; // sometimes it holds a pointer to function, sometimes empty
 			[FieldOffset(0x0a)] private readonly byte byte10;
 			[FieldOffset(0x0b)] private readonly byte byte11;
 			[FieldOffset(0x0c)] private readonly byte byte12;
@@ -102,6 +105,7 @@ namespace AtE {
 					head += recordSize;
 				}
 			}
+			// TODO: read the whole array all at once
 		}
 	
 
@@ -124,18 +128,20 @@ namespace AtE {
 		public readonly static string WindowClass = "POEWindowClass";
 		public readonly static string WindowTitle = "Path of Exile";
 
-		public readonly static string GameStateBase_SearchMask = "xxxxxxxx";
-		public readonly static byte[] GameStateBase_SearchPattern = new byte[] {
+		public readonly static string GameRoot_SearchMask = "xxxxxxxx";
+		public readonly static byte[] GameRoot_SearchPattern = new byte[] {
 			0x48, 0x8b, 0xf1, 0x33, 0xed, 0x48, 0x39, 0x2d
 		};
-		// after you find the pattern match, skip to the end of the pattern match, then read a local offset found there in the instruction
-		// the match + localOffset is address of a pointer to the game state base
-		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GameStateBase_Ref {
-			[FieldOffset(0x0C)] public readonly IntPtr ptrToGameStateBasePtr;
+		// after you find the pattern match, skip to the end of the match, read a local offset found there in the instruction
+		// eg, localOffset = Read<int>(match + pattern.Length)
+		// then, ptr = Read<IntPtr>(match + localOffset) is address of a GameRoot_Ref struct
+		// so, the final game state base ptr is, Read<GameRoot_Ref>(ptr).ptrToGameStateBasePtr
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GameRoot_Ref {
+			[FieldOffset(0x0C)] public readonly IntPtr ptrToGameRootPtr;
 		}
 
-		// GameStateBase members:
-		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GameStateBase {
+		// GameRoot members:
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GameRoot {
 			[FieldOffset(0x08)] public readonly ArrayHandle CurrentGameStates;
 			[FieldOffset(0x20)] public readonly ArrayHandle ActiveGameStates;
 			[FieldOffset(0x48)] public readonly GameStateArrayEntry AreaLoadingState;
@@ -152,11 +158,10 @@ namespace AtE {
 			[FieldOffset(0xf8)] public readonly GameStateArrayEntry LoadingState;
 		}
 
-
 		// GameState members:
 		public readonly static int GameState_Kind = 0x0B;
 
-		// members of AllGameStates:
+		// members of AllGameStates array:
 		[StructLayout(LayoutKind.Explicit)] public struct GameStateArrayEntry {
 			[FieldOffset(0x0)] public readonly IntPtr ptrToGameState;
 			[FieldOffset(0x8)] public readonly IntPtr ptrToUnknown;
@@ -207,7 +212,8 @@ namespace AtE {
 			[FieldOffset(0xE8)] public readonly float X;
 			[FieldOffset(0xEC)] public readonly float Y;
 			[FieldOffset(0x158)] public readonly float Scale;
-			[FieldOffset(0x161)] public readonly byte IsVisibleLocal;
+			[FieldOffset(0x161)] public readonly byte IsVisibleByte;
+			public bool IsVisibleLocal => (IsVisibleByte & 8) == 8;
 
 			[FieldOffset(0x160)] public readonly uint ElementBorderColor;
 			[FieldOffset(0x164)] public readonly uint ElementBackgroundColor;
@@ -680,7 +686,8 @@ namespace AtE {
 			//[FieldOffset(0x38)] public readonly long FlavourTextKey;
 			[FieldOffset(0x60)] public readonly IntPtr strPublicPrice; // ptr to string unicode
 			[FieldOffset(0xC6)] public readonly InfluenceTypes Influences;
-			[FieldOffset(0xC7)] public readonly byte IsCorrupted;
+			[FieldOffset(0xC7)] public readonly byte IsCorruptedByte;
+			public bool IsCorrupted => (IsCorruptedByte & 1) == 1;
 			// [FieldOffset(0xC8)] public readonly int UnspentAbsorbedCorruption;
 			// [FieldOffset(0xCC)] public readonly int ScourgedTier;
 		}
@@ -772,6 +779,12 @@ namespace AtE {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			[FieldOffset(0x28)] public readonly int MaxStackSize;
 		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Flask {
+			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			[FieldOffset(0x10)] public readonly ArrayHandle arrayOfUnknown;
+		}
+
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Inventories {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			[FieldOffset(0x18)] public readonly ArrayHandle UnknownArray;
@@ -824,10 +837,10 @@ namespace AtE {
 			[FieldOffset(0x23F)] public readonly byte IsUsable;
 			[FieldOffset(0x241)] public readonly byte IsSynthesised;
 
-			public const int ItemModRecordSize = 0x38;
-			public const int NameOffset = 0x04;
-			public const int NameRecordSize = 0x10;
-			public const int StatRecordSize = 0x20;
+			// public const int ItemModRecordSize = 0x38;
+			// public const int NameOffset = 0x04;
+			// public const int NameRecordSize = 0x10;
+			// public const int StatRecordSize = 0x20;
 		}
 		public enum ItemRarity : uint {
 			Normal,
@@ -854,15 +867,12 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemModEntry {
-			[FieldOffset(0x00)] public readonly int Value1;
-			[FieldOffset(0x04)] public readonly int Value2;
-			[FieldOffset(0x08)] public readonly int Value3;
-			[FieldOffset(0x12)] public readonly int Value4;
+			[FieldOffset(0x00)] public ArrayHandle Values; // sometimes (always?) the values are not inlined
 			[FieldOffset(0x28)] public readonly IntPtr ptrItemModEntryNames;
 			[FieldOffset(0x30)] public readonly IntPtr Padding; // so size = 0x38
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemModEntryNames {
-			[FieldOffset(0x060)] public readonly IntPtr strGroupName;
+			[FieldOffset(0x000)] public readonly IntPtr strGroupName;
 			[FieldOffset(0x064)] public readonly IntPtr strDisplayName;
 		}
 
@@ -968,6 +978,7 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Positioned {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			[FieldOffset(0x1D9)] public readonly byte Reaction;
+			public bool IsHostile => (Reaction & 0x7F) != 1;
 			[FieldOffset(0x260)] public readonly Vector2i GridPos;
 			[FieldOffset(0x268)] public readonly float Rotation;
 			[FieldOffset(0x27C)] public readonly float Scale;
@@ -1069,6 +1080,11 @@ namespace AtE {
 			[FieldOffset(0x38)] public readonly ArrayHandle UnknownArray;
 			[FieldOffset(0x50)] public readonly Vector2i GridMin;
 			[FieldOffset(0x58)] public readonly Vector2i GridMax;
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Usable  {
+			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			[FieldOffset(0x10)] public readonly IntPtr ptrToUnknown;
+			[FieldOffset(0x18)] public readonly long PaddingAlwaysZero;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Weapon {

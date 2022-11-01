@@ -153,7 +153,7 @@ namespace AtE {
 			: null;
 
 		public bool IsOnCooldown => GetPlayer()?.GetComponent<Actor>()?.IsOnCooldown(Cache.Value.Id) ?? false;
-	
+
 		public bool CanBeUsed =>
 			Cache.Value.CanBeUsed == 1
 			&& Cache.Value.CanBeUsedWithWeapon == 1;
@@ -232,7 +232,7 @@ namespace AtE {
 
 		public Offsets.InfluenceTypes Influences => Cache.Influences;
 
-		public bool IsCorrupted => (Cache.IsCorrupted & 0x01) == 0x01;
+		public bool IsCorrupted => Cache.IsCorrupted;
 
 	}
 
@@ -276,8 +276,9 @@ namespace AtE {
 
 	public static partial class Globals {
 		public static bool HasBuff(Entity ent, string buffName) =>
-			buffName != null && IsValid(ent) &&
-			ent.GetComponent<Buffs>().Any(buff => buff.Name?.Equals(buffName) ?? false);
+			buffName != null && IsValid(ent) && HasBuff(ent.GetComponent<Buffs>(), buffName);
+		public static bool HasBuff(IEnumerable<Buff> buffs, string buffName) =>
+			buffs?.Any(buff => buff.Name?.Equals(buffName) ?? false) ?? false;
 	}
 
 	public class CapturedMonster : Component<Offsets.Component_Empty> { }
@@ -307,12 +308,12 @@ namespace AtE {
 		public bool OpenOnDamage => Details.Value.OpenOnDamage;
 	}
 
-	class ClientAnimationController: Component<Offsets.Component_ClientAnimationController> {
+	class ClientAnimationController : Component<Offsets.Component_ClientAnimationController> {
 		public int AnimationId => Cache.AnimationId;
 	}
-	class ClientBetrayalChoice: Component<Offsets.Component_Empty> { }
-	class Counter: Component<Offsets.Component_Empty> { }
-	class CritterAI: Component<Offsets.Component_Empty> { }
+	class ClientBetrayalChoice : Component<Offsets.Component_Empty> { }
+	class Counter : Component<Offsets.Component_Empty> { }
+	class CritterAI : Component<Offsets.Component_Empty> { }
 
 	class CurrencyInfo : Component<Offsets.Component_CurrencyInfo> {
 
@@ -402,11 +403,18 @@ namespace AtE {
 		}
 		public string GroupName => PoEMemory.TryReadString(Names.Value.strGroupName, Encoding.Unicode, out string name) ? name : null;
 		public string DisplayName => PoEMemory.TryReadString(Names.Value.strDisplayName, Encoding.Unicode, out string name) ? name : null;
-		public int Value1 => Entry.Value1;
-		public int Value2 => Entry.Value2;
-		public int Value3 => Entry.Value3;
-		public int Value4 => Entry.Value4;
+		public IEnumerable<int> Values =>
+			Entry.Values.GetRecordPtrs(sizeof(int))
+				.Select(a => PoEMemory.TryRead(a, out int value) ? value : 0);
 
+	}
+	public static partial class Globals {
+		public static bool HasMod(Entity ent, string groupName) => HasMod(ent.GetComponent<Mods>(), groupName);
+		public static bool HasMod(Mods mods, string groupName) => IsValid(mods) &&
+			(mods.ExplicitMods.Any(m => HasMod(m, groupName))
+			|| mods.ImplicitMods.Any(m => HasMod(m, groupName))
+			|| mods.EnchantedMods.Any(m => HasMod(m, groupName)));
+		public static bool HasMod(ItemMod mod, string groupName) => mod.GroupName.StartsWith(groupName);
 	}
 
 	public class Monolith : Component<Offsets.Component_Monolith> {
@@ -460,6 +468,7 @@ namespace AtE {
 		public float Scale => Cache.Scale;
 		public int Size => Cache.Size;
 		public byte Reaction => Cache.Reaction;
+		public bool IsHostile => Cache.IsHostile;
 	}
 
 	public class Quality : Component<Offsets.Component_Quality> {
@@ -557,6 +566,10 @@ namespace AtE {
 	public class WorldItem : Component<Offsets.Component_WorldItem> {
 		public Entity Item => Cache.entItem == IntPtr.Zero ? null :
 			new Entity() { Address = Cache.entItem };
+	}
+
+	public class Usable : Component<Offsets.Component_Empty> {
+
 	}
 	
 }

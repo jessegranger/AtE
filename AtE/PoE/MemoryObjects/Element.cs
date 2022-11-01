@@ -40,7 +40,7 @@ namespace AtE {
 		public string InputText => Cache.inputMask2 == Offsets.Element.inputMask2_HasInput
 			? Cache.strInputText.Value : null;
 
-		public bool IsVisibleLocal => (Cache.IsVisibleLocal & 8) == 8;
+		public bool IsVisibleLocal => Cache.IsVisibleLocal;
 
 		public bool IsVisible => IsVisibleLocal && (!IsValid(Parent) || Parent == Self || Parent.IsVisible);
 

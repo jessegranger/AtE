@@ -29,6 +29,9 @@ namespace AtE {
 		/// <returns>An enumerable over the current entity list.</returns>
 		public static IEnumerable<Entity> GetEntities() => PoEMemory.GameRoot?.InGameState?.Entities;
 
+		public static IEnumerable<Entity> GetEnemies() => GetEntities()
+			.Where(e => e.GetComponent<Positioned>()?.IsHostile ?? false);
+
 		public static void DrawTextAt(Entity ent, string text, Color color) {
 			var camera = PoEMemory.GameRoot?.InGameState?.WorldData?.Camera ?? default;
 			var pos = ent.GetComponent<Render>().Position;
@@ -48,6 +51,8 @@ namespace AtE {
 		public uint Id => Cache.Id;
 
 		public string Path => PoEMemory.TryReadString(Details.Value.ptrPath, Encoding.Unicode, out string ret) ? ret : null;
+
+		public bool IsHostile => GetComponent<Positioned>()?.IsHostile ?? false;
 
 		public bool HasComponent<T>() where T : MemoryObject, new() {
 			if ( Components == null ) Components = GetComponents();
@@ -94,7 +99,7 @@ namespace AtE {
 				if ( entry.Flag0 != byte.MaxValue
 					&& PoEMemory.TryReadString(entry.Pointer0.ptrName, Encoding.ASCII, out name)
 					&& !string.IsNullOrWhiteSpace(name)
-					&& !result.ContainsKey(name) ) {
+					) {
 					int index = entry.Pointer0.Index;
 					if ( index >= 0 && index <= entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
@@ -103,7 +108,7 @@ namespace AtE {
 				if ( entry.Flag1 != byte.MaxValue
 					&& PoEMemory.TryReadString(entry.Pointer1.ptrName, Encoding.ASCII, out name)
 					&& !string.IsNullOrWhiteSpace(name)
-					&& !result.ContainsKey(name) ) {
+					) {
 					int index = entry.Pointer1.Index;
 					if ( index >= 0 && index <= entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
@@ -112,7 +117,7 @@ namespace AtE {
 				if ( entry.Flag2 != byte.MaxValue
 					&& PoEMemory.TryReadString(entry.Pointer2.ptrName, Encoding.ASCII, out name)
 					&& !string.IsNullOrWhiteSpace(name)
-					&& !result.ContainsKey(name) ) {
+					) {
 					int index = entry.Pointer2.Index;
 					if ( index >= 0 && index <= entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
@@ -121,7 +126,7 @@ namespace AtE {
 				if ( entry.Flag3 != byte.MaxValue
 					&& PoEMemory.TryReadString(entry.Pointer3.ptrName, Encoding.ASCII, out name)
 					&& !string.IsNullOrWhiteSpace(name)
-					&& !result.ContainsKey(name) ) {
+					) {
 					int index = entry.Pointer3.Index;
 					if ( index >= 0 && index <= entityComponents.Length ) {
 						result.Add(name, Address = entityComponents[index] );
@@ -130,7 +135,7 @@ namespace AtE {
 				if ( entry.Flag4 != byte.MaxValue
 					&& PoEMemory.TryReadString(entry.Pointer4.ptrName, Encoding.ASCII, out name)
 					&& !string.IsNullOrWhiteSpace(name)
-					&& !result.ContainsKey(name) ) {
+					) {
 					int index = entry.Pointer4.Index;
 					if ( index >= 0 && index <= entityComponents.Length ) {
 						result.Add(name, Address = entityComponents[index] );
@@ -139,7 +144,7 @@ namespace AtE {
 				if ( entry.Flag5 != byte.MaxValue
 					&& PoEMemory.TryReadString(entry.Pointer5.ptrName, Encoding.ASCII, out name)
 					&& !string.IsNullOrWhiteSpace(name)
-					&& !result.ContainsKey(name) ) {
+					) {
 					int index = entry.Pointer5.Index;
 					if ( index >= 0 && index <= entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
@@ -148,7 +153,7 @@ namespace AtE {
 				if ( entry.Flag6 != byte.MaxValue
 					&& PoEMemory.TryReadString(entry.Pointer6.ptrName, Encoding.ASCII, out name)
 					&& !string.IsNullOrWhiteSpace(name)
-					&& !result.ContainsKey(name) ) {
+					) {
 					int index = entry.Pointer6.Index;
 					if ( index >= 0 && index <= entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
@@ -157,7 +162,7 @@ namespace AtE {
 				if ( entry.Flag7 != byte.MaxValue
 					&& PoEMemory.TryReadString(entry.Pointer7.ptrName, Encoding.ASCII, out name)
 					&& !string.IsNullOrWhiteSpace(name)
-					&& !result.ContainsKey(name) ) {
+					) {
 					int index = entry.Pointer7.Index;
 					if ( index >= 0 && index <= entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
