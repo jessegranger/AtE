@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ImGuiNET;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -56,6 +57,16 @@ namespace AtE {
 			});
 		}
 
+		public static void ImGui_HelpMarker(string text, string label = "(?)") {
+			ImGui.TextDisabled(label);
+			if( ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) {
+				ImGui.BeginTooltip();
+				ImGui.PushTextWrapPos(ImGui.GetFontSize() * 35f);
+				ImGui.TextUnformatted(text);
+				ImGui.PopTextWrapPos();
+				ImGui.EndTooltip();
+			}
+		}
 
 	}
 }
