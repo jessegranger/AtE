@@ -11,6 +11,8 @@ using static AtE.Globals;
 namespace AtE {
 	public static partial class Globals {
 		public static bool IsValid<T>(Component<T> c) where T : unmanaged => c != null && !c.IsDisposed;
+
+		public static bool IsAlive(Entity ent) => (ent?.GetComponent<Life>()?.CurHP ?? 0) > 0;
 	}
 	public abstract class Component<T> : MemoryObject<T>, IDisposable where T : unmanaged {
 
@@ -300,7 +302,7 @@ namespace AtE {
 
 		public bool IsOpened => Cache.IsOpened;
 		public bool IsLocked => Cache.IsLocked;
-		public bool IsStrongbox => Cache.IsStrongbox;
+		public bool IsStrongbox => Cache.ptrToChestEffect != IntPtr.Zero;
 		public byte Quality => Cache.Quality;
 		public bool WillDestroyAfterOpen => Details.Value.WillDestroyAfterOpen;
 		public bool IsLarge => Details.Value.IsLarge;
@@ -463,6 +465,7 @@ namespace AtE {
 
 	public class Positioned : Component<Offsets.Component_Positioned> {
 		public Offsets.Vector2i GridPos => Cache.GridPos;
+		public Vector2 GridPosF => new Vector2(Cache.GridPos.X, Cache.GridPos.Y);
 		public Vector2 WorldPos => Cache.WorldPos;
 		public float Roation => Cache.Rotation;
 		public float Scale => Cache.Scale;
