@@ -481,7 +481,7 @@ namespace AtE {
 		public Vector3 Rotation => Cache.Rotation;
 		public float Height => Cache.Height;
 
-		public string Name => Encoding.Unicode.GetString(new ArrayHandle<byte>(Cache.Name).ToArray());
+		public string Name => Cache.Name.Value;
 	}
 
 	public class RenderItem : Component<Offsets.Component_RenderItem> {
