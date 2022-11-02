@@ -16,8 +16,9 @@ namespace AtE {
 		private static Factory deviceFactory;
 		private static Texture2D backBuffer;
 		private static RenderTargetView renderTargetView;
-		private static BlendState deviceBlendState;
-		private static DepthStencilState deviceDepthStencilState;
+		// each of the layers has their own blend and stencil state
+		// private static BlendState deviceBlendState;
+		// private static DepthStencilState deviceDepthStencilState;
 		private static RawColor4 clearColor = new RawColor4(0, 0, 0, 0);
 
 		public static void Initialise(OverlayForm RenderForm) {

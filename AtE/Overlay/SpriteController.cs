@@ -48,8 +48,6 @@ namespace AtE {
 
 		private static ImagingFactory2 imagingFactory;
 
-		private static int vertexBufferSize;
-		private static int indexBufferSize;
 		private static BlendState blendState;
 		private static DepthStencilState depthStencilState;
 		private static VertexShader vertexShader;
