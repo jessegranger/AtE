@@ -81,6 +81,7 @@ namespace AtE {
 
 		public static void CreateRenderStates(int Width, int Height) {
 
+			/* None of this is used, since each layer sets its own:
 			Log($"DirectX: Setting device blend state...");
 			var blendStateDesc = new BlendStateDescription();
 			blendStateDesc.RenderTarget[0].IsBlendEnabled = true;
@@ -118,7 +119,6 @@ namespace AtE {
 
 			deviceDepthStencilState = new DepthStencilState(Device, depthStencilDesc);
 			deviceContext.OutputMerger.SetDepthStencilState(deviceDepthStencilState);
-
 			Log("DirectX: Setting Viewport...");
 			deviceContext.Rasterizer.SetViewport(0, 0, Width, Height, 0f, 1f);
 			deviceContext.OutputMerger.SetRenderTargets(renderTargetView);
@@ -129,6 +129,7 @@ namespace AtE {
 					FillMode = FillMode.Solid,
 					CullMode = CullMode.None
 				});
+			*/
 
 		}
 
@@ -151,8 +152,6 @@ namespace AtE {
 			deviceSwapChain.ResizeBuffers(1, Width, Height, Format.R8G8B8A8_UNorm, SwapChainFlags.None);
 			CreateRenderTarget();
 			Bounds = new Rectangle(Left, Top, Width, Height);
-
-			// TODO: Does the ImGui resize have to be right _here_ ?
 
 			deviceContext.Rasterizer.SetViewport(0, 0, Width, Height);
 			deviceContext.OutputMerger.SetRenderTargets(renderTargetView);

@@ -60,13 +60,12 @@ namespace AtE {
 		private static IntPtr Context;
 		private static ImGuiIOPtr IO;
 		private static InputLayout inputLayout;
-		private static SamplerState imGuiSamplerState;
-		private static RasterizerState imGuiSolidRasterState;
-		private static BlendState imGuiBlendState;
-		private static DepthStencilState imGuiDepthStencilState;
-		private static VertexBufferBinding imGuiVertexBufferBinding;
-		private static VertexShader imGuiVertexShader;
-		private static PixelShader imGuiPixelShader;
+		private static SamplerState samplerState;
+		private static RasterizerState solidRasterState;
+		private static BlendState blendState;
+		private static DepthStencilState depthStencilState;
+		private static VertexShader vertexShader;
+		private static PixelShader pixelShader;
 		private static int vertexBufferSize = 8 * 1024;
 		private static int indexBufferSize = 24 * 1024;
 		private static Buffer vertexBuff;
@@ -220,9 +219,9 @@ namespace AtE {
 
 			Log("ImGui: compiling shaders...");
 			CompilationResult vertexShaderByteCode = ShaderBytecode.Compile(vertexShaderSource, "VS", "vs_4_0");
-			imGuiVertexShader = new VertexShader(Device, vertexShaderByteCode);
+			vertexShader = new VertexShader(Device, vertexShaderByteCode);
 			CompilationResult indexShaderByteCode = ShaderBytecode.Compile(pixelShaderSource, "PS", "ps_4_0");
-			imGuiPixelShader = new PixelShader(Device, indexShaderByteCode);
+			pixelShader = new PixelShader(Device, indexShaderByteCode);
 
 			Log("ImGui: creating InputLayout...");
 			inputLayout = new InputLayout(Device, ShaderSignature.GetInputSignature(vertexShaderByteCode), new InputElement[] {
@@ -256,7 +255,7 @@ namespace AtE {
 			});
 
 			Log("ImGui: Creating sampler state...");
-			imGuiSamplerState = new SamplerState(Device, new SamplerStateDescription {
+			samplerState = new SamplerState(Device, new SamplerStateDescription {
 				Filter = Filter.MinMagMipLinear,
 				AddressU = TextureAddressMode.Wrap,
 				AddressV = TextureAddressMode.Wrap,
@@ -280,13 +279,13 @@ namespace AtE {
 			blendDesc.RenderTarget[0].AlphaBlendOperation = BlendOperation.Add;
 			blendDesc.RenderTarget[0].RenderTargetWriteMask = ColorWriteMaskFlags.All;
 
-			imGuiBlendState = new BlendState(Device, blendDesc);
-			if ( !imGuiBlendState.Description.RenderTarget[0].IsBlendEnabled ) {
+			blendState = new BlendState(Device, blendDesc);
+			if ( !blendState.Description.RenderTarget[0].IsBlendEnabled ) {
 				throw new Exception("AssertionError: blend state did not apply description");
 			}
 
 			Log("ImGui: Creating depth stencil state...");
-			imGuiDepthStencilState = new DepthStencilState(Device, new DepthStencilStateDescription {
+			depthStencilState = new DepthStencilState(Device, new DepthStencilStateDescription {
 				IsDepthEnabled = false,
 				IsStencilEnabled = false,
 				DepthWriteMask = DepthWriteMask.All,
@@ -306,7 +305,7 @@ namespace AtE {
 			});
 
 			Log("ImGui: Creating solid raster state...");
-			imGuiSolidRasterState = new RasterizerState(Device, new RasterizerStateDescription {
+			solidRasterState = new RasterizerState(Device, new RasterizerStateDescription {
 				FillMode = FillMode.Solid,
 				CullMode = CullMode.None,
 				IsScissorEnabled = true,
@@ -319,7 +318,7 @@ namespace AtE {
 
 		}
 
-		internal static void Resize(int left, int top, int width, int height) {
+		internal static void Resize(int width, int height) {
 			IO.DisplaySize = new Vector2(width, height);
 			UpdateConstantBuffer();
 		}
@@ -333,9 +332,7 @@ namespace AtE {
 		}
 
 		public static void NewFrame(long dt) {
-			if ( !Enabled ) {
-				return;
-			}
+			drawTextAtOffsets.Clear();
 			if ( IO.DisplaySize.X <= 0 || IO.DisplaySize.Y <= 0 ) {
 				return;
 			}
@@ -352,57 +349,16 @@ namespace AtE {
 			// Once the mouse leaves the ImGui element area, the process is reversed.
 			if ( (IO.WantCaptureKeyboard || IO.WantCaptureMouse) && RenderForm.IsTransparent ) {
 				RenderForm.IsTransparent = false;
-			} else if ( !(IO.WantCaptureKeyboard || IO.WantCaptureMouse || RenderForm.IsTransparent) ) {
+			} else if ( !IO.WantCaptureKeyboard && !IO.WantCaptureMouse && !RenderForm.IsTransparent ) {
 				RenderForm.IsTransparent = true;
 			}
 
 
 			ImGui.NewFrame();
-
-			/*
-			ImGui.SetNextWindowContentSize(IO.DisplaySize);
-			ImGui.SetNextWindowPos(Vector2.Zero);
-			ImGui.Begin("Background Layer",
-					ImGuiWindowFlags.NoTitleBar |
-					ImGuiWindowFlags.NoResize |
-					ImGuiWindowFlags.NoMove |
-					ImGuiWindowFlags.NoScrollbar |
-					ImGuiWindowFlags.NoScrollWithMouse |
-					ImGuiWindowFlags.NoCollapse |
-					ImGuiWindowFlags.NoSavedSettings |
-					ImGuiWindowFlags.NoInputs |
-					ImGuiWindowFlags.NoFocusOnAppearing |
-					ImGuiWindowFlags.NoBringToFrontOnFocus |
-					ImGuiWindowFlags.NoBackground);
-			// backgroundDrawListPtr = ImGui.GetWindowDrawList();
-			// used to draw sprites?
-			ImGui.End();
-			*/
-
-			ImGui.SetNextWindowContentSize(IO.DisplaySize);
-			ImGui.SetNextWindowPos(Vector2.Zero);
-			ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(0, 0f));
-			ImGui.Begin("Text Layer",
-					ImGuiWindowFlags.NoTitleBar |
-					ImGuiWindowFlags.NoResize |
-					ImGuiWindowFlags.NoMove |
-					ImGuiWindowFlags.NoScrollbar |
-					ImGuiWindowFlags.NoScrollWithMouse |
-					ImGuiWindowFlags.NoCollapse |
-					ImGuiWindowFlags.NoSavedSettings |
-					ImGuiWindowFlags.NoInputs |
-					ImGuiWindowFlags.NoFocusOnAppearing |
-					ImGuiWindowFlags.NoBackground |
-					ImGuiWindowFlags.NoDecoration
-
-			);
-			ImGui.PopStyleVar(1);
-			textDrawListPtr = ImGui.GetWindowDrawList();
-			drawTextAtOffsets.Clear();
+			textDrawListPtr = ImGui.GetBackgroundDrawList();
 		}
 
 		private static ImDrawListPtr textDrawListPtr;
-		// private static ImDrawListPtr backgroundDrawListPtr;
 
 		/// <summary>
 		/// Adds a line of text to a group of other text lines already on the screen.
@@ -429,6 +385,12 @@ namespace AtE {
 		public static void DrawLine(Vector2 start, Vector2 end, Color color, int thickness = 1) => textDrawListPtr.AddLine(start, end, (uint)ToRGBA(color), thickness);
 
 		public static void Render(long dt) {
+			textDrawListPtr = null; // these become invalid right away
+			spriteDrawListPtr = null;
+			// Render the scene to a draw list
+			ImGui.Render();
+
+			// even if not enabled, consume any scenes that are generated
 			if ( !Enabled ) {
 				return;
 			}
@@ -437,13 +399,8 @@ namespace AtE {
 				return;
 			}
 
-			// End the background text window created by NewFrame()
-			ImGui.End();
 
-			// Render the scene to a frame
-			ImGui.Render();
 			ImDrawDataPtr data = ImGui.GetDrawData();
-
 			if ( data.TotalVtxCount == 0 ) {
 				return;
 			}
@@ -505,23 +462,22 @@ namespace AtE {
 			deviceContext.UnmapSubresource(indexBuffer, 0);
 
 			// Set the rendering states using the ImGui buffers and blend/depth states
-			deviceContext.Rasterizer.State = imGuiSolidRasterState;
+			deviceContext.Rasterizer.State = solidRasterState;
 			deviceContext.InputAssembler.InputLayout = inputLayout;
-			imGuiVertexBufferBinding = new VertexBufferBinding {
+			deviceContext.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding {
 				Buffer = vertexBuff,
 				Stride = sizeofImDrawVert,
 				Offset = 0
-			};
-			deviceContext.InputAssembler.SetVertexBuffers(0, imGuiVertexBufferBinding);
+			});
 			deviceContext.InputAssembler.SetIndexBuffer(indexBuffer, Format.R16_UInt, 0);
 			deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-			deviceContext.VertexShader.Set(imGuiVertexShader);
+			deviceContext.VertexShader.Set(vertexShader);
 			deviceContext.VertexShader.SetConstantBuffer(0, constantBuffer);
-			deviceContext.PixelShader.Set(imGuiPixelShader);
-			deviceContext.PixelShader.SetSampler(0, imGuiSamplerState);
+			deviceContext.PixelShader.Set(pixelShader);
+			deviceContext.PixelShader.SetSampler(0, samplerState);
 
-			deviceContext.OutputMerger.SetBlendState(imGuiBlendState);
-			deviceContext.OutputMerger.SetDepthStencilState(imGuiDepthStencilState);
+			deviceContext.OutputMerger.SetBlendState(blendState);
+			deviceContext.OutputMerger.SetDepthStencilState(depthStencilState);
 
 			var pos = data.DisplayPos;
 			// Because we copied everything into two GPU buffers, we need two indexes over those arrays

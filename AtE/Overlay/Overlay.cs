@@ -28,6 +28,9 @@ namespace AtE {
 				Log("RenderForm: OnLoad...");
 				// Set full transparency, where an undrawable (by windows) margin fills the whole form
 				RenderForm.ExtendFrameIntoClientArea(-1, -1, -1, -1);
+				// MSDN: Negative margins have special meaning to DwmExtendFrameIntoClientArea.
+				// Negative margins create the "sheet of glass" effect, where the client area
+				// is rendered as a solid surface with no window border.
 				RenderForm.IsTransparent = true;
 				var screen = Screen.FromHandle(RenderForm.Handle);
 				RenderForm.Size = new Size(screen.Bounds.Width, screen.Bounds.Height);
@@ -37,7 +40,9 @@ namespace AtE {
 
 			ImGuiController.Initialise(RenderForm);
 
-			D3DController.CreateRenderStates(RenderForm.Width, RenderForm.Height);
+			SpriteController.Initialise(RenderForm);
+
+			// Not used: D3DController.CreateRenderStates(RenderForm.Width, RenderForm.Height);
 
 			// Sets the initial window styles, with RenderForm on top at first.
 			// Later, OnLoad will toggle this, and put RenderForm "behind" the DirectX render surface.
@@ -45,10 +50,16 @@ namespace AtE {
 
 			Log("Binding resize event...");
 			RenderForm.UserResized += (sender, args) => {
-				D3DController.Resize(RenderForm.Left, RenderForm.Top, RenderForm.Width, RenderForm.Height);
+				int x = RenderForm.Left;
+				int y = RenderForm.Top;
+				int w = RenderForm.Width;
+				int h = RenderForm.Height;
+				D3DController.Resize(x, y, w, h);
 				Log($"RenderForm: UserResized {RenderForm.ClientRectangle}");
 
-				ImGuiController.Resize(RenderForm.Left, RenderForm.Top, RenderForm.Width, RenderForm.Height);
+				ImGuiController.Resize(w, h);
+
+				SpriteController.Resize(w, h);
 
 			};
 
@@ -91,14 +102,16 @@ namespace AtE {
 
 				// Start a new frame
 				ImGuiController.NewFrame(dt);
+				SpriteController.NewFrame(dt);
 
 				// Advance all the States by one frame
+				// in here they end up calling ImGuiController and SpriteController Draw functions
+				// this adds up some draw lists
 				StateMachine.DefaultMachine.OnTick(dt);
 
+				SpriteController.Render(dt);
 				// Render the ImGui layer to vertexes and Draw them to the GPU buffers
 				ImGuiController.Render(dt);
-
-				// TODO: Render a Sprite layer?
 
 				// Finalize the rendering to the screen
 				D3DController.Render();
