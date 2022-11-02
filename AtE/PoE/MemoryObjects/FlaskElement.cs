@@ -153,7 +153,7 @@ namespace AtE {
 
 		private void updateFlaskIndex() {
 			int flaskChildIndex = 1; // the first child is a background/placeholder, so start at 1
-			foreach ( var flaskChild in Children.First()?.Children.Skip(1) ?? Empty<Element>()) {
+			foreach ( var flaskChild in Children.FirstOrDefault()?.Children.Skip(1) ?? Empty<Element>()) {
 				int flaskIndex = (int)(flaskChild.Position.X / flaskChild.Size.X);
 				flaskIndexToChildIndex[flaskIndex] = flaskChildIndex;
 				flaskChildIndex += 1;
