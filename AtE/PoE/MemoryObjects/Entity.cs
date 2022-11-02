@@ -90,7 +90,7 @@ namespace AtE {
 			// each entry in the array packs 8 items into one struct, so we read N / 8 structs
 			int trueCapacity = (int)((lookup.Capacity + 1) / 8);
 			var componentArray = new Offsets.ComponentArrayEntry[trueCapacity];
-			if ( 0 == PoEMemory.TryRead(lookup.ComponentArray, componentArray) ) {
+			if ( 0 == PoEMemory.TryRead(lookup.ComponentMap, componentArray) ) {
 				return result;
 			}
 
@@ -195,8 +195,16 @@ namespace AtE {
 		public Buffs Buffs => GetComponent<Buffs>();
 
 		private Render render;
-		public Vector3 Position => (IsValid(render) ? render : render = GetComponent<Render>())?.Position ?? Vector3.Zero; 
-		public Vector3 Bounds => (IsValid(render) ? render : render = GetComponent<Render>())?.Bounds ?? Vector3.Zero; 
+		public Render Render => IsValid(render) ? render : render = GetComponent<Render>();
+		public Vector3 Position => Render?.Position ?? Vector3.Zero; 
+		public Vector3 Bounds => Render?.Bounds ?? Vector3.Zero; 
+
+		public RectangleF GetClientRect() {
+			if ( !IsValid(Render) ) return RectangleF.Empty;
+			var pos = WorldToScreen(Position);
+			var far = WorldToScreen(Position + Bounds);
+			return new RectangleF(pos.X, pos.Y, far.X - pos.X, far.Y - pos.Y);
+		}
 	}
 
 
