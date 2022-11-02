@@ -252,8 +252,24 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldData {
-			[FieldOffset(0xA0)] public readonly IntPtr WorldAreaDetails; // TODO
+			[FieldOffset(0xA0)] public readonly IntPtr ptrToWorldAreaRef;
 			[FieldOffset(0xA8)] public readonly Camera Camera;
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaRef {
+			[FieldOffset(0x88)] public readonly IntPtr ptrToWorldAreaDetails;
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaDetails {
+			[FieldOffset(0x00)] public readonly IntPtr strRawName;
+			[FieldOffset(0x08)] public readonly IntPtr strName;
+			[FieldOffset(0x10)] public readonly int Act;
+			[FieldOffset(0x14)] public readonly byte IsTownByte;
+			public bool IsTown => IsTownByte == 1;
+			[FieldOffset(0x15)] public readonly byte HasWaypointByte;
+			public bool HasWaypoint => HasWaypointByte == 1;
+			[FieldOffset(0x26)] public readonly int MonsterLevel;
+			[FieldOffset(0x2A)] public readonly int WorldAreaId;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Camera {
@@ -779,6 +795,10 @@ namespace AtE {
 			[FieldOffset(0x161)] public readonly bool IsLocked;
 			[FieldOffset(0x164)] public readonly byte Quality;
 			[FieldOffset(0x1A0)] public readonly bool IsStrongbox;
+			[FieldOffset(0x1A8)] public readonly IntPtr ptrToChestEffect;
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ChestEffect {
+			[FieldOffset(0x08)] public readonly IntPtr strPath;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct StrongboxDetails {
@@ -1123,19 +1143,8 @@ namespace AtE {
 		}
 
 
-		/// If a string is shorter than 8 chars (16 bytes of unicode),
-		/// it's cheaper to store the unicode bytes directly where the
-		/// pointer would be, instead.
-		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct UnicodeHandle {
-			[FieldOffset(0x00)] public readonly IntPtr strText;
-			[FieldOffset(0x00)] public readonly long Length;
-			[FieldOffset(0x08)] public readonly long Capacity;
-		}
-
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_EntityLabel {
-			// need to inspect this to figure out what's really going on,
-			// current UnicodeHandle struct is not right and original code is confusing
-			[FieldOffset(0x388)] public readonly UnicodeHandle textHandle;
+			[FieldOffset(0x378)] public readonly StringHandle textHandle;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_ItemsOnGroundLabelRoot {
 			[FieldOffset(0x280)] public readonly ItemsOnGroundLabelEntry hoverLabel; // ptr to EntityLabel : Element
@@ -1235,7 +1244,18 @@ namespace AtE {
 			[FieldOffset(0x450)] public readonly int Width;
 			[FieldOffset(0x454)] public readonly int Height;
 		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_Map {
+			[FieldOffset(0x280)] public readonly IntPtr ptrToSubMap_Full;
+			[FieldOffset(0x288)] public readonly IntPtr ptrToSubMap_Mini;
+			[FieldOffset(0x250)] public readonly IntPtr ptrToElement_OrangeWords;
+			[FieldOffset(0x2A8)] public readonly IntPtr ptrToElement_BlueWords;
+		}
 
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_SubMap {
+			[FieldOffset(0x270)] public readonly Vector2 Shift;
+			[FieldOffset(0x278)] public readonly Vector2 DefaultShift;
+			[FieldOffset(0x2B0)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
+		}
 	}
 
 }
