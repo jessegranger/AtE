@@ -109,10 +109,12 @@
     <Compile Include="Plugins\CoreSettings.cs" />
     <Compile Include="Plugins\ExamplePlugin.cs" />
     <Compile Include="Plugins\FlasksPlugin.cs" />
+    <Compile Include="Plugins\MinimapIconPlugin.cs" />
     <Compile Include="Plugins\PluginBase.cs" />
     <Compile Include="PoE\GameStat.cs" />
     <Compile Include="PoE\MemoryObjects\FlaskElement.cs" />
     <Compile Include="PoE\MemoryObjects\Inventory.cs" />
+    <Compile Include="PoE\MemoryObjects\MapElement.cs" />
     <Compile Include="PoE\MemoryObjects\UIElementLibrary.cs" />
     <Compile Include="PoE\Offsets.cs" />
     <Compile Include="Overlay\Overlay.cs" />
