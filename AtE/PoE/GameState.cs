@@ -266,13 +266,27 @@ namespace AtE {
 
 	public class WorldData : MemoryObject<Offsets.WorldData> {
 		public Offsets.Camera Camera => Cache.Camera;
+		public Cached<Offsets.WorldAreaDetails> AreaDetails;
+		public WorldData() : base() => AreaDetails = CachedStruct<Offsets.WorldAreaDetails>(
+			() => PoEMemory.TryRead(Cache.ptrToWorldAreaRef, out Offsets.WorldAreaRef ptr)
+				? ptr.ptrToWorldAreaDetails : IntPtr.Zero
+			);
+
+		public bool IsTown => AreaDetails.Value.IsTown;
+
+		private string areaName = null;
+		public string AreaName => areaName ?? (PoEMemory.TryReadString(AreaDetails.Value.strName, Encoding.Unicode, out areaName) ? areaName : null);
+
+		// TODO: won't work in non-English
+		public bool IsHideout => AreaName.Contains("Hideout");
 	}
 
 	public static partial class Globals {
 
 		public static UIElementLibrary GetUI() => PoEMemory.GameRoot?.InGameState?.UIElements ?? default;
 
-		public static Vector2 WorldToScreen(Vector3 pos) => (PoEMemory.GameRoot?.InGameState?.WorldData?.Camera ?? default).WorldToScreen(pos);
+		public static Offsets.Camera GetCamera() => PoEMemory.GameRoot?.InGameState?.WorldData?.Camera ?? default;
+		public static Vector2 WorldToScreen(Vector3 pos) => GetCamera().WorldToScreen(pos);
 		public static void DrawTextAt(Vector3 pos, string text, Color color) => DrawTextAt(WorldToScreen(pos), text, color);
 
 		public static bool IsValid(GameRoot state) => state != null && state.IsValid;
