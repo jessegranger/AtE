@@ -20,6 +20,11 @@ using System.Drawing;
 using ImGuiNET;
 
 namespace AtE {
+	public static partial class Globals {
+		public static void DrawSprite(SpriteIcon icon, Vector2 pos, float w, float h) =>
+			SpriteController.DrawSprite(icon, new RectangleF(pos.X - (w/2), pos.Y - (h/2), w, h));
+
+	}
 	public static class SpriteController {
 
 		public const int MaxSprites = 2000;
@@ -238,6 +243,11 @@ namespace AtE {
 		public static void DrawSprite(SpriteIcon icon, RectangleF pos) {
 			// TODO: resize buffers if needed
 
+			if( Frame_SpriteCount >= MaxSprites - 1 ) {
+				Log("Ignoring attempt to draw too many sprites.");
+				return;
+			}
+
 			var uv = GetUV(icon);
 			var v = Frame_SpriteCount * 4;
 			var i = Frame_SpriteCount * 6;
@@ -273,13 +283,6 @@ namespace AtE {
 
 		internal static void Render(long dt) {
 			if ( !Enabled ) return;
-
-			var rend = GetPlayer()?.GetComponent<Render>();
-			if ( rend != null ) {
-				var pos = WorldToScreen(rend.Position);
-				var rect = new RectangleF(pos.X, pos.Y, 16, 16);
-				DrawSprite(SpriteIcon.RedDot, rect);
-			}
 
 			var context = Device.ImmediateContext;
 
@@ -334,6 +337,49 @@ namespace AtE {
 
 		// A map of CustomMapIcons.png
 		// Each sprite is 64 x 64 pixels in the file.
+
+		private static string VertexShaderSource = @"
+cbuffer ConstBuffer { float2 windowSize; };
+struct VertexInputType {
+	float2 position : POSITION;
+	float2 tex : TEXCOORD;
+	float4 color: COLOR;
+};
+struct PixelInputType {
+	float4 position : SV_POSITION;
+	float4 color: COLOR0;
+	float2 tex : TEXCOORD0;
+};
+PixelInputType VS(VertexInputType input) {
+	PixelInputType output;
+	// Calculate the position of the vertex monitor coord.
+	output.position.x = 2.0f * (input.position.x) /(windowSize.x)-1;// (windowSize.x) - 1;
+	output.position.y = -2.0f * (input.position.y) /(windowSize.y)+1;// (windowSize.y) +1;
+	output.position.w = 1.0f;
+	output.position.z = 1.0f;
+  output.color = input.color;
+	// Store the texture coordinates for the pixel shader to use.
+	output.tex = input.tex;
+	return output;
+}";
+
+		private static string PixelShaderSource = @"
+Texture2D shaderTexture;
+SamplerState SampleType;
+
+struct PixelInputType {
+	float4 position : SV_POSITION;
+	float4 color: COLOR0;
+	float2 tex : TEXCOORD0;
+};
+
+float4 PS(PixelInputType input) : SV_TARGET {
+	float4 textureColor;
+	textureColor = input.color * shaderTexture.Sample(SampleType, input.tex);
+	return textureColor;
+}";
+
+	}
 		public enum SpriteIcon {
 			None = 0,
 			Rings = 1,
@@ -388,47 +434,4 @@ namespace AtE {
 			Arcanist
 
 		}
-
-		private static string VertexShaderSource = @"
-cbuffer ConstBuffer { float2 windowSize; };
-struct VertexInputType {
-	float2 position : POSITION;
-	float2 tex : TEXCOORD;
-	float4 color: COLOR;
-};
-struct PixelInputType {
-	float4 position : SV_POSITION;
-	float4 color: COLOR0;
-	float2 tex : TEXCOORD0;
-};
-PixelInputType VS(VertexInputType input) {
-	PixelInputType output;
-	// Calculate the position of the vertex monitor coord.
-	output.position.x = 2.0f * (input.position.x) /(windowSize.x)-1;// (windowSize.x) - 1;
-	output.position.y = -2.0f * (input.position.y) /(windowSize.y)+1;// (windowSize.y) +1;
-	output.position.w = 1.0f;
-	output.position.z = 1.0f;
-  output.color = input.color;
-	// Store the texture coordinates for the pixel shader to use.
-	output.tex = input.tex;
-	return output;
-}";
-
-		private static string PixelShaderSource = @"
-Texture2D shaderTexture;
-SamplerState SampleType;
-
-struct PixelInputType {
-	float4 position : SV_POSITION;
-	float4 color: COLOR0;
-	float2 tex : TEXCOORD0;
-};
-
-float4 PS(PixelInputType input) : SV_TARGET {
-	float4 textureColor;
-	textureColor = input.color * shaderTexture.Sample(SampleType, input.tex);
-	return textureColor;
-}";
-
-	}
 }
