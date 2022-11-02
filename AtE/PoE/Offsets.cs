@@ -292,6 +292,17 @@ namespace AtE {
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 		}
 
+		/// <summary>
+		/// In the global list of world entities, each node looks like this.
+		/// Recursively follow all the First,Second,Third links for GetEntities()
+		/// </summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct EntityListNode {
+			[FieldOffset(0x00)] public readonly IntPtr First;
+			[FieldOffset(0x08)] public readonly IntPtr Second;
+			[FieldOffset(0x10)] public readonly IntPtr Third;
+			[FieldOffset(0x28)] public readonly IntPtr Entity;
+		}
+
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InGameState_UIElements {
 			[FieldOffset(0x250)] public readonly IntPtr GetQuests;
 			[FieldOffset(0x288)] public readonly IntPtr GameUI;
@@ -378,29 +389,32 @@ namespace AtE {
 		// Entity offsets
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Entity {
 			[FieldOffset(0x08)] public readonly IntPtr ptrDetails;
-			[FieldOffset(0x10)] public readonly ArrayHandle ComponentsArray;
+			[FieldOffset(0x10)] public readonly ArrayHandle ComponentsArray; // of IntPtr (to base address of a Component)
 			[FieldOffset(0x50)] public readonly Vector3 WorldPos; // possible
 			[FieldOffset(0x60)] public readonly uint Id;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct EntityDetails {
 			[FieldOffset(0x08)] public readonly IntPtr ptrPath;
-			[FieldOffset(0x30)] public readonly IntPtr ptrComponentLookup;
+			[FieldOffset(0x30)] public readonly IntPtr ptrComponentLookup; // used to find which Component is which in the ComponentsArray
 		}
 
-		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct EntityListNode {
-			[FieldOffset(0x00)] public readonly IntPtr First;
-			[FieldOffset(0x08)] public readonly IntPtr Second;
-			[FieldOffset(0x10)] public readonly IntPtr Third;
-			[FieldOffset(0x28)] public readonly IntPtr Entity;
-		}
-
+		/// <summary>
+		/// EntityDetails has a ptrComponentLookup to one of these array control structures.
+		/// ComponentMap is an array of (string, int) pairs in a special packed format.
+		/// </summary>
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ComponentLookup {
-			[FieldOffset(0x30)] public readonly IntPtr ComponentArray;
+			[FieldOffset(0x30)] public readonly IntPtr ComponentMap;
 			[FieldOffset(0x38)] public readonly long Capacity;
 			[FieldOffset(0x48)] public readonly long Counter;
 		}
 
+		/// <summary>
+		/// Each entry in a ComponentLookup.ComponentMap is a packed entry like this.
+		/// Where each Flag0 indicates if Pointer0 is filled.
+		/// FlagX can have multiple values, but only one is known: 0xFF
+		/// If FlagX == 0xFF then PointerX is empty
+		/// </summary>
 		[StructLayout(LayoutKind.Sequential, Pack = 1)] public struct ComponentArrayEntry {
 			public readonly byte Flag0;
 			public readonly byte Flag1;
@@ -420,9 +434,13 @@ namespace AtE {
 			public readonly ComponentNameAndIndexStruct Pointer6;
 			public readonly ComponentNameAndIndexStruct Pointer7;
 
-			public readonly static byte InvalidPointerFlagValue = byte.MaxValue;
 		}
 
+		/// <summary>
+		/// Once you know that some PointerX in a ComponentArrayEntry, each struct looks like this.
+		/// Index refers to the Entity.ComponentsArray (not the ComponentMap)
+		/// ie, ComponentsArray[Index] is the base address of the Component instance in memory
+		/// </summary>
 		[StructLayout(LayoutKind.Sequential, Pack = 1)] public struct ComponentNameAndIndexStruct {
 			public readonly IntPtr ptrName;
 			public readonly int Index;
@@ -995,9 +1013,9 @@ namespace AtE {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			[FieldOffset(0x78)] public readonly Vector3 Pos;
 			[FieldOffset(0x84)] public readonly Vector3 Bounds;
-			[FieldOffset(0x98)] public readonly ArrayHandle Name; // of unicode bytes
+			[FieldOffset(0xa0)] public readonly StringHandle Name; // of unicode bytes
 			[FieldOffset(0xBC)] public readonly Vector3 Rotation;
-			[FieldOffset(0xD0)] public readonly float Height;
+			[FieldOffset(0xc8)] public readonly float Height;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_RenderItem {
