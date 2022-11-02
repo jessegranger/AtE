@@ -1,9 +1,8 @@
-﻿using System;
+﻿using ImGuiNET;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static AtE.Globals;
 
 namespace AtE {
 	public class UIElementLibrary : MemoryObject<Offsets.InGameState_UIElements> {
@@ -14,7 +13,7 @@ namespace AtE {
 		public Element ManaBubble => new Element() { Address = Cache.ManaBubble };
 		public FlaskPanel Flasks => new FlaskPanel() { Address = Cache.Flasks };
 		public Element ExperienceBar => new Element() { Address = Cache.ExperienceBar };
-		public Element OpenMenuPopoutButton => new Element() { Address = Cache.OpenMenuPopoutButton } ;
+		public Element OpenMenuPopoutButton => new Element() { Address = Cache.OpenMenuPopoutButton };
 		public Element CurrentTime => new Element() { Address = Cache.CurrentTime };
 		public Element Mouse => new Element() { Address = Cache.Mouse };
 		public Element SkillBar => new Element() { Address = Cache.SkillBar };
@@ -29,7 +28,7 @@ namespace AtE {
 		public Element AtlasPanel => new Element() { Address = Cache.AtlasPanel };
 		public Element AtlasSkillPanel => new Element() { Address = Cache.AtlasSkillPanel };
 		public Element WorldMap => new Element() { Address = Cache.WorldMap };
-		public Element Map => new Element() { Address = Cache.Map };
+		public MapElement Map => new MapElement() { Address = Cache.Map };
 		public LabelsOnGroundRoot LabelsOnGround => new LabelsOnGroundRoot() { Address = Cache.ItemsOnGroundLabelElement };
 		public Element BanditDialog => new Element() { Address = Cache.BanditDialog };
 		public Element RootBuffPanel => new Element() { Address = Cache.RootBuffPanel };
