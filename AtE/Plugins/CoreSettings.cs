@@ -27,7 +27,8 @@ namespace AtE {
 			ImGui.SameLine();
 			ImGui.SliderFloat("", ref FPS_Maximum, 20, 60);
 			ImGui.AlignTextToFramePadding();
-			ImGui.Text($"Current FPS: {Overlay.FPS:F0}fps");
+			ImGui.Text($"Overlay FPS: {Overlay.FPS:F0}fps");
+			ImGui.Text($"Overlay IsTransparent: {Overlay.RenderForm.IsTransparent}");
 			var target = PoEMemory.Target;
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text($"Attached: {PoEMemory.Attached}");
@@ -47,6 +48,8 @@ namespace AtE {
 				if ( Win32.GetWindowRect(target.MainWindowHandle, out var rect) ) {
 					ImGui.Text($"Window: {rect.Width}x{rect.Height} at {rect.Top},{rect.Left} ");
 				}
+				var io = ImGui.GetIO();
+				ImGui.Text($"Want Capture Mouse: {io.WantCaptureMouse} Keyboard: {io.WantCaptureKeyboard}");
 			}
 		}
 
