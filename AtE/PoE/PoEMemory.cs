@@ -200,6 +200,7 @@ namespace AtE {
 
 			if ( Attached ) {
 				TargetHasFocus = Target.MainWindowHandle == Win32.GetForegroundWindow();
+				SpriteController.Enabled =  // same as:
 				ImGuiController.Enabled = Overlay.HasFocus || TargetHasFocus;
 
 				// check if we need to resize the overlay based on target window changing
