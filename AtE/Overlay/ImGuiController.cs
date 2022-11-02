@@ -356,6 +356,8 @@ namespace AtE {
 
 			ImGui.NewFrame();
 			textDrawListPtr = ImGui.GetBackgroundDrawList();
+			// If ImGui doesn't draw something in it's foreground, somehow the sprite layer disappears
+			ImGui.GetForegroundDrawList().AddRect(Vector2.Zero, new Vector2(0, 1), (uint)ToRGBA(Color.FromArgb(1, Color.White)));
 		}
 
 		private static ImDrawListPtr textDrawListPtr;
