@@ -385,8 +385,7 @@ namespace AtE {
 		public static void DrawLine(Vector2 start, Vector2 end, Color color, int thickness = 1) => textDrawListPtr.AddLine(start, end, (uint)ToRGBA(color), thickness);
 
 		public static void Render(long dt) {
-			textDrawListPtr = null; // these become invalid right away
-			spriteDrawListPtr = null;
+			textDrawListPtr = null; // these become unsafe right away, so lets make sure no one touches it without throwing
 			// Render the scene to a draw list
 			ImGui.Render();
 
