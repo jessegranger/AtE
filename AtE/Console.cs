@@ -19,26 +19,29 @@ namespace AtE {
 				if ( !Show ) { PluginBase.SaveIniFile(); }
 			}
 			if ( Show && ImGui.Begin("Console", ref Show) ) {
-				if( ImGui.Button("Save##iniSettings") ) {
-					PluginBase.SaveIniFile();
-				}
-				ImGui.SameLine();
-				if( ImGui.Button("Exit##exit") ) {
-					PluginBase.SaveIniFile();
-					Overlay.Close();
-				}
-				ImGui.SameLine();
-				ImGui_HotKeyButton("Console", ref HotKey);
-				foreach ( var plugin in PluginBase.Plugins.OrderBy(p => p.SortIndex) ) {
-					if( ImGui.TreeNode(plugin.Name) ) {
-						if( ImGui.BeginChildFrame((uint)plugin.Name.GetHashCode(), Vector2.Zero, ImGuiWindowFlags.AlwaysAutoResize)) {
-							plugin.Render();
-							ImGui.EndChildFrame();
-						}
-						ImGui.TreePop();
+				try {
+					if ( ImGui.Button("Save##iniSettings") ) {
+						PluginBase.SaveIniFile();
 					}
+					ImGui.SameLine();
+					if ( ImGui.Button("Exit##exit") ) {
+						PluginBase.SaveIniFile();
+						Overlay.Close();
+					}
+					ImGui.SameLine();
+					ImGui_HotKeyButton("Console", ref HotKey);
+					foreach ( var plugin in PluginBase.Plugins.OrderBy(p => p.SortIndex) ) {
+						if ( ImGui.TreeNode(plugin.Name) ) {
+							if ( ImGui.BeginChildFrame((uint)plugin.Name.GetHashCode(), Vector2.Zero, ImGuiWindowFlags.AlwaysAutoResize) ) {
+								plugin.Render();
+								ImGui.EndChildFrame();
+							}
+							ImGui.TreePop();
+						}
+					}
+				} finally {
+					ImGui.End();
 				}
-				ImGui.End();
 			}
 			return base.OnTick(dt);
 		}
