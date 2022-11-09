@@ -1,19 +1,15 @@
-﻿using ProcessMemoryUtilities.Native;
+﻿using ImGuiNET;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static ProcessMemoryUtilities.Managed.NativeWrapper;
 using static AtE.Globals;
-using ImGuiNET;
 
 namespace AtE {
 
 	public static partial class Globals {
 
-		public static bool IsValid(IntPtr p) => p != IntPtr.Zero;
+		public static bool IsValid(IntPtr p) {
+			long a = p.ToInt64();
+			return a > 0x0000000100000000 && a < 0x00007FFFFFFFFFFF;
+		}
 
 		public static string Format(IntPtr ptr) => $"<0x{ptr.ToInt64():X}>";
 
@@ -50,10 +46,11 @@ namespace AtE {
 		private bool isDisposing = false;
 		private bool isDisposed = false;
 		public virtual void Dispose() {
-			if ( isDisposing || isDisposed ) return;
-			isDisposing = true;
-			Address = IntPtr.Zero;
-			isDisposed = true;
+			if ( !isDisposing && !isDisposed ) {
+				isDisposing = true;
+				Address = IntPtr.Zero;
+				isDisposed = true;
+			}
 		}
 	}
 
@@ -78,11 +75,12 @@ namespace AtE {
 			get {
 				if ( lastFrame < Overlay.FrameCount ) {
 					lastFrame = Overlay.FrameCount;
-					val = Producer != null ? Producer() : default;
+					val = UncachedValue;
 				}
 				return val;
 			}
 		}
+		public T UncachedValue => val = Producer != null ? Producer() : default;
 		public void Flush() => lastFrame = -1;
 		public Cached(Func<T> producer) => Producer = producer;
 		public void Dispose() {
