@@ -1,23 +1,17 @@
-﻿using SharpDX.Direct3D11;
+﻿using SharpDX;
+using SharpDX.D3DCompiler;
+using SharpDX.Direct3D11;
+using SharpDX.DXGI;
+using SharpDX.WIC;
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using SharpDX.Mathematics;
-using SharpDX.D3DCompiler;
-using SharpDX.DXGI;
+using static AtE.Globals;
 using Buffer = SharpDX.Direct3D11.Buffer;
 using Device = SharpDX.Direct3D11.Device;
 using Format = SharpDX.DXGI.Format;
 using MapFlags = SharpDX.Direct3D11.MapFlags;
-using static AtE.Globals;
-using SharpDX.WIC;
-using SharpDX;
-using System.Drawing;
-using ImGuiNET;
 
 namespace AtE {
 	public static partial class Globals {
@@ -280,40 +274,41 @@ namespace AtE {
 		}
 
 		internal static void Render(long dt) {
-			if ( !Enabled ) return;
+			if ( Enabled ) {
+				var context = Device.ImmediateContext;
 
-			var context = Device.ImmediateContext;
+				// set up this layer's rendering states in the device context
+				context.OutputMerger.SetBlendState(blendState);
+				context.OutputMerger.SetDepthStencilState(depthStencilState);
+				context.Rasterizer.State = solidRasterState;
 
-			// set up this layer's rendering states in the device context
-			context.OutputMerger.SetBlendState(blendState);
-			context.OutputMerger.SetDepthStencilState(depthStencilState);
-			context.Rasterizer.State = solidRasterState;
+				context.InputAssembler.InputLayout = inputLayout;
+				context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding {
+					Buffer = VertexBuffer,
+					Stride = Utilities.SizeOf<Vertex>(),
+					Offset = 0
+				});
+				context.InputAssembler.SetIndexBuffer(IndexBuffer, Format.R32_UInt, 0);
+				context.VertexShader.Set(vertexShader);
+				context.PixelShader.Set(pixelShader);
+				context.VertexShader.SetConstantBuffer(0, ConstantBuffer);
+				context.PixelShader.SetSampler(0, samplerState);
 
-			context.InputAssembler.InputLayout = inputLayout;
-			context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding {
-				Buffer = VertexBuffer, Stride = Utilities.SizeOf<Vertex>(), Offset = 0
-			});
-			context.InputAssembler.SetIndexBuffer(IndexBuffer, Format.R32_UInt, 0);
-			context.VertexShader.Set(vertexShader);
-			context.PixelShader.Set(pixelShader);
-			context.VertexShader.SetConstantBuffer(0, ConstantBuffer);
-			context.PixelShader.SetSampler(0, samplerState);
+				Utilities.Write(
+					context.MapSubresource(VertexBuffer, 0, MapMode.WriteDiscard, MapFlags.None).DataPointer,
+					Vertices, 0, Frame_SpriteCount * 4);
+				Utilities.Write(
+					context.MapSubresource(IndexBuffer, 0, MapMode.WriteDiscard, MapFlags.None).DataPointer,
+					Indices, 0, Frame_SpriteCount * 6);
+				context.UnmapSubresource(VertexBuffer, 0);
+				context.UnmapSubresource(IndexBuffer, 0);
 
-			Utilities.Write(
-				context.MapSubresource(VertexBuffer, 0, MapMode.WriteDiscard, MapFlags.None).DataPointer,
-				Vertices, 0, Frame_SpriteCount * 4);
-			Utilities.Write(
-				context.MapSubresource(IndexBuffer, 0, MapMode.WriteDiscard, MapFlags.None).DataPointer,
-				Indices, 0, Frame_SpriteCount * 6);
-			context.UnmapSubresource(VertexBuffer, 0);
-			context.UnmapSubresource(IndexBuffer, 0);
-
-			// every DrawImage command adds 6 indices to be drawn
-			for(int i = 0; i < Frame_SpriteCount; i++) {
-				context.PixelShader.SetShaderResource(0, mainTexture);
-				context.DrawIndexed(6, i * 6, 0);
+				// every DrawImage command adds 6 indices to be drawn
+				for ( int i = 0; i < Frame_SpriteCount; i++ ) {
+					context.PixelShader.SetShaderResource(0, mainTexture);
+					context.DrawIndexed(6, i * 6, 0);
+				}
 			}
-
 		}
 
 		// dimensions of the sprites file

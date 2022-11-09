@@ -2,12 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
 using static AtE.Globals;
 
 namespace AtE {
@@ -147,7 +145,9 @@ namespace AtE {
 						// then 8 columns of the bytes rendered as chars (as is tradition)
 						for ( int j = 0; j < 8; j++ ) {
 							char c = Convert.ToChar(sample[rowOffset + j]);
-							if ( char.IsControl(c) ) c = '?';
+							if ( char.IsControl(c) ) {
+								c = '?';
+							}
 							ImGui.TableNextColumn();
 							ImGui.Text($"{c}");
 						}

@@ -4,9 +4,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
-using System.Reflection;
 
 namespace AtE {
 
@@ -146,6 +143,10 @@ namespace AtE {
 			if ( type.Equals(typeof(ActorSkill)) ) {
 				var skill = (ActorSkill)value;
 				return ImGui.TreeNode($"{prefix} ActorSkill {skill.DisplayName} {skill.CurVaalSouls}/{skill.MaxVaalSouls}##{id}");
+			}
+			if ( type.Equals(typeof(Buff)) ) {
+				var buff = (Buff)value;
+				return ImGui.TreeNode($"{prefix} Buff {buff.Name} ({buff.Charges})");
 			}
 
 			/*

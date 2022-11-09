@@ -74,10 +74,7 @@ namespace AtE {
 			return Tail();
 		}
 
-		public IState Tail() {
-			if ( Next == null ) return this;
-			else return Next.Tail();
-		}
+		public IState Tail() => Next == null ? this : Next.Tail();
 
 		// A friendly name for the State, the class name by default.
 		public virtual string Name => GetType().Name.Split('.').Last();
