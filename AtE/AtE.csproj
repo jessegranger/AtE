@@ -106,11 +106,14 @@
     <Compile Include="Memory\Memory.cs" />
     <Compile Include="Memory\ObjectBrowser.cs" />
     <Compile Include="Overlay\SpriteController.cs" />
+    <Compile Include="Plugins\BuffsPlugin.cs" />
     <Compile Include="Plugins\CoreSettings.cs" />
     <Compile Include="Plugins\ExamplePlugin.cs" />
     <Compile Include="Plugins\FlasksPlugin.cs" />
     <Compile Include="Plugins\MinimapIconPlugin.cs" />
+    <Compile Include="Plugins\MousePlugin.cs" />
     <Compile Include="Plugins\PluginBase.cs" />
+    <Compile Include="Plugins\XPPlugin.cs" />
     <Compile Include="PoE\GameStat.cs" />
     <Compile Include="PoE\MemoryObjects\FlaskElement.cs" />
     <Compile Include="PoE\MemoryObjects\Inventory.cs" />
