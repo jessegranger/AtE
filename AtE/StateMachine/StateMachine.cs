@@ -63,7 +63,6 @@ namespace AtE {
 			// iterate over the linked list of currently active states:
 			LinkedListNode<IState> curNode = States.First;
 			while ( curNode != null ) {
-				try {
 					// each node in the linked list contains one State
 					IState curState = curNode.Value;
 					// that state is ticked once per frame
@@ -90,11 +89,6 @@ namespace AtE {
 					}
 					// continue
 					
-				} catch ( Exception e ) {
-					Log(e.Message);
-					Log(e.StackTrace);
-					throw;
-				}
 				curNode = curNode.Next; // loop over the whole list
 			}
 			return States.Count == 0 ? Next : this;
