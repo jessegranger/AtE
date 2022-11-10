@@ -3,10 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Numerics;
 using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using static AtE.Globals;
 
@@ -36,29 +34,42 @@ namespace AtE {
 			// make a new T();
 			var constructor = T.GetConstructor(new Type[] { });
 			var obj = (PluginBase)constructor.Invoke(new object[] { });
-			if ( iniSettings.TryGetValue(T.Name, out var data) ) {
-				foreach ( var field in T.GetFields()
-					.Where(f => f.GetCustomAttribute<NoPersist>() == null) ) {
-					if ( data.TryGetValue(field.Name, out string strValue) ) {
-						if ( field.FieldType == typeof(HotKey) ) {
-							field.SetValue(obj, HotKey.Parse(strValue));
-						} else if ( field.FieldType == typeof(Keys) ) {
-							field.SetValue(obj, Enum.TryParse(strValue, out Keys key) ? key : Keys.None);
-						} else if ( field.FieldType == typeof(float) ) {
-							field.SetValue(obj, float.Parse(strValue));
-						} else if ( field.FieldType == typeof(double) ) {
-							field.SetValue(obj, double.Parse(strValue));
-						} else if ( field.FieldType == typeof(long) ) {
-							field.SetValue(obj, long.Parse(strValue));
-						} else if ( field.FieldType == typeof(int) ) {
-							field.SetValue(obj, int.Parse(strValue));
-						} else if ( field.FieldType == typeof(bool) ) {
-							field.SetValue(obj, bool.Parse(strValue));
-						} else if ( field.FieldType == typeof(string) ) {
-							field.SetValue(obj, strValue);
-						} else {
-							throw new ArgumentException($"Unknown Field Type, cannot load from string: {field.FieldType}");
+			if ( iniSettings.TryGetValue(T.Name, out var iniSection) ) {
+				foreach ( var pair in iniSection ) {
+					// if the plugin can Load the key directly, let them parse it themselves
+					if ( obj.Load(pair.Key, pair.Value) ) {
+						continue;
+					}
+					// otherwise, let's try a default deserialization
+					var field = T.GetField(pair.Key); // find the public field named by the Key
+					if ( field == null ) {
+						continue;
+					}
+					// skip loading any fields marked as NoPersist
+					if ( field.GetCustomAttribute<NoPersist>() != null ) {
+						continue;
+					}
+
+					if ( field.FieldType == typeof(HotKey) ) {
+						field.SetValue(obj, HotKey.Parse(pair.Value));
+					} else if ( field.FieldType == typeof(Keys) ) {
+						if( Enum.TryParse(pair.Value, out Keys key) ) {
+							field.SetValue(obj, key);
 						}
+					} else if ( field.FieldType == typeof(float) ) {
+						field.SetValue(obj, float.Parse(pair.Value));
+					} else if ( field.FieldType == typeof(double) ) {
+						field.SetValue(obj, double.Parse(pair.Value));
+					} else if ( field.FieldType == typeof(long) ) {
+						field.SetValue(obj, long.Parse(pair.Value));
+					} else if ( field.FieldType == typeof(int) ) {
+						field.SetValue(obj, int.Parse(pair.Value));
+					} else if ( field.FieldType == typeof(bool) ) {
+						field.SetValue(obj, bool.Parse(pair.Value));
+					} else if ( field.FieldType == typeof(string) ) {
+						field.SetValue(obj, pair.Value);
+					} else {
+						throw new ArgumentException($"Unknown Field Type, cannot load from string: {field.FieldType}");
 					}
 				}
 			}
@@ -69,12 +80,15 @@ namespace AtE {
 			return true;
 		}
 
-		private static Dictionary<string, PluginBase> Instances = new Dictionary<string, PluginBase>();
+		private static Dictionary<string, PluginBase> Instances;
 		internal static IEnumerable<PluginBase> Plugins => Instances.Values;
 		internal static T GetPlugin<T>() where T : PluginBase => Instances.TryGetValue(typeof(T).Name, out PluginBase value) ? (T)value : null;
 
-		internal static StateMachine Machine = new StateMachine();
+		internal static StateMachine Machine;
 		static PluginBase() {
+			Instances = new Dictionary<string, PluginBase>();
+			Machine = new StateMachine();
+			iniSettings = new Dictionary<string, Dictionary<string, string>>();
 			LoadIniFile();
 
 			foreach(var pluginType in typeof(PluginBase).Assembly.GetTypes() ) {
@@ -84,7 +98,7 @@ namespace AtE {
 		}
 
 		private static readonly string SettingsFileName = "Settings.ini";
-		private static Dictionary<string, Dictionary<string, string>> iniSettings = new Dictionary<string, Dictionary<string, string>>();
+		private static Dictionary<string, Dictionary<string, string>> iniSettings;
 		private static void LoadIniFile() {
 			if ( !File.Exists(SettingsFileName) ) {
 				File.Create(SettingsFileName);
@@ -112,9 +126,17 @@ namespace AtE {
 			StringBuilder sb = new StringBuilder();
 			foreach(var plugin in Instances.Values.OrderBy(p => p.SortIndex) ) {
 				sb.AppendLine($"[{plugin.GetType().Name}]");
-				foreach ( var field in plugin.GetType().GetFields() ) {
-					if ( field.GetCustomAttribute<NoPersist>() != null ) continue;
-					sb.AppendLine($"{field.Name}={field.GetValue(plugin)}");
+				string[] linesFromPlugin = plugin.Save();
+				if ( linesFromPlugin == null ) {
+					// if the plugin.Save() returned null, use this default serialization of public fields:
+					foreach ( var field in plugin.GetType().GetFields().Where(field => field.GetCustomAttribute<NoPersist>() == null) ) {
+						sb.AppendLine($"{field.Name}={field.GetValue(plugin)}");
+					}
+				} else {
+					// otherwise, use all the lines from Save()
+					foreach(var line in linesFromPlugin) {
+						sb.AppendLine(line); // they should all be Name=Value pairs suitable for .ini file
+					}
 				}
 				sb.AppendLine();
 			}
@@ -123,16 +145,27 @@ namespace AtE {
 			File.WriteAllText(SettingsFileName, text);
 		}
 
+		internal static void PauseAll() {
+			foreach(var plugin in Instances.Values) {
+				plugin.Paused = true;
+			}
+		}
+		internal static void ResumeAll() {
+			foreach(var plugin in Instances.Values) {
+				plugin.Paused = false;
+			}
+		}
+
 
 		/// <summary>
-		/// A disabled Plugin does have have it's OnTick() called, and can take no actions.
-		/// It's settings page will still call Render().
+		/// A disabled Plugin should take no actions.
+		/// But, Render() should still produce settings controls.
 		/// </summary>
 		public bool Enabled = true; // Enabled is persistent, saved to profile settings
 
 		/// <summary>
 		/// Paused it meant to be toggled via HotKey, and temporarily pauses some Plugin functions.
-		/// The Plugin remains enabled, and it's OnTick() will be called, but should determine it's own
+		/// The Plugin remains Enabled, and it's OnTick() will be called, but should determine it's own
 		/// appropriate response to Paused being true.
 		/// </summary>
 		[NoPersist]
@@ -149,7 +182,22 @@ namespace AtE {
 		/// </summary>
 		public virtual void Render() {
 			ImGui.Checkbox("Enabled", ref Enabled);
+			ImGui.Separator();
 		}
 
+		/// <summary>
+		/// Sub-classes should return null to use the default serialization
+		/// </summary>
+		public virtual string[] Save() {
+			return null;
+		}
+
+		/// <summary>
+		/// Called as data is read from the INI file.
+		/// </summary>
+		/// <returns>true if the key was handled, false to process the key with default deserializer</returns>
+		public virtual bool Load(string key, string value) {
+			return false;
+		}
 	}
 }
