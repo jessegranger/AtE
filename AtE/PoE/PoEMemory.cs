@@ -1,17 +1,14 @@
 ﻿using ImGuiNET;
 using ProcessMemoryUtilities.Native;
 using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
 using static AtE.Globals;
 using static ProcessMemoryUtilities.Managed.NativeWrapper;
-using System.Collections;
 
 namespace AtE {
 	public static partial class Globals {
@@ -60,14 +57,6 @@ namespace AtE {
 	public static class PoEMemory {
 
 		/// <summary>
-		/// The Class of the window to search for.
-		/// </summary>
-		public static readonly string WindowClass = Offsets.WindowClass;
-		/// <summary>
-		/// The Title of the window to search for.
-		/// </summary>
-		public static readonly string WindowTitle = Offsets.WindowTitle;
-		/// <summary>
 		/// Once attached, this is the Target process we will read memory from.
 		/// </summary>
 		public static Process Target;
@@ -106,6 +95,9 @@ namespace AtE {
 			return IsValid(loc) && ReadProcessMemory(Handle, loc, ref result);
 		}
 
+		/// <summary>
+		/// Reads a byte[maxLen] buffer from loc, and tries to use Encoding to get a string from it.
+		/// </summary>
 		public static bool TryReadString(IntPtr loc, Encoding enc, out string result, int maxLen = 256) {
 			byte[] buf = new byte[maxLen];
 			if( 0 == TryRead(loc, buf) ) {
@@ -123,7 +115,7 @@ namespace AtE {
 
 		private static bool TryOpenWindow(out Process result, out IntPtr hWnd) {
 			result = null;
-			hWnd = Win32.FindWindow(WindowClass, WindowTitle);
+			hWnd = Win32.FindWindow(Offsets.WindowClass, Offsets.WindowTitle);
 			Win32.GetWindowThreadProcessId(hWnd, out uint pid);
 			if ( pid > 0 ) {
 				var process = Process.GetProcessById((int)pid);
@@ -210,7 +202,7 @@ namespace AtE {
 		private static long nextAttach = Time.ElapsedMilliseconds;
 		private static long nextCheckResize = Time.ElapsedMilliseconds + 3000;
 
-		public static void OnTick(long dt) {
+		internal static void OnTick(long dt) {
 			TargetHasFocus = false;
 
 			if ( IsAttached ) {
@@ -263,7 +255,7 @@ namespace AtE {
 			OnDetach?.Invoke(null, null);
 		}
 
-		public static void TryAttach(Process target, IntPtr hWnd) {
+		private static void TryAttach(Process target, IntPtr hWnd) {
 			if ( !IsValid(target) ) {
 				Log($"TryAttach: Invalid target.");
 				return;
@@ -317,11 +309,6 @@ namespace AtE {
 				Detach();
 				return;
 			}
-			Debugger.RegisterOffset("GameRoot", GameRoot.Address);
-			Debugger.RegisterStructLabels<Offsets.GameRoot>("GameRoot", GameRoot.Address);
-
-			Debugger.RegisterOffset("InGameState", GameRoot.InGameState.Address);
-			Debugger.RegisterStructLabels<Offsets.InGameState>("InGameState", GameRoot.InGameState.Address);
 
 			OnAreaChange += (sender, area) => Log("OnAreaChange: " + area);
 
