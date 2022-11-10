@@ -2,7 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -30,6 +32,21 @@ namespace AtE {
 			}
 		}
 
+		public static string FormatNumber(long value) {
+			char suffix = '\0';
+			if( value > 1024 ) {
+				suffix = 'K';
+				value /= 1024;
+				if( value > 1024 ) {
+					suffix = 'M';
+					value /= 1024;
+				}
+			}
+			return value.ToString("N2") + suffix;
+		}
+
+		public static double MovingAverage(double value, double sample, int period) => ((value * (period - 1)) + sample) / period;
+
 		public static string Truncate(string tooLong, int maxLen) {
 			return tooLong.Length > maxLen ? tooLong.Substring(0, maxLen) : tooLong;
 		}
@@ -49,9 +66,10 @@ namespace AtE {
 		public static void OnRelease(Keys key, Action act) {
 			bool downBefore = false;
 			Run($"KeyBind[{key}]", (self, dt) => {
-				if ( dt == 0 ) return self;
 				bool downNow = Win32.IsKeyDown(key);
-				if ( downBefore && !downNow ) act();
+				if ( downBefore && !downNow ) {
+					act();
+				}
 				downBefore = downNow;
 				return self;
 			});
@@ -66,6 +84,39 @@ namespace AtE {
 				ImGui.PopTextWrapPos();
 				ImGui.EndTooltip();
 			}
+		}
+
+		private static long lastNotifyTime = 0;
+		private static float notifyShift = 0f;
+		public static void Notify(string text) => Notify(text, Color.Yellow, 3000, 1f);
+		public static void Notify(string text, Color color) => Notify(text, color, 3000, 1f);
+		public static void Notify(string text, Color color, long duration) => Notify(text, color, duration, 1f);
+		public static void Notify(string text, Color color, long duration, float speed) {
+			speed = speed / 13f; // just shifting to human scale, so speed = 1f feels natural
+			float fontSize = ImGui.GetFontSize();
+			var textPos = new Vector2(0, Overlay.Height 
+				- 10 // there is a 10px padding around the bottom of the window I just can't touch despite my best efforts
+				- fontSize // the first line always needs to sit one lineHeight above the bottom
+				- ImGuiController.GetNextOffsetForTextAt(0)); // id 0 is used by DrawBottomLeftText, we start at the top of that
+			float travelled = (Time.ElapsedMilliseconds - lastNotifyTime) * speed;
+			lastNotifyTime = Time.ElapsedMilliseconds;
+			Log($"Notify: {text}");
+			if ( travelled < fontSize ) {
+				notifyShift += fontSize - travelled;
+				textPos.Y += notifyShift;
+			} else {
+				notifyShift = 0f;
+			}
+			Run("Notify", (self, dt) => {
+				if( duration > 0 ) {
+					DrawTextAt(textPos, text, color);
+					textPos.Y -= dt * speed;
+					duration -= dt;
+					return self;
+				}
+				return null;
+			});
+
 		}
 
 	}
