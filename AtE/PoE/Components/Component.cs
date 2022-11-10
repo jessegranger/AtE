@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Numerics;
 using System.Text;
@@ -10,9 +11,9 @@ using static AtE.Globals;
 
 namespace AtE {
 	public static partial class Globals {
-		public static bool IsValid<T>(Component<T> c) where T : unmanaged => c != null && !c.IsDisposed;
+		public static bool IsValid<T>(Component<T> c) where T : unmanaged => c != null && IsValid(c.Address) && !c.IsDisposed;
 
-		public static bool IsAlive(Entity ent) => (ent?.GetComponent<Life>()?.CurHP ?? 0) > 0;
+		public static bool IsAlive(Entity ent) => IsValid(ent) && (ent.GetComponent<Life>()?.CurHP ?? 0) > 0;
 	}
 	public abstract class Component<T> : MemoryObject<T>, IDisposable where T : unmanaged {
 
@@ -39,9 +40,50 @@ namespace AtE {
 
 		public float CurManaRegen => Cache.ManaRegen;
 		public float CurHPRegen => Cache.Regen;
-		public int TotalReservedHP => Cache.ReservedFlatHP + (int)(0.5 + (Cache.MaxHP * (Cache.ReservedPercentHP / 10000d)));
-		public int TotalReservedMana => Cache.ReservedFlatMana + (int)(0.5 + (Cache.MaxMana * (Cache.ReservedPercentMana / 10000d)));
+		public int TotalReservedHP => Cache.ReservedFlatHP + (int)(1f + (Cache.MaxHP * (Cache.ReservedPercentHP / 10000d)));
+		public int TotalReservedMana => Cache.ReservedFlatMana + (int)(1f + (Cache.MaxMana * (Cache.ReservedPercentMana / 10000d)));
 
+	}
+	public static partial class Globals {
+		public static bool IsMissingEHP(Entity ent, float pct = .10f) {
+			Life life = ent?.GetComponent<Life>();
+			if ( !IsValid(life) ) return false;
+			var maxHp = life.MaxHP - life.TotalReservedHP;
+			if( HasBuff(ent, "petrified_blood") ) {
+				maxHp = Math.Min(maxHp, life.MaxHP / 2);
+			}
+			var maxEHP = maxHp + life.MaxES;
+			var curEHP = life.CurHP + life.CurES;
+			var pctLife = curEHP / maxEHP;
+			return (1.0f - pctLife) > pct;
+		}
+		public static bool IsMissingLife(Entity ent, int missing) {
+			Life life = ent?.GetComponent<Life>();
+			if ( !IsValid(life) ) return false;
+			var maxHp = life.MaxHP - life.TotalReservedHP;
+			if ( HasBuff(ent, "petrified_blood") ) {
+				maxHp = Math.Min(maxHp, life.MaxHP / 2);
+			}
+			var maxEHP = maxHp + life.MaxES;
+			var curEHP = life.CurHP + life.CurES;
+			return (maxEHP - curEHP) > missing;
+		}
+		public static bool IsFullEHP(Entity ent) {
+			Life life = ent?.GetComponent<Life>();
+			if ( !IsValid(life) ) return false;
+			var maxHp = life.MaxHP - life.TotalReservedHP;
+			return (life.CurHP + life.CurES) == (maxHp + life.MaxES);
+		}
+		public static bool IsFullLife(Entity ent) {
+			Life life = ent?.GetComponent<Life>();
+			if ( !IsValid(life) ) return false;
+			var maxHp = life.MaxHP - life.TotalReservedHP;
+			if( HasBuff(ent, "petrified_blood") ) {
+				maxHp = Math.Min(maxHp, life.MaxHP / 2);
+			}
+			return maxHp > 0 && maxHp < 50000 && life.CurHP >= maxHp;
+		}
+		public static bool HasEnoughRage(Entity ent, int rage) => ent?.GetComponent<Buffs>().Where(b => b.Name.Equals("rage")).Select(b => b.Charges).FirstOrDefault() >= rage;
 	}
 
 	public class Actor : Component<Offsets.Component_Actor> {
@@ -55,6 +97,7 @@ namespace AtE {
 
 		public IEnumerable<ActorSkill> Skills =>
 			new ArrayHandle<Offsets.ActorSkillArrayEntry>(Cache.ActorSkillsHandle)
+				.ToArray(limit: 100) // anything more than that is corrupt nonsense
 				.Select(x => new ActorSkill(this) { Address = x.ActorSkillPtr })
 				.Where(x => x.IsValid());
 
@@ -86,8 +129,7 @@ namespace AtE {
 		public Vector2 Destination => Cache.Value.Destination;
 	}
 
-	public class ActorSkill : MemoryObject, IDisposable {
-		public Cached<Offsets.ActorSkill> Cache;
+	public class ActorSkill : MemoryObject<Offsets.ActorSkill>, IDisposable {
 		public Cached<Offsets.GemEffects> GemEffects;
 		public Cached<Offsets.SkillGem> SkillGem;
 		public Cached<Offsets.ActiveSkill> ActiveSkill;
@@ -106,8 +148,7 @@ namespace AtE {
 				base.Address = value;
 				if ( value == IntPtr.Zero ) return;
 
-				Cache = CachedStruct<Offsets.ActorSkill>(this);
-				GemEffects = CachedStruct<Offsets.GemEffects>(() => Cache.Value.ptrGemEffects);
+				GemEffects = CachedStruct<Offsets.GemEffects>(() => Cache.ptrGemEffects);
 				SkillGem = CachedStruct<Offsets.SkillGem>(() => GemEffects.Value.ptrSkillGem);
 				ActiveSkill = CachedStruct<Offsets.ActiveSkill>(() => SkillGem.Value.ptrActiveSkill);
 
@@ -124,8 +165,6 @@ namespace AtE {
 			if ( isDisposed || isDisposing ) return;
 			isDisposing = true;
 			Actor = null;
-			Cache?.Dispose();
-			Cache = null;
 			GemEffects?.Dispose();
 			GemEffects = null;
 			SkillGem?.Dispose();
@@ -138,7 +177,7 @@ namespace AtE {
 
 		public bool IsValid() => SkillGem.Value.NamePtr != IntPtr.Zero;
 
-		public ushort Id => Cache.Value.Id;
+		public ushort Id => Cache.Id;
 
 		private string internalName = null;
 		public string InternalName => internalName != null
@@ -154,11 +193,11 @@ namespace AtE {
 			? displayName
 			: null;
 
-		public bool IsOnCooldown => GetPlayer()?.GetComponent<Actor>()?.IsOnCooldown(Cache.Value.Id) ?? false;
+		public bool IsOnCooldown => GetPlayer()?.GetComponent<Actor>()?.IsOnCooldown(Cache.Id) ?? false;
 
 		public bool CanBeUsed =>
-			Cache.Value.CanBeUsed == 1
-			&& Cache.Value.CanBeUsedWithWeapon == 1;
+			Cache.CanBeUsed == 1
+			&& Cache.CanBeUsedWithWeapon == 1;
 
 		// if there is an entry in the Actor VaalSkillsArray with the same
 		// ptrActiveSkill as ours, cache that data here
@@ -258,6 +297,7 @@ namespace AtE {
 	public class Buff : MemoryObject<Offsets.Buff> {
 
 		public string Name =>
+			Address == IntPtr.Zero ? null :
 			PoEMemory.TryRead(Cache.ptrName, out IntPtr ptr)
 			&& PoEMemory.TryReadString(ptr, Encoding.Unicode, out string name)
 			? name
@@ -271,9 +311,20 @@ namespace AtE {
 	public class Buffs : MemoryObject<Offsets.Component_Buffs>, IEnumerable<Buff> {
 
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-		public IEnumerator<Buff> GetEnumerator() => new ArrayHandle<IntPtr>(Cache.Buffs)
-			.Select(a => new Buff() { Address = a })
-			.GetEnumerator();
+		public IEnumerator<Buff> GetEnumerator() {
+			if ( !IsValid(Address) ) {
+				return Empty<Buff>().GetEnumerator();
+			}
+			var buffs = new ArrayHandle<IntPtr>(Cache.Buffs);
+			if( !IsValid(buffs, 1000) ) { // if claimed more than 1000 buffs, its corrupt
+				// its possible for a corrupt buffs array to claim to be billions of items long
+				// they all fail IsValid() == false, but it still stalls forever
+				return Empty<Buff>().GetEnumerator();
+			}
+			return buffs.Where(IsValid)
+				.Select(a => new Buff() { Address = a })
+				.GetEnumerator();
+		}
 	}
 
 	public static partial class Globals {
@@ -383,7 +434,6 @@ namespace AtE {
 		public IEnumerable<Offsets.UniqueNameEntry> NameEntries =>
 			new ArrayHandle<Offsets.UniqueNameEntry>(Cache.UniqueName);
 
-		// TODO: A managed wrapper for ItemModEntry, Name and the 4 values
 		public IEnumerable<ItemMod> ExplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ExplicitModsArray).Select(e => new ItemMod(e));
 		public IEnumerable<ItemMod> ImplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ImplicitModsArray).Select(e => new ItemMod(e));
 		public IEnumerable<ItemMod> EnchantedMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.EnchantedModsArray).Select(e => new ItemMod(e));
