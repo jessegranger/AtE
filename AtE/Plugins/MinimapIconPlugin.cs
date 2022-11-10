@@ -37,39 +37,69 @@ namespace AtE.Plugins {
 		}
 
 		public override IState OnTick(long dt) {
-			if ( Paused || !Enabled ) return this;
+			if ( Paused || !Enabled || !PoEMemory.IsAttached ) {
+				return this;
+			}
+
 			var ui = GetUI();
-			if ( !IsValid(ui) ) return this;
+			if ( !IsValid(ui) ) {
+				return this;
+			}
 
-			var map = GetUI().Map;
-			if ( !IsValid(map) ) return this;
-			if ( map.LargeMap.IsVisibleLocal && !ShowOnLargemap ) return this;
-			if ( map.MiniMap.IsVisibleLocal && !ShowOnMinimap ) return this;
+			var map = ui.Map;
+			if ( !IsValid(map) ) {
+				return this;
+			}
 
+			if ( map.LargeMap.IsVisibleLocal && !ShowOnLargemap ) {
+				return this;
+			}
+
+			if ( map.MiniMap.IsVisibleLocal && !ShowOnMinimap ) {
+				return this;
+			}
+
+			int totalEntityCount = 0;
 			foreach ( var ent in GetEntities().Where(IsValid) ) {
+				totalEntityCount += 1;
+				if ( totalEntityCount > 2000 ) {
+					break; // something probably wrong
+				}
+
 				bool hostile = ent.IsHostile;
 				if ( ShowAllies && !hostile && ent.HasComponent<Player>() ) {
 					DrawSprite(SpriteIcon.BlueDot, map.WorldToMap(ent), IconSize, IconSize);
 					continue;
 				}
 				if ( ShowEnemies && hostile && ent.HasComponent<Targetable>() && IsAlive(ent) ) {
-					SpriteIcon icon = SpriteIcon.RedDot;
-					switch( ent.GetComponent<ObjectMagicProperties>().Rarity ) {
-						case Offsets.MonsterRarity.Unique: icon = SpriteIcon.OrangeDot; break;
-						case Offsets.MonsterRarity.Rare: icon = SpriteIcon.YellowDot; break;
-						case Offsets.MonsterRarity.Magic: icon = SpriteIcon.BlueDot; break;
-						case Offsets.MonsterRarity.White: icon = SpriteIcon.RedDot; break;
+					if( ent.HasComponent<DiesAfterTime>() ) { // maybe not right, do some unique bosses have this?
+						continue;
 					}
-					DrawSprite(icon, map.WorldToMap(ent), IconSize, IconSize);
+					SpriteIcon icon = SpriteIcon.RedDot;
+					bool isHidden = HasBuff(ent, "hidden_monster");
+					switch( ent.GetComponent<ObjectMagicProperties>()?.Rarity ) {
+						case Offsets.MonsterRarity.Unique: 
+							icon = isHidden ? SpriteIcon.OrangeWithBorder : SpriteIcon.OrangeDot; break;
+						case Offsets.MonsterRarity.Rare:
+							icon = isHidden ? SpriteIcon.YellowWithBorder : SpriteIcon.YellowDot; break;
+						case Offsets.MonsterRarity.Magic:
+							icon = isHidden ? SpriteIcon.BlueWithBorderAndGrayDot : SpriteIcon.BlueDot; break;
+						case Offsets.MonsterRarity.White:
+							icon = isHidden ? SpriteIcon.RedWithBorder : SpriteIcon.RedDot; break;
+					}
+					var pos = map.WorldToMap(ent);
+					DrawSprite(icon, pos, IconSize, IconSize);
 					continue;
 				}
 				if ( ShowChests && ent.HasComponent<Chest>() ) {
 					var chest = ent.GetComponent<Chest>();
-					if ( chest.IsOpened || ! chest.IsStrongbox ) continue;
-					ImGui.SetNextWindowPos(WorldToScreen(ent.GetComponent<Render>()?.Position ?? Vector3.Zero));
-					ImGui.Begin($"Debug Chest##{ent.Id}");
-					ImGui_Object($"Chest##{ent.Id}", "Chest", chest, new HashSet<int>());
-					ImGui.End();
+					if ( chest.IsOpened || ! chest.IsStrongbox ) {
+						continue;
+					}
+					// ImGui.SetNextWindowPos(WorldToScreen(ent.GetComponent<Render>()?.Position ?? Vector3.Zero));
+					// ImGui.Begin($"Debug Chest##{ent.Id}");
+					// ImGui_Object($"Chest##{ent.Id}", "Chest", chest, new HashSet<int>());
+					// ImGui.End();
 					DrawSprite(SpriteIcon.Chest, map.WorldToMap(ent), IconSize*2, IconSize*2);
 				}
 			}
@@ -81,7 +111,7 @@ namespace AtE.Plugins {
 						if( IsAlive(ent) ) {
 							DrawSprite(SpriteIcon.GreenDot, map.WorldToMap(ent), IconSize, IconSize);
 						} else {
-							DrawSprite(SpriteIcon.Skull, map.WorldToMap(ent), IconSize, IconSize);
+							DrawSprite(SpriteIcon.Skull, map.WorldToMap(ent), IconSize*1.5f, IconSize*1.5f);
 						}
 					}
 				}
