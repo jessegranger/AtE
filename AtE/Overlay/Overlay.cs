@@ -49,8 +49,8 @@ namespace AtE {
 				int y = RenderForm.Top;
 				int w = RenderForm.Width;
 				int h = RenderForm.Height;
-				D3DController.Resize(x, y, w, h);
 				Log($"RenderForm: UserResized {RenderForm.ClientRectangle}");
+				D3DController.Resize(x, y, w, h);
 
 				ImGuiController.Resize(w, h);
 

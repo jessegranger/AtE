@@ -170,28 +170,13 @@ namespace AtE {
 		/// </summary>
 		public IEnumerable<Entity> Entities => entities.Value;
 
-		// public Entity GetEntityById(uint id) => entityIndex.TryGetValue(id, out int index) ? entities.Value[index] : null;
-
-		// public EventHandler<Entity> OnEntityAdded;
-		// public EventHandler<uint> OnEntityRemoved;
 
 		private IEnumerable<Entity> GetEntities(Offsets.EntityListNode tree, int limit = 2000) {
-			// var oldIndex = entityIndex;
-			// entityIndex = new Dictionary<uint, int>();
-			// entityIndex.Clear();
-			// IntPtr headAtStart = Data.Value.EntityListHead;
-			int index = 0;
 			HashSet<long> deduper = new HashSet<long>();
 			Stack<Offsets.EntityListNode> frontier = new Stack<Offsets.EntityListNode>();
 			frontier.Push(tree);
 			int yieldCount = 0;
 			while ( frontier.Count > 0 ) {
-				// this safety check causes a lot of extra memory reads but let's see if it's worth it or not
-				// if ( Data.UncachedValue.EntityListHead != headAtStart ) {
-					/// the entity list root changed during iteration so stop immediately
-					// Log($"GetEntities(): Head pointer changed during iteration, stopping early.");
-					// break;
-				// }
 				var node = frontier.Pop();
 				long key = node.Entity.ToInt64();
 				if ( !deduper.Contains(key) ) {
@@ -200,10 +185,6 @@ namespace AtE {
 					var ent = new Entity() { Address = node.Entity };
 					var id = ent.Id;
 					if ( id > 0 && id < int.MaxValue ) {
-						// entityIndex[id] = index++;
-						// if( ! oldIndex.Remove(id) ) {
-							// OnEntityAdded?.Invoke(this, ent);
-						// }
 						if( yieldCount < limit ) {
 							yield return ent;
 							yieldCount += 1;
@@ -222,9 +203,6 @@ namespace AtE {
 						frontier.Push(third);
 					}
 				}
-				// foreach(uint id in oldIndex.Keys) {
-					// OnEntityRemoved?.Invoke(this, id);
-				// }
 			}
 
 		}
