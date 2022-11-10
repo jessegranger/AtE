@@ -26,10 +26,7 @@ namespace AtE {
 		// Feature: Highlight flasks with a colored status border
 		public bool ShowFlaskStatus = false;
 
-		private static Dictionary<string, string> conditionToFlaskModMap = new Dictionary<string, string>() {
-			{ "bleeding", "FlaskRemovesBleeding" },
-			{ "frozen", "Flask" }
-		};
+		public bool ShowDebugging = false;
 
 		public override string Name => "Flasks";
 
@@ -38,6 +35,7 @@ namespace AtE {
 
 		public override void Render() {
 			base.Render();
+			ImGui.Text($"Paused: {Paused}");
 
 			ImGui.Checkbox("Use Life Flask at %:", ref UseLifeFlask);
 			ImGui.SameLine();
@@ -54,14 +52,14 @@ namespace AtE {
 			ImGui.Checkbox("Use Utility flasks when full", ref UseUtilityWhenFull);
 			ImGui.SameLine();
 			ImGui_HelpMarker("If not already in effect.");
-			ImGui.Checkbox("Use Utility flasks when hit a Rare or Unique", ref UseUtilityWhenFull);
+			ImGui.Checkbox("Use Utility flasks when hit a Rare or Unique", ref UseUtilityWhenHitRareOrUnique);
 			ImGui.SameLine();
 			ImGui_HelpMarker("If not already in effect.");
 
 
 			ImGui.Checkbox("Show Flask Status", ref ShowFlaskStatus);
 			ImGui.SameLine();
-			if( ImGui.Button("B##browse-flasks") ) {
+			if ( ImGui.Button("B##browse-flasks") ) {
 				Run_ObjectBrowser("Flasks", GetUI()?.Flasks);
 			}
 
@@ -70,16 +68,22 @@ namespace AtE {
 
 		public bool IsUsable(FlaskEntity flaskEnt) => IsValid(flaskEnt)
 			&& flaskEnt.Charges_Cur >= flaskEnt.Charges_Per
-			&& (Time.ElapsedMilliseconds - mostRecentFlask) > 50 // a global throttle on all flasks, so it will only use one at a time
-			&& (Time.ElapsedMilliseconds - mostRecentUse[flaskEnt.FlaskIndex]) > 100 // a throttle on each flask
+			&& (Time.ElapsedMilliseconds - mostRecentFlask) > 150 // a global throttle on all flasks, so it will only use one at a time
+			&& (Time.ElapsedMilliseconds - mostRecentUse[flaskEnt.FlaskIndex]) > 250 // a throttle on each flask
 			;
 
 		public IState UseFlask(FlaskEntity flaskEnt) {
-			if ( !IsUsable(flaskEnt) ) return this;
-			var now = Time.ElapsedMilliseconds;
-			mostRecentFlask = now;
-			mostRecentUse[flaskEnt.FlaskIndex] = now;
-			return new PressKey(flaskEnt.Key, 40, new Delay(100, this));
+			if ( IsUsable(flaskEnt) ) {
+				var now = Time.ElapsedMilliseconds;
+				mostRecentFlask = now;
+				mostRecentUse[flaskEnt.FlaskIndex] = now;
+				if ( PoEMemory.TargetHasFocus ) {
+					Notify($"Using flask {flaskEnt.Key}");
+					Win32.SendInput(Win32.INPUT_KeyDown(flaskEnt.Key),
+						Win32.INPUT_KeyUp(flaskEnt.Key));
+				}
+			}
+			return this;
 		}
 
 		public bool TryGetUsableFlask(Func<FlaskEntity, bool> predicate, out FlaskEntity flask) {
@@ -88,132 +92,149 @@ namespace AtE {
 		}
 
 		public override IState OnTick(long dt) {
-				if ( Paused || !Enabled ) {
-					return this; // keep it in the PluginBase.Machine, but dont do anything
-				}
-				if( ! IsValid(PoEMemory.GameRoot) ) {
-					return this;
-				}
+			if ( Paused || !Enabled ) {
+				return this; // keep it in the PluginBase.Machine, but dont do anything
+			}
 
-				if ( PoEMemory.GameRoot.InGameState.HasInputFocus ) {
-					return this;
-				}
+			if( ! PoEMemory.IsAttached ) {
+				return this;
+			}
 
-				if ( PoEMemory.GameRoot.InGameState.WorldData.IsTown ) {
-					return this;
-				}
+			if ( PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true ) {
+				return this;
+			}
 
-				if ( ShowFlaskStatus ) {
-					foreach ( var elem in GetUI()?.Flasks?.Flasks ?? Empty<FlaskElement>() ) {
-						if ( !IsValid(elem) ) continue;
+			if ( PoEMemory.GameRoot?.InGameState?.HasInputFocus ?? true ) {
+				return this;
+			}
+
+			if ( PoEMemory.GameRoot?.InGameState?.WorldData?.IsTown ?? true ) {
+				return this;
+			}
+
+			var ui = GetUI();
+			if ( !IsValid(ui) ) { return this; }
+			if ( ui.PurchaseWindow.IsVisibleLocal || ui.SellWindow.IsVisibleLocal || ui.TradeWindow.IsVisibleLocal ) {
+				return this;
+			}
+
+			if ( HasBuff(GetPlayer(), "grace_period") ) {
+				return this;
+			}
+
+			if ( ShowFlaskStatus ) {
+				foreach ( var elem in GetUI()?.Flasks?.Flasks ?? Empty<FlaskElement>() ) {
+					if ( IsValid(elem) ) {
 						var ent = elem.Item;
 						var rect = elem.GetClientRect();
-						if ( rect.IsEmpty ) continue;
-						var color = ent.Charges_Cur < ent.Charges_Per ? Color.Red :
-							ent.IsBuffActive ? Color.Gray :
-							Color.Green;
-						DrawFrame(rect, color, 2);
-					}
-				}
-				FlaskEntity flaskToUse = null;
-
-				var player = GetPlayer();
-				if ( !IsValid(player) ) return this;
-
-				var life = player.GetComponent<Life>();
-				if ( IsValid(life) ) {
-					// Feature: Use Life flask
-					if ( UseLifeFlask ) {
-						int maxHp = life.MaxHP - life.TotalReservedHP;
-						// 0 - 100, to match the scale of the SliderFloat above
-						float pctHp = 100 * life.CurHP / maxHp;
-						if ( pctHp < UseLifeFlaskAtPctLife ) {
-							foreach ( FlaskEntity flask in GetFlasks().Where(IsUsable) ) {
-								if ( flask.LifeHealAmount <= 0 ) {
-									continue;
-								}
-								if ( flask.IsBuffActive ) {
-									continue;
-								}
-								if ( flask.IsInstant || (flask.IsInstantOnLowLife && pctHp < 50) ) {
-									flaskToUse = flask;
-									break;
-								} else {
-									flaskToUse = flaskToUse ?? flask;
-								}
-							}
-
-							if ( flaskToUse != null ) {
-								return UseFlask(flaskToUse);
-							}
-						}
-					}
-
-					// Feature: Use Mana flask
-					if ( UseManaFlask ) {
-						int maxMana = life.MaxMana - life.TotalReservedMana;
-						float pctMana = 100 * life.CurMana / maxMana;
-						if ( pctMana < UseManaFlaskAtPctMana ) {
-							foreach ( FlaskEntity flask in GetFlasks().Where(IsUsable) ) {
-								if ( flask.ManaHealAmount <= 0 ) {
-									continue;
-								}
-								if ( flask.IsBuffActive ) {
-									continue;
-								}
-								return UseFlask(flask);
-							}
+						if ( !rect.IsEmpty ) {
+							var color = ent.Charges_Cur < ent.Charges_Per ? Color.Red :
+								ent.IsBuffActive ? Color.Yellow :
+								Color.Green;
+							DrawFrame(rect, color, 2);
 						}
 					}
 				}
+			}
+			FlaskEntity flaskToUse = null;
 
-				// Feature: Cure Conditions
-				if ( CureConditions ) {
-					var buffs = player.GetComponent<Buffs>();
-					if ( IsValid(buffs) ) {
-						if ( HasBuff(buffs, "frozen") && TryGetUsableFlask(f => f.Cures_Frozen, out flaskToUse) ) {
-							return UseFlask(flaskToUse);
+			var player = GetPlayer();
+			if ( !IsValid(player) ) {
+				return this;
+			}
+
+			var life = player.GetComponent<Life>();
+			if ( IsValid(life) ) {
+				// Feature: Use Life flask
+				if ( UseLifeFlask ) {
+					int maxHp = life.MaxHP - life.TotalReservedHP;
+					// 0 - 100, to match the scale of the SliderFloat above
+					float pctHp = 100 * life.CurHP / maxHp;
+					if ( pctHp < UseLifeFlaskAtPctLife ) {
+						foreach ( FlaskEntity flask in GetFlasks().Where(IsUsable).Where(f => f.LifeHealAmount > 0 && !f.IsBuffActive) ) {
+							if ( flask.IsInstant || (flask.IsInstantOnLowLife && pctHp < 50) ) {
+								flaskToUse = flask;
+								break;
+							} else {
+								flaskToUse = flaskToUse ?? flask;
+							}
 						}
-						if ( HasBuff(buffs, "bleeding") && TryGetUsableFlask(f => f.Cures_Bleeding, out flaskToUse) ) {
-							return UseFlask(flaskToUse);
-						}
-						if ( HasBuff(buffs, "poisoned") && TryGetUsableFlask(f => f.Cures_Poisoned, out flaskToUse) ) {
-							return UseFlask(flaskToUse);
-						}
-						if ( (HasBuff(buffs, "ignited") || HasBuff(buffs, "burning")) && TryGetUsableFlask(f => f.Cures_Ignited, out flaskToUse) ) {
-							return UseFlask(flaskToUse);
-						}
-						if ( HasBuff(buffs, "cursed") && TryGetUsableFlask(f => f.Cures_Curse, out flaskToUse) ) {
+
+						if ( flaskToUse != null ) {
 							return UseFlask(flaskToUse);
 						}
 					}
 				}
 
-				if ( UseUtilityWhenFull ) {
-					if ( TryGetUsableFlask(f => f.LifeHealAmount == 0 && f.ManaHealAmount == 0
-						&& f.Charges_Cur == f.Charges_Max, out flaskToUse) ) {
+				// Feature: Use Mana flask
+				if ( UseManaFlask ) {
+					int maxMana = life.MaxMana - life.TotalReservedMana;
+					float pctMana = 100 * life.CurMana / maxMana;
+					if ( pctMana < UseManaFlaskAtPctMana ) {
+						foreach ( FlaskEntity flask in GetFlasks().Where(IsUsable) ) {
+							if ( flask.ManaHealAmount <= 0 ) {
+								continue;
+							}
+							if ( flask.IsBuffActive ) {
+								continue;
+							}
+							return UseFlask(flask);
+						}
+					}
+				}
+			}
+
+			// Feature: Cure Conditions
+			if ( CureConditions ) {
+				var buffs = player.GetComponent<Buffs>();
+				if ( IsValid(buffs) ) {
+					if ( HasBuff(buffs, "frozen") && TryGetUsableFlask(f => f.Cures_Frozen, out flaskToUse) ) {
+						return UseFlask(flaskToUse);
+					}
+					if ( HasBuff(buffs, "bleeding") && TryGetUsableFlask(f => f.Cures_Bleeding, out flaskToUse) ) {
+						return UseFlask(flaskToUse);
+					}
+					if ( HasBuff(buffs, "poisoned") && TryGetUsableFlask(f => f.Cures_Poisoned, out flaskToUse) ) {
+						return UseFlask(flaskToUse);
+					}
+					if ( (HasBuff(buffs, "ignited") || HasBuff(buffs, "burning")) && TryGetUsableFlask(f => f.Cures_Ignited, out flaskToUse) ) {
+						return UseFlask(flaskToUse);
+					}
+					if ( HasBuff(buffs, "cursed") && TryGetUsableFlask(f => f.Cures_Curse, out flaskToUse) ) {
 						return UseFlask(flaskToUse);
 					}
 				}
+			}
 
-				if ( UseUtilityWhenHitRareOrUnique ) {
-					bool hasHitNearbyRare = GetEntities().Where(e =>
-						// Only Enemies:
-						IsValid(e) && e.IsHostile
-						// Rare or greater:
-						&& e.GetComponent<ObjectMagicProperties>()?.Rarity >= Offsets.MonsterRarity.Rare)
-						// If there are any hurt
-						.Any(e => {
-							var e_life = e.GetComponent<Life>();
-							return IsValid(e_life) && (e_life.CurHP + e_life.CurES) < (e_life.MaxHP + e_life.MaxES);
-						});
-					if( hasHitNearbyRare ) {
-						if ( TryGetUsableFlask(f => f.LifeHealAmount == 0 && f.ManaHealAmount == 0, out flaskToUse) ) {
-							return UseFlask(flaskToUse);
-						}
+			if ( UseUtilityWhenFull ) {
+				if ( TryGetUsableFlask(f => f.LifeHealAmount == 0 && f.ManaHealAmount == 0
+					&& f.Charges_Cur == f.Charges_Max
+					&& !f.IsBuffActive, out flaskToUse) ) {
+					return UseFlask(flaskToUse);
+				}
+			}
+
+			if ( UseUtilityWhenHitRareOrUnique ) {
+				bool hasHitNearbyRare = GetEntities().Where(e =>
+					// Only Enemies:
+					IsValid(e) && e.IsHostile
+					// Rare or greater:
+					&& e.GetComponent<ObjectMagicProperties>()?.Rarity >= Offsets.MonsterRarity.Rare)
+					// If there are any hurt
+					.Any(e => {
+						var e_life = e.GetComponent<Life>();
+						return IsValid(e_life) && (e_life.CurHP + e_life.CurES) < (e_life.MaxHP + e_life.MaxES);
+					});
+				if ( hasHitNearbyRare ) {
+					if ( TryGetUsableFlask(f => f.LifeHealAmount == 0 
+						&& f.ManaHealAmount == 0
+						&& !f.IsBuffActive
+						, out flaskToUse) ) {
+						return UseFlask(flaskToUse);
 					}
 				}
-				return base.OnTick(dt);
+			}
+			return base.OnTick(dt);
 		}
 
 
