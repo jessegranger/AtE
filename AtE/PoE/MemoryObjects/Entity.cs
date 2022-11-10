@@ -14,7 +14,7 @@ namespace AtE {
 			// && ent.ServerId > 0 && ent.ServerId < int.MaxValue
 			&& (ent.Path?.StartsWith("Metadata") ?? false);
 
-		public static Entity GetEntityById(ushort id) => PoEMemory.GameRoot?.InGameState.GetEntityById(id);
+		public static Entity GetEntityById(ushort id) => PoEMemory.GameRoot?.InGameState.Entities.Where(e => e.Id == id).FirstOrDefault();
 
 		/// <summary>
 		/// Helper to get the Player from the GameRoot.
@@ -30,12 +30,13 @@ namespace AtE {
 		public static IEnumerable<Entity> GetEntities() => PoEMemory.GameRoot?.InGameState?.Entities;
 
 		public static IEnumerable<Entity> GetEnemies() => GetEntities()
+			.Take(1000)
 			.Where(e => e.GetComponent<Positioned>()?.IsHostile ?? false);
 
 		public static void DrawTextAt(Entity ent, string text, Color color) {
-			var camera = PoEMemory.GameRoot?.InGameState?.WorldData?.Camera ?? default;
-			var pos = ent.GetComponent<Render>().Position;
-			DrawTextAt(ent.Id, camera.WorldToScreen(pos), text, color);
+			if ( !IsValid(ent) ) return;
+			var pos = ent.GetComponent<Render>()?.Position ?? Vector3.Zero; 
+			DrawTextAt(ent.Id, WorldToScreen(pos), text, color);
 		}
 
 	}
@@ -76,7 +77,11 @@ namespace AtE {
 			var result = new Dictionary<string, IntPtr>();
 			// the entity has a list of ptr to Component
 			// managed by an ArrayHandle at ComponentsArray
-			var entityComponents = new ArrayHandle<IntPtr>(Cache.ComponentsArray).ToArray();
+			var entityComponents = new ArrayHandle<IntPtr>(Cache.ComponentsArray)
+				.ToArray(limit: 30); // if it claims to have more than 50 components, its corrupt data
+			if( entityComponents.Length == 0 ) {
+				return result;
+			}
 			if( ! PoEMemory.TryRead(Details.Value.ptrComponentLookup, out Offsets.ComponentLookup lookup) ) {
 				return result;
 			}
@@ -101,7 +106,7 @@ namespace AtE {
 					&& !string.IsNullOrWhiteSpace(name)
 					) {
 					int index = entry.Pointer0.Index;
-					if ( index >= 0 && index <= entityComponents.Length ) {
+					if ( index >= 0 && index < entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
 					}
 				}
@@ -110,7 +115,7 @@ namespace AtE {
 					&& !string.IsNullOrWhiteSpace(name)
 					) {
 					int index = entry.Pointer1.Index;
-					if ( index >= 0 && index <= entityComponents.Length ) {
+					if ( index >= 0 && index < entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
 					}
 				}
@@ -119,7 +124,7 @@ namespace AtE {
 					&& !string.IsNullOrWhiteSpace(name)
 					) {
 					int index = entry.Pointer2.Index;
-					if ( index >= 0 && index <= entityComponents.Length ) {
+					if ( index >= 0 && index < entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
 					}
 				}
@@ -128,7 +133,7 @@ namespace AtE {
 					&& !string.IsNullOrWhiteSpace(name)
 					) {
 					int index = entry.Pointer3.Index;
-					if ( index >= 0 && index <= entityComponents.Length ) {
+					if ( index >= 0 && index < entityComponents.Length ) {
 						result.Add(name, Address = entityComponents[index] );
 					}
 				}
@@ -137,7 +142,7 @@ namespace AtE {
 					&& !string.IsNullOrWhiteSpace(name)
 					) {
 					int index = entry.Pointer4.Index;
-					if ( index >= 0 && index <= entityComponents.Length ) {
+					if ( index >= 0 && index < entityComponents.Length ) {
 						result.Add(name, Address = entityComponents[index] );
 					}
 				}
@@ -146,7 +151,7 @@ namespace AtE {
 					&& !string.IsNullOrWhiteSpace(name)
 					) {
 					int index = entry.Pointer5.Index;
-					if ( index >= 0 && index <= entityComponents.Length ) {
+					if ( index >= 0 && index < entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
 					}
 				}
@@ -155,7 +160,7 @@ namespace AtE {
 					&& !string.IsNullOrWhiteSpace(name)
 					) {
 					int index = entry.Pointer6.Index;
-					if ( index >= 0 && index <= entityComponents.Length ) {
+					if ( index >= 0 && index < entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
 					}
 				}
@@ -164,7 +169,7 @@ namespace AtE {
 					&& !string.IsNullOrWhiteSpace(name)
 					) {
 					int index = entry.Pointer7.Index;
-					if ( index >= 0 && index <= entityComponents.Length ) {
+					if ( index >= 0 && index < entityComponents.Length ) {
 						result.Add(name, entityComponents[index]);
 					}
 
