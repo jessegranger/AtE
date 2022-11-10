@@ -12,9 +12,9 @@ namespace AtE {
 
 	public class Console : State {
 		public bool Show = true;
-		public HotKey HotKey = PluginBase.GetPlugin<CoreSettings>().ConsoleKey;
 		public override IState OnTick(long dt) {
-			if( HotKey.IsReleased ) {
+			var settings = PluginBase.GetPlugin<CoreSettings>();
+			if( settings.ConsoleKey.IsReleased ) {
 				Show = !Show;
 				if ( !Show ) { PluginBase.SaveIniFile(); }
 			}
@@ -29,7 +29,7 @@ namespace AtE {
 						Overlay.Close();
 					}
 					ImGui.SameLine();
-					ImGui_HotKeyButton("Console", ref HotKey);
+					ImGui_HotKeyButton("Console", ref settings.ConsoleKey);
 					foreach ( var plugin in PluginBase.Plugins.OrderBy(p => p.SortIndex) ) {
 						if ( ImGui.TreeNode(plugin.Name) ) {
 							if ( ImGui.BeginChildFrame((uint)plugin.Name.GetHashCode(), Vector2.Zero, ImGuiWindowFlags.AlwaysAutoResize) ) {
