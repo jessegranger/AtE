@@ -143,37 +143,8 @@ namespace AtE {
 			return msg;
 		}
 
-		/*
-		public static INPUT[] TranslateKeyBind(string keyBind, bool keyUp) {
-			// takes as input something like "Ctrl+E", or "M5", and returns appropriate INPUT events
-			// if keyUp == true, the INPUT events will be of the key up (or mouse up) variety
-			// otherwise, they will be keydown (or mouse down) variety
-			string[] keys = keyBind.Split('+');
-			INPUT[] inputs = new INPUT[keys.Length];
-			for(int i = 0; i < keys.Length; i++) {
-				string k = keys[i];
-				if ( k.Equals("Ctrl") ) {
-					inputs[i] = keyUp ? INPUT_KeyUp(Keys.LControlKey) : INPUT_KeyDown(Keys.LControlKey);
-				} else if ( k.Equals("Shift") ) {
-					inputs[i] = keyUp ? INPUT_KeyUp(Keys.LShiftKey) : INPUT_KeyDown(Keys.LShiftKey);
-				} else if ( k.Equals("Alt") ) {
-					inputs[i] = keyUp ? INPUT_KeyUp(Keys.LMenu) : INPUT_KeyDown(Keys.LMenu);
-				} else if ( k.Length == 2 && k[0] == 'M' && k[1] >= '0' && k[1] <= '9' ) {
-					char button = k[1];
-					if ( button == '1' ) inputs[i] = MouseMessage(keyUp ? MouseFlag.LeftUp : MouseFlag.LeftDown);
-					else if ( button == '2' ) inputs[i] = MouseMessage(keyUp ? MouseFlag.RightUp : MouseFlag.RightDown);
-					else if ( button == '3' ) inputs[i] = MouseMessage(keyUp ? MouseFlag.MiddleUp : MouseFlag.MiddleDown);
-					else if ( button == '4' ) inputs[i] = MouseMessage(keyUp ? MouseFlag.XUp : MouseFlag.XDown, 0x0001);
-					else if ( button == '5' ) inputs[i] = MouseMessage(keyUp ? MouseFlag.XUp : MouseFlag.XDown, 0x0002);
-				} else if ( k.Length == 1 && k[0] >= 'A' && k[0] <= 'Z' ) {
-					inputs[i] = keyUp ? INPUT_KeyUp((Keys)(byte)k[0]) : INPUT_KeyDown((Keys)(byte)k[0]);
-				}
-			}
-			return inputs;
-		}
-
-		*/
-		public static bool IsKeyDown(Keys key) => (Win32.GetAsyncKeyState(key) & 0x8000) == 0x8000;
+		// public static bool IsKeyDown(Keys key) => (GetAsyncKeyState(key) & 0x8000) == 0x8000;
+		public static bool IsKeyDown(Keys key) => GetAsyncKeyState(key) < 0;
 		/*  "If the most significant bit is set, the key is down, and if the least significant bit is set, the key was pressed after the previous call to GetAsyncKeyState." */
 
 
