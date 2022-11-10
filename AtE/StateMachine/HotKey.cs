@@ -2,6 +2,7 @@
 using System;
 using System.Numerics;
 using System.Windows.Forms;
+using static AtE.Globals;
 using static AtE.Win32;
 
 namespace AtE {
@@ -16,14 +17,33 @@ namespace AtE {
 		public bool IsDown = false;
 		public bool IsReleased = false;
 		public override IState OnTick(long dt) {
+			if ( isDisposed ) return null;
+			if ( Key == Keys.None ) return this;
 			bool downNow = IsKeyDown(Key);
 			IsReleased = IsDown && !downNow;
+			if ( IsReleased ) OnRelease?.Invoke(this, null);
 			IsDown = downNow;
 			return this;
 		}
 
+		public EventHandler OnRelease;
+
+		private bool isDisposed = false;
+		private bool isDisposing = false;
 		public void Dispose() {
-			StateMachine.DefaultMachine.Remove(this);
+			if ( !(isDisposed || isDisposing) ) {
+				isDisposing = true;
+				StateMachine.DefaultMachine.Remove(this);
+				isDisposed = true;
+			}
+		}
+		public bool PressImmediate() {
+			if ( PoEMemory.IsAttached && PoEMemory.TargetHasFocus && !PoEMemory.GameRoot.InGameState.HasInputFocus ) {
+				Log($"HotKey: PressImmediate {Key}");
+				SendInput(INPUT_KeyDown(Key), INPUT_KeyUp(Key));
+				return true;
+			}
+			return false;
 		}
 		public override string ToString() => Key.ToString();
 		public static HotKey Parse(string str) => new HotKey(Enum.TryParse(str, out Keys key) ? key : Keys.None);
