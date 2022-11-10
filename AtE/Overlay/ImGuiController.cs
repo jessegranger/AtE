@@ -18,7 +18,8 @@ using MapFlags = SharpDX.Direct3D11.MapFlags;
 namespace AtE {
 	public static partial class Globals {
 
-		public static void DrawBottomLeftText(string text, Color color, float lineHeight = 14f) =>
+		public static void DrawBottomLeftText(string text, Color color) => DrawBottomLeftText(text, color, ImGui.GetFontSize());
+		public static void DrawBottomLeftText(string text, Color color, float lineHeight) =>
 			DrawTextAt(0, new Vector2(4, Overlay.Height - 10 - lineHeight), text, color, -lineHeight);
 
 		public static void DrawTextAt(uint id, Vector2 pos, string text, Color color, float lineHeight = 14f) => ImGuiController.DrawTextAt(id, pos, text, color, lineHeight);
@@ -315,7 +316,6 @@ namespace AtE {
 			Log("ImGui: Create constant buffer...");
 			UpdateConstantBuffer();
 
-
 		}
 
 		internal static void Resize(int width, int height) {
@@ -372,12 +372,12 @@ namespace AtE {
 		/// <param name="color"></param>
 		public static void DrawTextAt(uint id, Vector2 pos, string text, Color color, float lineHeight = 14f) {
 			drawTextAtOffsets.TryGetValue(id, out float offset);
-			// ImGui.Text($"Debug: DrawTextAt {id} {pos} adjusted by {offset}: \"{text}\"");
 			pos.Y += offset;
 			DrawText(text, pos, color);
 			drawTextAtOffsets[id] = offset + lineHeight;
 		}
 		private static Dictionary<uint, float> drawTextAtOffsets = new Dictionary<uint, float>();
+		public static float GetNextOffsetForTextAt(uint id) => drawTextAtOffsets.TryGetValue(id, out float value) ? value : 0f;
 
 		public static void DrawText(string text, Vector2 pos, Color color) => textDrawListPtr.AddText(pos, (uint)ToRGBA(color), text);
 
@@ -399,7 +399,6 @@ namespace AtE {
 			if ( IO.DisplaySize.X <= 0 || IO.DisplaySize.Y <= 0 ) {
 				return;
 			}
-
 
 			ImDrawDataPtr data = ImGui.GetDrawData();
 			if ( data.TotalVtxCount == 0 ) {
