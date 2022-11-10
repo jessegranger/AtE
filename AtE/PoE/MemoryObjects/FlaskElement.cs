@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ImGuiNET;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
@@ -60,7 +61,8 @@ namespace AtE {
 		// Not the same as the flask itself being active
 		// To find that, we would need to know the parent element, and find the little progress bar UI element
 		// which is a sibling of the Element that emitted this instance
-		public bool IsBuffActive => HasBuff(GetPlayer(), BaseData?.BuffName);
+		public bool IsBuffActive => HasBuff(GetPlayer(),
+			Effect_NotRemovedOnFullMana ? "flask_effect_mana_not_removed_when_full" : BaseData?.BuffName);
 
 		public Mods Mods => GetComponent<Mods>();
 
@@ -73,20 +75,25 @@ namespace AtE {
 				base.Address = value;
 
 				if( value != IntPtr.Zero ) {
-					float qualityFactor = (100 + GetComponent<Quality>().ItemQuality) / 100f;
+					var charges = GetComponent<Charges>();
+					if( charges == null ) { // not a valid address
+						Address = IntPtr.Zero;
+						return;
+					}
+					float qualityFactor = (100 + (GetComponent<Quality>()?.ItemQuality ?? 0)) / 100f;
 					string path = Path.Split('/').Last();
 					if( FlaskData.Records.TryGetValue(path, out BaseData) ) {
 						Duration = (int)(BaseData.Duration * qualityFactor);
 						LifeHealAmount = (int)(BaseData.HealAmount * qualityFactor);
 						ManaHealAmount = (int)(BaseData.ManaAmount * qualityFactor);
 					}
-					var charges = GetComponent<Charges>();
 					Charges_Max = charges.Max;
 					Charges_Cur = charges.Current;
 					Charges_Per = charges.PerUse;
 					var mods = GetComponent<Mods>();
 					foreach(var mod in mods.EnchantedMods ) {
-						string groupName = mod.GroupName;
+						string groupName = mod?.GroupName;
+						if ( groupName == null ) continue;
 						if ( groupName.StartsWith("FlaskEnchantmentInjectorOnFullCharges") ) {
 							Enchanted_UseWhenFull = true;
 						} else if ( groupName.StartsWith("FlaskEnchantmentInjectorOnHittingRareOrUnique") ) {
@@ -94,7 +101,8 @@ namespace AtE {
 						}
 					}
 					foreach ( var mod in mods.ExplicitMods ) {
-						string groupName = mod.GroupName;
+						string groupName = mod?.GroupName;
+						if ( groupName == null ) continue;
 						if ( groupName.StartsWith("FlaskIncreasedDuration") ) {
 							Duration = (int)(Duration * ((100 + mod.Values.First()) / 100f));
 						} else if ( groupName.StartsWith("FlaskExtraCharges") ) {
@@ -137,13 +145,16 @@ namespace AtE {
 	public class FlaskPanel : Element {
 
 		private int[] flaskIndexToChildIndex = new int[] {
-			1, 2, 3, 4, 5 // we have to scan Children to get the real value
+			-1, -1, -1, -1, -1
 		};
 
 		public new IntPtr Address {
 			get => base.Address;
 			set {
-				if ( value == base.Address ) return;
+				if ( value == base.Address ) {
+					return;
+				}
+
 				base.Address = value;
 				if ( value != IntPtr.Zero ) {
 					updateFlaskIndex();
@@ -153,6 +164,9 @@ namespace AtE {
 
 		private void updateFlaskIndex() {
 			int flaskChildIndex = 1; // the first child is a background/placeholder, so start at 1
+			flaskIndexToChildIndex = new int[] {
+				-1, -1, -1, -1, -1
+			};
 			foreach ( var flaskChild in Children.FirstOrDefault()?.Children.Skip(1) ?? Empty<Element>()) {
 				int flaskIndex = (int)(flaskChild.Position.X / flaskChild.Size.X);
 				flaskIndexToChildIndex[flaskIndex] = flaskChildIndex;
@@ -170,7 +184,7 @@ namespace AtE {
 
 	/// <summary>
 	/// Some data to make flasks useful is stored manually.
-	/// Access to the game data files is spotty and complex.
+	/// Access to the game data files is not yet working.
 	/// </summary>
 	public class FlaskData {
 		public string Path; // just the last chunk
