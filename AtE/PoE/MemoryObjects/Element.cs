@@ -28,7 +28,7 @@ namespace AtE {
 			(children ?? (children = new ArrayHandle<IntPtr>(Cache.Children)))
 			.Select(a => new Element() { Address = a });
 
-		public Element GetChild(int index) =>
+		public Element GetChild(int index) => index < 0 ? null :
 			new Element() { Address = (children ?? (children = new ArrayHandle<IntPtr>(Cache.Children)))[index] };
 
 
