@@ -37,19 +37,50 @@ namespace AtE {
 		public Element LeagueInteractButtonPanel => new Element() { Address = Cache.LeagueInteractButtonPanel };
 		public Element QuestRewardWindow => new Element() { Address = Cache.QuestRewardWindow };
 		public Element PurchaseWindow => new Element() { Address = Cache.PurchaseWindow };
-		public Element HaggleWindow => new Element() { Address = Cache.HaggleWindow }; // LeaguePurchasePanel
+		public Element Unknown730 => new Element() { Address = Cache.Unknown730 }; // LeaguePurchasePanel
 		public Element SellWindow => new Element() { Address = Cache.SellWindow };
-		public Element ExpeditionSellWindow => new Element() { Address = Cache.ExpeditionSellWindow }; // LeagueSellPanel
+		/*
+		public Element Unknown740 => new Element() { Address = Cache.Unknown740 };
+		public Element Unknown758 => new Element() { Address = Cache.Unknown758 };
+		public Element Unknown768 => new Element() { Address = Cache.Unknown768 };
+		public Element Unknown778 => new Element() { Address = Cache.Unknown778 };
+		public Element Unknown780 => new Element() { Address = Cache.Unknown780 };
+		public Element Unknown788 => new Element() { Address = Cache.Unknown788 };
+		public Element Unknown790 => new Element() { Address = Cache.Unknown790 };
+		public Element Unknown798 => new Element() { Address = Cache.Unknown798 };
+		public Element Unknown7a0 => new Element() { Address = Cache.Unknown7a0 };
+		public Element Unknown7a8 => new Element() { Address = Cache.Unknown7a8 };
+		public Element Unknown7b0 => new Element() { Address = Cache.Unknown7b0 };
+		public Element Unknown7b8 => new Element() { Address = Cache.Unknown7b8 };
+		public Element Unknown7F0 => new Element() { Address = Cache.Unknown7F0 };
+		public Element Unknown800 => new Element() { Address = Cache.Unknown800 };
+		public Element Unknown810 => new Element() { Address = Cache.Unknown810 };
+		public Element Unknown828 => new Element() { Address = Cache.Unknown828 };
+		public Element Unknown830 => new Element() { Address = Cache.Unknown830 };
+		public Element Unknown838 => new Element() { Address = Cache.Unknown838 };
+		public Element Unknown8C8 => new Element() { Address = Cache.Unknown8C8 };
+		public Element Unknown8D0 => new Element() { Address = Cache.Unknown8D0 };
+		public Element Unknown8D8 => new Element() { Address = Cache.Unknown8D8 };
+		public Element Unknown8E0 => new Element() { Address = Cache.Unknown8E0 };
+		public Element Unknown8F8 => new Element() { Address = Cache.Unknown8F8 };
+		public Element Unknown900 => new Element() { Address = Cache.Unknown900 };
+		public Element Unknown908 => new Element() { Address = Cache.Unknown908 };
+		public Element Unknown910 => new Element() { Address = Cache.Unknown910 };
+		public Element Unknown918 => new Element() { Address = Cache.Unknown918 };
+		public Element Unknown920 => new Element() { Address = Cache.Unknown920 };
+		public Element Unknown930 => new Element() { Address = Cache.Unknown930 };
+		public Element Unknown938 => new Element() { Address = Cache.Unknown938 };
+		public Element Unknown940 => new Element() { Address = Cache.Unknown940 };
+		public Element Unknown948 => new Element() { Address = Cache.Unknown948 };
+		public Element Unknown950 => new Element() { Address = Cache.Unknown950 };
+		*/
 		public Element TradeWindow => new Element() { Address = Cache.TradeWindow };
 		public Element LabyrinthDivineFontPanel => new Element() { Address = Cache.LabyrinthDivineFontPanel };
 		public Element MapDeviceWindow => new Element() { Address = Cache.MapDeviceWindow };
 		public Element CardTradePanel => new Element() { Address = Cache.CardTradePanel };
-		public Element IncursionWindow => new Element() { Address = Cache.IncursionWindow };
-		public Element IncursionCorruptionAltarPanel => new Element() { Address = Cache.IncursionCorruptionAltarPanel };
 		public Element IncursionAltarOfSacrificePanel => new Element() { Address = Cache.IncursionAltarOfSacrificePanel };
 		public Element IncursionLapidaryLensPanel => new Element() { Address = Cache.IncursionLapidaryLensPanel };
 		public Element DelveWindow => new Element() { Address = Cache.DelveWindow };
-		public Element DelveOldSubterraneanChartPanel => new Element() { Address = Cache.DelveOldSubterraneanChartPanel };
 		public Element ZanaMissionChoice => new Element() { Address = Cache.ZanaMissionChoice }; // KiracMissionPanel
 		public Element BetrayalWindow => new Element() { Address = Cache.BetrayalWindow };
 		public Element CraftBench => new Element() { Address = Cache.CraftBench };
