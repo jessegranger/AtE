@@ -1,9 +1,6 @@
-﻿using ImGuiNET;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Numerics;
 using static AtE.Globals;
 
 namespace AtE {
@@ -63,62 +60,57 @@ namespace AtE {
 			// iterate over the linked list of currently active states:
 			LinkedListNode<IState> curNode = States.First;
 			while ( curNode != null ) {
-					// each node in the linked list contains one State
-					IState curState = curNode.Value;
-					// that state is ticked once per frame
-					var tickStart = Time.Elapsed;
-					IState gotoState = curState.OnTick(dt);
-					var elapsed = Time.Elapsed - tickStart;
+				// each node in the linked list contains one State
+				IState curState = curNode.Value;
+				// that state is ticked once per frame
+				IState gotoState = curState.OnTick(dt);
+				// the result, gotoState can either terminate, replace, or continue, the current state
 
-					// the result, gotoState can either terminate, replace, or continue, the current state
+				// terminate the state we just finished ticking
+				if ( gotoState == null ) {
+					Log($"State Finished: {curState.Name}.");
+					curNode = RemoveAndContinue(States, curNode); // unlink from the linked list
+					continue;
+				}
 
-					// terminate
-					if ( gotoState == null ) {
-						Log($"State Finished: {curState.Name}.");
-						curNode = RemoveAndContinue(States, curNode); // unlink from the linked list
-						continue;
-					}
+				// replace the state
+				if ( gotoState != curState ) {
+					gotoState = gotoState.OnEnter();
+					Log($"State Changed: {curState.Name} to {gotoState.Name}");
+					curState.Next = null; // remove the forward reference from the old state, just in case
+					curNode.Value = gotoState; // often, gotoState has captured it anyway, and brings it back, but that's up to the States
+					// fall through to continue
+				}
+				// continue with the next state for this frame
 
-					// replace
-					if ( gotoState != curState ) {
-						gotoState = gotoState.OnEnter();
-						Log($"State Changed: {curState.Name} to {gotoState.Name}");
-						curState.Next = null; // remove the forward reference from the old state
-						curNode.Value = gotoState; // gotoState often has captured it, and brings it back, but that's up to the States
-						// fall through to continue
-					}
-					// continue
-					
 				curNode = curNode.Next; // loop over the whole list
 			}
 			return States.Count == 0 ? Next : this;
 		}
+
 		/// <summary>
-		/// Call state.OnCancel() and remove it from this StateMachine.
+		/// Call state.OnCancel() and then remove it from this StateMachine.
 		/// </summary>
 		/// <param name="state"></param>
 		public void Cancel(IState state) {
 			state.OnCancel();
 			Remove(state);
 		}
-		public void CancelExcept(IState except = null) {
-			foreach ( IState s in States.Where(s => s != except) ) {
-				s.OnCancel();
-			}
-			States.Clear();
-		}
-		public void CancelAll() {
-			foreach ( IState s in States ) {
-				s.OnCancel();
-			}
-			States.Clear();
-		}
+
+		/// <summary>
+		/// Add a State to this StateMachine.
+		/// As a result, every call to (this StateMachine).OnTick(dt) will result in a call to state.OnTick(dt).
+		/// If state.OnTick(dt) returns a new State, state is replaced by it in this StateMachine.
+		/// </summary>
+		/// <param name="state"></param>
 		public void Add(IState state) {
-			if ( state == null ) return;
-			Log($"State Added: {state.Name}");
-			States.AddLast(States.Count == 0 ? state.OnEnter() : state);
-			// call OnEnter if it's the first state bc it will start immediately
+			if ( state != null ) {
+				Log($"State Added: {state.Name}");
+				// if it's the first state, call OnEnter bc it will start immediately
+				States.AddLast(States.Count == 0 ? state.OnEnter() : state);
+			}
 		}
+
 		/// <summary>
 		/// Remove immediately without cancelling.
 		/// state.OnCancel() is not called.
