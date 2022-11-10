@@ -191,6 +191,7 @@ namespace AtE.Plugins {
 					return this;
 				}
 				var player = GetPlayer();
+				if ( !IsValid(player) ) return this;
 				var buffs = player.GetComponent<Buffs>();
 				foreach(var buff in KnownSkills.Values) {
 					if ( !buff.Enabled || HasBuff(buffs, buff.BuffName) ) {
