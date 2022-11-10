@@ -18,6 +18,9 @@ namespace AtE {
 
 		public static bool IsValid(Process proc) => proc != null && !proc.HasExited;
 
+		public static bool IsValid<T>(ArrayHandle<T> handle, int maxEntries = 10000) where T : unmanaged =>
+			Offsets.IsValid(handle.Handle, Marshal.SizeOf<T>(), maxEntries);
+
 	}
 
 	/// <summary>
@@ -33,16 +36,25 @@ namespace AtE {
 
 		private int sizeOfContainedType;
 
-		public T this[int index] {
-			get => PoEMemory.TryRead(Handle.GetRecordPtr(index, sizeOfContainedType), out T result) ? result : default;
-		}
+		public T this[int index] =>
+			Offsets.IsValid(Handle) && PoEMemory.TryRead(Handle.GetRecordPtr(index, sizeOfContainedType), out T result)
+			? result : default;
 
-		public int Length => Handle.ItemCount(sizeOfContainedType);
+		public int Length => Offsets.IsValid(Handle) ? Handle.ItemCount(sizeOfContainedType) : 0;
 
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-		public IEnumerator<T> GetEnumerator() => Handle.GetRecordPtrs(sizeOfContainedType)
-			.Select(ptr => PoEMemory.TryRead(ptr, out T result) ? result : default)
-			.GetEnumerator();
+		public IEnumerator<T> GetEnumerator() => !Offsets.IsValid(Handle) ? Empty<T>().GetEnumerator() :
+			Handle.GetRecordPtrs(sizeOfContainedType)
+				.Select(ptr => PoEMemory.TryRead(ptr, out T result) ? result : default)
+				.GetEnumerator();
+
+		public T[] ToArray(int limit = 2000) {
+			long count = Handle.ItemCount(sizeOfContainedType);
+			if ( count <= 0 || count > limit ) { return new T[] { }; }
+			T[] result = new T[count];
+			PoEMemory.TryRead(Handle.Head, result);
+			return result;
+		}
 	}
 
 	public static class PoEMemory {
@@ -77,6 +89,7 @@ namespace AtE {
 		/// <param name="buf">An array to read the data into</param>
 		/// <returns>The number of bytes read into buf</returns>
 		public static int TryRead<T>(IntPtr address, T[] buf) where T : unmanaged {
+			if ( !IsValid(address) ) return 0;
 			ReadProcessMemoryArray(Handle, address, buf, out IntPtr read);
 			return read.ToInt32();
 		}
@@ -90,8 +103,7 @@ namespace AtE {
 		/// <returns>true if successful</returns>
 		public static bool TryRead<T>(IntPtr loc, out T result) where T : unmanaged {
 			result = new T();
-			if ( loc == IntPtr.Zero ) return false;
-			return ReadProcessMemory(Handle, loc, ref result);
+			return IsValid(loc) && ReadProcessMemory(Handle, loc, ref result);
 		}
 
 		public static bool TryReadString(IntPtr loc, Encoding enc, out string result, int maxLen = 256) {
@@ -181,16 +193,19 @@ namespace AtE {
 			return false;
 
 		}
-		public static bool TargetHasFocus = false; // => Target != null && Target.MainWindowHandle == Win32.GetForegroundWindow();
+		
+		public static bool TargetHasFocus = false; // assigned once each frame in OnTick
 
 		/// <summary>
 		/// True if a valid Process is open, we have an open Handle to it,
 		/// and we found a GameStateBase offset.
 		/// </summary>
-		public static bool Attached => IsValid(Target)
+		public static bool IsAttached => IsValid(Target)
 			&& Handle != IntPtr.Zero
-			&& GameRoot != null
-			&& GameRoot.Address != IntPtr.Zero;
+			&& IsValid(GameRoot);
+
+		public static EventHandler OnAttach;
+		public static EventHandler OnDetach;
 
 		private static long nextAttach = Time.ElapsedMilliseconds;
 		private static long nextCheckResize = Time.ElapsedMilliseconds + 3000;
@@ -198,10 +213,10 @@ namespace AtE {
 		public static void OnTick(long dt) {
 			TargetHasFocus = false;
 
-			if ( Attached ) {
+			if ( IsAttached ) {
 				TargetHasFocus = Target.MainWindowHandle == Win32.GetForegroundWindow();
 				SpriteController.Enabled =  // same as:
-				ImGuiController.Enabled = Overlay.HasFocus || TargetHasFocus;
+				ImGuiController.Enabled = !PluginBase.GetPlugin<CoreSettings>().OnlyRenderWhenFocused || Overlay.HasFocus || TargetHasFocus;
 
 				// check if we need to resize the overlay based on target window changing
 				if ( nextCheckResize < Time.ElapsedMilliseconds ) {
@@ -245,6 +260,7 @@ namespace AtE {
 				GameRoot.Dispose();
 				GameRoot = null;
 			}
+			OnDetach?.Invoke(null, null);
 		}
 
 		public static void TryAttach(Process target, IntPtr hWnd) {
@@ -254,14 +270,20 @@ namespace AtE {
 			}
 			Log($"PoEMemory: TryAttach(pid {target.Id})");
 
-			if ( Attached ) {
+			if ( IsAttached ) {
 				Detach();
 			}
 
 			Target = target;
-			Handle = OpenProcess(ProcessAccessFlags.VirtualMemoryRead | ProcessAccessFlags.Read, Target.Id);
-			if ( Handle == IntPtr.Zero ) {
-				Log($"PoEMemory: OpenProcess failed.");
+			try {
+				Handle = OpenProcess(ProcessAccessFlags.VirtualMemoryRead | ProcessAccessFlags.Read, Target.Id);
+				if ( Handle == IntPtr.Zero ) {
+					Log($"PoEMemory: OpenProcess failed.");
+					Detach();
+					return;
+				}
+			} catch( Exception e ) {
+				Log($"PoEMemory: failed to attach to Process: {e.Message}");
 				Detach();
 				return;
 			}
@@ -303,6 +325,7 @@ namespace AtE {
 
 			OnAreaChange += (sender, area) => Log("OnAreaChange: " + area);
 
+			OnAttach?.Invoke(null, null);
 		}
 
 	}
