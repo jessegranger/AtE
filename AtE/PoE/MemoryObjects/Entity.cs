@@ -29,9 +29,10 @@ namespace AtE {
 		/// <returns>An enumerable over the current entity list.</returns>
 		public static IEnumerable<Entity> GetEntities() => PoEMemory.GameRoot?.InGameState?.Entities;
 
-		public static IEnumerable<Entity> GetEnemies() => GetEntities()
+		public static IEnumerable<Entity> GetEnemies() => GetEntities()?
 			.Take(1000)
-			.Where(e => e.GetComponent<Positioned>()?.IsHostile ?? false);
+			.Where(e => (e.Path?.StartsWith("Metadata/Monster") ?? false)
+				&& (e.GetComponent<Positioned>()?.IsHostile ?? false)) ?? Empty<Entity>();
 
 		public static void DrawTextAt(Entity ent, string text, Color color) {
 			if ( !IsValid(ent) ) return;
