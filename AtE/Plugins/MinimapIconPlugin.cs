@@ -78,14 +78,14 @@ namespace AtE.Plugins {
 					SpriteIcon icon = SpriteIcon.RedDot;
 					bool isHidden = HasBuff(ent, "hidden_monster");
 					switch( ent.GetComponent<ObjectMagicProperties>()?.Rarity ) {
-						case Offsets.MonsterRarity.Unique: 
-							icon = isHidden ? SpriteIcon.OrangeWithBorder : SpriteIcon.OrangeDot; break;
+						case Offsets.MonsterRarity.Unique:
+							icon = isHidden ? SpriteIcon.OrangeWithBlack : SpriteIcon.OrangeDot; break;
 						case Offsets.MonsterRarity.Rare:
-							icon = isHidden ? SpriteIcon.YellowWithBorder : SpriteIcon.YellowDot; break;
+							icon = isHidden ? SpriteIcon.YellowWithBorderAndGrayDot: SpriteIcon.YellowDot; break;
 						case Offsets.MonsterRarity.Magic:
 							icon = isHidden ? SpriteIcon.BlueWithBorderAndGrayDot : SpriteIcon.BlueDot; break;
 						case Offsets.MonsterRarity.White:
-							icon = isHidden ? SpriteIcon.RedWithBorder : SpriteIcon.RedDot; break;
+							icon = isHidden ? SpriteIcon.RedWithBorderAndGrayDot: SpriteIcon.RedDot; break;
 					}
 					var pos = map.WorldToMap(ent);
 					DrawSprite(icon, pos, IconSize, IconSize);
