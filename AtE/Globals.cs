@@ -42,7 +42,7 @@ namespace AtE {
 					value /= 1024;
 				}
 			}
-			return value.ToString("N2") + suffix;
+			return value.ToString("N0") + suffix;
 		}
 
 		public static double MovingAverage(double value, double sample, int period) => ((value * (period - 1)) + sample) / period;
