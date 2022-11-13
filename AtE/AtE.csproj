@@ -108,6 +108,7 @@
     <Compile Include="Overlay\SpriteController.cs" />
     <Compile Include="Plugins\BuffsPlugin.cs" />
     <Compile Include="Plugins\CoreSettings.cs" />
+    <Compile Include="Plugins\DPSPlugin.cs" />
     <Compile Include="Plugins\ExamplePlugin.cs" />
     <Compile Include="Plugins\FlasksPlugin.cs" />
     <Compile Include="Plugins\MinimapIconPlugin.cs" />
