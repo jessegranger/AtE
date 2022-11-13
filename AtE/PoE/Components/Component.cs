@@ -13,7 +13,8 @@ namespace AtE {
 	public static partial class Globals {
 		public static bool IsValid<T>(Component<T> c) where T : unmanaged => c != null && IsValid(c.Address) && !c.IsDisposed;
 
-		public static bool IsAlive(Entity ent) => IsValid(ent) && (ent.GetComponent<Life>()?.CurHP ?? 0) > 0;
+		public static bool IsAlive(Entity ent) => IsValid(ent) && IsAlive(ent.GetComponent<Life>());
+		public static bool IsAlive(Life life) => (life?.CurHP ?? 0) > 0;
 	}
 	public abstract class Component<T> : MemoryObject<T>, IDisposable where T : unmanaged {
 
@@ -45,44 +46,25 @@ namespace AtE {
 
 	}
 	public static partial class Globals {
-		public static bool IsMissingEHP(Entity ent, float pct = .10f) {
-			Life life = ent?.GetComponent<Life>();
-			if ( !IsValid(life) ) return false;
-			var maxHp = life.MaxHP - life.TotalReservedHP;
-			if( HasBuff(ent, "petrified_blood") ) {
-				maxHp = Math.Min(maxHp, life.MaxHP / 2);
-			}
-			var maxEHP = maxHp + life.MaxES;
-			var curEHP = life.CurHP + life.CurES;
-			var pctLife = curEHP / maxEHP;
-			return (1.0f - pctLife) > pct;
+		public static uint CurrentEHP(Entity ent) => CurrentEHP(ent?.GetComponent<Life>());
+		public static uint CurrentEHP(Life life) => life is null ? 0 : (uint)Math.Max(0, life.CurES) + (uint)Math.Max(0, life.CurHP);
+		public static uint MaxEHP(Entity ent) => MaxEHP(ent?.GetComponent<Life>(), HasBuff(ent, "petrified_blood"));
+		public static uint MaxEHP(Life life, bool petrified = false) => IsValid(life) ?
+			(uint)Math.Max(0, life.MaxES) + MaxLife(life, petrified) : 0;
+		public static uint MaxLife(Entity ent) => MaxLife(ent?.GetComponent<Life>(), HasBuff(ent, "petrified_blood"));
+		public static uint MaxLife(Life life, bool petrified = false) => IsValid(life) ? 
+			(uint)Math.Max(0, 
+				petrified ? Math.Min(life.MaxHP - life.TotalReservedHP, life.MaxHP / 2)
+				: life.MaxHP - life.TotalReservedHP) : 0;
+		public static bool IsMissingEHP(Entity ent, float pct = .10f, bool petrified = false) {
+			var life = ent?.GetComponent<Life>();
+			return IsValid(life) && CurrentEHP(life) < MaxEHP(life, petrified) * (1.0f - pct);
 		}
-		public static bool IsMissingLife(Entity ent, int missing) {
-			Life life = ent?.GetComponent<Life>();
-			if ( !IsValid(life) ) return false;
-			var maxHp = life.MaxHP - life.TotalReservedHP;
-			if ( HasBuff(ent, "petrified_blood") ) {
-				maxHp = Math.Min(maxHp, life.MaxHP / 2);
-			}
-			var maxEHP = maxHp + life.MaxES;
-			var curEHP = life.CurHP + life.CurES;
-			return (maxEHP - curEHP) > missing;
-		}
-		public static bool IsFullEHP(Entity ent) {
-			Life life = ent?.GetComponent<Life>();
-			if ( !IsValid(life) ) return false;
-			var maxHp = life.MaxHP - life.TotalReservedHP;
-			return (life.CurHP + life.CurES) == (maxHp + life.MaxES);
-		}
-		public static bool IsFullLife(Entity ent) {
-			Life life = ent?.GetComponent<Life>();
-			if ( !IsValid(life) ) return false;
-			var maxHp = life.MaxHP - life.TotalReservedHP;
-			if( HasBuff(ent, "petrified_blood") ) {
-				maxHp = Math.Min(maxHp, life.MaxHP / 2);
-			}
-			return maxHp > 0 && maxHp < 50000 && life.CurHP >= maxHp;
-		}
+		public static bool IsFullEHP(Life life, bool petrified = false) => IsValid(life) 
+			? CurrentEHP(life) == MaxEHP(life, petrified) : false;
+		public static bool IsFullEHP(Entity ent) => IsFullEHP(ent?.GetComponent<Life>());
+		public static bool IsFullLife(Life life, bool petrified = false) => IsValid(life) && life.CurHP >= MaxLife(life, petrified);
+		public static bool IsFullLife(Entity ent) => IsFullLife(ent?.GetComponent<Life>(), HasBuff(ent, "petrified_blood"));
 		public static bool HasEnoughRage(Entity ent, int rage) => ent?.GetComponent<Buffs>().Where(b => b.Name.Equals("rage")).Select(b => b.Charges).FirstOrDefault() >= rage;
 	}
 
