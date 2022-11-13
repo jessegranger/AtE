@@ -68,7 +68,7 @@ namespace AtE {
 
 				// terminate the state we just finished ticking
 				if ( gotoState == null ) {
-					Log($"State Finished: {curState.Name}.");
+					// Log($"State Finished: {curState.Name}.");
 					curNode = RemoveAndContinue(States, curNode); // unlink from the linked list
 					continue;
 				}
@@ -105,7 +105,7 @@ namespace AtE {
 		/// <param name="state"></param>
 		public void Add(IState state) {
 			if ( state != null ) {
-				Log($"State Added: {state.Name}");
+				// Log($"State Added: {state.Name}");
 				// if it's the first state, call OnEnter bc it will start immediately
 				States.AddLast(States.Count == 0 ? state.OnEnter() : state);
 			}
