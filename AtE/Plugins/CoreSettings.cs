@@ -12,9 +12,8 @@ namespace AtE {
 
 		public override int SortIndex => 0;
 
-		public float FPS_Maximum = 40f;
-		public bool Enable_FPS_Maximum = true;
 		public bool ShowFPS = false;
+		public bool ShowPerformanceWindow = false;
 
 		public bool OnlyRenderWhenFocused = true;
 
@@ -31,14 +30,12 @@ namespace AtE {
 		public override void Render() {
 			ImGui_HotKeyButton("Console Key", ref ConsoleKey);
 			ImGui_HotKeyButton("Pause/Resume Key", ref PauseKey);
-			ImGui.Checkbox("FPS Cap:", ref Enable_FPS_Maximum);
-			ImGui.SameLine();
-			ImGui.SliderFloat("", ref FPS_Maximum, 20, 60);
 			ImGui.Checkbox("Only Render when PoE is focused", ref OnlyRenderWhenFocused);
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text($"Overlay FPS: {Overlay.FPS:F0}fps");
 			ImGui.SameLine();
 			ImGui.Checkbox("Display", ref ShowFPS);
+			ImGui.Checkbox("Show Performance Window", ref ShowPerformanceWindow);
 			// ImGui.Text($"Overlay IsTransparent: {Overlay.RenderForm.IsTransparent}");
 			ImGui.Text($"Offsets: {Offsets.VersionMajor}.{Offsets.VersionMinor} / PoE {Offsets.PoEVersion}");
 			var target = PoEMemory.Target;

@@ -62,9 +62,13 @@ namespace AtE {
 			while ( curNode != null ) {
 				// each node in the linked list contains one State
 				IState curState = curNode.Value;
+
+				IState gotoState = null;
 				// that state is ticked once per frame
-				IState gotoState = curState.OnTick(dt);
-				// the result, gotoState can either terminate, replace, or continue, the current state
+				using ( Perf.Section(curState.Name) ) {
+					gotoState = curState.OnTick(dt);
+				}
+				// the result, gotoState, can either terminate, replace, or continue, the current state
 
 				// terminate the state we just finished ticking
 				if ( gotoState == null ) {

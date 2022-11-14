@@ -105,6 +105,7 @@
     <Compile Include="Memory\Debugger.cs" />
     <Compile Include="Memory\Memory.cs" />
     <Compile Include="Memory\ObjectBrowser.cs" />
+    <Compile Include="Overlay\Perf.cs" />
     <Compile Include="Overlay\SpriteController.cs" />
     <Compile Include="Plugins\BuffsPlugin.cs" />
     <Compile Include="Plugins\CoreSettings.cs" />
@@ -115,7 +116,7 @@
     <Compile Include="Plugins\MinimapIconPlugin.cs" />
     <Compile Include="Plugins\MousePlugin.cs" />
     <Compile Include="Plugins\PluginBase.cs" />
-    <Compile Include="Plugins\StashPlugin.cs" />
+    <Compile Include="Plugins\BackpackPlugin.cs" />
     <Compile Include="Plugins\XPPlugin.cs" />
     <Compile Include="PoE\GameStat.cs" />
     <Compile Include="PoE\MemoryObjects\FlaskElement.cs" />

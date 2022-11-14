@@ -176,31 +176,33 @@ namespace AtE {
 			Stack<Offsets.EntityListNode> frontier = new Stack<Offsets.EntityListNode>();
 			frontier.Push(tree);
 			int yieldCount = 0;
-			while ( frontier.Count > 0 ) {
-				var node = frontier.Pop();
-				long key = node.Entity.ToInt64();
-				if ( !deduper.Contains(key) ) {
-					deduper.Add(key);
+			using ( Perf.Section("GetEntities") ) {
+				while ( frontier.Count > 0 ) {
+					var node = frontier.Pop();
+					long key = node.Entity.ToInt64();
+					if ( !deduper.Contains(key) ) {
+						deduper.Add(key);
 
-					var ent = new Entity() { Address = node.Entity };
-					var id = ent.Id;
-					if ( id > 0 && id < int.MaxValue ) {
-						if( yieldCount < limit ) {
-							yield return ent;
-							yieldCount += 1;
-						} else {
-							break;
+						var ent = new Entity() { Address = node.Entity };
+						var id = ent.Id;
+						if ( id > 0 && id < int.MaxValue ) {
+							if ( yieldCount < limit ) {
+								yield return ent;
+								yieldCount += 1;
+							} else {
+								break;
+							}
 						}
-					}
 
-					if ( PoEMemory.TryRead(node.First, out Offsets.EntityListNode first) ) {
-						frontier.Push(first);
-					}
-					if ( PoEMemory.TryRead(node.Second, out Offsets.EntityListNode second) ) {
-						frontier.Push(second);
-					}
-					if ( PoEMemory.TryRead(node.Third, out Offsets.EntityListNode third) ) {
-						frontier.Push(third);
+						if ( PoEMemory.TryRead(node.First, out Offsets.EntityListNode first) ) {
+							frontier.Push(first);
+						}
+						if ( PoEMemory.TryRead(node.Second, out Offsets.EntityListNode second) ) {
+							frontier.Push(second);
+						}
+						if ( PoEMemory.TryRead(node.Third, out Offsets.EntityListNode third) ) {
+							frontier.Push(third);
+						}
 					}
 				}
 			}

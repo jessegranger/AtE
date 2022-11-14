@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using static AtE.Globals;
@@ -75,41 +76,42 @@ namespace AtE {
 
 		public static double FPS { get; private set; }
 
+		private static int framesSinceSleep = 0;
 		public static void RenderLoop() {
 			Log("Starting Render loop...");
 			long lastRenderTime = Time.ElapsedMilliseconds - 16;
-			SharpDX.Windows.RenderLoop.Run(RenderForm, async () => {
+			Perf.Clear();
+			SharpDX.Windows.RenderLoop.Run(RenderForm, () => {
 				FrameCount += 1;
-				var settings = PluginBase.GetPlugin<CoreSettings>();
-				int msPerFrame = (int)Math.Round(1000f / settings.FPS_Maximum);
+				framesSinceSleep += 1;
 				long dt = Time.ElapsedMilliseconds - lastRenderTime;
-				if ( settings.Enable_FPS_Maximum && dt < msPerFrame ) {
-					await Task.Delay((int)(msPerFrame - dt));
-					return; // using await give much more accurate timing
-					// but the return here is mandatory, as control resumes on a new thread after an await
-					// so the return immediately ends that thread, and the next frame can begin on the old thread
-				}
+				var settings = PluginBase.GetPlugin<CoreSettings>();
 				FPS = dt == 0 ? 999d : 1000f / dt;
 				lastRenderTime += dt;
 
-				// Clear the prior frame
+				// Clear the prior frame and start a new frame
 				D3DController.NewFrame();
-
-				// Start a new frame
 				ImGuiController.NewFrame(dt);
 				SpriteController.NewFrame(dt);
+
+				Perf.Render(ref settings.ShowPerformanceWindow); // data about prior frame
 
 				// Advance all the States by one frame
 				// in here they end up calling ImGuiController and SpriteController Draw functions
 				// this adds up some draw lists
 				StateMachine.DefaultMachine.OnTick(dt);
 
-				SpriteController.Render(dt);
-				// Render the ImGui layer to vertexes and Draw them to the GPU buffers
-				ImGuiController.Render(dt);
-
-				// Finalize the rendering to the screen
-				D3DController.Render();
+				// Render the draw lists to vertexes and Draw them to the GPU
+				using ( Perf.Section("Render: Sprites") ) {
+					SpriteController.Render(dt);
+				}
+				using ( Perf.Section("Render: ImGui") ) {
+					ImGuiController.Render(dt);
+				}
+				using ( Perf.Section("VSync") ) {
+					// Finalize the rendering to the screen by swapping the back buffer
+					D3DController.Render();
+				}
 
 			}, true);
 		}

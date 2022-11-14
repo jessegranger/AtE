@@ -143,7 +143,13 @@ namespace AtE {
 		public static void Render() {
 			// other layers (ImGui, Sprites) should have called things like DrawIndexed() to fill up the current swap chain before now
 			// so all that's left to do is swap the buffers and show the result
-			deviceSwapChain.Present(VSync ? 1 : 0, PresentFlags.None);
+			try {
+				deviceSwapChain.Present(VSync ? 1 : 0, PresentFlags.None);
+			} catch( Exception e ) {
+				Log(e.Message);
+				Log(e.StackTrace);
+				Overlay.Close();
+			}
 		}
 
 		public static Rectangle Bounds { get; private set; }
