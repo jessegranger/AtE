@@ -298,7 +298,7 @@ namespace AtE {
 				return Empty<Buff>().GetEnumerator();
 			}
 			var buffs = new ArrayHandle<IntPtr>(Cache.Buffs);
-			if( !IsValid(buffs, 1000) ) { // if claimed more than 1000 buffs, its corrupt
+			if( !IsValid(buffs, 200) ) { // if claimed more than 1000 buffs, its corrupt
 				// its possible for a corrupt buffs array to claim to be billions of items long
 				// they all fail IsValid() == false, but it still stalls forever
 				return Empty<Buff>().GetEnumerator();
@@ -314,6 +314,20 @@ namespace AtE {
 			buffName != null && IsValid(ent) && HasBuff(ent.GetComponent<Buffs>(), buffName);
 		public static bool HasBuff(IEnumerable<Buff> buffs, string buffName) =>
 			buffs?.Any(buff => buff.Name?.Equals(buffName) ?? false) ?? false;
+
+		public static bool TryGetBuffValue(Entity ent, string buffName, out int value) => TryGetBuffValue(ent?.GetComponent<Buffs>(), buffName, out value);
+		public static bool TryGetBuffValue(IEnumerable<Buff> buffs, string buffName, out int value) {
+			value = 0;
+			if ( buffs != null ) {
+				foreach ( var buff in buffs ) {
+					if ( buff?.Name?.Equals(buffName) ?? false ) {
+						value = buff.Charges;
+						return true;
+					}
+				}
+			}
+			return false;
+		}
 	}
 
 	public class CapturedMonster : Component<Offsets.Component_Empty> { }
@@ -518,6 +532,9 @@ namespace AtE {
 
 		public string Name => Cache.Name.Value;
 	}
+	public static partial class Globals {
+		public static Vector3 Position(Entity ent) => IsValid(ent) ? ent.GetComponent<Render>().Position : Vector3.Zero;
+	}
 
 	public class RenderItem : Component<Offsets.Component_RenderItem> {
 		public string ResourceName => PoEMemory.TryReadString(Cache.strResourceName, Encoding.Unicode, out string name)
@@ -577,6 +594,10 @@ namespace AtE {
 		public bool IsTargeted => Cache.IsTargeted;
 		public bool IsHighlightable => Cache.IsHighlightable;
 	}
+	public static partial class Globals {
+		public static bool IsTargetable(Entity ent) => IsValid(ent) && (ent.GetComponent<Targetable>()?.IsTargetable ?? false);
+	}
+
 
 	public class TimerComponent : Component<Offsets.Component_TimerComponent> {
 		public float TimeLeft => Cache.TimeLeft;
