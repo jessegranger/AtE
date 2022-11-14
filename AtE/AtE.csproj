@@ -108,12 +108,14 @@
     <Compile Include="Overlay\SpriteController.cs" />
     <Compile Include="Plugins\BuffsPlugin.cs" />
     <Compile Include="Plugins\CoreSettings.cs" />
+    <Compile Include="Plugins\DelvePlugin.cs" />
     <Compile Include="Plugins\DPSPlugin.cs" />
     <Compile Include="Plugins\ExamplePlugin.cs" />
     <Compile Include="Plugins\FlasksPlugin.cs" />
     <Compile Include="Plugins\MinimapIconPlugin.cs" />
     <Compile Include="Plugins\MousePlugin.cs" />
     <Compile Include="Plugins\PluginBase.cs" />
+    <Compile Include="Plugins\StashPlugin.cs" />
     <Compile Include="Plugins\XPPlugin.cs" />
     <Compile Include="PoE\GameStat.cs" />
     <Compile Include="PoE\MemoryObjects\FlaskElement.cs" />
@@ -185,7 +187,6 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Static\App.ico" />
     <Content Include="Static\Sprites.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
