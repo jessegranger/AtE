@@ -15,9 +15,10 @@ namespace AtE.Plugins {
 		public override string Name => "Minimap Icons";
 
 		public bool ShowMinions = true;
-		public bool ShowAllies = true;
 		public bool ShowEnemies = true;
 		public bool ShowChests = true;
+
+		public bool ShowRareOverhead = true;
 
 		public bool ShowOnMinimap = true;
 		public bool ShowOnLargemap = true;
@@ -31,7 +32,8 @@ namespace AtE.Plugins {
 			ImGui.SliderInt("Icon Size", ref IconSize, 5, 20);
 			ImGui.Separator();
 			ImGui.Checkbox("Show Enemies", ref ShowEnemies);
-			ImGui.Checkbox("Show Allies", ref ShowAllies);
+			ImGui.SameLine();
+			ImGui.Checkbox("Also Over Head", ref ShowRareOverhead);
 			ImGui.Checkbox("Show Minions", ref ShowMinions);
 			ImGui.Checkbox("Show Strongboxes", ref ShowChests);
 		}
@@ -65,54 +67,87 @@ namespace AtE.Plugins {
 				if ( totalEntityCount > 2000 ) {
 					break; // something probably wrong
 				}
-
-				bool hostile = ent.IsHostile;
-				if ( ShowAllies && !hostile && ent.HasComponent<Player>() ) {
-					DrawSprite(SpriteIcon.BlueDot, map.WorldToMap(ent), IconSize, IconSize);
+				if ( ent.HasComponent<MinimapIcon>() ) {
 					continue;
 				}
+
+				bool hostile = ent.IsHostile;
 				if ( ShowEnemies && hostile && ent.HasComponent<Targetable>() && IsAlive(ent) ) {
 					if( ent.HasComponent<DiesAfterTime>() ) { // maybe not right, do some unique bosses have this?
 						continue;
 					}
-					SpriteIcon icon = SpriteIcon.RedDot;
+					SpriteIcon icon = SpriteIcon.MediumRedCircle;
 					bool isHidden = HasBuff(ent, "hidden_monster");
-					switch( ent.GetComponent<ObjectMagicProperties>()?.Rarity ) {
+					var rarity = ent.GetComponent<ObjectMagicProperties>()?.Rarity;
+					switch( rarity ) {
 						case Offsets.MonsterRarity.Unique:
-							icon = isHidden ? SpriteIcon.OrangeWithBlack : SpriteIcon.OrangeDot; break;
+							icon = isHidden ? SpriteIcon.SmallPurpleHexagon: SpriteIcon.MediumPurpleCircle; break;
 						case Offsets.MonsterRarity.Rare:
-							icon = isHidden ? SpriteIcon.YellowWithBorderAndGrayDot: SpriteIcon.YellowDot; break;
+							icon = isHidden ? SpriteIcon.SmallYellowHexagon: SpriteIcon.MediumYellowCircle; break;
 						case Offsets.MonsterRarity.Magic:
-							icon = isHidden ? SpriteIcon.BlueWithBorderAndGrayDot : SpriteIcon.BlueDot; break;
+							icon = isHidden ? SpriteIcon.SmallBlueHexagon: SpriteIcon.MediumBlueCircle; break;
 						case Offsets.MonsterRarity.White:
-							icon = isHidden ? SpriteIcon.RedWithBorderAndGrayDot: SpriteIcon.RedDot; break;
+							icon = isHidden ? SpriteIcon.SmallRedHexagon: SpriteIcon.MediumRedCircle; break;
 					}
-					var pos = map.WorldToMap(ent);
-					DrawSprite(icon, pos, IconSize, IconSize);
+					DrawSprite(icon, map.WorldToMap(ent), IconSize, IconSize);
+					if( ShowRareOverhead && rarity >= Offsets.MonsterRarity.Rare ) {
+						var render = ent.GetComponent<Render>();
+						var bounds = render.Bounds;
+						DrawSprite(icon, WorldToScreen(render.Position + new Vector3(0, 0, -1.5f * bounds.Z)), IconSize*4, IconSize*4);
+
+					}
 					continue;
 				}
 				if ( ShowChests && ent.HasComponent<Chest>() ) {
+					var path = ent.Path;
 					var chest = ent.GetComponent<Chest>();
-					if ( chest.IsOpened || ! chest.IsStrongbox ) {
+					if ( chest.IsOpened ) {
 						continue;
 					}
-					// ImGui.SetNextWindowPos(WorldToScreen(ent.GetComponent<Render>()?.Position ?? Vector3.Zero));
-					// ImGui.Begin($"Debug Chest##{ent.Id}");
-					// ImGui_Object($"Chest##{ent.Id}", "Chest", chest, new HashSet<int>());
-					// ImGui.End();
-					DrawSprite(SpriteIcon.Chest, map.WorldToMap(ent), IconSize*2, IconSize*2);
+					var icon = SpriteIcon.RewardGenericItems;
+					if ( path.StartsWith("Metadata/Chests/StrongBoxes") ) {
+						if ( path.EndsWith("/Arcanist") ) {
+							icon = SpriteIcon.RewardCurrency;
+						} else if ( path.EndsWith("/Jeweller") ) {
+							icon = SpriteIcon.RewardJewellery;
+						} else if ( path.EndsWith("/Strongbox") || path.EndsWith("/Large") || path.EndsWith("/Ornate") ) {
+							icon = SpriteIcon.RewardGenericItems;
+						} else if ( path.EndsWith("/Armory") ) {
+							icon = SpriteIcon.RewardArmour;
+						} else if ( path.EndsWith("/StrongboxScarab") ) {
+							icon = SpriteIcon.RewardScarabs;
+						} else if ( path.EndsWith("/Artisan") ) {
+							icon = SpriteIcon.RewardGenericItems;
+						} else if ( path.EndsWith("/Arsenal") ) {
+							icon = SpriteIcon.RewardWeapons;
+						} else {
+							ImGui.SetNextWindowPos(WorldToScreen(ent.GetComponent<Render>()?.Position ?? Vector3.Zero));
+							ImGui.Begin($"Debug Chest##{ent.Id}");
+							ImGui_Object($"Chest##{ent.Id}", "Chest", ent, new HashSet<int>());
+							ImGui.End();
+						}
+						var mapPos = map.WorldToMap(ent);
+						/*
+						var rarity = ent.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.Error;
+						float raritySize = IconSize * 2f;
+						switch ( rarity ) {
+							case Offsets.MonsterRarity.White: DrawSprite(SpriteIcon.MediumCyanCircle, mapPos, raritySize, raritySize); break;
+							case Offsets.MonsterRarity.Magic: DrawSprite(SpriteIcon.MediumBlueCircle, mapPos, raritySize, raritySize); break;
+							case Offsets.MonsterRarity.Rare: DrawSprite(SpriteIcon.MediumYellowCircle, mapPos, raritySize, raritySize); break;
+							case Offsets.MonsterRarity.Unique: DrawSprite(SpriteIcon.MediumPurpleCircle, mapPos, raritySize, raritySize); break;
+						}
+						*/
+						float iconSize = IconSize * 1.75f;
+						DrawSprite(icon, map.WorldToMap(ent), iconSize, iconSize);
+					}
 				}
 			}
 
 			if( ShowMinions ) {
 				foreach(var obj in GetPlayer()?.GetComponent<Actor>()?.DeployedObjects ?? Empty<DeployedObject>() ) {
 					var ent = obj.GetEntity();
-					if( IsValid(ent) ) {
-						if( IsAlive(ent) ) {
-							DrawSprite(SpriteIcon.GreenDot, map.WorldToMap(ent), IconSize, IconSize);
-						} else {
-							DrawSprite(SpriteIcon.Skull, map.WorldToMap(ent), IconSize*1.5f, IconSize*1.5f);
-						}
+					if ( IsAlive(ent) ) {
+						DrawSprite(SpriteIcon.MediumGreenCircle, map.WorldToMap(ent), IconSize, IconSize);
 					}
 				}
 			}
