@@ -269,7 +269,6 @@ namespace AtE {
 
 			Log("ImGui: Creating blend state...");
 			var blendDesc = new BlendStateDescription {
-				AlphaToCoverageEnable = false
 			};
 			blendDesc.RenderTarget[0].IsBlendEnabled = true;
 			blendDesc.RenderTarget[0].SourceBlend = BlendOption.SourceAlpha;
