@@ -35,7 +35,6 @@ namespace AtE {
 
 		public override void Render() {
 			base.Render();
-			ImGui.Text($"Paused: {Paused}");
 
 			ImGui.Checkbox("Use Life Flask at %:", ref UseLifeFlask);
 			ImGui.SameLine();

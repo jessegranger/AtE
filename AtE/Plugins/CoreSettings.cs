@@ -14,8 +14,7 @@ namespace AtE {
 
 		public float FPS_Maximum = 40f;
 		public bool Enable_FPS_Maximum = true;
-		[NoPersist]
-		public bool ShowLogWindow = false;
+		public bool ShowFPS = false;
 
 		public bool OnlyRenderWhenFocused = true;
 
@@ -30,15 +29,18 @@ namespace AtE {
 		public override string Name => "Core Settings";
 
 		public override void Render() {
-			base.Render();
-			ImGui_HotKeyButton("Pause Resume Key", ref PauseKey);
+			ImGui_HotKeyButton("Console Key", ref ConsoleKey);
+			ImGui_HotKeyButton("Pause/Resume Key", ref PauseKey);
 			ImGui.Checkbox("FPS Cap:", ref Enable_FPS_Maximum);
 			ImGui.SameLine();
 			ImGui.SliderFloat("", ref FPS_Maximum, 20, 60);
 			ImGui.Checkbox("Only Render when PoE is focused", ref OnlyRenderWhenFocused);
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text($"Overlay FPS: {Overlay.FPS:F0}fps");
-			ImGui.Text($"Overlay IsTransparent: {Overlay.RenderForm.IsTransparent}");
+			ImGui.SameLine();
+			ImGui.Checkbox("Display", ref ShowFPS);
+			// ImGui.Text($"Overlay IsTransparent: {Overlay.RenderForm.IsTransparent}");
+			ImGui.Text($"Offsets: {Offsets.VersionMajor}.{Offsets.VersionMinor} / PoE {Offsets.PoEVersion}");
 			var target = PoEMemory.Target;
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text($"Attached: {PoEMemory.IsAttached}");
@@ -56,6 +58,7 @@ namespace AtE {
 					Run_ObjectBrowser("GameRoot", root);
 				}
 				if ( Win32.GetWindowRect(target.MainWindowHandle, out var rect) ) {
+					ImGui.AlignTextToFramePadding();
 					ImGui.Text($"Window: {rect.Width}x{rect.Height} at {rect.Top},{rect.Left} ");
 				}
 
@@ -72,7 +75,11 @@ namespace AtE {
 					PauseAll();
 				}
 			}
-			DrawBottomLeftText((Paused ? "[=]" : "[>]") + $" {timeInZone.Elapsed.ToString(@"mm\:ss")}", Color.Orange);
+			DrawBottomLeftText(
+				(Paused ? "[=]" : "[>]")
+				+ $" {timeInZone.Elapsed.ToString(@"mm\:ss")}"
+				+ (ShowFPS ? $" {Overlay.FPS:F0} fps" : "")
+			, Color.Orange);
 			return base.OnTick(dt);
 		}
 

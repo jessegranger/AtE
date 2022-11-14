@@ -28,7 +28,10 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("##Use Flares Checkbox", ref UseFlaresInDarkness);
 			ImGui.SameLine();
 			ImGui_HotKeyButton("Use Flares", ref FlareKey);
-			ImGui.SliderInt("At darkness stacks", ref UseFlaresAtDarkness, 2, 20);
+			ImGui.AlignTextToFramePadding();
+			ImGui.Text("At darkness stacks:");
+			ImGui.SameLine();
+			ImGui.SliderInt("##useFlaresAtDarkness", ref UseFlaresAtDarkness, 2, 20);
 		}
 
 		private long lastFlare = 0;

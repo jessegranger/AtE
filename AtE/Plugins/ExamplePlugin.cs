@@ -8,6 +8,8 @@ namespace AtE {
 		// see: PluginBase for the supported types
 		public bool ShowMetricsWindow = false;
 
+		public override int SortIndex => 999;
+
 		/// <summary>
 		/// Uses ImGui to render controls for configurable fields.
 		/// </summary>

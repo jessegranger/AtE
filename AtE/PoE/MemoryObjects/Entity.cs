@@ -12,7 +12,7 @@ namespace AtE {
 		
 		public static bool IsValid(Entity ent) => ent != null
 			// && ent.ServerId > 0 && ent.ServerId < int.MaxValue
-			&& (ent.Path?.StartsWith("Metadata") ?? false);
+			&& (ent.Path?.StartsWith("Meta") ?? false);
 
 		public static Entity GetEntityById(ushort id) => PoEMemory.GameRoot?.InGameState.Entities.Where(e => e.Id == id).FirstOrDefault();
 

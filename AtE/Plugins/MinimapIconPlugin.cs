@@ -14,6 +14,8 @@ namespace AtE.Plugins {
 
 		public override string Name => "Minimap Icons";
 
+		public override int SortIndex => 1;
+
 		public bool ShowMinions = true;
 		public bool ShowEnemies = true;
 		public bool ShowChests = true;
@@ -35,6 +37,8 @@ namespace AtE.Plugins {
 			ImGui.SameLine();
 			ImGui.Checkbox("Also Over Head", ref ShowRareOverhead);
 			ImGui.Checkbox("Show Minions", ref ShowMinions);
+			ImGui.SameLine();
+			ImGui_HelpMarker("Currently expensive.");
 			ImGui.Checkbox("Show Strongboxes", ref ShowChests);
 		}
 

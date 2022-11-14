@@ -15,6 +15,8 @@ namespace AtE.Plugins {
 
 		public override string Name => "Use Skills";
 
+		public override string HelpText => "Only if found in the skill bar, and it's up to you to match the Key here to the game binding";
+
 		// A configuration holder for each buff we want to manage
 		public abstract class SkillData {
 			/// <summary>
@@ -39,9 +41,11 @@ namespace AtE.Plugins {
 			public override string ToString() => $"{DisplayName}={(Enabled ? "" : Key.ToString())}";
 			public abstract bool Predicate(PlayerEntity p);
 			public virtual void Configure() {
+				ImGui.TableNextColumn();
 				ImGui.Checkbox($"##{DisplayName}", ref Enabled);
-				ImGui.SameLine();
+				ImGui.TableNextColumn();
 				ImGui_HotKeyButton(DisplayName, ref Key);
+				ImGui.TableNextColumn();
 			}
 
 			public static long lastGlobalSkillUse = 0;
@@ -59,29 +63,23 @@ namespace AtE.Plugins {
 				return false;
 			}
 			public bool SkillIsReady(PlayerEntity p) {
-				// ImGui.Begin("SkillIsReady Debug");
 				try {
 					if ( !IsValid(p) ) {
-						// ImGui.Text("Player Invalid");
 						return false;
 					}
 
 					var actor = p.GetComponent<Actor>();
 					if ( !IsValid(actor) ) {
-						// ImGui.Text("Actor invalid");
 						return false;
 					}
 
 					foreach ( ActorSkill s in actor.Skills.Where(IsValid) ) {
-						// ImGui.Text($"{s.InternalName} == {SkillBarName} ({s.Id}) IsOnCooldown?: {actor.IsOnCooldown(s.Id)}");
 						if ( s.InternalName?.Equals(SkillBarName) ?? false ) {
-							// ImGui.Text($"MATCH");
 							return !actor.IsOnCooldown(s.Id);
 						}
 					}
 					return false;
 				} finally {
-					// ImGui.End();
 				}
 			}
 		}
@@ -89,6 +87,10 @@ namespace AtE.Plugins {
 		public class BloodRageData : SkillData {
 			public BloodRageData() : base("Blood Rage", "blood_rage", "blood_rage") { }
 			public override bool Predicate(PlayerEntity p) => IsFullLife(p);
+			public override void Configure() {
+				base.Configure();
+				ImGui_HelpMarker("Will re-apply Blood Rage once you are full life.");
+			}
 		}
 		public class CorruptingFeverData : SkillData {
 			public CorruptingFeverData() : base("Corrupting Fever", "CorruptingFever", "blood_surge") { }
@@ -103,8 +105,9 @@ namespace AtE.Plugins {
 			public override bool Predicate(PlayerEntity p) => IsMissingEHP(p, 1.0f - UseAtLifePercent);
 			public override void Configure() {
 				base.Configure();
+				ImGui.Text("at");
 				ImGui.SameLine();
-				ImGui.SliderFloat("At Life %:", ref UseAtLifePercent, .2f, .99f);
+				ImGui.SliderFloat("% Life", ref UseAtLifePercent, .2f, .99f);
 			}
 		}
 		/// <summary>
@@ -129,7 +132,6 @@ namespace AtE.Plugins {
 			public override bool Predicate(PlayerEntity p) => HasEnoughRage(p, MinRage);
 			public override void Configure() {
 				base.Configure();
-				ImGui.SameLine();
 				ImGui.SliderInt("Minimum Rage", ref MinRage, 10, 70);
 			}
 		}
@@ -170,9 +172,12 @@ namespace AtE.Plugins {
 		/// </summary>
 		public override void Render() {
 			base.Render();
+			ImGui.BeginTable("Table.KnownBuffs", 3, ImGuiTableFlags.SizingFixedFit);
 			foreach(var buff in KnownSkills.Values) {
+				ImGui.TableNextRow();
 				buff.Configure();
 			}
+			ImGui.EndTable();
 		}
 
 		/// <summary>
@@ -192,6 +197,7 @@ namespace AtE.Plugins {
 				}
 				var player = GetPlayer();
 				if ( !IsValid(player) ) return this;
+
 				var buffs = player.GetComponent<Buffs>();
 				foreach(var buff in KnownSkills.Values) {
 					if ( !buff.Enabled || HasBuff(buffs, buff.BuffName) ) {
@@ -209,8 +215,9 @@ namespace AtE.Plugins {
 		}
 
 		public override string[] Save() {
-			string[] result = new string[KnownSkills.Count];
-			int i = 0;
+			string[] result = new string[KnownSkills.Count + 1];
+			result[0] = $"Enabled={Enabled}";
+			int i = 1;
 			foreach(var buff in KnownSkills.Values) {
 				result[i++] = $"{buff.DisplayName}={(buff.Enabled ? buff.Key.ToString() : "None")}";
 			}

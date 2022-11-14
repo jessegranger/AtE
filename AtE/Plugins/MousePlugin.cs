@@ -5,7 +5,7 @@ using static AtE.Globals;
 namespace AtE {
 	public class MousePlugin : PluginBase {
 
-		public override string Name => "Mouse Buttons";
+		public override string Name => "Mouse";
 
 		public bool RepeatLeftClicks = true;
 		public int RepeatLeftClickWait = 500;

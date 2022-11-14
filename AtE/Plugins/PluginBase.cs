@@ -150,6 +150,7 @@ namespace AtE {
 				plugin.Paused = true;
 			}
 		}
+
 		internal static void ResumeAll() {
 			foreach(var plugin in Instances.Values) {
 				plugin.Paused = false;
@@ -175,13 +176,22 @@ namespace AtE {
 		/// Implementation of PluginBase can override this SortIndex to put themselves higher up in the list.
 		/// You probably don't need this, just the first few Core-ish plugins want to be at the top.
 		/// </summary>
-		public virtual int SortIndex => int.MaxValue;
+		public virtual int SortIndex => 100;
+
+		/// <summary>
+		/// Some optional help text to display next to the Enabled flag
+		/// </summary>
+		public virtual string HelpText => null;
 
 		/// <summary>
 		/// Called when the Console needs to render the settings panel for this plugin.
 		/// </summary>
 		public virtual void Render() {
 			ImGui.Checkbox("Enabled", ref Enabled);
+			if( HelpText != null ) {
+				ImGui.SameLine();
+				ImGui_HelpMarker(HelpText);
+			}
 			ImGui.Separator();
 		}
 
