@@ -118,6 +118,7 @@
     <Compile Include="Plugins\PluginBase.cs" />
     <Compile Include="Plugins\BackpackPlugin.cs" />
     <Compile Include="Plugins\XPPlugin.cs" />
+    <Compile Include="PoE\EntityCache.cs" />
     <Compile Include="PoE\GameStat.cs" />
     <Compile Include="PoE\MemoryObjects\FlaskElement.cs" />
     <Compile Include="PoE\MemoryObjects\Inventory.cs" />

@@ -27,7 +27,7 @@ namespace AtE {
 						PluginBase.SaveIniFile();
 					}
 					ImGui.SameLine();
-					ImGui_HelpMarker($"Settings auto-save when the console is toggled ({settings.ConsoleKey.Key}).");
+					ImGui_HelpMarker($"Settings auto-save when the console is toggled. ({settings.ConsoleKey.Key})");
 					ImGui.SameLine();
 					if ( ImGui.Button("Exit##exit") ) {
 						PluginBase.SaveIniFile();
