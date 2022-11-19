@@ -114,18 +114,12 @@ namespace AtE.Plugins {
 		/// Steelskin also can clear bleeding
 		/// </summary>
 		public class SteelskinData : GuardSkillData {
-			public SteelskinData() : base("Steelskin", "QuickGuard", "quick_guard") { }
+			public SteelskinData() : base("Steelskin", "steelskin", "quick_guard") { }
 			public override bool Predicate(PlayerEntity p) => base.Predicate(p) || HasBuff(p, "bleeding");
 		}
-		public class ImmortalCallData : GuardSkillData {
-			public ImmortalCallData() : base("Immortal Call", "ImmortalCall", "mortal_call") { }
-		}
-		public class MoltenShellData : GuardSkillData {
-			public MoltenShellData() : base("Molten Shell", "MoltenShell", "molten_shell_shield") { }
-		}
-		public class EnduringCryData : GuardSkillData {
-			public EnduringCryData() : base("Enduring Cry", "EnduringCry", "enduring_cry_endurance_charge_benefits") { }
-		}
+		public class ImmortalCallData : GuardSkillData { public ImmortalCallData() : base("Immortal Call", "mortal_call", "mortal_call") { } }
+		public class MoltenShellData : GuardSkillData { public MoltenShellData() : base("Molten Shell", "molten_shell_barrier", "molten_shell_shield") { } }
+		public class EnduringCryData : GuardSkillData { public EnduringCryData() : base("Enduring Cry", "EnduringCry", "enduring_cry_endurance_charge_benefits") { } }
 		public class BerserkData : SkillData {
 			public int MinRage = 25;
 			public BerserkData() : base("Berserk", "Berserk", "berserk") { }
@@ -150,12 +144,34 @@ namespace AtE.Plugins {
 			}
 		}
 
+		/// <summary>
+		/// Banner skills all follow the same pattern: fill up to 50 charges, then plant.
+		/// </summary>
+		public abstract class BannerSkill : SkillData {
+			// base.BuffName is the main buff you always have when the banner has mana reserved
+			public string StageBuffName; // each banner tracks the stages with a separate buff with charges
+			public BannerSkill(string displayName, string skillName, string auraBuffName, string stageBuffName):base(displayName, skillName, auraBuffName) {
+				StageBuffName = stageBuffName;
+			}
+			public override bool Predicate(PlayerEntity p) =>
+				TryGetBuffValue(p, StageBuffName, out int stage) && stage >= 50
+					&& NearbyEnemies(100, Offsets.MonsterRarity.Rare).Any();
+		}
+
+		public class DefianceBanner : BannerSkill { public DefianceBanner() : base("Defiance Banner", "banner_armour_evasion", "armour_evasion_banner_buff_aura", "armour_evasion_banner_stage") { } }
+		public class DreadBanner : BannerSkill { public DreadBanner() : base("Dread Banner", "banner_dread", "puresteel_banner_buff_aura", "puresteel_banner_stage") { } }
+		public class WarBanner : BannerSkill { public WarBanner() : base("War Banner", "banner_war", "bloodstained_banner_buff_aura", "bloodstained_banner_stage") { } }
+
+
 		private Dictionary<string, SkillData> KnownSkills = new Dictionary<string, SkillData>() {
 			{ "Blood Rage", new BloodRageData() },
 			/// many of those are not quite right yet, like they need their SkillBarName checked/corrected, eg
 			{ "Steelskin", new SteelskinData() },
 			{ "Immortal Call", new ImmortalCallData() },
 			{ "Molten Shell", new MoltenShellData() },
+			{ "Defiance Banner", new DefianceBanner() },
+			{ "War Banner", new WarBanner() },
+			{ "Dread Banner", new DreadBanner() },
 			// { "Corrupting Fever", new CorruptingFeverData() },
 			// { "Enduring Cry", new EnduringCryData() },
 			// { "Berserk", new BerserkData() },
@@ -186,7 +202,7 @@ namespace AtE.Plugins {
 		/// <param name="dt">duration of this frame, in ms</param>
 		/// <returns>This plugin, or another IState to replace it.</returns>
 		public override IState OnTick(long dt) {
-			if ( Enabled && !Paused && PoEMemory.IsAttached ) {
+			if ( Enabled && !Paused && PoEMemory.TargetHasFocus ) {
 				if( PoEMemory.GameRoot.InGameState.WorldData.IsTown ) {
 					return this;
 				}
@@ -214,6 +230,9 @@ namespace AtE.Plugins {
 			return this;
 		}
 
+		/// <summary>
+		/// Used to save this plugin's section of Settings.ini
+		/// </summary>
 		public override string[] Save() {
 			string[] result = new string[KnownSkills.Count + 1];
 			result[0] = $"Enabled={Enabled}";
