@@ -13,6 +13,7 @@ namespace AtE {
 	/// Most of this was extracted from now defunct https://github.com/queuete/ExileApi
 	/// </summary>
 	public static partial class Offsets {
+		// partial because GameStat.cs is too large to put inline
 
 		/// <summary>
 		/// The current version of this file.
@@ -468,6 +469,8 @@ namespace AtE {
 			[FieldOffset(0x60)] public readonly uint Id;
 		}
 
+
+
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct EntityDetails {
 			[FieldOffset(0x08)] public readonly IntPtr ptrPath;
 			[FieldOffset(0x30)] public readonly IntPtr ptrComponentLookup; // used to find which Component is which in the ComponentsArray
@@ -601,11 +604,17 @@ namespace AtE {
 			[FieldOffset(0x70)] public readonly int TotalVaalUses;
 			[FieldOffset(0xB0)] public readonly IntPtr ptrGameStats; // ptr to GameStatArray
 		}
+
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ActorSkillUIState {
 			[FieldOffset(0x10)] public readonly long CooldownLow;
 			[FieldOffset(0x18)] public readonly long CooldownHigh;
 			[FieldOffset(0x30)] public readonly int NumberOfUses;
+			[FieldOffset(0x34)] public readonly int CooldownMS; // the base cooldown, unscaled (not the same as shown in the UI)
 			[FieldOffset(0x3C)] public readonly ushort SkillId;
+			[FieldOffset(0x44)] public readonly int Padding; // total record size 0x48 is important so the ArrayHandle reads cleanly
+
+			public uint CooldownsUsed => (uint)((CooldownHigh - CooldownLow) >> 4);
+			public bool IsOnCooldown => CooldownsUsed >= NumberOfUses;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GameStatArray {
@@ -1314,6 +1323,30 @@ namespace AtE {
 			[FieldOffset(0x278)] public readonly Vector2 DefaultShift;
 			[FieldOffset(0x2B0)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
 		}
+
+		public const string PATH_STACKEDDECK = "Metadata/Items/DivinationCards/DivinationCardDeck";
+		public const string PATH_SCROLL_WISDOM = "Metadata/Items/Currency/CurrencyIdentification";
+		public const string PATH_SCROLL_PORTAL = "Metadata/Items/Currency/CurrencyPortal";
+		public const string PATH_CHISEL = "Metadata/Items/Currency/CurrencyMapQuality";
+		public const string PATH_ALCHEMY = "Metadata/Items/Currency/CurrencyUpgradeToRare";
+		public const string PATH_TRANSMUTATION = "Metadata/Items/Currency/CurrencyUpgradeToMagic";
+		public const string PATH_ARMOUR_SCRAP = "Metadata/Items/Currency/CurrencyArmourQuality";
+		public const string PATH_WHETSTONE = "Metadata/Items/Currency/CurrencyWeaponQuality";
+		public const string PATH_ALTERATION = "Metadata/Items/Currency/CurrencyRerollMagic";
+		public const string PATH_AUGMENT = "Metadata/Items/Currency/CurrencyAddModToMagic";
+		public const string PATH_REGAL = "Metadata/Items/Currency/CurrencyUpgradeMagicToRare";
+		public const string PATH_SCOUR = "Metadata/Items/Currency/CurrencyConvertToNormal";
+		public const string PATH_FUSING = "Metadata/Items/Currency/CurrencyRerollSocketLinks";
+		public const string PATH_REMNANT_OF_CORRUPTION = "Metadata/Items/Currency/CurrencyCorruptMonolith";
+		public const string PATH_CLUSTER_SMALL = "Metadata/Items/Jewels/JewelPassiveTreeExpansionSmall";
+		public const string PATH_CLUSTER_MEDIUM = "Metadata/Items/Jewels/JewelPassiveTreeExpansionMedium";
+		public const string PATH_CLUSTER_LARGE = "Metadata/Items/Jewels/JewelPassiveTreeExpansionLarge";
+		public const string PATH_SORCERER_BOOTS = "Metadata/Items/Armours/Boots/BootsInt9";
+		public const string PATH_PORTAL = "Metadata/MiscellaneousObjects/MultiplexPortal";
+		public const string PATH_STASH = "Metadata/MiscellaneousObjects/Stash";
+		public const string PATH_MAP_PREFIX = "Metadata/Items/Maps/";
+		public const string PATH_INCUBATOR_PREFIX = "Metadata/Items/Currency/CurrencyIncubation";
+
 	}
 
 }

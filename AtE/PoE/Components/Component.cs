@@ -83,21 +83,21 @@ namespace AtE {
 				.Select(x => new ActorSkill(this) { Address = x.ActorSkillPtr })
 				.Where(x => x.IsValid());
 
-		internal IEnumerable<Offsets.ActorVaalSkillArrayEntry> VaalSkills =>
+		public IEnumerable<Offsets.ActorVaalSkillArrayEntry> VaalSkills =>
 			new ArrayHandle<Offsets.ActorVaalSkillArrayEntry>(Cache.ActorVaalSkillsHandle);
 
 		public IEnumerable<DeployedObject> DeployedObjects =>
 			new ArrayHandle<Offsets.DeployedObjectsArrayEntry>(Cache.DeployedObjectsHandle)
 				.Select(x => new DeployedObject(this, x));
 
-		internal IEnumerable<Offsets.ActorSkillUIState> ActorSkillUIStates =>
+		public IEnumerable<Offsets.ActorSkillUIState> ActorSkillUIStates =>
 			new ArrayHandle<Offsets.ActorSkillUIState>(Cache.ActorSkillUIStatesHandle);
 
 		internal bool IsOnCooldown(ushort skillId) => ActorSkillUIStates
 			.Where(s => s.SkillId == skillId)
-			.Any(s =>
-				(s.CooldownHigh - s.CooldownLow) >> 4 >= s.NumberOfUses
-			);
+			.Any(s => s.IsOnCooldown);
+				// (s.CooldownHigh - s.CooldownLow) >> 4 >= s.NumberOfUses
+			// );
 	}
 
 	public class ActorAction : MemoryObject {
@@ -313,7 +313,7 @@ namespace AtE {
 		public static bool HasBuff(Entity ent, string buffName) =>
 			buffName != null && IsValid(ent) && HasBuff(ent.GetComponent<Buffs>(), buffName);
 		public static bool HasBuff(IEnumerable<Buff> buffs, string buffName) =>
-			buffs?.Any(buff => buff.Name?.Equals(buffName) ?? false) ?? false;
+			buffs?.Take(100).Any(buff => buff.Name?.Equals(buffName) ?? false) ?? false;
 
 		public static bool TryGetBuffValue(Entity ent, string buffName, out int value) => TryGetBuffValue(ent?.GetComponent<Buffs>(), buffName, out value);
 		public static bool TryGetBuffValue(IEnumerable<Buff> buffs, string buffName, out int value) {
@@ -520,6 +520,10 @@ namespace AtE {
 		public bool IsHostile => Cache.IsHostile;
 	}
 
+	public static partial class Globals {
+		public static bool IsHostile(Entity ent) => IsValid(ent) && (ent.GetComponent<Positioned>()?.IsHostile ?? false);
+	}
+
 	public class Quality : Component<Offsets.Component_Quality> {
 		public int ItemQuality => Cache.ItemQuality;
 	}
@@ -533,7 +537,10 @@ namespace AtE {
 		public string Name => Cache.Name.Value;
 	}
 	public static partial class Globals {
-		public static Vector3 Position(Entity ent) => IsValid(ent) ? ent.GetComponent<Render>().Position : Vector3.Zero;
+		public static Vector3 Position(Entity ent) => !IsValid(ent) ? Vector3.Zero :
+			ent.GetComponent<Render>()?.Position ?? Vector3.Zero;
+		public static Vector2 GridPosition(Entity ent) => !IsValid(ent) ? Vector2.Zero :
+			ent.GetComponent<Positioned>()?.GridPosF ?? Vector2.Zero;
 	}
 
 	public class RenderItem : Component<Offsets.Component_RenderItem> {
