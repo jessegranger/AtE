@@ -12,6 +12,8 @@ namespace AtE {
 
 		public override int SortIndex => 0;
 
+		public int InputLatency = 30; // number of ms per input, in situtations where many inputs must be sent
+
 		public bool ShowFPS = false;
 		public bool ShowPerformanceWindow = false;
 
@@ -36,6 +38,7 @@ namespace AtE {
 			ImGui.SameLine();
 			ImGui.Checkbox("Display", ref ShowFPS);
 			ImGui.Checkbox("Show Performance Window", ref ShowPerformanceWindow);
+			ImGui.SliderInt("Input Latency", ref InputLatency, 10, 100);
 			// ImGui.Text($"Overlay IsTransparent: {Overlay.RenderForm.IsTransparent}");
 			ImGui.Text($"Offsets: {Offsets.VersionMajor}.{Offsets.VersionMinor} / PoE {Offsets.PoEVersion}");
 			var target = PoEMemory.Target;
