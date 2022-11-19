@@ -60,6 +60,15 @@ namespace AtE {
 
 	public static partial class Globals {
 		public static bool IsValid(InventoryItem item) => item != null && IsValid((Element)item) && item.IsValid;
+		public static bool IsIdentified(InventoryItem item) => IsValid(item) && IsIdentified(item.Entity);
+		public static bool IsIdentified(Entity item) => IsValid(item) && (item.GetComponent<Mods>()?.IsIdentified ?? true);
+		public static bool IsCorrupted(InventoryItem item) => IsValid(item) && IsCorrupted(item.Entity);
+		public static bool IsCorrupted(Entity item) => IsValid(item) && (item.GetComponent<Base>()?.IsCorrupted ?? true);
+
+		public static IEnumerable<InventoryItem> BackpackItems() => GetUI()?.InventoryPanel?.Backpack?.VisibleItems.Take(60).Where(IsValid) ?? Empty<InventoryItem>();
+
+		public static bool BackpackIsOpen() => GetUI()?.InventoryPanel?.Backpack?.IsVisibleLocal ?? false;
+		public static bool StashIsOpen() => GetUI()?.StashElement?.IsVisibleLocal ?? false;
 	}
 
 	public class InventoryItem : Element {
@@ -73,7 +82,7 @@ namespace AtE {
 			&& Details.Value.InventPosition.Y >= 0
 			&& IsValid(new Entity() { Address = Details.Value.entItem });
 
-		public Entity Item => Details.Value.entItem == IntPtr.Zero ? null
+		public Entity Entity => Details.Value.entItem == IntPtr.Zero ? null
 			: new Entity() { Address = Details.Value.entItem };
 
 		public int X => Details.Value.InventPosition.X;
