@@ -2,6 +2,7 @@
 using SharpDX.Windows;
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,8 +27,16 @@ namespace AtE {
 			// Enable the Console
 			Run(new Console());
 
-			// Render until we drop
+			// this background thread runs forever
+			var entThread = new Thread(new ThreadStart(EntityCache.MainThread));
+			entThread.Start();
+
+			// Render until exit
 			Overlay.RenderLoop();
+
+			// Time to cleanup and exit
+			Log("Waiting for EntityCache thread to stop...");
+			entThread.Join();
 
 		}
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ImGuiNET;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
@@ -11,10 +12,11 @@ namespace AtE {
 	public static partial class Globals {
 		
 		public static bool IsValid(Entity ent) => ent != null
+			&& ent.Address != IntPtr.Zero
 			// && ent.ServerId > 0 && ent.ServerId < int.MaxValue
 			&& (ent.Path?.StartsWith("Meta") ?? false);
 
-		public static Entity GetEntityById(ushort id) => PoEMemory.GameRoot?.InGameState.Entities.Where(e => e.Id == id).FirstOrDefault();
+		public static Entity GetEntityById(ushort id) => EntityCache.TryGetEntity(id, out Entity ret) ? ret : null;
 
 		/// <summary>
 		/// Helper to get the Player from the GameRoot.
@@ -27,12 +29,20 @@ namespace AtE {
 		/// The result is only considered valid for this frame.
 		/// </summary>
 		/// <returns>An enumerable over the current entity list.</returns>
-		public static IEnumerable<Entity> GetEntities() => PoEMemory.GameRoot?.InGameState?.Entities;
+		public static IEnumerable<Entity> GetEntities() => EntityCache.GetEntities();
 
 		public static IEnumerable<Entity> GetEnemies() => GetEntities()?
 			.Take(1000)
 			.Where(e => (e.Path?.StartsWith("Metadata/Monster") ?? false)
 				&& (e.GetComponent<Positioned>()?.IsHostile ?? false)) ?? Empty<Entity>();
+		public static IEnumerable<Entity> NearbyEnemies(float radius) {
+			Vector3 playerPos = Position(GetPlayer());
+			return playerPos == Vector3.Zero ? Empty<Entity>() : GetEnemies().Where(e => Distance(playerPos, Position(e)) <= radius);
+		}
+
+		public static IEnumerable<Entity> NearbyEnemies(float radius, Offsets.MonsterRarity rarity) =>
+			NearbyEnemies(radius).Where(e => (e.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White) >= rarity);
+
 
 		public static void DrawTextAt(Entity ent, string text, Color color) {
 			if ( !IsValid(ent) ) return;
@@ -43,141 +53,196 @@ namespace AtE {
 	}
 	public class Entity : MemoryObject<Offsets.Entity> {
 		public Cached<Offsets.EntityDetails> Details;
-		public Entity() : base() =>
+		public Entity() : base() {
 			Details = CachedStruct<Offsets.EntityDetails>(() => Cache.ptrDetails);
+		}
+
+		public new IntPtr Address {
+			get => base.Address;
+			set {
+				if ( value == base.Address ) {
+					return;
+				}
+				// when this gets assigned, Cache gets a new value as well
+				base.Address = value;
+				Details = CachedStruct<Offsets.EntityDetails>(() => Cache.ptrDetails);
+
+				if ( !IsValid(value) ) {
+					return;
+				}
+				uint id = Cache.Id; // this will read Offset.Entity struct from memory (same cost as before)
+				if ( id != 0 ) {
+					// if this Entity id is at the same address as last time, we can re-use ComponentPtrs (and skip parsing)
+					if ( lastKnownAddress.TryGetValue(id, out IntPtr prev) && prev == value ) {
+						lastKnownComponents.TryGetValue(id, out ComponentPtrs);
+						// ImGui.Text($"[{id}] stable at {Format(prev)} -> {ComponentPtrs?.Count ?? 0} components");
+					} else {
+						// Log($"New entity {id} at address {Format(value)}");
+						// Log($"Entity[{id}] at new address: {Format(value)} {Path}");
+						lastKnownAddress[id] = value;
+						lastKnownComponents.Remove(id);
+						ComponentPtrs = null;
+					}
+				}
+			}
+		}
 
 		/// <summary>
 		///  The remote id used by the PoE server to sync the ent.
 		///  Client-only effects do have Entity structure, but dont have Id.
 		/// </summary>
-		public uint Id => Cache.Id;
+		public uint Id => Address == IntPtr.Zero ? 0 : Cache.Id;
 
-		public string Path => PoEMemory.TryReadString(Details.Value.ptrPath, Encoding.Unicode, out string ret) ? ret : null;
+		public string Path => Address == IntPtr.Zero ? null :
+			PoEMemory.TryReadString(Details.Value.ptrPath, Encoding.Unicode, out string ret) ? ret : null;
 
-		public bool IsHostile => GetComponent<Positioned>()?.IsHostile ?? false;
-
-		public bool HasComponent<T>() where T : MemoryObject, new() {
-			if ( Components == null ) Components = GetComponents();
-			return Components?.ContainsKey(typeof(T).Name) ?? false;
-		}
+		public bool HasComponent<T>() where T : MemoryObject, new() => Address != IntPtr.Zero && GetComponent<T>() != null;
 
 		public T GetComponent<T>() where T : MemoryObject, new() {
-			if ( Components == null ) Components = GetComponents();
-			if ( Components == null ) return null;
-			if ( Components.TryGetValue(typeof(T).Name, out IntPtr ret) ) {
-				return new T() { Address = ret };
+			if ( Address == IntPtr.Zero ) {
+				return null;
 			}
-			return null;
+			using ( Perf.Section("GetComponent") ) {
+				if ( ComponentPtrs == null ) {
+					ParseComponents();
+					lastKnownComponents[Id] = ComponentPtrs;
+				}
+				if ( ComponentPtrs == null ) {
+					// all the above failed to parse any ptrs, so there are no components
+					return null;
+				}
+
+				if ( ComponentPtrs.TryGetValue(typeof(T).Name, out IntPtr ptr) ) {
+					return new T() { Address = ptr };
+				}
+				return null;
+			}
 		}
 
-		private Dictionary<string, IntPtr> Components;
+		// keep track of when an entity id moves to a new address in memory
+		private static Dictionary<uint, IntPtr> lastKnownAddress = new Dictionary<uint, IntPtr>();
+		private static Dictionary<uint, Dictionary<string, IntPtr>> lastKnownComponents = new Dictionary<uint, Dictionary<string, IntPtr>>();
 
-		public Dictionary<string, IntPtr> GetComponents() {
+		// maps the Type (of a Component) to the Address of that Component instance for this Entity
+		private Dictionary<string, IntPtr> ComponentPtrs; // we have to parse this all at once
+		private void UpdateParsedIndex(string name, IntPtr addr) {
+			ComponentPtrs.Add(name, addr);
+		}
 
-			// Build a map of Component name to address
-			var result = new Dictionary<string, IntPtr>();
-			// the entity has a list of ptr to Component
-			// managed by an ArrayHandle at ComponentsArray
-			var entityComponents = new ArrayHandle<IntPtr>(Cache.ComponentsArray)
-				.ToArray(limit: 30); // if it claims to have more than 50 components, its corrupt data
-			if( entityComponents.Length == 0 ) {
-				return result;
+		private void ParseComponents() {
+
+			using ( Perf.Section("ParseComponents") ) {
+				ComponentPtrs = new Dictionary<string, IntPtr>();
+				// the entity has a list of ptr to Component
+				// managed by an ArrayHandle at ComponentsArray
+				var entityComponents = new ArrayHandle<IntPtr>(Cache.ComponentsArray)
+					.ToArray(limit: 30); // if it claims to have more than 50 components, its corrupt data
+				if ( entityComponents.Length == 0 ) {
+					return;
+				}
+				if ( !PoEMemory.TryRead(Details.Value.ptrComponentLookup, out Offsets.ComponentLookup lookup) ) {
+					return;
+				}
+				if ( lookup.Capacity < 1 || lookup.Capacity > 24 ) {
+					return;
+				}
+
+				// stored separately is a lookup table, stored as
+				// a packed array of (ptr string, int index) pairs
+
+				// each entry in the array packs 8 items into one struct, so we read N / 8 structs
+				int trueCapacity = (int)((lookup.Capacity + 1) / 8);
+				var componentArray = new Offsets.ComponentArrayEntry[trueCapacity];
+				if ( 0 == PoEMemory.TryRead(lookup.ComponentMap, componentArray) ) {
+					return;
+				}
+
+				string name;
+				foreach ( var entry in componentArray ) {
+
+					if ( entry.Flag0 != byte.MaxValue
+						&& PoEMemory.TryReadString(entry.Pointer0.ptrName, Encoding.ASCII, out name)
+						&& !string.IsNullOrWhiteSpace(name)
+						) {
+						int index = entry.Pointer0.Index;
+						if ( index >= 0 && index < entityComponents.Length ) {
+							UpdateParsedIndex(name, entityComponents[index]);
+						}
+					}
+
+					if ( entry.Flag1 != byte.MaxValue
+						&& PoEMemory.TryReadString(entry.Pointer1.ptrName, Encoding.ASCII, out name)
+						&& !string.IsNullOrWhiteSpace(name)
+						) {
+						int index = entry.Pointer1.Index;
+						if ( index >= 0 && index < entityComponents.Length ) {
+							UpdateParsedIndex(name, entityComponents[index]);
+						}
+					}
+
+					if ( entry.Flag2 != byte.MaxValue
+						&& PoEMemory.TryReadString(entry.Pointer2.ptrName, Encoding.ASCII, out name)
+						&& !string.IsNullOrWhiteSpace(name)
+						) {
+						int index = entry.Pointer2.Index;
+						if ( index >= 0 && index < entityComponents.Length ) {
+							UpdateParsedIndex(name, entityComponents[index]);
+						}
+					}
+
+					if ( entry.Flag3 != byte.MaxValue
+						&& PoEMemory.TryReadString(entry.Pointer3.ptrName, Encoding.ASCII, out name)
+						&& !string.IsNullOrWhiteSpace(name)
+						) {
+						int index = entry.Pointer3.Index;
+						if ( index >= 0 && index < entityComponents.Length ) {
+							UpdateParsedIndex(name, entityComponents[index]);
+						}
+					}
+
+					if ( entry.Flag4 != byte.MaxValue
+						&& PoEMemory.TryReadString(entry.Pointer4.ptrName, Encoding.ASCII, out name)
+						&& !string.IsNullOrWhiteSpace(name)
+						) {
+						int index = entry.Pointer4.Index;
+						if ( index >= 0 && index < entityComponents.Length ) {
+							UpdateParsedIndex(name, entityComponents[index]);
+						}
+					}
+
+					if ( entry.Flag5 != byte.MaxValue
+						&& PoEMemory.TryReadString(entry.Pointer5.ptrName, Encoding.ASCII, out name)
+						&& !string.IsNullOrWhiteSpace(name)
+						) {
+						int index = entry.Pointer5.Index;
+						if ( index >= 0 && index < entityComponents.Length ) {
+							UpdateParsedIndex(name, entityComponents[index]);
+						}
+					}
+
+					if ( entry.Flag6 != byte.MaxValue
+						&& PoEMemory.TryReadString(entry.Pointer6.ptrName, Encoding.ASCII, out name)
+						&& !string.IsNullOrWhiteSpace(name)
+						) {
+						int index = entry.Pointer6.Index;
+						if ( index >= 0 && index < entityComponents.Length ) {
+							UpdateParsedIndex(name, entityComponents[index]);
+						}
+					}
+
+					if ( entry.Flag7 != byte.MaxValue
+						&& PoEMemory.TryReadString(entry.Pointer7.ptrName, Encoding.ASCII, out name)
+						&& !string.IsNullOrWhiteSpace(name)
+						) {
+						int index = entry.Pointer7.Index;
+						if ( index >= 0 && index < entityComponents.Length ) {
+							UpdateParsedIndex(name, entityComponents[index]);
+						}
+					}
+				}
+				// Log($"Entity[{Id}] Parsed {ComponentPtrs.Count} components");
+				return;
 			}
-			if( ! PoEMemory.TryRead(Details.Value.ptrComponentLookup, out Offsets.ComponentLookup lookup) ) {
-				return result;
-			}
-			if ( lookup.Capacity < 1 || lookup.Capacity > 24 ) {
-				return result;
-			}
-
-			// stored separately is a lookup table, stored as
-			// a packed array of (ptr string, int index) pairs
-
-			// each entry in the array packs 8 items into one struct, so we read N / 8 structs
-			int trueCapacity = (int)((lookup.Capacity + 1) / 8);
-			var componentArray = new Offsets.ComponentArrayEntry[trueCapacity];
-			if ( 0 == PoEMemory.TryRead(lookup.ComponentMap, componentArray) ) {
-				return result;
-			}
-
-			string name;
-			foreach ( var entry in componentArray ) {
-				if ( entry.Flag0 != byte.MaxValue
-					&& PoEMemory.TryReadString(entry.Pointer0.ptrName, Encoding.ASCII, out name)
-					&& !string.IsNullOrWhiteSpace(name)
-					) {
-					int index = entry.Pointer0.Index;
-					if ( index >= 0 && index < entityComponents.Length ) {
-						result.Add(name, entityComponents[index]);
-					}
-				}
-				if ( entry.Flag1 != byte.MaxValue
-					&& PoEMemory.TryReadString(entry.Pointer1.ptrName, Encoding.ASCII, out name)
-					&& !string.IsNullOrWhiteSpace(name)
-					) {
-					int index = entry.Pointer1.Index;
-					if ( index >= 0 && index < entityComponents.Length ) {
-						result.Add(name, entityComponents[index]);
-					}
-				}
-				if ( entry.Flag2 != byte.MaxValue
-					&& PoEMemory.TryReadString(entry.Pointer2.ptrName, Encoding.ASCII, out name)
-					&& !string.IsNullOrWhiteSpace(name)
-					) {
-					int index = entry.Pointer2.Index;
-					if ( index >= 0 && index < entityComponents.Length ) {
-						result.Add(name, entityComponents[index]);
-					}
-				}
-				if ( entry.Flag3 != byte.MaxValue
-					&& PoEMemory.TryReadString(entry.Pointer3.ptrName, Encoding.ASCII, out name)
-					&& !string.IsNullOrWhiteSpace(name)
-					) {
-					int index = entry.Pointer3.Index;
-					if ( index >= 0 && index < entityComponents.Length ) {
-						result.Add(name, Address = entityComponents[index] );
-					}
-				}
-				if ( entry.Flag4 != byte.MaxValue
-					&& PoEMemory.TryReadString(entry.Pointer4.ptrName, Encoding.ASCII, out name)
-					&& !string.IsNullOrWhiteSpace(name)
-					) {
-					int index = entry.Pointer4.Index;
-					if ( index >= 0 && index < entityComponents.Length ) {
-						result.Add(name, Address = entityComponents[index] );
-					}
-				}
-				if ( entry.Flag5 != byte.MaxValue
-					&& PoEMemory.TryReadString(entry.Pointer5.ptrName, Encoding.ASCII, out name)
-					&& !string.IsNullOrWhiteSpace(name)
-					) {
-					int index = entry.Pointer5.Index;
-					if ( index >= 0 && index < entityComponents.Length ) {
-						result.Add(name, entityComponents[index]);
-					}
-				}
-				if ( entry.Flag6 != byte.MaxValue
-					&& PoEMemory.TryReadString(entry.Pointer6.ptrName, Encoding.ASCII, out name)
-					&& !string.IsNullOrWhiteSpace(name)
-					) {
-					int index = entry.Pointer6.Index;
-					if ( index >= 0 && index < entityComponents.Length ) {
-						result.Add(name, entityComponents[index]);
-					}
-				}
-				if ( entry.Flag7 != byte.MaxValue
-					&& PoEMemory.TryReadString(entry.Pointer7.ptrName, Encoding.ASCII, out name)
-					&& !string.IsNullOrWhiteSpace(name)
-					) {
-					int index = entry.Pointer7.Index;
-					if ( index >= 0 && index < entityComponents.Length ) {
-						result.Add(name, entityComponents[index]);
-					}
-
-				}
-			}
-
-			return result;
 		}
 	}
 

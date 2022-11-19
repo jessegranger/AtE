@@ -19,6 +19,7 @@ namespace AtE {
 		public int FlaskIndex;
 
 		public FlaskEntity Item => new FlaskEntity(FlaskIndex) { Address = Details.Value.entItem };
+		public IntPtr ItemPtr => Details.Value.entItem;
 	}
 
 	/// <summary>
@@ -74,9 +75,9 @@ namespace AtE {
 
 				base.Address = value;
 
-				if( value != IntPtr.Zero ) {
+				if( IsValid(base.Address) ) {
 					var charges = GetComponent<Charges>();
-					if( charges == null ) { // not a valid address
+					if( charges == null ) { // not a valid flask entity address
 						Address = IntPtr.Zero;
 						return;
 					}
@@ -102,7 +103,10 @@ namespace AtE {
 					}
 					foreach ( var mod in mods.ExplicitMods ) {
 						string groupName = mod?.GroupName;
-						if ( groupName == null ) continue;
+						if ( groupName == null ) {
+							continue;
+						}
+
 						if ( groupName.StartsWith("FlaskIncreasedDuration") ) {
 							Duration = (int)(Duration * ((100 + mod.Values.First()) / 100f));
 						} else if ( groupName.StartsWith("FlaskExtraCharges") ) {
@@ -175,7 +179,7 @@ namespace AtE {
 		}
 
 		public FlaskElement GetFlask(int flaskIndex) => new FlaskElement(flaskIndex) {
-			Address = GetChild(0)?.GetChild(flaskIndexToChildIndex[flaskIndex])?.Address ?? IntPtr.Zero
+			Address = GetChild(0)?.GetChildPtr(flaskIndexToChildIndex[flaskIndex]) ?? IntPtr.Zero
 		};
 
 		public IEnumerable<FlaskElement> Flasks => Range(0, 5).Select(i => GetFlask((int)i));

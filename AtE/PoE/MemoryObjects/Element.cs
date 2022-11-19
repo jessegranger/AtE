@@ -30,6 +30,8 @@ namespace AtE {
 
 		public Element GetChild(int index) => index < 0 ? null :
 			new Element() { Address = (children ?? (children = new ArrayHandle<IntPtr>(Cache.Children)))[index] };
+		internal IntPtr GetChildPtr(int index) => index < 0 ? default :
+			(children ?? (children = new ArrayHandle<IntPtr>(Cache.Children)))[index];
 
 
 		public Vector2 Position => Cache.Position;

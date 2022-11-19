@@ -124,15 +124,12 @@ namespace AtE {
 
 	public class InGameState : GameState<Offsets.InGameState> {
 		private readonly Cached<Offsets.InGameState_Data> Data;
-		private readonly Cached<Entity[]> entities;
-		// private Dictionary<uint, int> entityIndex = new Dictionary<uint, int>();
 
 		public InGameState():base() {
 			Data = CachedStruct<Offsets.InGameState_Data>(() => Cache.ptrData);
-			entities = new Cached<Entity[]>(() =>
-				(PoEMemory.TryRead(Data.Value.EntityListHead, out Offsets.EntityListNode tree)
-				? GetEntities(tree) : Empty<Entity>()).ToArray());
 		}
+
+		internal Offsets.EntityListNode EntityListHead => PoEMemory.TryRead(Data.Value.EntityListHead, out Offsets.EntityListNode tree) ? tree : default;
 
 		public Element UIRoot => Cache.elemRoot == IntPtr.Zero ? null :
 			new Element() { Address = Cache.elemRoot };
@@ -162,52 +159,6 @@ namespace AtE {
 		/// and returns extra helper types.
 		/// </summary>
 		public UIElementLibrary UIElements => new UIElementLibrary() { Address = Cache.ptrUIElements };
-
-		/// <summary>
-		/// Yields all the current entities (with a server Id).
-		/// This excludes entities like client-only effect animations (for now).
-		/// Cached such that it is fresh once per frame.
-		/// </summary>
-		public IEnumerable<Entity> Entities => entities.Value;
-
-
-		private IEnumerable<Entity> GetEntities(Offsets.EntityListNode tree, int limit = 2000) {
-			HashSet<long> deduper = new HashSet<long>();
-			Stack<Offsets.EntityListNode> frontier = new Stack<Offsets.EntityListNode>();
-			frontier.Push(tree);
-			int yieldCount = 0;
-			using ( Perf.Section("GetEntities") ) {
-				while ( frontier.Count > 0 ) {
-					var node = frontier.Pop();
-					long key = node.Entity.ToInt64();
-					if ( !deduper.Contains(key) ) {
-						deduper.Add(key);
-
-						var ent = new Entity() { Address = node.Entity };
-						var id = ent.Id;
-						if ( id > 0 && id < int.MaxValue ) {
-							if ( yieldCount < limit ) {
-								yield return ent;
-								yieldCount += 1;
-							} else {
-								break;
-							}
-						}
-
-						if ( PoEMemory.TryRead(node.First, out Offsets.EntityListNode first) ) {
-							frontier.Push(first);
-						}
-						if ( PoEMemory.TryRead(node.Second, out Offsets.EntityListNode second) ) {
-							frontier.Push(second);
-						}
-						if ( PoEMemory.TryRead(node.Third, out Offsets.EntityListNode third) ) {
-							frontier.Push(third);
-						}
-					}
-				}
-			}
-
-		}
 
 		public override IState OnTick(long dt) {
 			if ( IsDisposed ) return null;
@@ -260,7 +211,7 @@ namespace AtE {
 			if ( isDisposing || IsDisposed ) return;
 			isDisposing = true;
 			Data?.Dispose();
-			entities.Dispose();
+			// entities.Dispose();
 			IsDisposed = true;
 			base.Dispose();
 		}
