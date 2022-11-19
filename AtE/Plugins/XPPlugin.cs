@@ -92,6 +92,9 @@ namespace AtE {
 
 		public override IState OnTick(long dt) {
 			if ( Enabled && ! Paused ) {
+				if( !( ShowXPRate || ShowPickups ) ) {
+					return this;
+				}
 				/*
 				ImGui.Begin("Debug Player");
 				try {
@@ -108,22 +111,25 @@ namespace AtE {
 				if ( PoEMemory.GameRoot.AreaLoadingState.IsLoading ) {
 					return this;
 				}
-				var aliveThisFrame = new HashSet<uint>();
-				foreach(var ent in GetEnemies().Where(IsValid) ) {
-					if( IsAlive(ent) ) {
-						aliveThisFrame.Add(ent.Id);
-					} else if( aliveLastFrame.Contains(ent.Id) ) {
-						switch( ent.GetComponent<ObjectMagicProperties>()?.Rarity ) {
-							case Offsets.MonsterRarity.Unique: uniquesKilledInThisArea += 1; break;
-							case Offsets.MonsterRarity.Rare: raresKilledInThisArea += 1; break;
-							case Offsets.MonsterRarity.Magic: magicMonstersKilledInThisArea += 1; break;
-							case Offsets.MonsterRarity.White: normalMonstersKilledInThisArea += 1; break;
+
+				if ( ShowPickups ) {
+					var aliveThisFrame = new HashSet<uint>();
+					foreach ( var ent in GetEnemies().Where(IsValid) ) {
+						if ( IsAlive(ent) ) {
+							aliveThisFrame.Add(ent.Id);
+						} else if ( aliveLastFrame.Contains(ent.Id) ) {
+							switch ( ent.GetComponent<ObjectMagicProperties>()?.Rarity ) {
+								case Offsets.MonsterRarity.Unique: uniquesKilledInThisArea += 1; break;
+								case Offsets.MonsterRarity.Rare: raresKilledInThisArea += 1; break;
+								case Offsets.MonsterRarity.Magic: magicMonstersKilledInThisArea += 1; break;
+								case Offsets.MonsterRarity.White: normalMonstersKilledInThisArea += 1; break;
+							}
+							dyingMonsters.Enqueue(ent.GetComponent<Render>()?.Position ?? Vector3.Zero);
 						}
-						dyingMonsters.Enqueue(ent.GetComponent<Render>()?.Position ?? Vector3.Zero);
 					}
+					DrawBottomLeftText($"Tracking {aliveThisFrame.Count} alive / {dyingMonsters.Count} dead ents...", Color.Yellow);
+					aliveLastFrame = aliveThisFrame;
 				}
-				// DrawBottomLeftText($"Tracking {aliveThisFrame.Count} alive {dyingMonsters.Count} dead ents...", Color.Yellow);
-				aliveLastFrame = aliveThisFrame;
 
 				if ( xpLastFrame == uint.MaxValue ) {
 					xpLastFrame = player.XP;
