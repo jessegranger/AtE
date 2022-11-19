@@ -9,8 +9,15 @@ namespace AtE {
 	public static class Overlay {
 		public static OverlayForm RenderForm;
 		public static long FrameCount;
+		public static readonly AutoResetEvent FrameLock = new AutoResetEvent(false);
 
-		public static void Close() => RenderForm?.Close();
+		public static bool IsClosed { get; private set; } = false;
+
+		public static void Close() {
+			IsClosed = true;
+			RenderForm?.Close();
+		}
+
 		public static void Initialise() {
 
 			Log("Creating window...");
@@ -112,6 +119,7 @@ namespace AtE {
 					// Finalize the rendering to the screen by swapping the back buffer
 					D3DController.Render();
 				}
+				FrameLock.Set();
 
 			}, true);
 		}
