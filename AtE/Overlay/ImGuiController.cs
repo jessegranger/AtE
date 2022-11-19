@@ -163,7 +163,8 @@ namespace AtE {
 			IO.KeyMap[(int)ImGuiKey.RightArrow] = (int)Keys.Right;
 			IO.KeyMap[(int)ImGuiKey.UpArrow] = (int)Keys.Up;
 			IO.KeyMap[(int)ImGuiKey.DownArrow] = (int)Keys.Down;
-			IO.KeyMap[(int)ImGuiKey.LeftBracket] = (int)Keys.Oem6; // ?
+			IO.KeyMap[(int)ImGuiKey.LeftBracket] = (int)Keys.OemOpenBrackets;
+			IO.KeyMap[(int)ImGuiKey.RightBracket] = (int)Keys.Oem6;
 			IO.KeyMap[(int)ImGuiKey.LeftCtrl] = (int)Keys.LControlKey;
 			IO.KeyMap[(int)ImGuiKey.RightCtrl] = (int)Keys.RControlKey;
 			IO.KeyMap[(int)ImGuiKey.LeftAlt] = (int)Keys.LMenu;
