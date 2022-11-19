@@ -52,7 +52,7 @@ namespace AtE {
 
 	public static partial class Globals {
 		public static void ImGui_HotKeyButton(string label, ref HotKey hotKey) {
-			if ( ImGui.Button($"{label}:{hotKey.Key}") ) {
+			if ( ImGui.Button($"{label} : {Describe(hotKey.Key)}") ) {
 				Run(new KeyPicker() { Target = hotKey });
 			}
 		}
@@ -71,7 +71,7 @@ namespace AtE {
 				) {
 				var center = ImGui.GetMainViewport().GetCenter();
 				ImGui.SetNextWindowPos(center, ImGuiCond.Always, new Vector2(0.5f, 0.5f));
-				if( ImGui.Begin("HotKeyCenter", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMouseInputs) ) {
+				if( ImGui.Begin("HotKeyCenter", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMouseInputs | ImGuiWindowFlags.Modal ) ) {
 					ImGui.Text("Press the new key for the binding...");
 					var io = ImGui.GetIO();
 					for ( int i = 0; i < io.KeyMap.Count; i++ ) {
