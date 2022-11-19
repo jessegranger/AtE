@@ -42,7 +42,7 @@ namespace AtE {
 					value /= 1024;
 				}
 			}
-			return value.ToString("N0") + suffix;
+			return value.ToString("N2") + suffix;
 		}
 
 		public static double MovingAverage(double value, double sample, int period) => ((value * (period - 1)) + sample) / period;
@@ -62,6 +62,21 @@ namespace AtE {
 		public static void Log(params string[] line) => Debug.WriteLine(string.Join(" ", line));
 
 		public static EventHandler<string> OnAreaChange;
+
+		public static string Describe(Keys key) {
+			switch ( key & ~Keys.Modifiers ) {
+				case Keys.OemPipe:
+					return "|";
+				case Keys.OemPeriod:
+					return ".";
+				case Keys.OemOpenBrackets:
+					return "[";
+				case Keys.Oem6:
+					return "]";
+				default:
+					return key.ToString();
+			}
+		}
 
 		public static void OnRelease(Keys key, Action act) {
 			bool downBefore = false;
@@ -118,6 +133,13 @@ namespace AtE {
 			});
 
 		}
+
+		public static float DistanceSq(Vector3 a, Vector3 b) => (a - b).LengthSquared();
+		public static float Distance(Vector3 a, Vector3 b) => (a - b).Length();
+		public static float DistanceSq(Vector2 a, Vector2 b) => (a - b).LengthSquared();
+		public static float Distance(Vector2 a, Vector2 b) => (a - b).Length();
+
+		public static Vector2 Center(RectangleF rect) => new Vector2(rect.Left + (rect.Width / 2), rect.Top + (rect.Height / 2));
 
 	}
 }
