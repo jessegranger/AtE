@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
 using System.Numerics;
 using System.Text;
@@ -12,7 +13,7 @@ using static AtE.Win32;
 namespace AtE {
 
 	/// <summary>
-	/// Most classes just want to extend from State,
+	/// Most classes just want to extend from IState,
 	/// but if you really need to be State-like and have another base class.
 	/// Any class can implement this, and participate in Run(), StateMachines, et al
 	/// </summary>
@@ -83,13 +84,13 @@ namespace AtE {
 		public override string ToString() => $"{Name}{(Next == null ? "" : " then " + Next.Name)}";
 
 		// You can create a new State using any Func<State, State>
-		public static IState From(string label, Func<IState, long, IState> func, IState next = null) => new Runner(label, func, next);
-		public static IState From(Func<IState, long, IState> func) => new Runner(func);
-		public static IState From(Action func, IState next = null) => new ActionState(func, next);
+		public static IState NewState(string label, Func<IState, long, IState> func, IState next = null) => new Runner(label, func, next);
+		public static IState NewState(Func<IState, long, IState> func) => new Runner(func);
+		public static IState NewState(Action func, IState next = null) => new ActionState(func, next);
 
 		public static IState WaitFor(uint duration, Func<bool> predicate, IState next, IState fail) {
 			long elapsed = 0;
-			return State.From($"WaitFor({duration})", (state, dt) =>
+			return State.NewState($"WaitFor({duration})", (state, dt) =>
 				(elapsed += dt) > duration ? fail :
 					predicate() ? next :
 					state
@@ -127,7 +128,7 @@ namespace AtE {
 	}
 
 	class KeyDown : KeyState {
-		public KeyDown(Keys key, State next = null) : base(key, next) { }
+		public KeyDown(Keys key, IState next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
 			if( dt > 0 && PoEMemory.TargetHasFocus ) {
@@ -140,7 +141,7 @@ namespace AtE {
 	}
 
 	class KeyUp : KeyState {
-		public KeyUp(Keys key, State next = null) : base(key, next) { }
+		public KeyUp(Keys key, IState next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
 			if( dt > 0 && PoEMemory.TargetHasFocus ) {
@@ -155,9 +156,9 @@ namespace AtE {
 	class PressKey : KeyState {
 		private static Dictionary<Keys, long> lastPressTime = new Dictionary<Keys, long>();
 		private readonly long throttle = long.MaxValue;
-		public PressKey(Keys key, uint duration, State next = null) : base(key,
+		public PressKey(Keys key, uint duration, IState next = null) : base(key,
 				new KeyDown(key, new Delay(duration, new KeyUp(key, next)))) { }
-		public PressKey(Keys key, uint duration, long throttle, State next = null) : base(key,
+		public PressKey(Keys key, uint duration, long throttle, IState next = null) : base(key,
 				new KeyDown(key, new Delay(duration, new KeyUp(key, next)))) {
 			this.throttle = throttle;
 		}
@@ -178,11 +179,11 @@ namespace AtE {
 	class MoveMouse : InputState {
 		public readonly float X;
 		public readonly float Y;
-		public MoveMouse(float x, float y, State next = null) : base(next) {
+		public MoveMouse(float x, float y, IState next = null) : base(next) {
 			X = x; Y = y;
 		}
-		public MoveMouse(Vector2 pos, State next = null) : this(pos.X , pos.Y, next) { }
-		// public MoveMouse(Element label, State next = null) : this(label?.GetClientRect().Center ?? Vector2.Zero, next) { }
+		public MoveMouse(Vector2 pos, IState next = null) : this(pos.X , pos.Y, next) { }
+		// public MoveMouse(Element label, IState next = null) : this(label?.GetClientRect().Center ?? Vector2.Zero, next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
 			if ( !PoEMemory.TargetHasFocus ) return Next;
@@ -195,7 +196,7 @@ namespace AtE {
 		}
 	}
 	class LeftMouseDown : InputState {
-		public LeftMouseDown(State next = null) : base(next) { }
+		public LeftMouseDown(IState next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
 			if ( !PoEMemory.TargetHasFocus ) return Next;
@@ -205,7 +206,7 @@ namespace AtE {
 	}
 
 	class LeftMouseUp : InputState {
-		public LeftMouseUp(State next = null) : base(next) { }
+		public LeftMouseUp(IState next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
 			if ( !PoEMemory.TargetHasFocus ) return Next;
@@ -215,7 +216,7 @@ namespace AtE {
 	}
 
 	class LeftClick : InputState {
-		public LeftClick(uint duration, uint count, State next = null) : base(
+		public LeftClick(uint duration, uint count, IState next = null) : base(
 			count == 0 ? next
 			: new LeftMouseDown(new Delay(duration, new LeftMouseUp(
 				count > 1 ? new Delay(100, new LeftClick(duration, count - 1, next))
@@ -224,14 +225,14 @@ namespace AtE {
 	}
 
 	class LeftClickAt : InputState {
-		// public LeftClickAt(Element elem, uint duration, uint count, State next = null) : this(elem?.GetClientRect().Center ?? Vector2.Zero, duration, count, next) { }
-		public LeftClickAt(Vector2 pos, uint duration, uint count, State next = null) : this(pos.X, pos.Y, duration, count, next) { }
-		public LeftClickAt(float x, float y, uint duration, uint count, State next = null) : base(
+		public LeftClickAt(RectangleF rect, uint duration, uint count, IState next = null) : this(Center(rect), duration, count, next) { }
+		public LeftClickAt(Vector2 pos, uint duration, uint count, IState next = null) : this(pos.X, pos.Y, duration, count, next) { }
+		public LeftClickAt(float x, float y, uint duration, uint count, IState next = null) : base(
 				new MoveMouse(x, y, new Delay(duration, new LeftClick(duration, count, next)))) { }
 	}
 
 	class RightMouseDown : InputState {
-		public RightMouseDown(State next = null) : base(next) { }
+		public RightMouseDown(IState next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
 			if ( !PoEMemory.TargetHasFocus ) return Next;
@@ -241,7 +242,7 @@ namespace AtE {
 	}
 
 	class RightMouseUp : InputState {
-		public RightMouseUp(State next = null) : base(next) { }
+		public RightMouseUp(IState next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
 			if ( !PoEMemory.TargetHasFocus ) return Next;
@@ -251,21 +252,21 @@ namespace AtE {
 	}
 
 	class RightClick : InputState {
-		public RightClick(uint duration, State next = null) : base(
+		public RightClick(uint duration, IState next = null) : base(
 				new RightMouseDown(new Delay(duration, new RightMouseUp(next)))) { }
 		public override IState OnEnter() => Next;
 	}
 
 	class RightClickAt : InputState {
-		// public RightClickAt(Element item, uint duration, State next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
-		public RightClickAt(Vector2 pos, uint duration, State next = null) : this(pos.X, pos.Y, duration, next) { }
-		public RightClickAt(float x, float y, uint duration, State next = null) : base(
+		public RightClickAt(RectangleF rect, uint duration, IState next = null) : this(Center(rect), duration, next) { }
+		public RightClickAt(Vector2 pos, uint duration, IState next = null) : this(pos.X, pos.Y, duration, next) { }
+		public RightClickAt(float x, float y, uint duration, IState next = null) : base(
 				new MoveMouse(x, y, new Delay(duration, new RightMouseDown(new Delay(duration, new RightMouseUp(next)))))) { }
 	}
 	class CtrlRightClickAt : InputState {
-		// public CtrlRightClickAt(Element item, uint duration, State next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
-		public CtrlRightClickAt(Vector2 pos, uint duration, State next = null) : this(pos.X, pos.Y, duration, next) { }
-		public CtrlRightClickAt(float x, float y, uint duration, State next = null) : base(
+		// public CtrlRightClickAt(Element item, uint duration, IState next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
+		public CtrlRightClickAt(Vector2 pos, uint duration, IState next = null) : this(pos.X, pos.Y, duration, next) { }
+		public CtrlRightClickAt(float x, float y, uint duration, IState next = null) : base(
 				new MoveMouse(x, y, new Delay(duration, 
 					new KeyDown(Keys.LControlKey, new Delay(duration,
 						new RightMouseDown(new Delay(duration,
@@ -273,9 +274,9 @@ namespace AtE {
 								new KeyUp(Keys.LControlKey, next)))))))))) { }
 	}
 	class CtrlLeftClickAt : InputState {
-		// public CtrlLeftClickAt(Element item, uint duration, State next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
-		public CtrlLeftClickAt(Vector2 pos, uint duration, State next = null) : this(pos.X, pos.Y, duration, next) { }
-		public CtrlLeftClickAt(float x, float y, uint duration, State next = null) : base(
+		// public CtrlLeftClickAt(Element item, uint duration, IState next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
+		public CtrlLeftClickAt(Vector2 pos, uint duration, IState next = null) : this(pos.X, pos.Y, duration, next) { }
+		public CtrlLeftClickAt(float x, float y, uint duration, IState next = null) : base(
 				new MoveMouse(x, y, new Delay(duration, 
 					new KeyDown(Keys.LControlKey, new Delay(duration,
 						new LeftMouseDown(new Delay(duration,
@@ -283,9 +284,9 @@ namespace AtE {
 								new KeyUp(Keys.LControlKey, next)))))))))) { }
 	}
 	class ShiftLeftClickAt : InputState {
-		// public ShiftLeftClickAt(Element item, uint duration, State next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
-		public ShiftLeftClickAt(Vector2 pos, uint duration, State next = null) : this(pos.X, pos.Y, duration, next) { }
-		public ShiftLeftClickAt(float x, float y, uint duration, State next = null) : base(
+		// public ShiftLeftClickAt(Element item, uint duration, IState next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
+		public ShiftLeftClickAt(Vector2 pos, uint duration, IState next = null) : this(pos.X, pos.Y, duration, next) { }
+		public ShiftLeftClickAt(float x, float y, uint duration, IState next = null) : base(
 				new MoveMouse(x, y, new Delay(duration, 
 					new KeyDown(Keys.LShiftKey, new Delay(duration,
 						new LeftMouseDown(new Delay(duration,

@@ -9,7 +9,7 @@ namespace AtE {
 
 	public static partial class Globals {
 		public static void Run(IState s) => StateMachine.DefaultMachine.Add(s);
-		public static void Run(string label, Func<IState, long, IState> func) => StateMachine.DefaultMachine.Add(State.From(label, func));
+		public static void Run(string label, Func<IState, long, IState> func) => StateMachine.DefaultMachine.Add(State.NewState(label, func));
 		public static void RunForever(string label, Action action) => Run(label, (self, dt) => { action(); return self; });
 		public static void RunForever(string label, Action<long> action) => Run(label, (self, dt) => { action(dt); return self; });
 		public static void RunFor(long duration_ms, string label, Action action) {
@@ -39,7 +39,6 @@ namespace AtE {
 
 		// each machine runs any number of states at once
 		public readonly LinkedList<IState> States; // OnTick below will tick the states in this list, and manage the results
-
 
 		public override string ToString() => GetType().Name + "[" + string.Join(",", States.Select(s => s.Name)) + "]";
 
