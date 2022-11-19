@@ -60,10 +60,27 @@ namespace AtE {
 	/// <typeparam name="T">Defines the native layout of the object to be managed. Available as `base.Cache`.</typeparam>
 	public class MemoryObject<T> : MemoryObject, IEquatable<MemoryObject<T>> where T : unmanaged {
 		private Cached<T> cache;
-		protected T Cache => cache.Value;
+		public T Cache => cache?.Value ?? default;
 		public bool Equals(MemoryObject<T> other) => Address.Equals(other.Address);
 
-		public MemoryObject():base() => cache = CachedStruct<T>(this);
+		public new IntPtr Address {
+			get => base.Address;
+			set {
+				if ( value == base.Address ) {
+					return;
+				}
+
+				base.Address = value;
+
+				if ( IsValid(value) ) {
+					cache = CachedStruct<T>(this);
+				} else {
+					cache = null;
+				}
+			}
+		}
+
+		public MemoryObject() : base() => cache = CachedStruct<T>(this);
 
 	}
 
