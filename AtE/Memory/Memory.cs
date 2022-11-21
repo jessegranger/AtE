@@ -25,7 +25,7 @@ namespace AtE {
 			}
 		}
 
-		public static bool IsValid<T>(MemoryObject<T> m) where T : unmanaged => m != null && m.Address != IntPtr.Zero;
+		public static bool IsValid<T>(MemoryObject<T> m) where T : unmanaged => m != null && IsValid(m.Address);
 	}
 
 	/// <summary>
@@ -36,7 +36,7 @@ namespace AtE {
 	/// </summary>
 	public class MemoryObject : IEquatable<MemoryObject>, IDisposable {
 
-		public IntPtr Address { get; set; } = IntPtr.Zero;
+		public virtual IntPtr Address { get; set; } = IntPtr.Zero;
 		public MemoryObject() { }
 
 		public bool Equals(MemoryObject other) => Address.Equals(other.Address);
@@ -63,7 +63,7 @@ namespace AtE {
 		public T Cache => cache?.Value ?? default;
 		public bool Equals(MemoryObject<T> other) => Address.Equals(other.Address);
 
-		public new IntPtr Address {
+		public override IntPtr Address {
 			get => base.Address;
 			set {
 				if ( value == base.Address ) {

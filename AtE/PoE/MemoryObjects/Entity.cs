@@ -1,6 +1,7 @@
 ﻿using ImGuiNET;
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -20,6 +21,7 @@ namespace AtE {
 
 		/// <summary>
 		/// Helper to get the Player from the GameRoot.
+		/// Call GetPlayer() every frame, as the underlying object can be moved by PoE at any time.
 		/// </summary>
 		/// <returns>The current Player Entity.</returns>
 		public static PlayerEntity GetPlayer() => PoEMemory.GameRoot?.InGameState?.Player;
@@ -35,6 +37,7 @@ namespace AtE {
 			.Take(1000)
 			.Where(e => (e.Path?.StartsWith("Metadata/Monster") ?? false)
 				&& (e.GetComponent<Positioned>()?.IsHostile ?? false)) ?? Empty<Entity>();
+
 		public static IEnumerable<Entity> NearbyEnemies(float radius) {
 			Vector3 playerPos = Position(GetPlayer());
 			return playerPos == Vector3.Zero ? Empty<Entity>() : GetEnemies().Where(e => Distance(playerPos, Position(e)) <= radius);
@@ -57,7 +60,7 @@ namespace AtE {
 			Details = CachedStruct<Offsets.EntityDetails>(() => Cache.ptrDetails);
 		}
 
-		public new IntPtr Address {
+		public override IntPtr Address {
 			get => base.Address;
 			set {
 				if ( value == base.Address ) {
@@ -72,16 +75,21 @@ namespace AtE {
 				}
 				uint id = Cache.Id; // this will read Offset.Entity struct from memory (same cost as before)
 				if ( id != 0 ) {
-					// if this Entity id is at the same address as last time, we can re-use ComponentPtrs (and skip parsing)
+					// if the same Entity id is at the same address as it was last time, we can re-use ComponentPtrs (and skip parsing)
 					if ( lastKnownAddress.TryGetValue(id, out IntPtr prev) && prev == value ) {
 						lastKnownComponents.TryGetValue(id, out ComponentPtrs);
 						// ImGui.Text($"[{id}] stable at {Format(prev)} -> {ComponentPtrs?.Count ?? 0} components");
 					} else {
+						// otherwise, this is an actual change-of-address for this object
+						// so update last known address, and invalidate various caches
 						// Log($"New entity {id} at address {Format(value)}");
 						// Log($"Entity[{id}] at new address: {Format(value)} {Path}");
 						lastKnownAddress[id] = value;
-						lastKnownComponents.Remove(id);
+						lastKnownComponents.TryRemove(id, out _);
 						ComponentPtrs = null;
+						ComponentCache?.Clear();
+						ComponentCache = null;
+						path = null;
 					}
 				}
 			}
@@ -93,8 +101,11 @@ namespace AtE {
 		/// </summary>
 		public uint Id => Address == IntPtr.Zero ? 0 : Cache.Id;
 
+		private string path;
 		public string Path => Address == IntPtr.Zero ? null :
-			PoEMemory.TryReadString(Details.Value.ptrPath, Encoding.Unicode, out string ret) ? ret : null;
+			path != null ? path :
+			PoEMemory.TryReadString(Details.Value.ptrPath, Encoding.Unicode, out path) ? path
+			: null;
 
 		public bool HasComponent<T>() where T : MemoryObject, new() => Address != IntPtr.Zero && GetComponent<T>() != null;
 
@@ -105,26 +116,43 @@ namespace AtE {
 			using ( Perf.Section("GetComponent") ) {
 				if ( ComponentPtrs == null ) {
 					ParseComponents();
+					// save the output of the parsing for next time
 					lastKnownComponents[Id] = ComponentPtrs;
 				}
 				if ( ComponentPtrs == null ) {
 					// all the above failed to parse any ptrs, so there are no components
+					ComponentCache?.Clear();
+					ComponentCache = null;
 					return null;
 				}
 
-				if ( ComponentPtrs.TryGetValue(typeof(T).Name, out IntPtr ptr) ) {
-					return new T() { Address = ptr };
+				string key = typeof(T).Name;
+				if( ComponentCache != null && ComponentCache.TryGetValue(key, out MemoryObject cachedResult) ) {
+					return (T)cachedResult;
+				}
+
+				if ( ComponentPtrs.TryGetValue(key, out IntPtr ptr) ) {
+					var ret = new T() { Address = ptr };
+					if( ComponentCache == null ) {
+						ComponentCache = new Dictionary<string, MemoryObject>();
+					}
+					ComponentCache[key] = ret;
+					return ret;
 				}
 				return null;
 			}
 		}
 
 		// keep track of when an entity id moves to a new address in memory
-		private static Dictionary<uint, IntPtr> lastKnownAddress = new Dictionary<uint, IntPtr>();
-		private static Dictionary<uint, Dictionary<string, IntPtr>> lastKnownComponents = new Dictionary<uint, Dictionary<string, IntPtr>>();
+		// this is a map of <entity id, address>
+		private static ConcurrentDictionary<uint, IntPtr> lastKnownAddress = new ConcurrentDictionary<uint, IntPtr>();
+		// as long as an entity stays at the same address, we skip the parsing and re-use the output, stored here:
+		// this stores a map<entity id, map< component name, component address >>
+		private static ConcurrentDictionary<uint, Dictionary<string, IntPtr>> lastKnownComponents = new ConcurrentDictionary<uint, Dictionary<string, IntPtr>>();
 
 		// maps the Type (of a Component) to the Address of that Component instance for this Entity
 		private Dictionary<string, IntPtr> ComponentPtrs; // we have to parse this all at once
+		private Dictionary<string, MemoryObject> ComponentCache; // these are filled in as requested, then re-used if requested a second time
 		private void UpdateParsedIndex(string name, IntPtr addr) {
 			ComponentPtrs.Add(name, addr);
 		}

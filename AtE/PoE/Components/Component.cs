@@ -47,7 +47,7 @@ namespace AtE {
 	}
 	public static partial class Globals {
 		public static uint CurrentEHP(Entity ent) => CurrentEHP(ent?.GetComponent<Life>());
-		public static uint CurrentEHP(Life life) => life is null ? 0 : (uint)Math.Max(0, life.CurES) + (uint)Math.Max(0, life.CurHP);
+		public static uint CurrentEHP(Life life) => !IsValid(life) ? 0 : (uint)Math.Max(0, life.CurES) + (uint)Math.Max(0, life.CurHP);
 		public static uint MaxEHP(Entity ent) => MaxEHP(ent?.GetComponent<Life>(), HasBuff(ent, "petrified_blood"));
 		public static uint MaxEHP(Life life, bool petrified = false) => IsValid(life) ?
 			(uint)Math.Max(0, life.MaxES) + MaxLife(life, petrified) : 0;
@@ -58,14 +58,14 @@ namespace AtE {
 				: life.MaxHP - life.TotalReservedHP) : 0;
 		public static bool IsMissingEHP(Entity ent, float pct = .10f, bool petrified = false) {
 			var life = ent?.GetComponent<Life>();
-			return IsValid(life) && CurrentEHP(life) < MaxEHP(life, petrified) * (1.0f - pct);
+			return IsAlive(life) && CurrentEHP(life) < MaxEHP(life, petrified) * (1.0f - pct);
 		}
 		public static bool IsFullEHP(Life life, bool petrified = false) => IsValid(life) 
 			? CurrentEHP(life) == MaxEHP(life, petrified) : false;
 		public static bool IsFullEHP(Entity ent) => IsFullEHP(ent?.GetComponent<Life>());
 		public static bool IsFullLife(Life life, bool petrified = false) => IsValid(life) && life.CurHP >= MaxLife(life, petrified);
 		public static bool IsFullLife(Entity ent) => IsFullLife(ent?.GetComponent<Life>(), HasBuff(ent, "petrified_blood"));
-		public static bool HasEnoughRage(Entity ent, int rage) => ent?.GetComponent<Buffs>().Where(b => b.Name.Equals("rage")).Select(b => b.Charges).FirstOrDefault() >= rage;
+		public static bool HasEnoughRage(Entity ent, int rage) => IsValid(ent) && ent.GetComponent<Buffs>().TryGetBuffValue("rage", out int cur) && cur >= rage;
 	}
 
 	public class Actor : Component<Offsets.Component_Actor> {
@@ -79,9 +79,10 @@ namespace AtE {
 
 		public IEnumerable<ActorSkill> Skills =>
 			new ArrayHandle<Offsets.ActorSkillArrayEntry>(Cache.ActorSkillsHandle)
-				.ToArray(limit: 100) // anything more than that is corrupt nonsense
+				.ToArray(limit: 200) // anything more than that is corrupt nonsense
 				.Select(x => new ActorSkill(this) { Address = x.ActorSkillPtr })
-				.Where(x => x.IsValid());
+				.Where(x => x.IsValid())
+			;
 
 		public IEnumerable<Offsets.ActorVaalSkillArrayEntry> VaalSkills =>
 			new ArrayHandle<Offsets.ActorVaalSkillArrayEntry>(Cache.ActorVaalSkillsHandle);
@@ -119,23 +120,24 @@ namespace AtE {
 		public Actor Actor;
 		public ActorSkill(Actor actor) => Actor = actor;
 
-		public new IntPtr Address { get => base.Address;
+		public override IntPtr Address { get => base.Address;
 			set {
-				if ( value == base.Address ) return;
-
-				var _actor = Actor;
-				Dispose(); // the real Dispose makes it null, but we need it
-				Actor = _actor;
+				if ( value == base.Address ) {
+					return;
+				}
 
 				base.Address = value;
-				if ( value == IntPtr.Zero ) return;
+
+				if ( value == IntPtr.Zero ) {
+					return;
+				}
 
 				GemEffects = CachedStruct<Offsets.GemEffects>(() => Cache.ptrGemEffects);
 				SkillGem = CachedStruct<Offsets.SkillGem>(() => GemEffects.Value.ptrSkillGem);
 				ActiveSkill = CachedStruct<Offsets.ActiveSkill>(() => SkillGem.Value.ptrActiveSkill);
 
 				// if this is a Vaal skill, it will have an entry in the Owner's VaalSkillsArray
-				VaalEntry = new Cached<Offsets.ActorVaalSkillArrayEntry>(() => // default);
+				VaalEntry = new Cached<Offsets.ActorVaalSkillArrayEntry>(() =>
 					Actor?.VaalSkills.Where(v => v.ptrActiveSkill == SkillGem.Value.ptrActiveSkill).FirstOrDefault() ?? default);
 
 			}
@@ -157,7 +159,7 @@ namespace AtE {
 			isDisposed = true;
 		}
 
-		public bool IsValid() => SkillGem.Value.NamePtr != IntPtr.Zero;
+		public bool IsValid() => (!isDisposing) && (!isDisposed) && (SkillGem?.Value.NamePtr ?? default) != IntPtr.Zero;
 
 		public ushort Id => Cache.Id;
 
@@ -278,55 +280,127 @@ namespace AtE {
 
 	public class Buff : MemoryObject<Offsets.Buff> {
 
-		public string Name =>
+		private string name;
+		public string Name => name ?? (name =
 			Address == IntPtr.Zero ? null :
 			PoEMemory.TryRead(Cache.ptrName, out IntPtr ptr)
-			&& PoEMemory.TryReadString(ptr, Encoding.Unicode, out string name)
-			? name
-			: null;
+			&& PoEMemory.TryReadString(ptr, Encoding.Unicode, out string value)
+			? value 
+			: null);
 
 		public byte Charges => Cache.Charges;
 		public float Timer => Cache.Timer;
 		public float MaxTime => Cache.MaxTime;
 	}
 
-	public class Buffs : MemoryObject<Offsets.Component_Buffs>, IEnumerable<Buff> {
+	public class Buffs : MemoryObject {
+		// this is a heavily accessed object so it needs some optimization
+		// the only operation we care about is HasBuff
 
-		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-		public IEnumerator<Buff> GetEnumerator() {
-			if ( !IsValid(Address) ) {
-				return Empty<Buff>().GetEnumerator();
-			}
-			var buffs = new ArrayHandle<IntPtr>(Cache.Buffs);
-			if( !IsValid(buffs, 200) ) { // if claimed more than 1000 buffs, its corrupt
-				// its possible for a corrupt buffs array to claim to be billions of items long
-				// they all fail IsValid() == false, but it still stalls forever
-				return Empty<Buff>().GetEnumerator();
-			}
-			return buffs.Where(IsValid)
-				.Select(a => new Buff() { Address = a })
-				.GetEnumerator();
+		// for starters, we dont want the standard CachedStruct because in this case
+		// the struct is 200 bytes of nothing useful (it's unknown data structure)
+		// (i suspect we are reading the list of keys from within an unordered_flat_map from boost)
+		// so we just read the one ArrayHandle we care about from one offset:
+		private static int buffsOffset = GetOffset<Offsets.Component_Buffs>("Buffs");
+
+		// from that arrayhandle we will get this array of ptr to the active buffs
+		private IntPtr[] buffPtrs;
+		// this cached reader lets us read the real current arrayhandle from PoE memory once per frame per entity
+		private Cached<Offsets.ArrayHandle> currentHandle;
+		// this copy of the arrayhandle is saved so it can be compared
+		// if they dont match, we re-parse the whole buffs array
+		private Offsets.ArrayHandle lastKnownHandle;
+		// if HasBuff() is called once, we memoize all the strings here for future calls
+		private HashSet<string> buffCache;
+
+		public Buffs():base() {
+			currentHandle = CachedStruct<Offsets.ArrayHandle>(() => Address + buffsOffset);
 		}
-	}
 
-	public static partial class Globals {
-		public static bool HasBuff(Entity ent, string buffName) =>
-			buffName != null && IsValid(ent) && HasBuff(ent.GetComponent<Buffs>(), buffName);
-		public static bool HasBuff(IEnumerable<Buff> buffs, string buffName) =>
-			buffs?.Take(100).Any(buff => buff.Name?.Equals(buffName) ?? false) ?? false;
+		private bool UpdateBuffPtrs() {
+			var buffsArray = currentHandle.Value;
+			if ( buffsArray.Head == lastKnownHandle.Head && buffsArray.Tail == lastKnownHandle.Tail ) {
+				return true;
+			}
+			long count = (buffsArray.Tail.ToInt64() - buffsArray.Head.ToInt64()) / 8;
+			if ( count < 0 || count > 250 ) {
+				Log($"Rejecting corrupt(?) buffs data with {count} elements.");
+				return false;
+			}
+			lastKnownHandle = buffsArray;
+			buffPtrs = new IntPtr[count];
+			buffCache = null;
+			if ( count > 0 ) {
+				if ( 0 == PoEMemory.TryRead(buffsArray.Head, buffPtrs) ) {
+					Log($"Failed to read buffs data from {Format(buffsArray.Head)}");
+					return false;
+				}
+			}
+			return true;
+		}
 
-		public static bool TryGetBuffValue(Entity ent, string buffName, out int value) => TryGetBuffValue(ent?.GetComponent<Buffs>(), buffName, out value);
-		public static bool TryGetBuffValue(IEnumerable<Buff> buffs, string buffName, out int value) {
-			value = 0;
-			if ( buffs != null ) {
-				foreach ( var buff in buffs ) {
-					if ( buff?.Name?.Equals(buffName) ?? false ) {
-						value = buff.Charges;
-						return true;
+		public override IntPtr Address {
+			get => base.Address;
+			set {
+				if( value == base.Address ) {
+					return;
+				}
+
+				base.Address = value;
+
+				if( IsValid(base.Address) ) {
+					if( ! UpdateBuffPtrs() ) {
+						base.Address = IntPtr.Zero;
 					}
 				}
 			}
+		}
+
+		public IEnumerable<Buff> GetBuffs() => buffPtrs?.Select(ptr => new Buff() { Address = ptr }) ?? Empty<Buff>();
+
+		public bool HasBuff(string buffName) {
+			if( !IsValid(Address) ) {
+				return false;
+			}
+			if( buffPtrs == null ) {
+				return false;
+			}
+			// check if the buff array size changed, and if so, re-parse it
+			UpdateBuffPtrs();
+			if( buffCache == null ) {
+				// collect all the buff names and store them for quicker access
+				buffCache = new HashSet<string>(buffPtrs.Select(ptr => new Buff() { Address = ptr }.Name));
+			}
+			return buffCache.Contains(buffName);
+		}
+
+		public bool TryGetBuffValue(string buffName, out int value) {
+			value = 0;
+			if( buffPtrs == null ) {
+				return false;
+			}
+			Buff found = buffPtrs
+				.Select(ptr => new Buff() { Address = ptr })
+				.FirstOrDefault(buff => buff?.Name?.Equals(buffName) ?? false);
+			if ( found != null ) {
+				value = found.Charges;
+				return true;
+			}
 			return false;
+		}
+
+	}
+
+	public static partial class Globals {
+		public static bool IsValid(Buffs buff) => buff != null && IsValid(buff.Address);
+		public static bool HasBuff(Entity ent, string buffName) =>
+			buffName != null && IsValid(ent) && HasBuff(ent.GetComponent<Buffs>(), buffName);
+		public static bool HasBuff(Buffs buffs, string buffName) => buffs?.HasBuff(buffName) ?? false;
+
+		public static bool TryGetBuffValue(Entity ent, string buffName, out int value) => TryGetBuffValue(ent?.GetComponent<Buffs>(), buffName, out value);
+		public static bool TryGetBuffValue(Buffs buffs, string buffName, out int value) {
+			value = 0;
+			return IsValid(buffs) && buffs.TryGetBuffValue(buffName, out value);
 		}
 	}
 
