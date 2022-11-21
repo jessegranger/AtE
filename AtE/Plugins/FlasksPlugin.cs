@@ -94,7 +94,7 @@ namespace AtE {
 				return this; // keep it in the PluginBase.Machine, but dont do anything
 			}
 
-			if ( !PoEMemory.IsAttached ) {
+			if ( !PoEMemory.IsAttached || !PoEMemory.TargetHasFocus ) {
 				return this;
 			}
 
