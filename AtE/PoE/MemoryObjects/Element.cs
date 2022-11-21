@@ -55,7 +55,6 @@ namespace AtE {
 			}
 		}
 
-
 		public Vector2 Size => Cache.Size;
 
 		private Vector2 GetAbsolutePosition() => GetAbsolutePosition(Vector2.Zero, PoEMemory.GameRoot.InGameState.UIRoot.Scale);
@@ -89,7 +88,6 @@ namespace AtE {
 			var vSize = screenScale * (Size * Scale / rootScale);
 			return new RectangleF(vPos.X, vPos.Y, vSize.X, vSize.Y);
 		}
-
 
 	}
 
