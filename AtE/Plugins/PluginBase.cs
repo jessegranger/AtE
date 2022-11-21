@@ -30,7 +30,7 @@ namespace AtE {
 			if ( T == null || !T.IsSubclassOf(typeof(PluginBase)) ) {
 				return false;
 			}
-			Log($"Loading plugin type: {T.Name}");
+			Log($"Loading plugin: {T.Name}");
 			// make a new T();
 			var constructor = T.GetConstructor(new Type[] { });
 			var obj = (PluginBase)constructor.Invoke(new object[] { });
@@ -76,7 +76,6 @@ namespace AtE {
 		
 			Instances.Add(T.Name, obj);
 			Machine.Add(obj);
-			Log($"Plugin Added: {T.Name}");
 			return true;
 		}
 
@@ -114,7 +113,6 @@ namespace AtE {
 					} else {
 						var key_value = line.Split('=');
 						if ( key_value.Length > 1 ) {
-							Log($"Parsed {key_value[0]}");
 							iniSettings[sectionName][key_value[0]] = string.Join("=", key_value.Skip(1));
 						}
 					}
