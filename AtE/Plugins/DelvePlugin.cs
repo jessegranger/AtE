@@ -99,7 +99,7 @@ namespace AtE.Plugins {
 					lineText = null;
 					bool isMonster = path.StartsWith("Metadata/Monsters");
 
-					if( isMonster && !IsAlive(ent) ) {
+					if( ShowHighestCorpseLife && isMonster && !IsAlive(ent) ) {
 						int maxLife = ent?.GetComponent<Life>()?.MaxHP ?? 0;
 						Vector3 loc = Position(ent);
 						float dist = DistanceSq(loc, playerPos);
