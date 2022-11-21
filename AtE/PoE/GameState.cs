@@ -137,8 +137,18 @@ namespace AtE {
 		public WorldData WorldData => Cache.ptrWorldData == IntPtr.Zero ? null :
 			new WorldData() { Address = Cache.ptrWorldData };
 
-		public PlayerEntity Player => Data.Value.entPlayer == IntPtr.Zero ? null :
-			new PlayerEntity() { Address = Data.Value.entPlayer };
+		private IntPtr lastKnownPlayerAddress = IntPtr.Zero;
+		private PlayerEntity lastKnownPlayer = null;
+		public PlayerEntity Player {
+			get {
+				if( Data.Value.entPlayer != lastKnownPlayerAddress ) {
+					lastKnownPlayerAddress = Data.Value.entPlayer;
+					lastKnownPlayer = new PlayerEntity() { Address = lastKnownPlayerAddress };
+				}
+				return lastKnownPlayer;
+			}
+		}
+			
 
 		public Element Hovered => Cache.elemHover == IntPtr.Zero ? null :
 			new Element() { Address = Cache.elemHover };
