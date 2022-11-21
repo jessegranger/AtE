@@ -322,7 +322,7 @@ namespace AtE {
 			if ( buffsArray.Head == lastKnownHandle.Head && buffsArray.Tail == lastKnownHandle.Tail ) {
 				return true;
 			}
-			long count = (buffsArray.Tail.ToInt64() - buffsArray.Head.ToInt64()) / 8;
+			int count = buffsArray.ItemCount(8); // sizeof(IntPtr)
 			if ( count < 0 || count > 250 ) {
 				Log($"Rejecting corrupt(?) buffs data with {count} elements.");
 				return false;
