@@ -33,10 +33,10 @@ namespace AtE.Plugins {
 			public string BuffName;
 			public bool Enabled = false;
 			public HotKey Key = new HotKey(Keys.None);
-			public SkillData(string d, string s, string b) {
-				DisplayName = d;
-				SkillBarName = s;
-				BuffName = b;
+			public SkillData(string displayName, string skillName, string buffName) {
+				DisplayName = displayName;
+				SkillBarName = skillName;
+				BuffName = buffName;
 			}
 			public override string ToString() => $"{DisplayName}={(Enabled ? "" : Key.ToString())}";
 			public abstract bool Predicate(PlayerEntity p);
@@ -92,34 +92,64 @@ namespace AtE.Plugins {
 				ImGui_HelpMarker("Will re-apply Blood Rage once you are full life.");
 			}
 		}
+
 		public class CorruptingFeverData : SkillData {
 			public CorruptingFeverData() : base("Corrupting Fever", "CorruptingFever", "blood_surge") { }
 			public override bool Predicate(PlayerEntity p) => IsFullLife(p);
 		}
-		/// <summary>
-		/// Guard skills mostly follow the same pattern: Use if life drops below a threshold
-		/// </summary>
-		public class GuardSkillData : SkillData {
-			public float UseAtLifePercent = .90f;
-			public GuardSkillData(string displayName, string skillName, string buffName) : base(displayName, skillName, buffName) { }
-			public override bool Predicate(PlayerEntity p) => IsMissingEHP(p, 1.0f - UseAtLifePercent);
-			public override void Configure() {
-				base.Configure();
-				ImGui.Text("at");
-				ImGui.SameLine();
-				ImGui.SliderFloat("% Life", ref UseAtLifePercent, .2f, .99f);
-			}
-		}
+
 		/// <summary>
 		/// Steelskin also can clear bleeding
 		/// </summary>
-		public class SteelskinData : GuardSkillData {
+		public class SteelskinData : SkillData {
+			public int UseAtLifePercent = 90;
 			public SteelskinData() : base("Steelskin", "steelskin", "quick_guard") { }
-			public override bool Predicate(PlayerEntity p) => base.Predicate(p) || HasBuff(p, "bleeding");
+			public override bool Predicate(PlayerEntity p) => HasBuff(p, "bleeding") || IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
+			public override void Configure() {
+				base.Configure();
+				ImGui.Text(" at ");
+				ImGui.SameLine();
+				ImGui.SliderInt("% eHP##Steelskin", ref UseAtLifePercent, 2, 99);
+			}
 		}
-		public class ImmortalCallData : GuardSkillData { public ImmortalCallData() : base("Immortal Call", "mortal_call", "mortal_call") { } }
-		public class MoltenShellData : GuardSkillData { public MoltenShellData() : base("Molten Shell", "molten_shell_barrier", "molten_shell_shield") { } }
-		public class EnduringCryData : GuardSkillData { public EnduringCryData() : base("Enduring Cry", "EnduringCry", "enduring_cry_endurance_charge_benefits") { } }
+
+		public class ImmortalCallData : SkillData {
+			public int UseAtLifePercent = 90;
+			public ImmortalCallData() : base("Immortal Call", "mortal_call", "mortal_call") { }
+			public override bool Predicate(PlayerEntity p) => IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
+			public override void Configure() {
+				base.Configure();
+				ImGui.Text(" at ");
+				ImGui.SameLine();
+				ImGui.SliderInt("% eHP##Immortal Call", ref UseAtLifePercent, 2, 99);
+			}
+		}
+
+		public class MoltenShellData : SkillData {
+			public int UseAtLifePercent = 90;
+			public MoltenShellData() : base("Molten Shell", "molten_shell_barrier", "molten_shell_shield") { }
+			public override bool Predicate(PlayerEntity p) => IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
+			public override void Configure() {
+				base.Configure();
+				ImGui.Text(" at ");
+				ImGui.SameLine();
+				ImGui.SliderInt("% eHP##Molten Shell", ref UseAtLifePercent, 2, 99);
+			}
+		}
+
+		public class EnduringCryData : SkillData {
+			public int UseAtLifePercent = 90;
+			public EnduringCryData() : base("Enduring Cry", "EnduringCry", "enduring_cry_endurance_charge_benefits") { }
+			public override bool Predicate(PlayerEntity p) => IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
+			public override void Configure() {
+				base.Configure();
+				ImGui.SameLine();
+				ImGui.Text("at");
+				ImGui.SameLine();
+				ImGui.SliderInt("% eHP##Enduring Cry", ref UseAtLifePercent, 2, 99);
+			}
+		}
+
 		public class BerserkData : SkillData {
 			public int MinRage = 25;
 			public BerserkData() : base("Berserk", "Berserk", "berserk") { }
@@ -129,10 +159,12 @@ namespace AtE.Plugins {
 				ImGui.SliderInt("Minimum Rage", ref MinRage, 10, 70);
 			}
 		}
+
 		public class WitheringStepData : SkillData {
 			public WitheringStepData() : base("Withering Step", "Slither", "slither") { }
 			public override bool Predicate(PlayerEntity p) => false; // TODO: should check NearbyEnemies for rares with no wither stacks
 		}
+
 		public class PlagueBearerData : SkillData {
 			public PlagueBearerData() : base("Plague Bearer", "CorrosiveShroud", "corrosive_shroud_accumulating_damage") { }
 			public override bool Predicate(PlayerEntity p) {
@@ -162,6 +194,44 @@ namespace AtE.Plugins {
 		public class DreadBanner : BannerSkill { public DreadBanner() : base("Dread Banner", "banner_dread", "puresteel_banner_buff_aura", "puresteel_banner_stage") { } }
 		public class WarBanner : BannerSkill { public WarBanner() : base("War Banner", "banner_war", "bloodstained_banner_buff_aura", "bloodstained_banner_stage") { } }
 
+		public class TemporalRift : SkillData {
+			public TemporalRift() : base("Temporal Rift", "temporal_rift", null) { }
+
+			public int UseForGain = 40;
+
+			private long lastRiftSample = 0;
+			// what was the Player life at each second in the recent past
+			private int[] ehpSamples = new int[4];
+
+			public override bool Predicate(PlayerEntity p) {
+				var life = p.GetComponent<Life>();
+				int hp = (int)CurrentEHP(life);
+				long now = Time.ElapsedMilliseconds;
+				// how much absolute ehp would be gained if we used Temporal Rift right now:
+				var gain = ehpSamples[0] - hp;
+				var maxHp = MaxEHP(life, HasBuff(p, "petrified_blood"));
+				var pctGain = 100 * (gain / (float)maxHp);
+				if( now - lastRiftSample > 1000 ) {
+					ehpSamples[0] = ehpSamples[1];
+					ehpSamples[1] = ehpSamples[2];
+					ehpSamples[2] = ehpSamples[3];
+					ehpSamples[3] = hp;
+					lastRiftSample = now;
+				}
+				if( pctGain >= UseForGain ) {
+					Notify($"Using temporal rift to gain {pctGain}");
+					return true;
+				}
+				return false;
+			}
+
+			public override void Configure() {
+				base.Configure();
+				ImGui_HelpMarker("if you would gain % eHP");
+				ImGui.SameLine();
+				ImGui.SliderInt("% gain##Temporal Rift", ref UseForGain, 5, 90);
+			}
+		}
 
 		private Dictionary<string, SkillData> KnownSkills = new Dictionary<string, SkillData>() {
 			{ "Blood Rage", new BloodRageData() },
@@ -172,6 +242,7 @@ namespace AtE.Plugins {
 			{ "Defiance Banner", new DefianceBanner() },
 			{ "War Banner", new WarBanner() },
 			{ "Dread Banner", new DreadBanner() },
+			{ "Temporal Rift", new TemporalRift() },
 			// { "Corrupting Fever", new CorruptingFeverData() },
 			// { "Enduring Cry", new EnduringCryData() },
 			// { "Berserk", new BerserkData() },
@@ -194,6 +265,15 @@ namespace AtE.Plugins {
 				buff.Configure();
 			}
 			ImGui.EndTable();
+			var player = GetPlayer();
+			var life = player.GetComponent<Life>();
+			/*
+			ImGui.Text($"MaxLife: {MaxLife(player)}");
+			ImGui.Text($"MaxEHP: {MaxEHP(life, HasBuff(player, "petrified_blood"))}");
+			ImGui.Text($"CurEHP: {CurrentEHP(life)}");
+			ImGui.Text($"IsMissingEHP(.01f): {IsMissingEHP(player, .01f, HasBuff(player, "petrified_blood"))}");
+			ImGui.Text($"IsMissingEHP(.1f): {IsMissingEHP(player, .1f, HasBuff(player, "petrified_blood"))}");
+			*/
 		}
 
 		/// <summary>
@@ -216,7 +296,7 @@ namespace AtE.Plugins {
 
 				var buffs = player.GetComponent<Buffs>();
 				foreach(var buff in KnownSkills.Values) {
-					if ( !buff.Enabled || HasBuff(buffs, buff.BuffName) ) {
+					if ( !buff.Enabled || ((buff.BuffName?.Length ?? 0) != 0 && HasBuff(buffs, buff.BuffName)) ) {
 						continue;
 					}
 
