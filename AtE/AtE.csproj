@@ -54,8 +54,7 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>
-    </ApplicationIcon>
+    <ApplicationIcon>GreenFlask.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>AtE.Program</StartupObject>
@@ -108,6 +107,7 @@
     <Compile Include="Overlay\Perf.cs" />
     <Compile Include="Overlay\SpriteController.cs" />
     <Compile Include="Plugins\BuffsPlugin.cs" />
+    <Compile Include="Plugins\ChaosRecipe.cs" />
     <Compile Include="Plugins\CoreSettings.cs" />
     <Compile Include="Plugins\DelvePlugin.cs" />
     <Compile Include="Plugins\DPSPlugin.cs" />
@@ -186,6 +186,7 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="GreenFlask.ico" />
     <Content Include="Static\Sprites.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

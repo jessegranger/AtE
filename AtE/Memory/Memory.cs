@@ -8,15 +8,17 @@ namespace AtE {
 
 		public static bool IsValid(IntPtr p) {
 			long a = p.ToInt64();
-			return a > 0x0000000100000000 && a < 0x00007FFFFFFFFFFF;
+			bool ret = a > 0x0000000100000001 && a < 0x00007FFFFFFFFFFF;
+			return ret;
+			// TODO: get better ranges here
 		}
 
-		public static string Format(IntPtr ptr) => $"<0x{ptr.ToInt64():X}>";
+		public static string Describe(IntPtr ptr) => $"<0x{ptr.ToInt64():X}>";
 
 		public static void ImGui_Address(IntPtr a, string label) {
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text(label); ImGui.SameLine(0f, 2f);
-			var str = Format(a);
+			var str = Describe(a);
 			ImGui.Text(str);
 			ImGui.SameLine();
 			if( ImGui.Button($"M##{str}") ) {
@@ -34,12 +36,10 @@ namespace AtE {
 	/// should use CachedStruct to read data from offsets once per frame.
 	/// Most of the time you want to use MemoryObject<T>.
 	/// </summary>
-	public class MemoryObject : IEquatable<MemoryObject>, IDisposable {
+	public class MemoryObject : IDisposable {
 
 		public virtual IntPtr Address { get; set; } = IntPtr.Zero;
 		public MemoryObject() { }
-
-		public bool Equals(MemoryObject other) => Address.Equals(other.Address);
 
 		public override int GetHashCode() => Address.GetHashCode();
 
@@ -58,10 +58,9 @@ namespace AtE {
 	/// Manage an object (of structure T) at some address in PoEMemory.
 	/// </summary>
 	/// <typeparam name="T">Defines the native layout of the object to be managed. Available as `base.Cache`.</typeparam>
-	public class MemoryObject<T> : MemoryObject, IEquatable<MemoryObject<T>> where T : unmanaged {
+	public class MemoryObject<T> : MemoryObject where T : unmanaged {
 		private Cached<T> cache;
 		public T Cache => cache?.Value ?? default;
-		public bool Equals(MemoryObject<T> other) => Address.Equals(other.Address);
 
 		public override IntPtr Address {
 			get => base.Address;
@@ -72,15 +71,16 @@ namespace AtE {
 
 				base.Address = value;
 
-				if ( IsValid(value) ) {
-					cache = CachedStruct<T>(this);
+				if ( IsValid(base.Address) ) {
+					cache = CachedStruct<T>(() => base.Address);
 				} else {
+					if ( value != IntPtr.Zero ) {
+						Log($"MemoryObject<{typeof(T).Name}>: Rejecting invalid address {Describe(value)} {IsValid(value)} became {Describe(base.Address)}");
+					}
 					cache = null;
 				}
 			}
 		}
-
-		public MemoryObject() : base() => cache = CachedStruct<T>(this);
 
 	}
 
@@ -106,10 +106,11 @@ namespace AtE {
 			lastFrame = long.MaxValue;
 		}
 	}
+	
 
 	public static partial class Globals {
-		public static Cached<T> CachedStruct<T>(MemoryObject obj) where T : unmanaged
-			=> new Cached<T>(() => PoEMemory.TryRead(obj.Address, out T ret) ? ret : default);
+		public static Cached<T> CachedStruct<T>(IntPtr loc) where T : unmanaged
+			=> new Cached<T>(() => PoEMemory.TryRead(loc, out T ret) ? ret : default);
 		public static Cached<T> CachedStruct<T>(Func<IntPtr> fOffset) where T : unmanaged
 			=> new Cached<T>(() => PoEMemory.TryRead(fOffset(), out T ret) ? ret : default);
 	}

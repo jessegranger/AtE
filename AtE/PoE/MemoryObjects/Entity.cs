@@ -7,13 +7,14 @@ using System.Drawing;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using System.Threading;
 using static AtE.Globals;
 
 namespace AtE {
 	public static partial class Globals {
 		
 		public static bool IsValid(Entity ent) => ent != null
-			&& ent.Address != IntPtr.Zero
+			&& IsValid(ent.Address)
 			// && ent.ServerId > 0 && ent.ServerId < int.MaxValue
 			&& (ent.Path?.StartsWith("Meta") ?? false);
 
@@ -35,7 +36,12 @@ namespace AtE {
 
 		public static IEnumerable<Entity> GetEnemies() => GetEntities()?
 			.Take(1000)
-			.Where(e => (e.Path?.StartsWith("Metadata/Monster") ?? false)
+			.Where(e => 
+				e.Id > 0 && e.Id < int.MaxValue
+				&& e.Path != null
+				&& e.Path.StartsWith("Metadata/Monster")
+				&& (!e.Path.Contains("AfflictionVolatile"))
+				&& (!e.Path.Contains("AfflictionVomitile"))
 				&& (e.GetComponent<Positioned>()?.IsHostile ?? false)) ?? Empty<Entity>();
 
 		public static IEnumerable<Entity> NearbyEnemies(float radius) {
@@ -44,7 +50,7 @@ namespace AtE {
 		}
 
 		public static IEnumerable<Entity> NearbyEnemies(float radius, Offsets.MonsterRarity rarity) =>
-			NearbyEnemies(radius).Where(e => (e.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White) >= rarity);
+			NearbyEnemies(radius).Where(e => (e.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White) >= rarity );
 
 
 		public static void DrawTextAt(Entity ent, string text, Color color) {
@@ -73,25 +79,27 @@ namespace AtE {
 				if ( !IsValid(value) ) {
 					return;
 				}
-				uint id = Cache.Id; // this will read Offset.Entity struct from memory (same cost as before)
-				if ( id != 0 ) {
-					// if the same Entity id is at the same address as it was last time, we can re-use ComponentPtrs (and skip parsing)
-					if ( lastKnownAddress.TryGetValue(id, out IntPtr prev) && prev == value ) {
-						lastKnownComponents.TryGetValue(id, out ComponentPtrs);
-						// ImGui.Text($"[{id}] stable at {Format(prev)} -> {ComponentPtrs?.Count ?? 0} components");
-					} else {
-						// otherwise, this is an actual change-of-address for this object
-						// so update last known address, and invalidate various caches
-						// Log($"New entity {id} at address {Format(value)}");
-						// Log($"Entity[{id}] at new address: {Format(value)} {Path}");
-						lastKnownAddress[id] = value;
-						lastKnownComponents.TryRemove(id, out _);
-						ComponentPtrs = null;
-						ComponentCache?.Clear();
-						ComponentCache = null;
-						path = null;
+
+					uint id = Cache.Id; // this will read Offset.Entity struct from memory (same cost as before)
+					if ( id != 0 ) {
+						// if the same Entity id is at the same address as it was last time, we can re-use ComponentPtrs (and skip parsing)
+						if ( lastKnownAddress.TryGetValue(id, out IntPtr prev) && prev == value ) {
+							lastKnownComponents.TryGetValue(id, out ComponentPtrs);
+							path = null; // for now, path cache is different and only caches within the frame
+													 // ImGui.Text($"[{id}] stable at {Format(prev)} -> {ComponentPtrs?.Count ?? 0} components");
+						} else {
+							// otherwise, this is an actual change-of-address for this object
+							// so update last known address, and invalidate various caches
+							// Log($"New entity {id} at address {Format(value)}");
+							// Log($"Entity[{id}] at new address: {Format(value)} {Path}");
+							lastKnownAddress[id] = value;
+							lastKnownComponents.TryRemove(id, out _);
+							ComponentPtrs = null;
+							ComponentCache?.Clear();
+							ComponentCache = null;
+							path = null;
+						}
 					}
-				}
 			}
 		}
 
@@ -102,46 +110,49 @@ namespace AtE {
 		public uint Id => Address == IntPtr.Zero ? 0 : Cache.Id;
 
 		private string path;
-		public string Path => Address == IntPtr.Zero ? null :
-			path != null ? path :
-			PoEMemory.TryReadString(Details.Value.ptrPath, Encoding.Unicode, out path) ? path
+		public string Path => IsValid(Address) && IsValid(Details.Value.ptrPath)
+			? path ?? (PoEMemory.TryReadString(Details.Value.ptrPath, Encoding.Unicode, out path) ? path : null)
 			: null;
 
-		public bool HasComponent<T>() where T : MemoryObject, new() => Address != IntPtr.Zero && GetComponent<T>() != null;
+		public bool HasComponent<T>() where T : MemoryObject, new() => IsValid(Address) && GetComponent<T>() != null;
 
 		public T GetComponent<T>() where T : MemoryObject, new() {
-			if ( Address == IntPtr.Zero ) {
+			if ( !IsValid(Address) ) {
 				return null;
 			}
-			using ( Perf.Section("GetComponent") ) {
-				if ( ComponentPtrs == null ) {
-					ParseComponents();
-					// save the output of the parsing for next time
-					lastKnownComponents[Id] = ComponentPtrs;
-				}
-				if ( ComponentPtrs == null ) {
-					// all the above failed to parse any ptrs, so there are no components
-					ComponentCache?.Clear();
-					ComponentCache = null;
-					return null;
-				}
-
-				string key = typeof(T).Name;
-				if( ComponentCache != null && ComponentCache.TryGetValue(key, out MemoryObject cachedResult) ) {
-					return (T)cachedResult;
-				}
-
-				if ( ComponentPtrs.TryGetValue(key, out IntPtr ptr) ) {
-					var ret = new T() { Address = ptr };
-					if( ComponentCache == null ) {
-						ComponentCache = new Dictionary<string, MemoryObject>();
-					}
-					ComponentCache[key] = ret;
-					return ret;
-				}
+			if ( Thread.CurrentThread.ManagedThreadId != 1 ) {
+				throw new Exception("Cannot call from background thread");
+			}
+			if ( ComponentPtrs == null ) {
+				ParseComponents();
+				// save the output of the parsing for next time
+				lastKnownComponents[Id] = ComponentPtrs;
+			}
+			if ( ComponentPtrs == null ) {
+				// all the above failed to parse any ptrs, so there are no components
+				ComponentCache?.Clear();
+				ComponentCache = null;
 				return null;
 			}
+
+			string key = typeof(T).Name;
+			if ( ComponentCache != null && ComponentCache.TryGetValue(key, out MemoryObject cachedResult) ) {
+				return (T)cachedResult;
+			}
+
+			IntPtr ptr = default;
+			if ( ComponentPtrs?.TryGetValue(key, out ptr) ?? false ) {
+				var ret = new T() { Address = ptr };
+				if ( ComponentCache == null ) {
+					ComponentCache = new Dictionary<string, MemoryObject>();
+				}
+				ComponentCache[key] = ret;
+				return ret;
+			}
+			return null;
 		}
+
+		public IEnumerable<string> GetComponentNames() => ComponentPtrs?.Keys ?? Empty<string>();
 
 		// keep track of when an entity id moves to a new address in memory
 		// this is a map of <entity id, address>
@@ -154,7 +165,9 @@ namespace AtE {
 		private Dictionary<string, IntPtr> ComponentPtrs; // we have to parse this all at once
 		private Dictionary<string, MemoryObject> ComponentCache; // these are filled in as requested, then re-used if requested a second time
 		private void UpdateParsedIndex(string name, IntPtr addr) {
-			ComponentPtrs.Add(name, addr);
+			if ( IsValid(addr) ) {
+				ComponentPtrs.Add(name, addr);
+			}
 		}
 
 		private void ParseComponents() {
@@ -289,14 +302,15 @@ namespace AtE {
 		/// </summary>
 		public Actor Actor => GetComponent<Actor>();
 
-		public Stats Stats => GetComponent<Stats>();
+		public Pathfinding Pathfinding => GetComponent<Pathfinding>();
+		public Positioned Positioned => GetComponent<Positioned>();
 
 		public Buffs Buffs => GetComponent<Buffs>();
 
 		private Render render;
 		public Render Render => IsValid(render) ? render : render = GetComponent<Render>();
-		public Vector3 Position => Render?.Position ?? Vector3.Zero; 
-		public Vector3 Bounds => Render?.Bounds ?? Vector3.Zero; 
+		public Vector3 Position => Render?.Position ?? Vector3.Zero;
+		public Vector3 Bounds => Render?.Bounds ?? Vector3.Zero;
 
 		public RectangleF GetClientRect() {
 			if ( !IsValid(Render) ) return RectangleF.Empty;

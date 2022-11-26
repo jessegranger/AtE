@@ -40,7 +40,7 @@ namespace AtE {
 			ImGui.Checkbox("Show Performance Window", ref ShowPerformanceWindow);
 			ImGui.SliderInt("Input Latency", ref InputLatency, 10, 100);
 			// ImGui.Text($"Overlay IsTransparent: {Overlay.RenderForm.IsTransparent}");
-			ImGui.Text($"Offsets: {Offsets.VersionMajor}.{Offsets.VersionMinor} / PoE {Offsets.PoEVersion}");
+			ImGui.Text($"Offsets: {Offsets.VersionMajor}.{Offsets.VersionMinor} for PoE {Offsets.PoEVersion}");
 			var target = PoEMemory.Target;
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text($"Attached: {PoEMemory.IsAttached}");
@@ -65,6 +65,8 @@ namespace AtE {
 			}
 		}
 
+		private double averageFPS = 60d;
+
 		public override IState OnTick(long dt) {
 			if( PauseKey.IsReleased ) {
 				if ( Paused ) {
@@ -75,10 +77,11 @@ namespace AtE {
 					PauseAll();
 				}
 			}
+			averageFPS = MovingAverage(averageFPS, Overlay.FPS, 10);
 			DrawBottomLeftText(
 				(Paused ? "[=]" : "[>]")
 				+ $" {timeInZone.Elapsed.ToString(@"mm\:ss")}"
-				+ (ShowFPS ? $" {Overlay.FPS:F0} fps" : "")
+				+ (ShowFPS ? $" fps {averageFPS:F0}" : "")
 			, Color.Orange);
 			return base.OnTick(dt);
 		}

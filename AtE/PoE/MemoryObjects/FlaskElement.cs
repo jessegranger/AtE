@@ -8,8 +8,9 @@ using static AtE.Globals;
 namespace AtE {
 
 	public static partial class Globals {
-		public static Entity GetFlask(int index) => GetUI()?.Flasks?.GetFlask(index)?.Item;
-		public static IEnumerable<FlaskEntity> GetFlasks() => GetUI()?.Flasks?.Flasks?.Select(f => f.Item) ?? Empty<FlaskEntity>();
+		public static FlaskEntity GetFlask(int index) => GetUI()?.Flasks?.GetFlask(index)?.Entity;
+		public static IEnumerable<FlaskEntity> GetFlasks() => GetUI()?.Flasks?.Flasks?.Select(f => f.Entity) ?? Empty<FlaskEntity>();
+		public static bool IsValid(FlaskEntity ent) => ent != null && ent.Valid;
 	}
 	public class FlaskElement : Element {
 		public Cached<Offsets.Element_InventoryItem> Details;
@@ -18,8 +19,8 @@ namespace AtE {
 
 		public int FlaskIndex;
 
-		public FlaskEntity Item => new FlaskEntity(FlaskIndex) { Address = Details.Value.entItem };
-		public IntPtr ItemPtr => Details.Value.entItem;
+		public FlaskEntity Entity => IsValid(Details.Value.entItem) ? new FlaskEntity(EntityCache.Get(Details.Value.entItem), FlaskIndex) : null;
+		public IntPtr ItemPtr => Details.Value.entItem; // sometimes this ptr fails to read, it ends up pointing somewhere our Handle isnt authorized? rarely
 	}
 
 	/// <summary>
@@ -30,9 +31,10 @@ namespace AtE {
 	/// Mods
 	/// The Path should match one of the keys from FlaskData.
 	/// </summary>
-	public class FlaskEntity : Entity {
+	public class FlaskEntity {
 		public FlaskData BaseData;
 
+		public bool Valid = false;
 		// bunch of fields that we have to parse from iterating ItemMods, so we only do it when Address changes
 		public bool IsInstant;
 		public bool IsInstantOnLowLife;
@@ -53,96 +55,92 @@ namespace AtE {
 		public bool Cures_Shocked;
 		public bool Cures_Curse;
 
-		public int FlaskIndex;
-		public Keys Key => (Keys.D1 + FlaskIndex);
+		public int FlaskIndex = -1;
+		public Keys Key => Valid && (FlaskIndex >= 0 && FlaskIndex < 5) ? (Keys.D1 + FlaskIndex) : Keys.None;
 
-		public FlaskEntity() : base() { }
-		public FlaskEntity(int flaskIndex) : this() => FlaskIndex = flaskIndex;
+		public FlaskEntity(Entity ent, int flaskIndex) {
+			if ( !IsValid(ent) ) {
+				return;
+			}
+			var charges = ent.GetComponent<Charges>();
+			if( charges == null ) { // not a valid flask entity
+				return;
+			}
+			var mods = ent.GetComponent<Mods>();
+			if ( mods == null ) {
+				return;
+			}
+			FlaskIndex = flaskIndex;
+			float qualityFactor = (100 + (ent.GetComponent<Quality>()?.ItemQuality ?? 0)) / 100f;
+			string path = ent.Path.Split('/').Last();
+			if( FlaskData.Records.TryGetValue(path, out BaseData) ) {
+				Duration = (int)(BaseData.Duration * qualityFactor);
+				LifeHealAmount = (int)(BaseData.HealAmount * qualityFactor);
+				ManaHealAmount = (int)(BaseData.ManaAmount * qualityFactor);
+			}
+			Charges_Max = charges.Max;
+			Charges_Cur = charges.Current;
+			Charges_Per = charges.PerUse;
+			foreach(var mod in mods.EnchantedMods ) {
+				string groupName = mod?.GroupName;
+				if ( groupName == null ) {
+					continue;
+				}
+
+				if ( groupName.StartsWith("FlaskEnchantmentInjectorOnFullCharges") ) {
+					Enchanted_UseWhenFull = true;
+				} else if ( groupName.StartsWith("FlaskEnchantmentInjectorOnHittingRareOrUnique") ) {
+					Enchanted_UseWhenHitRare = true;
+				}
+			}
+			foreach ( var mod in mods.ExplicitMods ) {
+				string groupName = mod?.GroupName;
+				if ( groupName == null ) {
+					continue;
+				}
+
+				if ( groupName.StartsWith("FlaskIncreasedDuration") ) {
+					Duration = (int)(Duration * ((100 + mod.Values.First()) / 100f));
+				} else if ( groupName.StartsWith("FlaskExtraCharges") ) {
+					Charges_Max += mod.Values.First();
+				} else if ( groupName.StartsWith("FlaskInstantRecoveryOnLowLife") ) {
+					IsInstantOnLowLife = true;
+					int lessRecovery = mod.Values.Skip(1).First(); // like -27
+					float recoveryFactor = (100 + lessRecovery) / 100f;
+					LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
+				} else if ( groupName.StartsWith("FlaskFullInstantRecovery") || groupName.StartsWith("FlaskPartialInstantRecovery") ) {
+					IsInstant = true;
+					int lessRecovery = mod.Values.Skip(1).First(); // like -27
+					float recoveryFactor = (100 + lessRecovery) / 100f;
+					LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
+				} else if ( groupName.StartsWith("FlaskPoisonImmunity") ) {
+					Cures_Poisoned = true;
+				} else if ( groupName.StartsWith("FlaskBleedCorruptingBloodImmunity") ) {
+					Cures_Bleeding = true;
+				} else if ( groupName.StartsWith("FlaskShockImmunity") ) {
+					Cures_Shocked = true;
+				} else if ( groupName.StartsWith("FlaskIgniteImmunity") ) {
+					Cures_Ignited = true;
+				} else if ( groupName.StartsWith("FlaskChillFreezeImmunity") ) {
+					Cures_Frozen = true;
+				} else if ( groupName.StartsWith("FlaskEffectNotRemovedOnFullMana") ) {
+					Effect_NotRemovedOnFullMana = true;
+					ManaHealAmount = (int)(ManaHealAmount * .70f);
+					Duration = (int)(Duration * .70f);
+				} else if ( groupName.StartsWith("FlaskCurseImmunity") ) {
+					Cures_Curse = true;
+				}
+
+			}
+			Valid = true;
+
+		}
 
 		// Not the same as the flask itself being active
 		// To find that, we would need to know the parent element, and find the little progress bar UI element
 		// which is a sibling of the Element that emitted this instance
 		public bool IsBuffActive => HasBuff(GetPlayer(),
 			Effect_NotRemovedOnFullMana ? "flask_effect_mana_not_removed_when_full" : BaseData?.BuffName);
-
-		public Mods Mods => GetComponent<Mods>();
-
-		public new IntPtr Address { get => base.Address;
-			set {
-				if ( value == base.Address ) {
-					return;
-				}
-
-				base.Address = value;
-
-				if( IsValid(base.Address) ) {
-					var charges = GetComponent<Charges>();
-					if( charges == null ) { // not a valid flask entity address
-						Address = IntPtr.Zero;
-						return;
-					}
-					float qualityFactor = (100 + (GetComponent<Quality>()?.ItemQuality ?? 0)) / 100f;
-					string path = Path.Split('/').Last();
-					if( FlaskData.Records.TryGetValue(path, out BaseData) ) {
-						Duration = (int)(BaseData.Duration * qualityFactor);
-						LifeHealAmount = (int)(BaseData.HealAmount * qualityFactor);
-						ManaHealAmount = (int)(BaseData.ManaAmount * qualityFactor);
-					}
-					Charges_Max = charges.Max;
-					Charges_Cur = charges.Current;
-					Charges_Per = charges.PerUse;
-					var mods = GetComponent<Mods>();
-					foreach(var mod in mods.EnchantedMods ) {
-						string groupName = mod?.GroupName;
-						if ( groupName == null ) continue;
-						if ( groupName.StartsWith("FlaskEnchantmentInjectorOnFullCharges") ) {
-							Enchanted_UseWhenFull = true;
-						} else if ( groupName.StartsWith("FlaskEnchantmentInjectorOnHittingRareOrUnique") ) {
-							Enchanted_UseWhenHitRare = true;
-						}
-					}
-					foreach ( var mod in mods.ExplicitMods ) {
-						string groupName = mod?.GroupName;
-						if ( groupName == null ) {
-							continue;
-						}
-
-						if ( groupName.StartsWith("FlaskIncreasedDuration") ) {
-							Duration = (int)(Duration * ((100 + mod.Values.First()) / 100f));
-						} else if ( groupName.StartsWith("FlaskExtraCharges") ) {
-							Charges_Max += mod.Values.First();
-						} else if ( groupName.StartsWith("FlaskInstantRecoveryOnLowLife") ) {
-							IsInstantOnLowLife = true;
-							int lessRecovery = mod.Values.Skip(1).First(); // like -27
-							float recoveryFactor = (100 + lessRecovery) / 100f;
-							LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
-						} else if ( groupName.StartsWith("FlaskFullInstantRecovery") || groupName.StartsWith("FlaskPartialInstantRecovery") ) {
-							IsInstant = true;
-							int lessRecovery = mod.Values.Skip(1).First(); // like -27
-							float recoveryFactor = (100 + lessRecovery) / 100f;
-							LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
-						} else if ( groupName.StartsWith("FlaskPoisonImmunity") ) {
-							Cures_Poisoned = true;
-						} else if ( groupName.StartsWith("FlaskBleedCorruptingBloodImmunity") ) {
-							Cures_Bleeding = true;
-						} else if ( groupName.StartsWith("FlaskShockImmunity") ) {
-							Cures_Shocked = true;
-						} else if ( groupName.StartsWith("FlaskIgniteImmunity") ) {
-							Cures_Ignited = true;
-						} else if ( groupName.StartsWith("FlaskChillFreezeImmunity") ) {
-							Cures_Frozen = true;
-						} else if ( groupName.StartsWith("FlaskEffectNotRemovedOnFullMana") ) {
-							Effect_NotRemovedOnFullMana = true;
-							ManaHealAmount = (int)(ManaHealAmount * .70f);
-							Duration = (int)(Duration * .70f);
-						} else if ( groupName.StartsWith("FlaskCurseImmunity") ) {
-							Cures_Curse = true;
-						}
-
-					}
-				}
-			}
-		}
 
 	}
 
@@ -152,7 +150,7 @@ namespace AtE {
 			-1, -1, -1, -1, -1
 		};
 
-		public new IntPtr Address {
+		public override IntPtr Address {
 			get => base.Address;
 			set {
 				if ( value == base.Address ) {
@@ -173,7 +171,9 @@ namespace AtE {
 			};
 			foreach ( var flaskChild in Children.FirstOrDefault()?.Children.Skip(1) ?? Empty<Element>()) {
 				int flaskIndex = (int)(flaskChild.Position.X / flaskChild.Size.X);
-				flaskIndexToChildIndex[flaskIndex] = flaskChildIndex;
+				if( flaskIndex >= 0 && flaskIndex < 5 ) {
+					flaskIndexToChildIndex[flaskIndex] = flaskChildIndex;
+				}
 				flaskChildIndex += 1;
 			}
 		}

@@ -13,13 +13,12 @@ namespace AtE {
 
 	public class Element : MemoryObject<Offsets.Element> {
 
+		public virtual bool IsValid => IsValid(Address) && Cache.Self == Address;
 
-		public bool IsValid => Address != IntPtr.Zero && Cache.Self == Address;
-
-		public Element Self => Address == IntPtr.Zero || Cache.Self == IntPtr.Zero ? null
+		public Element Self => !(IsValid(Address) && IsValid(Cache.Self)) ? null
 			: new Element() { Address = Cache.Self };
 
-		public Element Parent => Address == IntPtr.Zero || Cache.elemParent == IntPtr.Zero ? null
+		public Element Parent => !(IsValid(Address) && IsValid(Cache.elemParent)) ? null
 			: new Element() { Address = Cache.elemParent };
 
 
@@ -37,6 +36,7 @@ namespace AtE {
 		public Vector2 Position => Cache.Position;
 		public float Scale => Address == IntPtr.Zero ? 1.0f : Cache.Scale;
 
+		public Vector2 ScrollOffset => Address == IntPtr.Zero ? Vector2.Zero : Cache.ScrollOffset;
 		public string Text => Cache.strText.Value;
 		public string LongText => Cache.strLongText.Value;
 		public string InputText => Cache.inputMask2 == Offsets.Element.inputMask2_HasInput
@@ -122,7 +122,7 @@ namespace AtE {
 		private readonly Offsets.ItemsOnGroundLabelEntry Cache;
 		public LabelOnGround(Offsets.ItemsOnGroundLabelEntry entry) => Cache = entry;
 		public Element Label => new Element() { Address = Cache.elemLabel };
-		public Entity Item => new Entity() { Address = Cache.entItem };
+		public Entity Item => IsValid(Cache.entItem) ? EntityCache.Get(Cache.entItem) : null;
 	}
 
 }

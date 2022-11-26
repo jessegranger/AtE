@@ -19,17 +19,16 @@ namespace AtE.Plugins {
 		public override void Render() {
 			base.Render();
 
-			ImGui_HotKeyButton("Stash All Loot", ref DumpKey);
+			ImGui_HotKeyButton("Deposit All Loot", ref DumpKey);
 
 		}
 
 		private uint InputLatency => (uint)GetPlugin<CoreSettings>().InputLatency;
-		private uint BackpackLatency => 200;
 
 		private IState RightClickItem(InventoryItem item, IState next = null) => IsValid(item) ? new RightClickAt(Center(item.GetClientRect()), InputLatency, next) : null;
 		private IState LeftClickItem(InventoryItem item, uint count = 1, IState next = null) => IsValid(item) ? new LeftClickAt(Center(item.GetClientRect()), InputLatency, count, next) : null;
 
-		private IState PlanUseItem(string usePath, IState next = null, IState fail = null) {
+		private IState PlanUseItemFromBackpack(string usePath, IState next = null, IState fail = null) {
 			var useItem = BackpackItems().Where(i => i.Entity?.Path?.Equals(usePath) ?? false).FirstOrDefault();
 			if( !IsValid(useItem) ) {
 				Notify($"Could not find any {usePath} to use.");
@@ -38,7 +37,8 @@ namespace AtE.Plugins {
 			return RightClickItem(useItem, next);
 		}
 
-		private IState OnlyIfStashIsOpen(IState pass, IState fail = null) => NewState("CheckStashIsOpen", (self, dt) => BackpackIsOpen() && StashIsOpen() ? pass : fail, next: pass);
+		private IState OnlyIfStashIsOpen(IState ifOpen, IState ifClosed = null) => NewState("CheckStashIsOpen", (self, dt) => BackpackIsOpen() && StashIsOpen() ? ifOpen : ifClosed, next: ifOpen);
+		private IState OnlyIfBackpackIsOpen(IState ifOpen, IState ifClosed = null) => NewState("CheckStashIsOpen", (self, dt) => BackpackIsOpen() ? ifOpen : ifClosed, next: ifOpen);
 
 		private IEnumerable<InventoryItem> ItemsToIdentify() => BackpackItems().Where(e => !IsIdentified(e) && !IsCorrupted(e));
 		private IState PlanIdentifyAll(IState next = null) {
@@ -54,19 +54,25 @@ namespace AtE.Plugins {
 				// keydown shift
 				// left click on each item to identify
 				// keyup shift
-				IState head = PlanUseItem(Offsets.PATH_SCROLL_WISDOM,
+				IState head = PlanUseItemFromBackpack(Offsets.PATH_SCROLL_WISDOM,
 					new Delay(InputLatency,
 					new KeyDown(Keys.LShiftKey,
 					new Delay(InputLatency,
 					null))));
+				if( head == null ) {
+					return null;
+				}
 				IState tail = head.Tail();
+				IState keyUp = new KeyUp(Keys.LShiftKey, next);
 				foreach(var item in itemsToIdentify) {
-					tail.Next = new LeftClickAt(item.GetClientRect(), InputLatency, 1,
-						new Delay(InputLatency,
-						null));
+					tail.Next = OnlyIfBackpackIsOpen(
+						ifOpen: new LeftClickAt(item.GetClientRect(), InputLatency, 1,
+							new Delay(InputLatency,
+							null)),
+						ifClosed: keyUp);
 					tail = tail.Tail();
 				}
-				tail.Next = new KeyUp(Keys.LShiftKey, next);
+				tail.Next = keyUp;
 				return head;
 			}
 			return next;
@@ -83,23 +89,27 @@ namespace AtE.Plugins {
 			if( !IsValid(ui) ) {
 				return null;
 			}
+			// make a copy to modify
 			var needs = new Dictionary<string, int>(restockNeeds);
 			IState head = new KeyDown(Keys.LControlKey, null);
 			IState tail = head.Tail();
 			foreach(var item in BackpackItems() ) {
 				var ent = item.Entity;
+				if( ! IsValid(ent) ) {
+					continue;
+				}
 				if( needs.TryGetValue(ent.Path, out int needed) && needed > 0) {
 					needs[ent.Path] -= ent.GetComponent<Stack>()?.CurSize ?? 1;
 					continue;
 				}
 				tail.Next = OnlyIfStashIsOpen(
-					pass: LeftClickItem(item, 1, null),
-					fail: new KeyUp(Keys.LControlKey, null)
+					ifOpen: LeftClickItem(item, 1, null),
+					ifClosed: new KeyUp(Keys.LControlKey, null)
 				);
 				tail = tail.Tail();
 			}
 			tail.Next = new KeyUp(Keys.LControlKey, next);
-			head = OnlyIfStashIsOpen(head, fail: NewState(() => Notify("Not open")));
+			head = OnlyIfStashIsOpen(head, ifClosed: NewState(() => Notify("Not open")));
 			/*
 			IState cursor = head;
 			while( cursor != null ) {
@@ -114,7 +124,7 @@ namespace AtE.Plugins {
 			if( Enabled && !Paused && PoEMemory.IsAttached ) {
 
 				if( PoEMemory.TargetHasFocus && DumpKey.IsReleased ) {
-					Notify("Should dump everything");
+					Notify("Depositing all your loot.");
 					Run(PlanIdentifyAll(PlanStashAll(null)));
 					// TODO: incubate and open stashed decks
 					return this;

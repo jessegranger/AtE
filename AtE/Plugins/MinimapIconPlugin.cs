@@ -71,6 +71,11 @@ namespace AtE.Plugins {
 				return this;
 			}
 
+			var player = GetPlayer();
+			if( !IsValid(player) ) {
+				return this;
+			}
+
 			ushort[] deployed = null;
 			if ( ShowMinions ) { // get this list ahead of time so we can only iterate GetEntities once
 				deployed = (GetPlayer()?.GetComponent<Actor>()?.DeployedObjects.Select(d => d.EntityId) ?? Empty<ushort>()).ToArray();
@@ -82,6 +87,9 @@ namespace AtE.Plugins {
 				float iconSize = 1f;
 
 				var path = ent.Path;
+				if( path == null ) {
+					continue;
+				}
 
 				if( ShowMinions && deployed.Contains((ushort)ent.Id) && IsAlive(ent) ) {
 					TryGetMinionIcon(ent, out icon, out iconSize);
@@ -131,6 +139,10 @@ namespace AtE.Plugins {
 					icon = SpriteIcon.RewardScarabs;
 				} else if ( path.EndsWith("/Arsenal") ) {
 					icon = SpriteIcon.RewardWeapons;
+				} else if ( path.EndsWith("/Gemcutter") ) {
+					icon = SpriteIcon.RewardGems;
+				} else if ( path.EndsWith("/Cartographer") ) {
+					icon = SpriteIcon.RewardMaps;
 				} else {
 					ImGui.SetNextWindowPos(WorldToScreen(ent.GetComponent<Render>()?.Position ?? Vector3.Zero));
 					ImGui.Begin($"Debug Chest##{ent.Id}");
@@ -146,6 +158,13 @@ namespace AtE.Plugins {
 			if ( ent.HasComponent<MinimapIcon>() ) {
 				return false;
 			}
+			string path = ent.Path;
+			if( path == null ) {
+				return false;
+			}
+			if ( path.Contains("AfflictionVomitile") || path.Contains("AfflictionVolatile") ) {
+				return false;
+			}
 			bool isHidden = HasBuff(ent, "hidden_monster");
 			var rarity = ent.GetComponent<ObjectMagicProperties>()?.Rarity;
 			switch ( rarity ) {
@@ -157,7 +176,8 @@ namespace AtE.Plugins {
 			if ( ShowRareOverhead && rarity >= Offsets.MonsterRarity.Rare ) {
 				var render = ent.GetComponent<Render>();
 				if ( IsValid(render) ) {
-					DrawSprite(icon, WorldToScreen(render.Position + new Vector3(0, 0, -1.5f * render.Bounds.Z)), IconSize * 4, IconSize * 4);
+					var overhead = WorldToScreen(render.Position + new Vector3(0, 0, -1.5f * render.Bounds.Z));
+					DrawSprite(icon, overhead, IconSize * 4, IconSize * 4);
 				}
 			}
 			return true;

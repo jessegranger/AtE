@@ -16,7 +16,7 @@ namespace AtE {
 		// Address gets assigned after the constructor finishes
 		// (because the usage is always new T() { Address = xxx })
 		// So this property override does the final construction
-		public new IntPtr Address {
+		public override IntPtr Address {
 			get => base.Address;
 			set {
 
@@ -30,10 +30,15 @@ namespace AtE {
 				base.Address = value;
 
 				if ( base.Address != IntPtr.Zero ) {
-					Log($"GameStateBase: Loading from ${Format(base.Address)}...");
+					Log($"GameStateBase: Loading from base ${Describe(base.Address)}...");
+					Log($"GameStateBase: InGameState @ {Describe(Cache.InGameState.ptrToGameState)}...");
 					InGameState = new InGameState() { Address = Cache.InGameState.ptrToGameState };
+					Log($"GameStateBase: EscapeState @ {Describe(Cache.EscapeState.ptrToGameState)}...");
 					EscapeState = new EscapeState() { Address = Cache.EscapeState.ptrToGameState };
+					Log($"GameStateBase: AreaLoadingState @ {Describe(Cache.AreaLoadingState.ptrToGameState)}...");
 					AreaLoadingState = new AreaLoadingState() { Address = Cache.AreaLoadingState.ptrToGameState };
+					Log($"GameStateBase: LoginState @ {Describe(Cache.LoginState.ptrToGameState)}...");
+					LoginState = new LoginState() { Address = Cache.LoginState.ptrToGameState };
 					// the other states are here in the Cache if we want them, but they are useless
 
 					if ( IsValid(InGameState) ) {
@@ -56,6 +61,7 @@ namespace AtE {
 		public InGameState InGameState;
 		public EscapeState EscapeState;
 		public AreaLoadingState AreaLoadingState;
+		public LoginState LoginState;
 
 
 		public bool IsActive() => ActiveGameStates.Any(s => s.Address == Address);
@@ -102,17 +108,26 @@ namespace AtE {
 
 	public class AreaLoadingState : GameState<Offsets.AreaGameState> {
 		public bool IsLoading => Cache.IsLoading == 1;
-		public string AreaName => PoEMemory.TryReadString(Cache.strAreaName, Encoding.Unicode, out string val) ? val : null;
+
+		private IntPtr lastKnownAreaNamePtr;
+		private string lastKnownAreaName;
+		public string AreaName => Cache.strAreaName == lastKnownAreaNamePtr ? lastKnownAreaName :
+			PoEMemory.TryReadString(lastKnownAreaNamePtr = Cache.strAreaName, Encoding.Unicode, out lastKnownAreaName) ? lastKnownAreaName : null;
 
 		private bool loadingBefore = true; // starting as true causes OnAreaChange to fire once after Attach()
 		public override IState OnTick(long dt) {
 			bool loadingNow = IsLoading;
 			if( loadingBefore && !loadingNow ) {
+				lastKnownAreaNamePtr = IntPtr.Zero;
 				OnAreaChange?.Invoke(this, AreaName);
 			}
 			loadingBefore = loadingNow;
 			return this;
 		}
+
+	}
+
+	public class LoginState : GameState<Offsets.LoginGameState> {
 
 	}
 	public class WaitingState : GameState<Offsets.Empty> { }
@@ -125,14 +140,28 @@ namespace AtE {
 	public class InGameState : GameState<Offsets.InGameState> {
 		private readonly Cached<Offsets.InGameState_Data> Data;
 
-		public InGameState():base() {
+		public InGameState() : base() {
 			Data = CachedStruct<Offsets.InGameState_Data>(() => Cache.ptrData);
 		}
 
 		internal Offsets.EntityListNode EntityListHead => PoEMemory.TryRead(Data.Value.EntityListHead, out Offsets.EntityListNode tree) ? tree : default;
 
-		public Element UIRoot => Cache.elemRoot == IntPtr.Zero ? null :
-			new Element() { Address = Cache.elemRoot };
+		public Element UIRoot { get {
+				if ( Cache.elemRoot == IntPtr.Zero ) return null;
+				var ent = new Element() { Address = Cache.elemRoot };
+				if ( !IsValid(ent) ) {
+					ImGui.Begin("Invalid UI Root");
+					ImGui_Address(ent.Address, "Invalid UI Root");
+					// ImGui.Text($"cache.lastFrame: {ent.cache.lastFrame}");
+					// ImGui.Text($"cache.val.Self: {ent.cache.val.Self}");
+					// ImGui.Text($"Producer().Self: {ent.cache.Producer().Self}");
+					ImGui.End();
+				}
+				return ent;
+			}
+		}
+
+		public IEnumerable<Entity> GetEntities() => EntityCache.GetEntities(); // mostly to make it easy to browse
 
 		public WorldData WorldData => Cache.ptrWorldData == IntPtr.Zero ? null :
 			new WorldData() { Address = Cache.ptrWorldData };

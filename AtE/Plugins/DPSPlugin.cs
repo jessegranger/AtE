@@ -38,7 +38,6 @@ namespace AtE.Plugins {
 
 		public DPSPlugin():base() {
 			OnAreaChange += (sender, areaName) => {
-				// TODO: end of area report
 				trackingMonsters.Clear();
 			};
 		}
@@ -56,7 +55,7 @@ namespace AtE.Plugins {
 		}
 
 		public override IState OnTick(long dt) {
-			if ( Enabled && !Paused ) {
+			if ( Enabled && !Paused && PoEMemory.IsAttached ) {
 				foreach(var ent in GetEnemies().Where(IsValid) ) {
 					var rarity = ent.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White;
 					if( rarity >= Offsets.MonsterRarity.Rare ) {

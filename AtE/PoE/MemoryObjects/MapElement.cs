@@ -9,28 +9,58 @@ using static AtE.Globals;
 namespace AtE {
 	public class MapElement : Element {
 		public Cached<Offsets.Element_Map> Data;
-		public MapElement() : base() => Data = CachedStruct<Offsets.Element_Map>(this);
+		public MapElement() : base() => Data = CachedStruct<Offsets.Element_Map>(() => Address);
 
-		public SubMapElement LargeMap => Address == IntPtr.Zero || Data.Value.ptrToSubMap_Full == IntPtr.Zero ? null
-			: new SubMapElement() { Address = Data.Value.ptrToSubMap_Full };
+		private IntPtr lastKnownLargeMapAddress = IntPtr.Zero;
+		private SubMapElement lastKnownLargeMap;
+		public SubMapElement LargeMap {
+			get {
+				if ( IsValid(Address) ) {
+					IntPtr largeMapPtr = Data.Value.ptrToSubMap_Full;
+					if ( IsValid(largeMapPtr) ) {
+						if ( lastKnownLargeMapAddress != largeMapPtr ) {
+							lastKnownLargeMap = new SubMapElement() { Address = largeMapPtr };
+						}
+						return lastKnownLargeMap;
+					} else {
+						lastKnownLargeMap = null;
+						lastKnownLargeMapAddress = IntPtr.Zero;
+					}
+				}
+				return null;
+			}
+		}
 
-		public SubMapElement MiniMap => Address == IntPtr.Zero || Data.Value.ptrToSubMap_Mini == IntPtr.Zero ? null
-			: new SubMapElement() { Address = Data.Value.ptrToSubMap_Mini };
+		private IntPtr lastKnownMiniMapAddress = IntPtr.Zero;
+		private SubMapElement lastKnownMiniMap;
+		public SubMapElement MiniMap {
+			get {
+				if ( IsValid(Address) ) {
+					IntPtr miniMapPtr = Data.Value.ptrToSubMap_Mini;
+					if ( IsValid(miniMapPtr) ) {
+						if ( lastKnownMiniMapAddress != miniMapPtr ) {
+							lastKnownMiniMap = new SubMapElement() { Address = miniMapPtr };
+						}
+						return lastKnownMiniMap;
+					} else {
+						lastKnownMiniMap = null;
+						lastKnownMiniMapAddress = IntPtr.Zero;
+					}
+				}
+				return null;
+
+			}
+		}
 
 		public class SubMapElement : Element {
 			public Cached<Offsets.Element_SubMap> Data;
-			public SubMapElement() : base() => Data = CachedStruct<Offsets.Element_SubMap>(this);
+			public SubMapElement() : base() => Data = CachedStruct<Offsets.Element_SubMap>(() => Address);
 			public Vector2 Shift => Data.Value.Shift;
 			public Vector2 DefaultShift => Data.Value.DefaultShift;
 			public float Zoom => Data.Value.Zoom;
 		}
 		private static readonly float COS_CAMERA_ANGLE = (float)Math.Cos(38f * (float)Math.PI / 180f);
 		private static readonly float SIN_CAMERA_ANGLE = (float)Math.Sin(38f * (float)Math.PI / 180f);
-		private Vector2 DeltaInWorldToMinimapDelta(Vector2 delta, double diag, float scale, float deltaZ = 0) {
-			return new Vector2(
-				(delta.X - delta.Y) * (float)(diag * COS_CAMERA_ANGLE / scale),
-				deltaZ - ((delta.X + delta.Y) * (float)(diag * SIN_CAMERA_ANGLE / scale)));
-		}
 
 		static MapElement() {
 			new HotKey(Keys.Tab).OnRelease += (sender, args) => UpdateMiniMapRect();
@@ -81,14 +111,20 @@ namespace AtE {
 		private static float largeMapRotSin;
 		private static void UpdateMiniMapRect() {
 			var ui = GetUI();
-			if ( !IsValid(ui) ) return;
-			var mapRect = ui.Map?.MiniMap?.GetClientRect() ?? RectangleF.Empty;
+			if ( !IsValid(ui) ) {
+				return;
+			}
+
+			RectangleF mapRect = ui.Map?.MiniMap?.GetClientRect() ?? RectangleF.Empty;
 			miniMapCenter = new Vector2(mapRect.X + (mapRect.Width / 2f), mapRect.Y + (mapRect.Height / 2f));
 			miniMapDiag = (float)Math.Sqrt((mapRect.Width * mapRect.Width) + (mapRect.Height * mapRect.Height));
 			Log($"Minimap setting center and diag: {miniMapCenter} {miniMapDiag}");
 			var camera = GetCamera();
 			var largeMap = ui.Map?.LargeMap;
-			if ( !IsValid(largeMap) ) return;
+			if ( !IsValid(largeMap) ) {
+				return;
+			}
+
 			largeMapCenter = new Vector2(camera.Width / 2, camera.Height / 2) + largeMap.Shift + largeMap.DefaultShift;
 			largeMapDiag = (float)Math.Sqrt((camera.Width * camera.Width) + (camera.Height * camera.Height));
 			float k = camera.Width < 1024f ? 1120f : 1024f;

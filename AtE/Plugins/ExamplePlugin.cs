@@ -25,7 +25,7 @@ namespace AtE {
 		/// <param name="dt">duration of this frame, in ms</param>
 		/// <returns>This plugin, or another IState to replace it.</returns>
 		public override IState OnTick(long dt) {
-			if ( Enabled && !Paused ) {
+			if ( Enabled && !Paused && PoEMemory.IsAttached ) {
 				if ( ShowDemoWindow ) {
 					ImGui.ShowDemoWindow();
 				}

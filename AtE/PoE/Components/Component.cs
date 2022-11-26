@@ -74,8 +74,8 @@ namespace AtE {
 
 		public int AnimationId => Cache.AnimationId;
 
-		public ActorAction CurrentAction => Address == IntPtr.Zero || Cache.ptrAction == IntPtr.Zero ? null :
-			new ActorAction() { Address = Cache.ptrAction };
+		public ActorAction CurrentAction => IsValid(Address) && IsValid(Cache.ptrAction) ?
+			new ActorAction() { Address = Cache.ptrAction } : null;
 
 		public IEnumerable<ActorSkill> Skills =>
 			new ArrayHandle<Offsets.ActorSkillArrayEntry>(Cache.ActorSkillsHandle)
@@ -101,15 +101,12 @@ namespace AtE {
 			// );
 	}
 
-	public class ActorAction : MemoryObject {
-		public Cached<Offsets.Component_Actor_Action> Cache;
-		public ActorAction() => Cache = CachedStruct<Offsets.Component_Actor_Action>(this);
+	public class ActorAction : MemoryObject<Offsets.Component_Actor_Action> {
 
-		public Entity Target => Address == IntPtr.Zero ? null :
-			new Entity() { Address = Cache.Value.Target };
+		public Entity Target => IsValid(Address) ? EntityCache.Get(Address) : null;
 
-		public long Skill => Cache.Value.Skill;
-		public Vector2 Destination => Cache.Value.Destination;
+		public long Skill => Cache.Skill;
+		public Vector2 Destination => Cache.Destination;
 	}
 
 	public class ActorSkill : MemoryObject<Offsets.ActorSkill>, IDisposable {
@@ -215,8 +212,8 @@ namespace AtE {
 
 	public class Animated : Component<Offsets.Component_Animated> {
 
-		public Entity AnimatedObject => Cache.ptrToAnimatedEntity == IntPtr.Zero ? null :
-			new Entity() { Address = Cache.ptrToAnimatedEntity };
+		public Entity AnimatedObject => IsValid(Address) && IsValid(Cache.ptrToAnimatedEntity) ?
+			EntityCache.Get(Cache.ptrToAnimatedEntity) : null;
 	}
 
 
@@ -323,7 +320,7 @@ namespace AtE {
 				return true;
 			}
 			int count = buffsArray.ItemCount(8); // sizeof(IntPtr)
-			if ( count < 0 || count > 250 ) {
+			if ( count < 0 || count > 500 ) {
 				Log($"Rejecting corrupt(?) buffs data with {count} elements.");
 				return false;
 			}
@@ -332,7 +329,7 @@ namespace AtE {
 			buffCache = null;
 			if ( count > 0 ) {
 				if ( 0 == PoEMemory.TryRead(buffsArray.Head, buffPtrs) ) {
-					Log($"Failed to read buffs data from {Format(buffsArray.Head)}");
+					Log($"Failed to read buffs data from {Describe(buffsArray.Head)}");
 					return false;
 				}
 			}
@@ -369,7 +366,7 @@ namespace AtE {
 			UpdateBuffPtrs();
 			if( buffCache == null ) {
 				// collect all the buff names and store them for quicker access
-				buffCache = new HashSet<string>(buffPtrs.Select(ptr => new Buff() { Address = ptr }.Name));
+				buffCache = new HashSet<string>(buffPtrs.Select(ptr => IsValid(ptr) ? new Buff() { Address = ptr }.Name : "invalid"));
 			}
 			return buffCache.Contains(buffName);
 		}
@@ -489,7 +486,7 @@ namespace AtE {
 
 	public class Mods : Component<Offsets.Component_Mods> {
 		public Cached<Offsets.ModStats> Stats;
-		public Mods() : base() => Stats = CachedStruct<Offsets.ModStats>(this);
+		public Mods() : base() => Stats = CachedStruct<Offsets.ModStats>(() => Address);
 
 		public bool IsIdentified => Cache.Identified;
 		public Offsets.ItemRarity Rarity => Cache.ItemRarity;
@@ -566,8 +563,8 @@ namespace AtE {
 		public Offsets.Vector2i PrevPos => Cache.WasInThisPosition;
 		public Offsets.Vector2i TargetPos => Cache.WantMoveToPosition;
 
-		public float StayTime => Cache.StayTime;
-		public bool IsMoving => Cache.IsMoving == 2;
+		public float TimeSinceLastMovementStart => Cache.StayTime;
+		public bool IsMoving => Cache.IsMoving > 0; // really it is flags, 2 = moving directly, 4 = pathfinding around an obstacle? maybe some other flags for bumping into ents
 	}
 
 	public class Player : Component<Offsets.Component_Player> {
@@ -587,7 +584,7 @@ namespace AtE {
 		public Offsets.Vector2i GridPos => Cache.GridPos;
 		public Vector2 GridPosF => new Vector2(Cache.GridPos.X, Cache.GridPos.Y);
 		public Vector2 WorldPos => Cache.WorldPos;
-		public float Roation => Cache.Rotation;
+		public float Rotation => Cache.Rotation;
 		public float Scale => Cache.Scale;
 		public int Size => Cache.Size;
 		public byte Reaction => Cache.Reaction;
@@ -629,7 +626,7 @@ namespace AtE {
 
 	public class SkillGem : Component<Offsets.Component_SkillGem> {
 		public Cached<Offsets.SkillGemDetails> Details;
-		public SkillGem() : base() => Details = CachedStruct<Offsets.SkillGemDetails>(this);
+		public SkillGem() : base() => Details = CachedStruct<Offsets.SkillGemDetails>(() => Address);
 
 		public uint XP => Cache.TotalExpGained;
 		public uint Level => Cache.Level;
@@ -701,8 +698,8 @@ namespace AtE {
 	}
 
 	public class WorldItem : Component<Offsets.Component_WorldItem> {
-		public Entity Item => Cache.entItem == IntPtr.Zero ? null :
-			new Entity() { Address = Cache.entItem };
+		public Entity Item => IsValid(Address) && IsValid(Cache.entItem) ?
+			EntityCache.Get(Cache.entItem) : null;
 	}
 
 	public class Usable : Component<Offsets.Component_Empty> {

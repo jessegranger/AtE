@@ -21,6 +21,22 @@ namespace AtE {
 
 		public static IEnumerable<T> Empty<T>() { yield break; }
 
+		public static bool IsValid(Vector2 v) => !(
+			float.IsNaN(v.X)
+			|| float.IsInfinity(v.X)
+			|| float.IsNaN(v.Y)
+			|| float.IsInfinity(v.Y)
+		);
+
+		public static bool IsValid(Vector3 v) => !(
+			float.IsNaN(v.X)
+			|| float.IsInfinity(v.X)
+			|| float.IsNaN(v.Y)
+			|| float.IsInfinity(v.Y)
+			|| float.IsNaN(v.Z)
+			|| float.IsInfinity(v.Z)
+		);
+
 		public static IEnumerable<float> Range(float from, float to, float step = 1f) {
 			for (;from < to; from += step) {
 				yield return from;
@@ -59,7 +75,7 @@ namespace AtE {
 				 .GetCustomAttribute<FieldOffsetAttribute>()
 				 .Value;
 
-		public static void Log(params string[] line) => Debug.WriteLine(string.Join(" ", line));
+		public static void Log(params string[] line) => Debug.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] " + string.Join(" ", line));
 
 		public static EventHandler<string> OnAreaChange;
 
@@ -140,6 +156,11 @@ namespace AtE {
 		public static float Distance(Vector2 a, Vector2 b) => (a - b).Length();
 
 		public static Vector2 Center(RectangleF rect) => new Vector2(rect.Left + (rect.Width / 2), rect.Top + (rect.Height / 2));
+
+		public static string Describe(Offsets.Vector2i v) => $"<{v.X}, {v.Y}>";
+		public static string Describe(Vector2 v) => $"<{v.X}, {v.Y}>";
+		public static string Describe(Vector3 v) => $"<{v.X}, {v.Y}, {v.Z}>";
+
 
 	}
 }

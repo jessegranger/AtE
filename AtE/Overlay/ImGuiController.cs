@@ -381,9 +381,17 @@ namespace AtE {
 
 		public static void DrawText(string text, Vector2 pos, Color color) => textDrawListPtr.AddText(pos, (uint)ToRGBA(color), text);
 
-		public static void DrawFrame(Vector2 topLeft, Vector2 bottomRight, Color color, int thickness = 1) => textDrawListPtr.AddRect(topLeft, bottomRight, (uint)ToRGBA(color), 0f, ImDrawFlags.None, thickness);
+		public static void DrawFrame(Vector2 topLeft, Vector2 bottomRight, Color color, int thickness = 1) {
+			if ( IsValid(topLeft) && IsValid(bottomRight) ) {
+				textDrawListPtr.AddRect(topLeft, bottomRight, (uint)ToRGBA(color), 0f, ImDrawFlags.None, thickness);
+			}
+		}
 
-		public static void DrawCircle(Vector2 pos, float radius, Color color, int thickness = 1) => textDrawListPtr.AddCircle(pos, radius, (uint)ToRGBA(color), 0, thickness);
+		public static void DrawCircle(Vector2 pos, float radius, Color color, int thickness = 1) {
+			if ( IsValid(pos) ) {
+				textDrawListPtr.AddCircle(pos, radius, (uint)ToRGBA(color), 0, thickness);
+			}
+		}
 		public static void DrawLine(Vector2 start, Vector2 end, Color color, int thickness = 1) => textDrawListPtr.AddLine(start, end, (uint)ToRGBA(color), thickness);
 
 		public static void Render(long dt) {

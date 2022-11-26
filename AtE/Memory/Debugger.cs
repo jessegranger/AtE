@@ -22,7 +22,7 @@ namespace AtE {
 			ViewAddress = addr;
 			BaseAddress = addr;
 			InputAddress = $"{(long)addr:X16}";
-			Id = $"Debugger@{Globals.Format(addr)}";
+			Id = $"Debugger@{Describe(addr)}";
 			Log($"Debugger: created to view {ViewAddress}");
 		}
 
@@ -166,35 +166,36 @@ namespace AtE {
 							ImGui.Text($"0x{longValue:X}");
 							ImGui.TableNextColumn();
 							IntPtr ptr = new IntPtr(longValue);
-							Element elem = new Element() { Address = ptr };
-							if ( IsValid(elem) ) {
-								ImGui.AlignTextToFramePadding();
-								ImGui.Text("ptr Element"); ImGui.SameLine();
-								if ( ImGui.Button($"B##{longValue:X}") ) {
-									Run_ObjectBrowser($"Unknown Element {longValue:X}",
-										new Element() { Address = ptr });
-								} else if( ImGui.IsItemHovered() ) {
-									DrawFrame(elem.GetClientRect(), Color.Yellow, 2);
+							if ( IsValid(ptr) ) {
+								Element elem = new Element() { Address = ptr };
+								if ( IsValid(elem) ) {
+									ImGui.AlignTextToFramePadding();
+									ImGui.Text("ptr Element"); ImGui.SameLine();
+									if ( ImGui.Button($"B##{longValue:X}") ) {
+										Run_ObjectBrowser($"Unknown Element {longValue:X}",
+											new Element() { Address = ptr });
+									} else if ( ImGui.IsItemHovered() ) {
+										DrawFrame(elem.GetClientRect(), Color.Yellow, 2);
+									}
+								} else if ( EntityCache.Probe(ptr) ) {
+									ImGui.AlignTextToFramePadding();
+									ImGui.Text("ptr Entity"); ImGui.SameLine();
+									if ( ImGui.Button($"B##{longValue:X}") ) {
+										Run_ObjectBrowser($"Unknown Entity {longValue:X}",
+											EntityCache.Get(ptr));
+									}
+								} else {
+									// if( PoEMemory.TryReadString(new Address(0, longValue), Encoding.Unicode, out string uni) ) {
+									// ImGui.Text($"u\"{Truncate(uni,10)}\"");
+									// }
+									if ( PoEMemory.TryReadString(ptr, Encoding.ASCII, out string asc, 16) ) {
+										ImGui.Text($"s\"{Truncate(asc.Replace('\n', '?'), 16)}\"");
+									}
+									ImGui.TableNextColumn();
+									if ( PoEMemory.TryReadString(ptr, Encoding.Unicode, out string utf, 16) ) {
+										ImGui.Text($"u\"{Truncate(utf.Replace('\n', '?'), 16)}\"");
+									}
 								}
-							} else if ( IsValid(new Entity() { Address = ptr }) ) {
-								ImGui.AlignTextToFramePadding();
-								ImGui.Text("ptr Entity"); ImGui.SameLine();
-								if ( ImGui.Button($"B##{longValue:X}") ) {
-									Run_ObjectBrowser($"Unknown Entity {longValue:X}",
-										new Entity() { Address = ptr });
-								}
-							} else {
-								// if( PoEMemory.TryReadString(new Address(0, longValue), Encoding.Unicode, out string uni) ) {
-								// ImGui.Text($"u\"{Truncate(uni,10)}\"");
-								// }
-								if ( PoEMemory.TryReadString(ptr, Encoding.ASCII, out string asc, 16) ) {
-									ImGui.Text($"s\"{Truncate(asc.Replace('\n','?'), 16)}\"");
-								}
-								ImGui.TableNextColumn();
-								if ( PoEMemory.TryReadString(ptr, Encoding.Unicode, out string utf, 16) ) {
-									ImGui.Text($"u\"{Truncate(utf.Replace('\n','?'), 16)}\"");
-								}
-
 							}
 						} else {
 							ImGui.Text($"<??>");

@@ -92,7 +92,18 @@ namespace AtE {
 		/// <returns>true if successful</returns>
 		public static bool TryRead<T>(IntPtr loc, out T result) where T : unmanaged {
 			result = new T();
-			return IsValid(loc) && ReadProcessMemory(Handle, loc, ref result);
+			if( !IsValid(loc) ) {
+				return false;
+			}
+			if( ReadProcessMemory(Handle, loc, ref result) ) {
+				return true;
+			}
+			Log($"TryRead: failed to read address {Describe(loc)} error: {LastError}");
+			if ( LastError == 6 ) { // ERROR_INVALID_HANDLE 
+															// Detach();
+				// throw new Exception("TryReadError");
+			}
+			return false;
 		}
 
 		/// <summary>
@@ -131,9 +142,9 @@ namespace AtE {
 		private static byte[] exeImage;
 
 		// TODO: might be helpful later to have a FindInHeap (that enumerates allocated pages and scans them)
-
-		// TODO: if we need to search many patterns, we can do them all in one pass over exeImage for better cache usage
+		// if we need to search many patterns, we can do them all in one pass over exeImage for better cache usage
 		// eg, we don't currently scan for the file patterns to parse the data files yet
+		// TODO: scan for file base pattern
 
 		private static bool TryFindPatternInExe(out IntPtr result, string mask, params byte[] pattern) {
 			result = IntPtr.Zero;
@@ -174,7 +185,7 @@ namespace AtE {
 						}
 						if ( thisMatchScore == pattern.Length ) {
 							result = new IntPtr(baseAddress.ToInt64() + offset);
-							Log($"PoEMemory: Found pattern at {Format(result)}");
+							Log($"PoEMemory: Found pattern at {Describe(result)}");
 							return true;
 						}
 					} else {
@@ -195,6 +206,7 @@ namespace AtE {
 		public static bool IsAttached => IsValid(Target)
 			&& Handle != IntPtr.Zero
 			&& IsValid(GameRoot);
+		private static bool wasAttached = false;
 
 		public static EventHandler OnAttach;
 		public static EventHandler OnDetach;
@@ -203,9 +215,9 @@ namespace AtE {
 		private static long nextCheckResize = Time.ElapsedMilliseconds + 3000;
 
 		internal static void OnTick(long dt) {
-			TargetHasFocus = false;
 
 			if ( IsAttached ) {
+				wasAttached = true;
 				TargetHasFocus = Target.MainWindowHandle == Win32.GetForegroundWindow();
 				SpriteController.Enabled =  // same as:
 				ImGuiController.Enabled = !PluginBase.GetPlugin<CoreSettings>().OnlyRenderWhenFocused || Overlay.HasFocus || TargetHasFocus;
@@ -222,7 +234,11 @@ namespace AtE {
 				}
 
 			} else {
-
+				TargetHasFocus = false;
+				if( wasAttached ) {
+					Detach();
+				}
+				wasAttached = false;
 				// try to find a window to attach to
 				if ( Time.ElapsedMilliseconds > nextAttach ) {
 					if ( TryOpenWindow(out Target, out IntPtr hWnd) ) {
@@ -268,7 +284,7 @@ namespace AtE {
 
 			Target = target;
 			try {
-				Handle = OpenProcess(ProcessAccessFlags.VirtualMemoryRead | ProcessAccessFlags.Read, Target.Id);
+				Handle = OpenProcess(ProcessAccessFlags.VirtualMemoryRead, Target.Id);
 				if ( Handle == IntPtr.Zero ) {
 					Log($"PoEMemory: OpenProcess failed.");
 					Detach();
@@ -286,7 +302,7 @@ namespace AtE {
 				Detach();
 				return;
 			}
-			Log($"PoEMemory: Game State Base Search Pattern matched at {Format(matchAddress)}");
+			Log($"PoEMemory: Game State Base Search Pattern matched at {Describe(matchAddress)}");
 			// this first location is in the code section where the pattern matched (at the start of the pattern)
 			// so skip 8, read an integer from there in the code that is a local offset to a global in the code section
 			if ( !TryRead(matchAddress + Offsets.GameRoot_SearchPattern.Length, out int localOffset) ) {
@@ -303,7 +319,7 @@ namespace AtE {
 			}
 
 			GameRoot = new GameRoot() { Address = baseRefs.ptrToGameRootPtr };
-			Log($"PoEMemory: Game State Base is {Format(GameRoot.Address)}");
+			Log($"PoEMemory: Game State Base is {Describe(GameRoot.Address)}");
 			if ( !GameRoot.IsValid ) {
 				Log($"PoEMemory: Game State Base address resulted in an invalid GameRoot.");
 				Detach();

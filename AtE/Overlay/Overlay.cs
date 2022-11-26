@@ -7,6 +7,7 @@ using static AtE.Globals;
 
 namespace AtE {
 	public static class Overlay {
+
 		public static OverlayForm RenderForm;
 		public static long FrameCount;
 		public static readonly AutoResetEvent FrameLock = new AutoResetEvent(false);
@@ -24,7 +25,8 @@ namespace AtE {
 			RenderForm = new OverlayForm {
 				Text = "Assistant to the Exile",
 				Width = 800,
-				Height = 600
+				Height = 600,
+				BackColor = Color.Black
 			};
 			RenderForm.ShowInTaskbar = false;
 			RenderForm.Load += (sender, args) => {
@@ -88,40 +90,40 @@ namespace AtE {
 			Log("Starting Render loop...");
 			long lastRenderTime = Time.ElapsedMilliseconds - 16;
 			Perf.Clear();
-			SharpDX.Windows.RenderLoop.Run(RenderForm, () => {
-				FrameCount += 1;
-				framesSinceSleep += 1;
-				long dt = Time.ElapsedMilliseconds - lastRenderTime;
-				var settings = PluginBase.GetPlugin<CoreSettings>();
-				FPS = dt == 0 ? 999d : 1000f / dt;
-				lastRenderTime += dt;
+			try {
+				SharpDX.Windows.RenderLoop.Run(RenderForm, () => {
+					FrameCount += 1;
+					framesSinceSleep += 1;
+					long dt = Time.ElapsedMilliseconds - lastRenderTime;
+					var settings = PluginBase.GetPlugin<CoreSettings>();
+					FPS = dt == 0 ? 999d : 1000f / dt;
+					lastRenderTime += dt;
 
-				// Clear the prior frame and start a new frame
-				D3DController.NewFrame();
-				ImGuiController.NewFrame(dt);
-				SpriteController.NewFrame(dt);
+					// Clear the prior frame and start a new frame
+					D3DController.NewFrame();
+					ImGuiController.NewFrame(dt);
+					SpriteController.NewFrame(dt);
 
-				Perf.Render(ref settings.ShowPerformanceWindow); // data about prior frame
+					Perf.Render(ref settings.ShowPerformanceWindow); // data about prior frame
 
-				// Advance all the States by one frame
-				// in here they end up calling ImGuiController and SpriteController Draw functions
-				// this adds up some draw lists
-				StateMachine.DefaultMachine.OnTick(dt);
+					// Advance all the States by one frame
+					// in here they end up calling ImGuiController and SpriteController Draw functions
+					// this adds up some draw lists
+					StateMachine.DefaultMachine.OnTick(dt);
 
-				// Render the draw lists to vertexes and Draw them to the GPU
-				using ( Perf.Section("Render: Sprites") ) {
+					// Render the draw lists to vertexes and Draw them to the GPU
 					SpriteController.Render(dt);
-				}
-				using ( Perf.Section("Render: ImGui") ) {
 					ImGuiController.Render(dt);
-				}
-				using ( Perf.Section("VSync") ) {
-					// Finalize the rendering to the screen by swapping the back buffer
-					D3DController.Render();
-				}
-				FrameLock.Set();
+					using ( Perf.Section("VSync") ) {
+						// Finalize the rendering to the screen by swapping the back buffer
+						D3DController.Render();
+					}
+					FrameLock.Set();
 
-			}, true);
+				}, true);
+			} finally {
+				IsClosed = true;
+			}
 		}
 	}
 

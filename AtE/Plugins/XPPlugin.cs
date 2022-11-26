@@ -91,7 +91,11 @@ namespace AtE {
 		private Queue<Vector3> dyingMonsters = new Queue<Vector3>();
 
 		public override IState OnTick(long dt) {
-			if ( Enabled && ! Paused ) {
+			if ( dt == 0 ) {
+				return this;
+			}
+
+			if ( Enabled && ! Paused && PoEMemory.IsAttached ) {
 				if( !( ShowXPRate || ShowPickups ) ) {
 					return this;
 				}
@@ -127,7 +131,7 @@ namespace AtE {
 							dyingMonsters.Enqueue(ent.GetComponent<Render>()?.Position ?? Vector3.Zero);
 						}
 					}
-					DrawBottomLeftText($"Tracking {aliveThisFrame.Count} alive / {dyingMonsters.Count} dead ents...", Color.Yellow);
+					// DrawBottomLeftText($"Tracking {aliveThisFrame.Count} alive / {dyingMonsters.Count} dead ents...", Color.Yellow);
 					aliveLastFrame = aliveThisFrame;
 				}
 
@@ -156,10 +160,13 @@ namespace AtE {
 					xpPerMs = MovingAverage(xpPerMs, xpGain / dt, 1000);
 					if ( xpPerMs > 0f && ShowXPRate ) {
 						// translate the xpPerMs into %/hr and hrs until level
+						uint xpInThisLevel = xpToNextLevel[player.Level] - xpToNextLevel[player.Level - 1];
 						uint xpToLevel = xpToNextLevel[player.Level] - player.XP;
 						var pctPerHr = (xpPerMs * 100 * 1000 * 60 * 60) / xpToLevel;
 						var msToLevel = xpToLevel / xpPerMs;
 						var hrToLevel = Math.Min(999, msToLevel / (1000 * 60 * 60));
+						// re-do pctPerHr with an absolute base of the whole level
+						pctPerHr = (xpPerMs * 100 * 1000 * 60 * 60) / xpInThisLevel;
 						string status = $"xp {pctPerHr:F2}%/hr eta {hrToLevel:F2} hrs";
 						// if the xp bar UI element is known, position next to it
 						var ui = GetUI();

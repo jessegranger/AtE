@@ -230,6 +230,10 @@ namespace AtE {
 				return false;
 			}
 
+			if ( type.IsSubclassOf(typeof(MemoryObject)) ) {
+				return ImGui.TreeNode($"{prefix} as {type.Name} @ {Describe(((MemoryObject)value).Address)}");
+			}
+
 			return ImGui.TreeNode($"{prefix} as {type.Name}");
 
 		}

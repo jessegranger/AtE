@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Numerics;
 using System.Windows.Forms;
 using static AtE.Globals;
 
@@ -39,7 +40,9 @@ namespace AtE.Plugins {
 				BuffName = buffName;
 			}
 			public override string ToString() => $"{DisplayName}={(Enabled ? "" : Key.ToString())}";
-			public abstract bool Predicate(PlayerEntity p);
+			public virtual bool Predicate(PlayerEntity p) {
+				return Enabled && !HasBuff(p, BuffName);
+			}
 			public virtual void Configure() {
 				ImGui.TableNextColumn();
 				ImGui.Checkbox($"##{DisplayName}", ref Enabled);
@@ -86,7 +89,7 @@ namespace AtE.Plugins {
 
 		public class BloodRageData : SkillData {
 			public BloodRageData() : base("Blood Rage", "blood_rage", "blood_rage") { }
-			public override bool Predicate(PlayerEntity p) => IsFullLife(p);
+			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && IsFullLife(p);
 			public override void Configure() {
 				base.Configure();
 				ImGui_HelpMarker("Will re-apply Blood Rage once you are full life.");
@@ -95,7 +98,7 @@ namespace AtE.Plugins {
 
 		public class CorruptingFeverData : SkillData {
 			public CorruptingFeverData() : base("Corrupting Fever", "CorruptingFever", "blood_surge") { }
-			public override bool Predicate(PlayerEntity p) => IsFullLife(p);
+			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && IsFullLife(p);
 		}
 
 		/// <summary>
@@ -104,7 +107,7 @@ namespace AtE.Plugins {
 		public class SteelskinData : SkillData {
 			public int UseAtLifePercent = 90;
 			public SteelskinData() : base("Steelskin", "steelskin", "quick_guard") { }
-			public override bool Predicate(PlayerEntity p) => HasBuff(p, "bleeding") || IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
+			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && HasBuff(p, "bleeding") || IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
 			public override void Configure() {
 				base.Configure();
 				ImGui.Text(" at ");
@@ -116,7 +119,7 @@ namespace AtE.Plugins {
 		public class ImmortalCallData : SkillData {
 			public int UseAtLifePercent = 90;
 			public ImmortalCallData() : base("Immortal Call", "mortal_call", "mortal_call") { }
-			public override bool Predicate(PlayerEntity p) => IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
+			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
 			public override void Configure() {
 				base.Configure();
 				ImGui.Text(" at ");
@@ -128,7 +131,7 @@ namespace AtE.Plugins {
 		public class MoltenShellData : SkillData {
 			public int UseAtLifePercent = 90;
 			public MoltenShellData() : base("Molten Shell", "molten_shell_barrier", "molten_shell_shield") { }
-			public override bool Predicate(PlayerEntity p) => IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
+			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood")) && !HasBuff(p, "vaal_molten_shell");
 			public override void Configure() {
 				base.Configure();
 				ImGui.Text(" at ");
@@ -139,8 +142,8 @@ namespace AtE.Plugins {
 
 		public class EnduringCryData : SkillData {
 			public int UseAtLifePercent = 90;
-			public EnduringCryData() : base("Enduring Cry", "EnduringCry", "enduring_cry_endurance_charge_benefits") { }
-			public override bool Predicate(PlayerEntity p) => IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
+			public EnduringCryData() : base("Enduring Cry", "enduring_cry", "enduring_cry_endurance_charge_benefits") { }
+			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
 			public override void Configure() {
 				base.Configure();
 				ImGui.SameLine();
@@ -152,8 +155,8 @@ namespace AtE.Plugins {
 
 		public class BerserkData : SkillData {
 			public int MinRage = 25;
-			public BerserkData() : base("Berserk", "Berserk", "berserk") { }
-			public override bool Predicate(PlayerEntity p) => HasEnoughRage(p, MinRage);
+			public BerserkData() : base("Berserk", "berserk", "berserk") { }
+			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && HasEnoughRage(p, MinRage);
 			public override void Configure() {
 				base.Configure();
 				ImGui.SliderInt("Minimum Rage", ref MinRage, 10, 70);
@@ -162,7 +165,7 @@ namespace AtE.Plugins {
 
 		public class WitheringStepData : SkillData {
 			public WitheringStepData() : base("Withering Step", "Slither", "slither") { }
-			public override bool Predicate(PlayerEntity p) => false; // TODO: should check NearbyEnemies for rares with no wither stacks
+			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && false; // TODO: should check NearbyEnemies for rares with no wither stacks
 		}
 
 		public class PlagueBearerData : SkillData {
@@ -172,7 +175,7 @@ namespace AtE.Plugins {
 				// once the simpler skills are working, I will look more into it
 				var buffs = p.GetComponent<Buffs>();
 				if ( !IsValid(buffs) ) return false;
-				return HasBuff(buffs, "corrosive_shroud_at_max_damage") || !HasBuff(buffs, "corrossive_shroud_buff");
+				return base.Predicate(p) && HasBuff(buffs, "corrosive_shroud_at_max_damage") || !HasBuff(buffs, "corrossive_shroud_buff");
 			}
 		}
 
@@ -186,8 +189,10 @@ namespace AtE.Plugins {
 				StageBuffName = stageBuffName;
 			}
 			public override bool Predicate(PlayerEntity p) =>
-				TryGetBuffValue(p, StageBuffName, out int stage) && stage >= 50
-					&& NearbyEnemies(100, Offsets.MonsterRarity.Rare).Any();
+				base.Predicate(p) ||
+				(TryGetBuffValue(p, StageBuffName, out int stage) && stage >= 50
+					&& NearbyEnemies(500, Offsets.MonsterRarity.Rare).Any(IsAlive)
+				);
 		}
 
 		public class DefianceBanner : BannerSkill { public DefianceBanner() : base("Defiance Banner", "banner_armour_evasion", "armour_evasion_banner_buff_aura", "armour_evasion_banner_stage") { } }
@@ -195,7 +200,7 @@ namespace AtE.Plugins {
 		public class WarBanner : BannerSkill { public WarBanner() : base("War Banner", "banner_war", "bloodstained_banner_buff_aura", "bloodstained_banner_stage") { } }
 
 		public class TemporalRift : SkillData {
-			public TemporalRift() : base("Temporal Rift", "temporal_rift", null) { }
+			public TemporalRift() : base("Temporal Rift", "temporal_rift", "chronomancer") { }
 
 			public int UseForGain = 40;
 
@@ -204,6 +209,14 @@ namespace AtE.Plugins {
 			private int[] ehpSamples = new int[4];
 
 			public override bool Predicate(PlayerEntity p) {
+				if ( !Enabled ) {
+					return false;
+				}
+
+				if ( !HasBuff(p, "chronomancer") ) {
+					return true;
+				}
+
 				var life = p.GetComponent<Life>();
 				int hp = (int)CurrentEHP(life);
 				long now = Time.ElapsedMilliseconds;
@@ -218,11 +231,7 @@ namespace AtE.Plugins {
 					ehpSamples[3] = hp;
 					lastRiftSample = now;
 				}
-				if( pctGain >= UseForGain ) {
-					Notify($"Using temporal rift to gain {pctGain}");
-					return true;
-				}
-				return false;
+				return pctGain >= UseForGain;
 			}
 
 			public override void Configure() {
@@ -243,9 +252,9 @@ namespace AtE.Plugins {
 			{ "War Banner", new WarBanner() },
 			{ "Dread Banner", new DreadBanner() },
 			{ "Temporal Rift", new TemporalRift() },
+			{ "Berserk", new BerserkData() },
 			// { "Corrupting Fever", new CorruptingFeverData() },
 			// { "Enduring Cry", new EnduringCryData() },
-			// { "Berserk", new BerserkData() },
 			// { "Plague Bearer", new PlagueBearerData() },
 			// { "Withering Step", new WitheringStepData() },
 			// { "Vaal Grace", new SkillData("Vaal Grace", "vaal_grace", "vaal_aura_dodge", null, (p) => true) },
@@ -283,27 +292,54 @@ namespace AtE.Plugins {
 		/// <returns>This plugin, or another IState to replace it.</returns>
 		public override IState OnTick(long dt) {
 			if ( Enabled && !Paused && PoEMemory.TargetHasFocus ) {
+
 				if( PoEMemory.GameRoot.InGameState.WorldData.IsTown ) {
 					return this;
 				}
-				var ui = GetUI();
-				if( ! IsValid(ui) ) { return this; }
-				if( ui.PurchaseWindow.IsVisibleLocal || ui.SellWindow.IsVisibleLocal || ui.TradeWindow.IsVisibleLocal ) {
+
+				if( PoEMemory.GameRoot.InGameState.HasInputFocus ) {
 					return this;
 				}
+
+				if( PoEMemory.GameRoot.AreaLoadingState.IsLoading ) {
+					return this;
+				}
+
+				if( PoEMemory.GameRoot.AreaLoadingState.AreaName?.EndsWith(Offsets.HIDEOUT_SUFFIX) ?? true ) {
+					return this;
+				}
+
+				var ui = GetUI();
+				if ( !IsValid(ui) ) {
+					return this;
+				}
+
+				if ( ui.PurchaseWindow.IsVisibleLocal || ui.SellWindow.IsVisibleLocal || ui.TradeWindow.IsVisibleLocal ) {
+					return this;
+				}
+
 				var player = GetPlayer();
-				if ( !IsValid(player) ) return this;
+				if ( !IsValid(player) ) {
+					return this;
+				}
 
 				var buffs = player.GetComponent<Buffs>();
-				foreach(var buff in KnownSkills.Values) {
-					if ( !buff.Enabled || ((buff.BuffName?.Length ?? 0) != 0 && HasBuff(buffs, buff.BuffName)) ) {
-						continue;
-					}
+				if( HasBuff(buffs, "grace_period") ) {
+					return this;
+				}
 
+				/*
+				DrawTextAt(player, $"HasBuff(bloodstained_banner_buff_aura) = {HasBuff(player, "bloodstained_banner_buff_aura")}", Color.Orange);
+				DrawTextAt(player, $"TryGetBuffValue(bloodstained_banner_stage) = {(TryGetBuffValue(player, "bloodstained_banner_stage", out int stage) ? stage : -1)}", Color.Orange);
+				DrawTextAt(player, $"NearbyEnemies(500, Offsets.MonsterRarity.Rare) = {NearbyEnemies(500, Offsets.MonsterRarity.Rare).Count()}", Color.Orange);
+				*/
+
+
+				foreach(var buff in KnownSkills.Values) {
 					bool pred = buff.Predicate(player);
 					// DrawTextAt(player, $"Checking skill: {buff.DisplayName} => {pred}", Color.Orange);
 					if ( pred && buff.TryUseSkill(player) ) {
-						return this; // cast at most one skill per tick
+						return this; // continue with any other buffs next frame
 					}
 				}
 			}

@@ -22,7 +22,6 @@ namespace AtE {
 				}
 			});
 		}
-		// TODO: RunWhile
 	}
 
 	internal class StateMachine : State {

@@ -1,10 +1,16 @@
-﻿using System;
+﻿using ImGuiNET;
+using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using static AtE.Globals;
 
 namespace AtE {
 
+	/// <summary>
+	/// This is the root of Elements that hold the worn equipment,
+	/// and items carried in the backpack.
+	/// </summary>
 	public class InventoryRoot : Element {
 		public readonly Cached<Offsets.Element_InventoryRoot> Details;
 		public readonly Cached<Offsets.InventoryArray> Inventories;
@@ -32,28 +38,36 @@ namespace AtE {
 		public Inventory LWeaponSwapTabPanel => new Inventory() { Address = Inventories.Value.LWeaponSwapTabPanel };
 		public Inventory RWeaponSwapTabPanel => new Inventory() { Address = Inventories.Value.RWeaponSwapTabPanel };
 	}
+
 	public class Inventory : Element {
-		public Cached<Offsets.Element_Inventory> Details;
-		public Inventory() : base() => Details = CachedStruct<Offsets.Element_Inventory>(() => Address);
+		// public Cached<Offsets.Element_Inventory> Details;
+		// public Inventory() : base() => Details = CachedStruct<Offsets.Element_Inventory>(() => Address);
 
 		/// <summary>
 		/// This is the generic slow way that all Inventory nodes can use.
 		/// More specific code will be needed for specific panels, Maps, Exotic currency, etc
 		/// </summary>
-		public IEnumerable<InventoryItem> VisibleItems => AllVisibleChildren(this, new HashSet<int>())
-			.Select(e => new InventoryItem() { Address = e.Address })
-			.Where(e => IsValid(e) && e.IsVisible);
+		public IEnumerable<InventoryItem> VisibleItems {
+			get {
+				return AllVisibleChildren(this, new HashSet<int>())
+					.Select(e => new InventoryItem() { Address = e.Address })
+					.Where(e => Globals.IsValid(e) && e.IsVisible);
+			}
+		}
 
-		private IEnumerable<Element> AllVisibleChildren(Element cursor, HashSet<int> seen) {
-			foreach(var child in Children) {
-				if ( seen.Contains(child.GetHashCode()) ) continue;
-				seen.Add(child.GetHashCode());
-				if ( IsValid(child) && child.IsVisibleLocal ) {
-					yield return child;
-					foreach ( var grandchild in AllVisibleChildren(child, seen) ) {
-						yield return grandchild;
+		private static IEnumerable<Element> AllVisibleChildren(Element cursor, HashSet<int> seen) {
+			int index = 0;
+			foreach ( Element child in cursor.Children ) {
+				if ( !seen.Contains(child.GetHashCode()) ) {
+					seen.Add(child.GetHashCode());
+					if ( IsValid(child) && child.IsVisibleLocal ) {
+						yield return child;
+						foreach ( var grandchild in AllVisibleChildren(child, seen) ) {
+							yield return grandchild;
+						}
 					}
 				}
+				index += 1;
 			}
 		}
 	}
@@ -66,6 +80,7 @@ namespace AtE {
 		public static bool IsCorrupted(Entity item) => IsValid(item) && (item.GetComponent<Base>()?.IsCorrupted ?? true);
 
 		public static IEnumerable<InventoryItem> BackpackItems() => GetUI()?.InventoryPanel?.Backpack?.VisibleItems.Take(60).Where(IsValid) ?? Empty<InventoryItem>();
+		public static IEnumerable<InventoryItem> StashItems() => new Inventory() { Address = GetUI()?.StashElement?.Address ?? IntPtr.Zero }.VisibleItems;
 
 		public static bool BackpackIsOpen() => GetUI()?.InventoryPanel?.Backpack?.IsVisibleLocal ?? false;
 		public static bool StashIsOpen() => GetUI()?.StashElement?.IsVisibleLocal ?? false;
@@ -74,16 +89,22 @@ namespace AtE {
 	public class InventoryItem : Element {
 		public Cached<Offsets.Element_InventoryItem> Details;
 		public InventoryItem() : base() => Details = CachedStruct<Offsets.Element_InventoryItem>(() => Address);
-		public new bool IsValid => base.IsValid
-			&& Details.Value.entItem != IntPtr.Zero
-			&& Details.Value.Width > 0
-			&& Details.Value.Height > 0
-			&& Details.Value.InventPosition.X >= 0
-			&& Details.Value.InventPosition.Y >= 0
-			&& IsValid(new Entity() { Address = Details.Value.entItem });
+		public override bool IsValid {
+			get {
+				var details = Details.Value;
+				return base.IsValid
+					&& IsValid(details.entItem)
+					&& details.Width > 0
+					&& details.Height > 0
+					&& details.InventPosition.X >= 0
+					&& details.InventPosition.Y >= 0
+					&& EntityCache.Probe(details.entItem) //  IsValid(new Entity() { Address = details.entItem })
+					;
+			}
+		}
 
-		public Entity Entity => Details.Value.entItem == IntPtr.Zero ? null
-			: new Entity() { Address = Details.Value.entItem };
+		public Entity Entity => IsValid(Address) && IsValid(Details.Value.entItem) ?
+			EntityCache.Get(Details.Value.entItem) : null;
 
 		public int X => Details.Value.InventPosition.X;
 		public int Y => Details.Value.InventPosition.Y;
@@ -92,4 +113,9 @@ namespace AtE {
 
 	}
 
+
+	public class StashRoot : Element {
+		public Element CloseButton => GetChild(0);
+
+	}
 }

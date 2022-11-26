@@ -70,13 +70,13 @@ namespace AtE {
 			&& (Time.ElapsedMilliseconds - mostRecentUse[flaskEnt.FlaskIndex]) > 250 // a throttle on each flask
 			;
 
-		public IState UseFlask(FlaskEntity flaskEnt) {
+		public IState UseFlask(FlaskEntity flaskEnt, string reason) {
 			if ( IsUsable(flaskEnt) ) {
 				var now = Time.ElapsedMilliseconds;
 				mostRecentFlask = now;
 				mostRecentUse[flaskEnt.FlaskIndex] = now;
 				if ( PoEMemory.TargetHasFocus ) {
-					Notify($"Using flask {flaskEnt.Key}");
+					Notify($"Using flask {flaskEnt.Key} because {reason}");
 					Win32.SendInput(Win32.INPUT_KeyDown(flaskEnt.Key),
 						Win32.INPUT_KeyUp(flaskEnt.Key));
 				}
@@ -94,7 +94,11 @@ namespace AtE {
 				return this; // keep it in the PluginBase.Machine, but dont do anything
 			}
 
-			if ( !PoEMemory.IsAttached || !PoEMemory.TargetHasFocus ) {
+			if ( !PoEMemory.IsAttached ) {
+				return this;
+			}
+
+			if ( !(PoEMemory.TargetHasFocus || Overlay.HasFocus) ) {
 				return this;
 			}
 
@@ -107,6 +111,11 @@ namespace AtE {
 			}
 
 			if ( PoEMemory.GameRoot?.InGameState?.WorldData?.IsTown ?? true ) {
+				return this;
+			}
+
+			string areaName = PoEMemory.GameRoot?.AreaLoadingState.AreaName ?? null;
+			if( areaName == null || areaName.Equals(Offsets.THE_ROGUE_HARBOUR) || areaName.EndsWith(Offsets.HIDEOUT_SUFFIX) ) {
 				return this;
 			}
 
@@ -128,15 +137,19 @@ namespace AtE {
 
 			if ( ShowFlaskStatus ) {
 				foreach ( var elem in GetUI()?.Flasks?.Flasks ?? Empty<FlaskElement>() ) {
-					if ( IsValid(elem) ) {
-						var ent = elem.Item;
-						var rect = elem.GetClientRect();
-						if ( !rect.IsEmpty ) {
-							var color = ent.Charges_Cur < ent.Charges_Per ? Color.Red :
-								ent.IsBuffActive ? Color.Yellow :
-								Color.Green;
-							DrawFrame(rect, color, 2);
-						}
+					if ( !IsValid(elem) ) {
+						continue;
+					}
+					var ent = elem.Entity;
+					if( !IsValid(ent) ) {
+						continue;
+					}
+					var rect = elem.GetClientRect();
+					if ( !rect.IsEmpty ) {
+						var color = ent.Charges_Cur < ent.Charges_Per ? Color.Red :
+							ent.IsBuffActive ? Color.Yellow :
+							Color.Green;
+						DrawFrame(rect, color, 2);
 					}
 				}
 			}
@@ -144,9 +157,12 @@ namespace AtE {
 
 			var life = player.GetComponent<Life>();
 			if ( IsValid(life) ) {
+				if( life.CurHP < 1 ) {
+					return this;
+				}
 				// Feature: Use Life flask
 				if ( UseLifeFlask ) {
-					int maxHp = life.MaxHP - life.TotalReservedHP;
+					uint maxHp = MaxLife(life, HasBuff(player, "petrified_blood")); // life.MaxHP - life.TotalReservedHP;
 					// 0 - 100, to match the scale of the SliderFloat above
 					float pctHp = 100 * life.CurHP / maxHp;
 					if ( pctHp < UseLifeFlaskAtPctLife ) {
@@ -160,7 +176,7 @@ namespace AtE {
 						}
 
 						if ( flaskToUse != null ) {
-							return UseFlask(flaskToUse);
+							return UseFlask(flaskToUse, $"Life is low ({pctHp} < { UseLifeFlaskAtPctLife })");
 						}
 					}
 				}
@@ -177,7 +193,7 @@ namespace AtE {
 							if ( flask.IsBuffActive ) {
 								continue;
 							}
-							return UseFlask(flask);
+							return UseFlask(flask, $"Mana is low ({pctMana} < {UseManaFlaskAtPctMana})");
 						}
 					}
 				}
@@ -187,19 +203,19 @@ namespace AtE {
 			if ( CureConditions ) {
 				if ( IsValid(buffs) ) {
 					if ( HasBuff(buffs, "frozen") && TryGetUsableFlask(f => f.Cures_Frozen, out flaskToUse) ) {
-						return UseFlask(flaskToUse);
+						return UseFlask(flaskToUse, "player is frozen");
 					}
 					if ( (HasBuff(buffs, "bleeding") || HasBuff(buffs, "corrupted_blood")) && TryGetUsableFlask(f => f.Cures_Bleeding, out flaskToUse) ) {
-						return UseFlask(flaskToUse);
+						return UseFlask(flaskToUse, "player is bleeding");
 					}
 					if ( HasBuff(buffs, "poisoned") && TryGetUsableFlask(f => f.Cures_Poisoned, out flaskToUse) ) {
-						return UseFlask(flaskToUse);
+						return UseFlask(flaskToUse, "player is poisoned");
 					}
 					if ( (HasBuff(buffs, "ignited") || HasBuff(buffs, "burning")) && TryGetUsableFlask(f => f.Cures_Ignited, out flaskToUse) ) {
-						return UseFlask(flaskToUse);
+						return UseFlask(flaskToUse, "player is ignited");
 					}
 					if ( HasBuff(buffs, "cursed") && TryGetUsableFlask(f => f.Cures_Curse, out flaskToUse) ) {
-						return UseFlask(flaskToUse);
+						return UseFlask(flaskToUse, "player is cursed");
 					}
 				}
 			}
@@ -208,14 +224,12 @@ namespace AtE {
 				if ( TryGetUsableFlask(f => f.LifeHealAmount == 0 && f.ManaHealAmount == 0
 					&& f.Charges_Cur == f.Charges_Max
 					&& !f.IsBuffActive, out flaskToUse) ) {
-					return UseFlask(flaskToUse);
+					return UseFlask(flaskToUse, "it's full");
 				}
 			}
 
 			if ( UseUtilityWhenHitRareOrUnique ) {
-				bool hasHitNearbyRare = GetEnemies().Where(e =>
-					// Rare or greater:
-					e.GetComponent<ObjectMagicProperties>()?.Rarity >= Offsets.MonsterRarity.Rare)
+				bool hasHitNearbyRare = NearbyEnemies(500, Offsets.MonsterRarity.Rare)
 					// If there are any hurt
 					.Any(e => {
 						var e_life = e.GetComponent<Life>();
@@ -226,7 +240,7 @@ namespace AtE {
 						&& f.ManaHealAmount == 0
 						&& !f.IsBuffActive
 						, out flaskToUse) ) {
-						return UseFlask(flaskToUse);
+						return UseFlask(flaskToUse, "of a nearby rare");
 					}
 				}
 			}

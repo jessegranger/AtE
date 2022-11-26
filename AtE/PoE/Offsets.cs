@@ -33,7 +33,7 @@ namespace AtE {
 
 		public static bool IsValid(IntPtr p) {
 			long a = p.ToInt64();
-			return a > 0x0000000100000000 && a < 0x00007FFFFFFFFFFF;
+			return a > 0x0000000100000001 && a < 0x00007FFFFFFFFFFF;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Vector2i {
@@ -83,7 +83,12 @@ namespace AtE {
 			[FieldOffset(0x00)] public IntPtr Head;
 			[FieldOffset(0x08)] public IntPtr Tail;
 
+			/// <summary>
+			/// Usually something like, ItemCount(Marshal.SizeOf(typeof(T)))...
+			/// where T is the contained type.
+			/// </summary>
 			public int ItemCount(int recordSize) => (int)((Tail.ToInt64() - Head.ToInt64()) / recordSize);
+
 			/// <summary>
 			/// Get a pointer to the start of the i-th entry in the array.
 			/// </summary>
@@ -97,6 +102,7 @@ namespace AtE {
 				if ( n < 0 || n >= len ) return IntPtr.Zero;
 				return new IntPtr(head + (i * recordSize));
 			}
+
 			/// <summary>
 			/// Yield all the entries (as pointers to their start address in memory).
 			/// </summary>
@@ -118,6 +124,8 @@ namespace AtE {
 		/// Check that this ArrayHandle has valid Head and Tail pointers.
 		/// </summary>
 		public static bool IsValid(ArrayHandle handle) => IsValid(handle.Head) && IsValid(handle.Tail);
+		public static bool IsValid<T>(ArrayHandle handle, int limit) => IsValid(handle)
+			&& (handle.ItemCount(Marshal.SizeOf(typeof(T))) <= limit);
 
 		/// <summary>
 		/// Check that this ArrayHandle, of some Type, has valid pointers and a reasonable count.
@@ -213,17 +221,18 @@ namespace AtE {
 			[FieldOffset(0x100)] public readonly IntPtr elemRoot;
 			[FieldOffset(0x3A8)] public readonly IntPtr strAreaName;
 		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LoginGameState {
+			[FieldOffset(0x100)] public readonly IntPtr elemRoot;
+		}
 
 		// Element members:
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element {
-			// TODO: move this value to MapOffsets, the only place it's used
-			// public readonly const int OffsetBuffers = 0x6EC;
 
 			[FieldOffset(0x28)] public readonly IntPtr Self;
 			[FieldOffset(0x30)] public readonly ArrayHandle Children;
 
-			// This was replaced with a GetRoot() function ptr which we cant call
-			// [FieldOffset(0xD8)] public readonly IntPtr Root; // Element
+			[FieldOffset(0xA8)] public readonly Vector2 ScrollOffset;
+
 			[FieldOffset(0xE0)] public readonly IntPtr elemParent; // Element
 			[FieldOffset(0xE8)] public readonly Vector2 Position;
 			[FieldOffset(0xE8)] public readonly float X;
@@ -463,13 +472,19 @@ namespace AtE {
 
 		// Entity offsets
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Entity {
+			[FieldOffset(0x00)] public readonly IntPtr vtable;
 			[FieldOffset(0x08)] public readonly IntPtr ptrDetails;
 			[FieldOffset(0x10)] public readonly ArrayHandle ComponentsArray; // of IntPtr (to base address of a Component)
 			[FieldOffset(0x50)] public readonly Vector3 WorldPos; // possible
 			[FieldOffset(0x60)] public readonly uint Id;
 		}
 
-
+		public static bool IsValid(Entity ent) {
+			return IsValid(ent.vtable)
+				&& IsValid(ent.ptrDetails)
+				&& IsValid<IntPtr>(ent.ComponentsArray, 50) // at most N components
+				;
+		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct EntityDetails {
 			[FieldOffset(0x08)] public readonly IntPtr ptrPath;
@@ -510,6 +525,23 @@ namespace AtE {
 			public readonly ComponentNameAndIndexStruct Pointer5;
 			public readonly ComponentNameAndIndexStruct Pointer6;
 			public readonly ComponentNameAndIndexStruct Pointer7;
+
+			// pretty sure this is one bucket entry from a flat_map < string, Component >
+			// the FlagX bytes each contain either a reduced hash key or 0xFF
+			// something like _mm_cmpeq_pi8 (x86 asm) is used to do an initial comparison of all the FlagX bytes
+			// the result is a mask like 0x0000FF0000000000 which is used to read the right PointerX struct
+			// and returns the matching index (which is always a fixed offset away).
+			// (since we are currently not able to reconstruct the right hash key)
+			// we have to parse this structure, pull out all the Keys and load them into a new map
+
+			// Some x86 instructions that might be relevant
+			// _mm_cmpeq_pi8 : compares all the flags at once, returns 8 bytes, like 0x0000FF0000000000
+			// as long as we dont know to make the reduced hash key, we cant use this to skip the parsing altogether
+			// but, could still use it to quickly eliminate all the (FlagX == 0xFF) entries
+			// (where the PointerX would end up being invalid/empty)
+			// but that is a very small benefit...
+			// ... we could "cheat" and learn the hash keys instead of compute them, since we are only talking about Components and there are only a couple dozen
+			// ... once a key has been learned, during ParseComponent, it could skip the string read, and use only the PointerX.Index
 
 		}
 
@@ -1038,9 +1070,10 @@ namespace AtE {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			[FieldOffset(0x2C)] public readonly Vector2i ClickToNextPosition;
 			[FieldOffset(0x34)] public readonly Vector2i WasInThisPosition;
-			[FieldOffset(0x470)] public readonly byte IsMoving; // ==2 when moving
-			[FieldOffset(0x54C)] public readonly Vector2i WantMoveToPosition;
+			[FieldOffset(0x470)] public readonly byte IsMoving; // movement type flags, 2 = moving directly (no pathfinding needed)
+			[FieldOffset(0x548)] public readonly Vector2i WantMoveToPosition;
 			[FieldOffset(0x554)] public readonly float StayTime;
+
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Player {
@@ -1089,6 +1122,16 @@ namespace AtE {
 			[FieldOffset(0x27C)] public readonly float Scale;
 			[FieldOffset(0x280)] public readonly int Size;
 			[FieldOffset(0x288)] public readonly Vector2 WorldPos;
+		}
+
+		public static Vector3 GridToWorld(Vector2i gridPos, float z) {
+			const float gridScale = 0.092f;
+			const float gridCenter = 5.434783f;
+			return new Vector3(
+				gridCenter + (gridPos.X / gridScale),
+				gridCenter + (gridPos.Y / gridScale),
+				z
+			);
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Quality {
@@ -1346,6 +1389,10 @@ namespace AtE {
 		public const string PATH_STASH = "Metadata/MiscellaneousObjects/Stash";
 		public const string PATH_MAP_PREFIX = "Metadata/Items/Maps/";
 		public const string PATH_INCUBATOR_PREFIX = "Metadata/Items/Currency/CurrencyIncubation";
+
+		// some constant names of things and places (that I think might vary across language settings)
+		public const string THE_ROGUE_HARBOUR = "The Rogue Harbour";
+		public const string HIDEOUT_SUFFIX = "Hideout";
 
 	}
 

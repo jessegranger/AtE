@@ -63,6 +63,7 @@ namespace AtE.Plugins {
 				if ( !IsValid(player) ) {
 					return this;
 				}
+
 				var playerPos = Position(player);
 				if( playerPos == Vector3.Zero ) {
 					return this;
