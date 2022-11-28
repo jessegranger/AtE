@@ -30,7 +30,7 @@ namespace AtE.Plugins {
 
 		private IState PlanUseItemFromBackpack(string usePath, IState next = null, IState fail = null) {
 			var useItem = BackpackItems().Where(i => i.Entity?.Path?.Equals(usePath) ?? false).FirstOrDefault();
-			if( !IsValid(useItem) ) {
+			if ( !IsValid(useItem) ) {
 				Notify($"Could not find any {usePath} to use.");
 				return fail;
 			}
@@ -40,7 +40,20 @@ namespace AtE.Plugins {
 		private IState OnlyIfStashIsOpen(IState ifOpen, IState ifClosed = null) => NewState("CheckStashIsOpen", (self, dt) => BackpackIsOpen() && StashIsOpen() ? ifOpen : ifClosed, next: ifOpen);
 		private IState OnlyIfBackpackIsOpen(IState ifOpen, IState ifClosed = null) => NewState("CheckStashIsOpen", (self, dt) => BackpackIsOpen() ? ifOpen : ifClosed, next: ifOpen);
 
-		private IEnumerable<InventoryItem> ItemsToIdentify() => BackpackItems().Where(e => !IsIdentified(e) && !IsCorrupted(e));
+		private IEnumerable<InventoryItem> ItemsToIdentify() => BackpackItems().Where(e => {
+			var mods = e?.Entity?.GetComponent<Mods>();
+			if( !IsValid(mods) ) {
+				return false;
+			}
+			var level = GetItemLevel(mods);
+			if( mods.Rarity == Offsets.ItemRarity.Rare && level >= 50 && level <= 74 ) {
+				return false; // dont identify the chaos recipe range
+			}
+			if ( IsIdentified(mods) || IsCorrupted(e) ) {
+				return false;
+			}
+			return true;
+		});
 		private IState PlanIdentifyAll(IState next = null) {
 			var ui = GetUI();
 			if ( IsValid(ui) ) {

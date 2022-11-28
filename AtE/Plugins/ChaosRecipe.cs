@@ -6,6 +6,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE {
@@ -25,7 +26,7 @@ namespace AtE {
 				var ui = GetUI();
 				if( IsValid(ui) ) {
 					var elem = ui.StashElement;
-					if( elem.IsVisibleLocal ) {
+					if( elem?.IsVisibleLocal ?? false ) {
 						string text = "Highlight Chaos Recipe";
 						var textSize = ImGui.CalcTextSize(text);
 						var mainBody = elem.GetChild(2);
@@ -39,67 +40,89 @@ namespace AtE {
 								// ImGui.SameLine();
 								// ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, 0f);
 								// if( ImGui.Button("X##DisableChaosRecipe") ) {
-									// Enabled = false;
+								// Enabled = false;
 								// }
-							}
-						}
-						if ( ShowChaosRecipeItems ) {
-							int count = 0;
-							bestGlove = null;
-							gloveCount = 0;
-							bestBoot = null;
-							bootCount = 0;
-							bestChest = null;
-							chestCount = 0;
-							bestWeapon = null;
-							weaponCount = 0;
-							bestOffhand = null;
-							offhandCount = 0;
-							bestHelm = null;
-							helmCount = 0;
-							bestAmulet = null;
-							amuletCount = 0;
-							bestLeftRing = null;
-							bestRightRing = null;
-							ringCount = 0;
-							bestBelt = null;
-							beltCount = 0;
+								if ( ShowChaosRecipeItems ) {
+									int count = 0;
+									bool recipeComplete = false;
+									bestGlove = null;
+									gloveCount = 0;
+									bestBoot = null;
+									bootCount = 0;
+									bestChest = null;
+									chestCount = 0;
+									bestWeapon = null;
+									weaponCount = 0;
+									bestOffhand = null;
+									offhandCount = 0;
+									bestHelm = null;
+									helmCount = 0;
+									bestAmulet = null;
+									amuletCount = 0;
+									bestLeftRing = null;
+									bestRightRing = null;
+									ringCount = 0;
+									bestBelt = null;
+									beltCount = 0;
 
-							foreach( var item in BackpackItems() ) {
-								Add(item);
-								count += 1;
-							}
-							
-							foreach ( var item in StashItems() ) {
-								Add(item);
-								count += 1;
-							}
+									foreach ( var item in BackpackItems() ) {
+										Add(item);
+										count += 1;
+									}
 
-							if ( hasOneBelow74 ) {
-								string needs = "Needed: ";
-								if ( weaponCount < 1 ) needs += "Weapon ";
-								if ( offhandCount < 1 ) needs += "Offhand ";
-								if ( helmCount < 1 ) needs += "Helmet ";
-								if ( chestCount < 1 ) needs += "Chest ";
-								if ( amuletCount < 1 ) needs += "Amulet ";
-								if ( ringCount < 2 ) needs += "Rings ";
-								if ( gloveCount < 1 ) needs += "Gloves ";
-								if ( bootCount < 1 ) needs += "Boots";
-								if ( beltCount < 1 ) needs += "Belts";
-								if( ! needs.Equals("Needed: ") ) {
-									ImGui.Text(needs);
+									foreach ( var item in StashItems() ) {
+										Add(item);
+										count += 1;
+									}
+
+									if ( hasOneBelow74 ) {
+										string needs = "Needed: ";
+										if ( weaponCount < 1 ) needs += "Weapon ";
+										if ( offhandCount < 1 ) needs += "Offhand ";
+										if ( helmCount < 1 ) needs += "Helmet ";
+										if ( chestCount < 1 ) needs += "Chest ";
+										if ( amuletCount < 1 ) needs += "Amulet ";
+										if ( ringCount < 2 ) needs += "Rings ";
+										if ( gloveCount < 1 ) needs += "Gloves ";
+										if ( bootCount < 1 ) needs += "Boots";
+										if ( beltCount < 1 ) needs += "Belts";
+										if ( !needs.Equals("Needed: ") ) {
+											ImGui.Text(needs);
+										} else {
+											recipeComplete = true;
+										}
+
+										HighlightItem(bestWeapon, "Weapon");
+										HighlightItem(bestOffhand, "Offhand");
+										HighlightItem(bestHelm, "Helm");
+										HighlightItem(bestBelt, "Belt");
+										HighlightItem(bestChest, "Chest");
+										HighlightItem(bestAmulet, "Amulet");
+										HighlightItem(bestRightRing, "Ring");
+										HighlightItem(bestLeftRing, "Ring");
+										HighlightItem(bestGlove, "Glove");
+										HighlightItem(bestBoot, "Boot");
+
+										ImGui.SameLine();
+										if( recipeComplete && ImGui.Button($"Pickup##PickupOneSetOfChaosRecipeItems") ) {
+											uint inputDelay = (uint)GetPlugin<CoreSettings>().InputLatency;
+											Run(new KeyDown(Keys.LControlKey,
+												new LeftClickAt(bestWeapon?.GetClientRect() ?? default, inputDelay, 1,
+												new LeftClickAt(bestOffhand?.GetClientRect() ?? default, inputDelay, 1,
+												new LeftClickAt(bestHelm.GetClientRect(), inputDelay, 1,
+												new LeftClickAt(bestBelt.GetClientRect(), inputDelay, 1,
+												new LeftClickAt(bestChest.GetClientRect(), inputDelay, 1,
+												new LeftClickAt(bestAmulet.GetClientRect(), inputDelay, 1,
+												new LeftClickAt(bestRightRing.GetClientRect(), inputDelay, 1,
+												new LeftClickAt(bestLeftRing.GetClientRect(), inputDelay, 1,
+												new LeftClickAt(bestGlove.GetClientRect(), inputDelay, 1,
+												new LeftClickAt(bestBoot.GetClientRect(), inputDelay, 1,
+												new KeyUp(Keys.LControlKey)
+												))))))))))));
+										}
+									}
 								}
 
-								HighlightItem(bestWeapon, "Weapon");
-								HighlightItem(bestOffhand, "Offhand");
-								HighlightItem(bestHelm, "Helm");
-								HighlightItem(bestBelt, "Belt");
-								HighlightItem(bestChest, "Chest");
-								HighlightItem(bestAmulet, "Amulet");
-								HighlightItem(bestRightRing, "Ring");
-								HighlightItem(bestLeftRing, "Ring");
-								HighlightItem(bestGlove, "Glove");
-								HighlightItem(bestBoot, "Boot");
 							}
 						}
 
@@ -155,14 +178,16 @@ namespace AtE {
 			}
 
 			string[] path = ent.Path.Split('/');
-			bool has2HWeap = !IsOneHanded(bestWeapon?.Entity);
+			bool has2HWeap = IsValid(bestWeapon) && !IsOneHanded(bestWeapon.Entity);
 
 			switch ( path[2] ) {
 				case "Weapons":
 					weaponCount += 1;
 					switch ( path[3] ) {
 						case "OneHandWeapons":
-							if ( has2HWeap ) break;
+							if ( has2HWeap ) {
+								break;
+							}
 							if ( !IsValid(bestWeapon) || (mods.Level < GetItemLevel(bestWeapon)) ) {
 								bestWeapon = item;
 								hasOneBelow74 = hasOneBelow74 || GetItemLevel(bestWeapon) < 75;
@@ -212,7 +237,7 @@ namespace AtE {
 							break;
 						case "Shields":
 							offhandCount += 1;
-							if ( IsValid(bestWeapon) && !IsOneHanded(bestWeapon.Entity) ) {
+							if ( has2HWeap ) {
 								break;
 							}
 							if ( mods.Level < GetItemLevel(bestOffhand?.Entity, 100) ) {
@@ -257,9 +282,5 @@ namespace AtE {
 			}
 		}
 
-		private static bool IsOneHanded(Entity ent) => ent != null && ( (ent.Path?.StartsWith("Metadata/Weapons/OneHandWeapons") ?? false) || IsShield(ent) );
-		private static bool IsShield(Entity ent) => ent?.Path.StartsWith("Metadata/Armours/Shields") ?? false;
-		private static uint GetItemLevel(InventoryItem item) => GetItemLevel(item?.Entity);
-		private static uint GetItemLevel(Entity ent, uint _default = 1) => ent?.GetComponent<Mods>()?.Level ?? _default;
 	}
 }

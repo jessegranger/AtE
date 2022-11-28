@@ -130,8 +130,7 @@ namespace AtE {
 	class KeyDown : KeyState {
 		public KeyDown(Keys key, IState next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
-			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
-			if( dt > 0 && PoEMemory.TargetHasFocus ) {
+			if( dt > 0 && (PoEMemory.TargetHasFocus || Overlay.HasFocus) ) {
 				SendInput(INPUT_KeyDown(Key));
 				return Next;
 			}
@@ -144,7 +143,7 @@ namespace AtE {
 		public KeyUp(Keys key, IState next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
-			if( dt > 0 && PoEMemory.TargetHasFocus ) {
+			if( dt > 0 && (PoEMemory.TargetHasFocus || Overlay.HasFocus) ) {
 				SendInput(INPUT_KeyUp(Key));
 				return Next;
 			}
@@ -228,7 +227,8 @@ namespace AtE {
 		public LeftClickAt(RectangleF rect, uint duration, uint count, IState next = null) : this(Center(rect), duration, count, next) { }
 		public LeftClickAt(Vector2 pos, uint duration, uint count, IState next = null) : this(pos.X, pos.Y, duration, count, next) { }
 		public LeftClickAt(float x, float y, uint duration, uint count, IState next = null) : base(
-				new MoveMouse(x, y, new Delay(duration, new LeftClick(duration, count, next)))) { }
+			(x == 0f && y == 0f) ? next
+			: new MoveMouse(x, y, new Delay(duration, new LeftClick(duration, count, next)))) { }
 	}
 
 	class RightMouseDown : InputState {
