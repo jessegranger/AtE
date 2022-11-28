@@ -37,11 +37,10 @@ namespace AtE {
 		public static IEnumerable<Entity> GetEnemies() => GetEntities()?
 			.Take(1000)
 			.Where(e => 
-				e.Id > 0 && e.Id < int.MaxValue
+				e != null
+				&& e.Id > 0 && e.Id < int.MaxValue
 				&& e.Path != null
 				&& e.Path.StartsWith("Metadata/Monster")
-				&& (!e.Path.Contains("AfflictionVolatile"))
-				&& (!e.Path.Contains("AfflictionVomitile"))
 				&& (e.GetComponent<Positioned>()?.IsHostile ?? false)) ?? Empty<Entity>();
 
 		public static IEnumerable<Entity> NearbyEnemies(float radius) {
@@ -72,34 +71,18 @@ namespace AtE {
 				if ( value == base.Address ) {
 					return;
 				}
-				// when this gets assigned, Cache gets a new value as well
+				// when this gets assigned, `Cache` gets a new value as well
 				base.Address = value;
 				Details = CachedStruct<Offsets.EntityDetails>(() => Cache.ptrDetails);
 
 				if ( !IsValid(value) ) {
 					return;
 				}
+				// invalidate the private caches whenever Address changes
+				path = null;
+				ComponentPtrs = null;
+				ComponentCache = null;
 
-					uint id = Cache.Id; // this will read Offset.Entity struct from memory (same cost as before)
-					if ( id != 0 ) {
-						// if the same Entity id is at the same address as it was last time, we can re-use ComponentPtrs (and skip parsing)
-						if ( lastKnownAddress.TryGetValue(id, out IntPtr prev) && prev == value ) {
-							lastKnownComponents.TryGetValue(id, out ComponentPtrs);
-							path = null; // for now, path cache is different and only caches within the frame
-													 // ImGui.Text($"[{id}] stable at {Format(prev)} -> {ComponentPtrs?.Count ?? 0} components");
-						} else {
-							// otherwise, this is an actual change-of-address for this object
-							// so update last known address, and invalidate various caches
-							// Log($"New entity {id} at address {Format(value)}");
-							// Log($"Entity[{id}] at new address: {Format(value)} {Path}");
-							lastKnownAddress[id] = value;
-							lastKnownComponents.TryRemove(id, out _);
-							ComponentPtrs = null;
-							ComponentCache?.Clear();
-							ComponentCache = null;
-							path = null;
-						}
-					}
 			}
 		}
 
@@ -121,12 +104,10 @@ namespace AtE {
 				return null;
 			}
 			if ( Thread.CurrentThread.ManagedThreadId != 1 ) {
-				throw new Exception("Cannot call from background thread");
+				Log($"Warning: GetComponent<{typeof(T).Name}> called from background thread!");
 			}
 			if ( ComponentPtrs == null ) {
 				ParseComponents();
-				// save the output of the parsing for next time
-				lastKnownComponents[Id] = ComponentPtrs;
 			}
 			if ( ComponentPtrs == null ) {
 				// all the above failed to parse any ptrs, so there are no components
@@ -153,13 +134,6 @@ namespace AtE {
 		}
 
 		public IEnumerable<string> GetComponentNames() => ComponentPtrs?.Keys ?? Empty<string>();
-
-		// keep track of when an entity id moves to a new address in memory
-		// this is a map of <entity id, address>
-		private static ConcurrentDictionary<uint, IntPtr> lastKnownAddress = new ConcurrentDictionary<uint, IntPtr>();
-		// as long as an entity stays at the same address, we skip the parsing and re-use the output, stored here:
-		// this stores a map<entity id, map< component name, component address >>
-		private static ConcurrentDictionary<uint, Dictionary<string, IntPtr>> lastKnownComponents = new ConcurrentDictionary<uint, Dictionary<string, IntPtr>>();
 
 		// maps the Type (of a Component) to the Address of that Component instance for this Entity
 		private Dictionary<string, IntPtr> ComponentPtrs; // we have to parse this all at once

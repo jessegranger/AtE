@@ -167,22 +167,19 @@ namespace AtE {
 							ImGui.TableNextColumn();
 							IntPtr ptr = new IntPtr(longValue);
 							if ( IsValid(ptr) ) {
-								Element elem = new Element() { Address = ptr };
-								if ( IsValid(elem) ) {
+								if ( ElementCache.TryGetElement(ptr, out Element elem) ) {
 									ImGui.AlignTextToFramePadding();
 									ImGui.Text("ptr Element"); ImGui.SameLine();
 									if ( ImGui.Button($"B##{longValue:X}") ) {
-										Run_ObjectBrowser($"Unknown Element {longValue:X}",
-											new Element() { Address = ptr });
+										Run_ObjectBrowser($"Unknown Element {longValue:X}", elem);
 									} else if ( ImGui.IsItemHovered() ) {
 										DrawFrame(elem.GetClientRect(), Color.Yellow, 2);
 									}
-								} else if ( EntityCache.Probe(ptr) ) {
+								} else if ( EntityCache.TryGetEntity(ptr, out Entity ent) ) {
 									ImGui.AlignTextToFramePadding();
 									ImGui.Text("ptr Entity"); ImGui.SameLine();
 									if ( ImGui.Button($"B##{longValue:X}") ) {
-										Run_ObjectBrowser($"Unknown Entity {longValue:X}",
-											EntityCache.Get(ptr));
+										Run_ObjectBrowser($"Unknown Entity {longValue:X}", ent);
 									}
 								} else {
 									// if( PoEMemory.TryReadString(new Address(0, longValue), Encoding.Unicode, out string uni) ) {

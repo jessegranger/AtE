@@ -133,8 +133,7 @@ namespace AtE {
 	public class WaitingState : GameState<Offsets.Empty> { }
 	public class CreditsState : GameState<Offsets.Empty> { }
 	public class EscapeState : GameState<Offsets.EscapeGameState> {
-		public Element UIRoot => Address == IntPtr.Zero ? null :
-			new Element() { Address = Cache.elemRoot };
+		public Element UIRoot => IsValid(Address) && ElementCache.TryGetElement(Cache.elemRoot, out Element root) ? root : null;
 	}
 
 	public class InGameState : GameState<Offsets.InGameState> {
@@ -144,22 +143,11 @@ namespace AtE {
 			Data = CachedStruct<Offsets.InGameState_Data>(() => Cache.ptrData);
 		}
 
-		internal Offsets.EntityListNode EntityListHead => PoEMemory.TryRead(Data.Value.EntityListHead, out Offsets.EntityListNode tree) ? tree : default;
+		internal Offsets.EntityListNode EntityListHead => IsValid(Address)
+			&& IsValid(Data.Value.EntityListHead)
+			&& PoEMemory.TryRead(Data.Value.EntityListHead, out Offsets.EntityListNode tree) ? tree : default;
 
-		public Element UIRoot { get {
-				if ( Cache.elemRoot == IntPtr.Zero ) return null;
-				var ent = new Element() { Address = Cache.elemRoot };
-				if ( !IsValid(ent) ) {
-					ImGui.Begin("Invalid UI Root");
-					ImGui_Address(ent.Address, "Invalid UI Root");
-					// ImGui.Text($"cache.lastFrame: {ent.cache.lastFrame}");
-					// ImGui.Text($"cache.val.Self: {ent.cache.val.Self}");
-					// ImGui.Text($"Producer().Self: {ent.cache.Producer().Self}");
-					ImGui.End();
-				}
-				return ent;
-			}
-		}
+		public Element UIRoot => IsValid(Address) && ElementCache.TryGetElement(Cache.elemRoot, out Element root) ? root : null;
 
 		public IEnumerable<Entity> GetEntities() => EntityCache.GetEntities(); // mostly to make it easy to browse
 
@@ -177,21 +165,20 @@ namespace AtE {
 				return lastKnownPlayer;
 			}
 		}
-			
 
-		public Element Hovered => Cache.elemHover == IntPtr.Zero ? null :
-			new Element() { Address = Cache.elemHover };
+
+		public Element Hovered => IsValid(Address) && ElementCache.TryGetElement(Cache.elemHover, out Element hover) ? hover : null;
 
 		/// <summary>
 		/// Is there some UI Element currently capturing keyboard input.
 		/// Eg, one of the filter inputs on a stash tab.
 		/// </summary>
 		public bool HasInputFocus => Cache.elemInputFocus != IntPtr.Zero;
+
 		/// <summary>
 		/// Returns the UI Element that has currently captured keyboard input.
 		/// </summary>
-		public Element Focused => Cache.elemInputFocus == IntPtr.Zero ? null :
-			new Element() { Address = Cache.elemInputFocus};
+		public Element Focused => IsValid(Address) && ElementCache.TryGetElement(Cache.elemInputFocus, out Element elem) ? elem : null;
 
 		/// <summary>
 		/// A library of shortcuts into the UI tree, for the more useful elements,

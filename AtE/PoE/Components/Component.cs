@@ -103,7 +103,7 @@ namespace AtE {
 
 	public class ActorAction : MemoryObject<Offsets.Component_Actor_Action> {
 
-		public Entity Target => IsValid(Address) ? EntityCache.Get(Address) : null;
+		public Entity Target => IsValid(Address) && EntityCache.TryGetEntity(Address, out Entity ent) ? ent : null;
 
 		public long Skill => Cache.Skill;
 		public Vector2 Destination => Cache.Destination;
@@ -212,8 +212,7 @@ namespace AtE {
 
 	public class Animated : Component<Offsets.Component_Animated> {
 
-		public Entity AnimatedObject => IsValid(Address) && IsValid(Cache.ptrToAnimatedEntity) ?
-			EntityCache.Get(Cache.ptrToAnimatedEntity) : null;
+		public Entity AnimatedObject => IsValid(Address) && EntityCache.TryGetEntity(Cache.ptrToAnimatedEntity, out Entity ent) ? ent : null;
 	}
 
 
@@ -698,8 +697,7 @@ namespace AtE {
 	}
 
 	public class WorldItem : Component<Offsets.Component_WorldItem> {
-		public Entity Item => IsValid(Address) && IsValid(Cache.entItem) ?
-			EntityCache.Get(Cache.entItem) : null;
+		public Entity Item => IsValid(Address) && EntityCache.TryGetEntity(Cache.entItem, out Entity ent) ? ent : null;
 	}
 
 	public class Usable : Component<Offsets.Component_Empty> {

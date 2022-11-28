@@ -85,7 +85,6 @@ namespace AtE {
 
 		public static double FPS { get; private set; }
 
-		private static int framesSinceSleep = 0;
 		public static void RenderLoop() {
 			Log("Starting Render loop...");
 			long lastRenderTime = Time.ElapsedMilliseconds - 16;
@@ -93,7 +92,6 @@ namespace AtE {
 			try {
 				SharpDX.Windows.RenderLoop.Run(RenderForm, () => {
 					FrameCount += 1;
-					framesSinceSleep += 1;
 					long dt = Time.ElapsedMilliseconds - lastRenderTime;
 					var settings = PluginBase.GetPlugin<CoreSettings>();
 					FPS = dt == 0 ? 999d : 1000f / dt;

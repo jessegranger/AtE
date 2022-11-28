@@ -8,28 +8,39 @@ using static AtE.Globals;
 namespace AtE {
 	public static class EntityCache {
 
-		public static bool TryGetEntity(uint id, out Entity ent) => Entities.TryGetValue(id, out ent);
+		private static readonly ConcurrentDictionary<IntPtr, Entity> EntitiesByAddress = new ConcurrentDictionary<IntPtr, Entity>();
+		private static readonly ConcurrentDictionary<uint, Entity> EntitiesById = new ConcurrentDictionary<uint, Entity>();
+		public static bool TryGetEntity(uint id, out Entity ent) => EntitiesById.TryGetValue(id, out ent);
 
-		public static IEnumerable<Entity> GetEntities() => Entities.Values.Where(IsValid);
+		public static bool TryGetEntity(IntPtr ptr, out Entity ent) {
+			ent = null;
+			if( IsValid(ptr) ) {
+				ent = EntitiesByAddress.GetOrAdd(ptr, newEnt);
+				if ( IsValid(ent) ) {
+					if( ent.Address != ptr ) {
+						ent.Address = ptr;
+					}
+					return true;
+				} else {
+					Log($"EntityCache: ptr {Describe(ptr)} -> {Describe(ent.Address)} failed to produce valid Entity.");
+				}
+			}
+			return false;
+		}
+		private static Entity newEnt(IntPtr a) => new Entity() { Address = a }; // define this out here so we dont have to create a lambda every time
+
+		/// <summary>
+		/// Enumerate the "world" entities (things like monsters, players, objects).
+		/// This doesn't include non-world entities like the items in your backpack.
+		/// </summary>
+		public static IEnumerable<Entity> GetEntities() => EntitiesById.Values.Where(IsValid);
 
 		public static EventHandler<Entity> EntityAdded;
 		public static EventHandler<uint> EntityRemoved;
 
-		public static int AddressCount => EntityByAddress.Count;
-		private static readonly ConcurrentDictionary<IntPtr, Entity> EntityByAddress = new ConcurrentDictionary<IntPtr, Entity>();
-		/// <summary>
-		/// Checks if a memory address contains an Entity.
-		/// </summary>
-		/// <returns>true if the address is (likely) an Entity</returns>
-		public static bool Probe(IntPtr addr) => IsValid(addr) &&
-			PoEMemory.TryRead(addr, out Offsets.Entity ent) && Offsets.IsValid(ent);
-		public static Entity Get(IntPtr addr) => Probe(addr) ? // TODO: this will cause a double read currently (so, cached but) we could re-use Probe's read to construct Entity
-			EntityByAddress.GetOrAdd(addr, (a) => new Entity() { Address = a }) :
-			EntityByAddress.TryRemove(addr, out _) ? null : (Entity)null;
-
-		public static int IdCount => Entities.Count;
-		private static readonly ConcurrentDictionary<uint, Entity> Entities = new ConcurrentDictionary<uint, Entity>();
-		private static int idOffset = GetOffset<Offsets.Entity>("Id");
+		public static int AddressCount => EntitiesByAddress.Count;
+		public static int IdCount => EntitiesById.Count;
+		private static readonly int idOffset = GetOffset<Offsets.Entity>("Id");
 
 		internal static void MainThread() {
 			Log($"EntityCache: MainThread starting...");
@@ -53,18 +64,19 @@ namespace AtE {
 						Overlay.FrameLock.WaitOne(1000);
 						// Thread.Sleep(1); // using this instead of FrameLock will cap EntityThread at about 60fps,
 						// but, it really sleeps in multiples of 15ms, so you either get 60fps, 30fps, 15fps, etc
-						// and, if the main thread slows way down, this thread will not
+						// and, if the main thread slows way down, this thread would not
 					}
 				}
 
 				using ( Perf.Section("EntityThread") ) {
-					// while attached, try to find all the entities and update their IsLoaded status
+					// while attached, try to find all the entities and update their Address
 					deduper.Clear();
 					incomingIds.Clear();
 					frontier.Clear();
 
 					var head = PoEMemory.GameRoot.InGameState.EntityListHead;
 					frontier.Push(head);
+					// we are going to skip reading the Ent from the first (head) node
 					bool skippedOne = false;
 					while ( frontier.Count > 0 && deduper.Count < 2000 ) {
 						var node = frontier.Pop();
@@ -76,24 +88,14 @@ namespace AtE {
 
 						// probe only the entity id before we construct a full ent
 						if ( skippedOne && PoEMemory.TryRead(entPtr + idOffset, out uint id)
-							&& id > 0 && id < int.MaxValue ) { // ids greater than int.MaxValue are referred to as "server entities" in ExileApi code?
-																								 // if it looks legit, queue it and try to follow the other links
-							var ent = Entities.GetOrAdd(id, _ => {
-								// Log($"EntityCache[{id}] Creating new ent {id} at {Format(entPtr)} from GetOrAdd");
-								return Get(entPtr);
-							});
-							if ( ent != null ) {
-								if ( ent.Address != entPtr ) {
-									// Log($"EntityCache[{id}] (re-using) Changing Address from {Format(ent.Address)} to {Format(entPtr)}");
-									EntityByAddress.TryRemove(ent.Address, out _);
-									ent.Address = entPtr;
-									EntityByAddress[ent.Address] = ent;
-								}
-								if ( IsValid(ent) ) {
+							&& id > 0 && id < int.MaxValue ) {
+							if ( TryGetEntity(entPtr, out Entity ent) ) {
+								if ( IsValid(ent) && ent.Id == id ) {
 									incomingIds.Add(id);
+									EntitiesById[id] = ent;
 								} else {
 									Log($"EntityCache[{id}] Failed to produce a valid ent, rejecting.");
-									EntityByAddress.TryRemove(ent.Address, out _);
+									EntitiesByAddress.TryRemove(ent.Address, out _);
 									ent.Address = default;
 								}
 							}
@@ -112,16 +114,16 @@ namespace AtE {
 						}
 					}
 					// now, frontier is empty, and incomingIds is full
-					var toRemove = Entities.Keys.Where(k => !incomingIds.Contains(k)).ToArray();
+					var toRemove = EntitiesById.Keys.Where(k => !incomingIds.Contains(k)).ToArray();
 					foreach ( var id in toRemove ) {
-						// note, that we dont remove from Entities, but mark as Invalid
+						// note, that we dont remove from EntitiesById, but mark as Invalid
 						// so that, if (when) the game re-uses the Entity id, we re-use the instance
-						if ( Entities.TryGetValue(id, out Entity ent) ) {
+						if ( EntitiesById.TryGetValue(id, out Entity ent) && ent != null ) {
 							if ( ent.Address != IntPtr.Zero ) {
-								EntityByAddress.TryRemove(ent.Address, out _);
+								// Log($"EntityCache[{id}] Unloading from cache at old Address {Describe(ent.Address)}...");
+								EntitiesByAddress.TryRemove(ent.Address, out _);
 								ent.Address = IntPtr.Zero;
 								EntityRemoved?.Invoke(null, id);
-								// Log($"EntityCache[{id}] Unloading from cache...");
 							}
 						}
 					}

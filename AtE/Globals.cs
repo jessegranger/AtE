@@ -161,6 +161,11 @@ namespace AtE {
 		public static string Describe(Vector2 v) => $"<{v.X}, {v.Y}>";
 		public static string Describe(Vector3 v) => $"<{v.X}, {v.Y}, {v.Z}>";
 
+		public static bool IsOneHanded(Entity ent) => ent != null && ( (ent.Path?.StartsWith("Metadata/Items/Weapons/OneHandWeapons") ?? false) || IsShield(ent) );
+		public static bool IsShield(Entity ent) => ent?.Path.StartsWith("Metadata/Items/Armours/Shields") ?? false;
+		public static uint GetItemLevel(InventoryItem item) => GetItemLevel(item?.Entity);
+		public static uint GetItemLevel(Entity ent, uint _default = 1) => GetItemLevel(ent?.GetComponent<Mods>(), _default);
+		public static uint GetItemLevel(Mods mods, uint _default = 1) => mods?.Level ?? _default;
 
 	}
 }

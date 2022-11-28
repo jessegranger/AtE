@@ -76,6 +76,7 @@ namespace AtE {
 		public static bool IsValid(InventoryItem item) => item != null && IsValid((Element)item) && item.IsValid;
 		public static bool IsIdentified(InventoryItem item) => IsValid(item) && IsIdentified(item.Entity);
 		public static bool IsIdentified(Entity item) => IsValid(item) && (item.GetComponent<Mods>()?.IsIdentified ?? true);
+		public static bool IsIdentified(Mods mods) => mods?.IsIdentified ?? true;  // an item with null mods is considered identified by default
 		public static bool IsCorrupted(InventoryItem item) => IsValid(item) && IsCorrupted(item.Entity);
 		public static bool IsCorrupted(Entity item) => IsValid(item) && (item.GetComponent<Base>()?.IsCorrupted ?? true);
 
@@ -98,13 +99,12 @@ namespace AtE {
 					&& details.Height > 0
 					&& details.InventPosition.X >= 0
 					&& details.InventPosition.Y >= 0
-					&& EntityCache.Probe(details.entItem) //  IsValid(new Entity() { Address = details.entItem })
+					&& EntityCache.TryGetEntity(details.entItem, out _) //  IsValid(new Entity() { Address = details.entItem })
 					;
 			}
 		}
 
-		public Entity Entity => IsValid(Address) && IsValid(Details.Value.entItem) ?
-			EntityCache.Get(Details.Value.entItem) : null;
+		public Entity Entity => IsValid(Address) && EntityCache.TryGetEntity(Details.Value.entItem, out Entity ent) ? ent : null;
 
 		public int X => Details.Value.InventPosition.X;
 		public int Y => Details.Value.InventPosition.Y;

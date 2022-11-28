@@ -228,7 +228,7 @@ namespace AtE {
 		// Element members:
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element {
 
-			[FieldOffset(0x28)] public readonly IntPtr Self;
+			[FieldOffset(0x28)] public readonly IntPtr elemSelf;
 			[FieldOffset(0x30)] public readonly ArrayHandle Children;
 
 			[FieldOffset(0xA8)] public readonly Vector2 ScrollOffset;
@@ -256,6 +256,9 @@ namespace AtE {
 
 			[FieldOffset(0x1C0)] public readonly uint HighlightBorderColor;
 			[FieldOffset(0x1C3)] public readonly bool isHighlighted;
+			
+			/* items below here are correct but greatly increase memory size of this struct
+			 * consider replacing with individual reads if they are needed
 
 			[FieldOffset(0x478)] public readonly StringHandle strText;
 
@@ -270,7 +273,8 @@ namespace AtE {
 			// 55 55 05 42 (1107645781) when strInput can be used
 			public const int inputMask2_HasInput = 1107645781;
 
-			// incorrect [FieldOffset(0x3D0)] public readonly long Tooltip;
+			*/
+
 		}
 
 		[StructLayout(LayoutKind.Explicit)] public struct ChildrenArrayEntry {

@@ -13,39 +13,34 @@ namespace AtE {
 
 	public class Element : MemoryObject<Offsets.Element> {
 
-		public virtual bool IsValid => IsValid(Address) && Cache.Self == Address;
+		public Element() : base() { }
 
-		public Element Self => !(IsValid(Address) && IsValid(Cache.Self)) ? null
-			: new Element() { Address = Cache.Self };
+		public virtual bool IsValid => IsValid(Address) && Cache.elemSelf == Address;
 
-		public Element Parent => !(IsValid(Address) && IsValid(Cache.elemParent)) ? null
-			: new Element() { Address = Cache.elemParent };
+		public Element Self => IsValid(Address) && ElementCache.TryGetElement(Cache.elemSelf, out Element elem) ? elem : null;
+		public Element Parent => IsValid(Address) && ElementCache.TryGetElement(Cache.elemParent, out Element elem) ? elem : null;
 
 
 		private ArrayHandle<IntPtr> children;
 		public IEnumerable<Element> Children =>
 			(children ?? (children = new ArrayHandle<IntPtr>(Cache.Children)))
-			.Select(a => new Element() { Address = a });
+			.Select(a => ElementCache.TryGetElement(a, out Element elem) ? elem : null);
 
-		public Element GetChild(int index) => index < 0 ? null :
-			new Element() { Address = (children ?? (children = new ArrayHandle<IntPtr>(Cache.Children)))[index] };
 		internal IntPtr GetChildPtr(int index) => index < 0 ? default :
 			(children ?? (children = new ArrayHandle<IntPtr>(Cache.Children)))[index];
+		public Element GetChild(int index) => ElementCache.TryGetElement(GetChildPtr(index), out Element child) ? child : null;
 
 
 		public Vector2 Position => Cache.Position;
 		public float Scale => Address == IntPtr.Zero ? 1.0f : Cache.Scale;
 
 		public Vector2 ScrollOffset => Address == IntPtr.Zero ? Vector2.Zero : Cache.ScrollOffset;
+		/* correct and available but costly at the moment
+		 * (they increase the IO cost of the Cache object for now)
 		public string Text => Cache.strText.Value;
 		public string LongText => Cache.strLongText.Value;
 		public string InputText => Cache.inputMask2 == Offsets.Element.inputMask2_HasInput
 			? Cache.strInputText.Value : null;
-
-		public bool IsVisibleLocal => Cache.IsVisibleLocal;
-
-		public bool IsVisible => IsVisibleLocal && (!IsValid(Parent) || Parent == Self || Parent.IsVisible);
-
 		public IEnumerable<string> GetInnerText() {
 			if ( !string.IsNullOrWhiteSpace(Text) ) yield return Text;
 			foreach ( var child in Children ) {
@@ -54,6 +49,11 @@ namespace AtE {
 				}
 			}
 		}
+		*/
+
+		public bool IsVisibleLocal => Cache.IsVisibleLocal;
+
+		public bool IsVisible => IsVisibleLocal && (!IsValid(Parent) || Parent == Self || Parent.IsVisible);
 
 		public Vector2 Size => Cache.Size;
 
@@ -122,7 +122,7 @@ namespace AtE {
 		private readonly Offsets.ItemsOnGroundLabelEntry Cache;
 		public LabelOnGround(Offsets.ItemsOnGroundLabelEntry entry) => Cache = entry;
 		public Element Label => new Element() { Address = Cache.elemLabel };
-		public Entity Item => IsValid(Cache.entItem) ? EntityCache.Get(Cache.entItem) : null;
+		public Entity Item => IsValid(Cache.entItem) && EntityCache.TryGetEntity(Cache.entItem, out Entity ent) ? ent : null;
 	}
 
 }

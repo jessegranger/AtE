@@ -8,7 +8,7 @@ namespace AtE {
 
 		public static bool IsValid(IntPtr p) {
 			long a = p.ToInt64();
-			bool ret = a > 0x0000000100000001 && a < 0x00007FFFFFFFFFFF;
+			bool ret = a > 0x00000004F0000001 && a < 0x00007FFFFFFFFFFF;
 			return ret;
 			// TODO: get better ranges here
 		}

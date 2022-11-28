@@ -19,7 +19,8 @@ namespace AtE {
 
 		public int FlaskIndex;
 
-		public FlaskEntity Entity => IsValid(Details.Value.entItem) ? new FlaskEntity(EntityCache.Get(Details.Value.entItem), FlaskIndex) : null;
+		// TODO: re-use a FlaskEntity if address didn't change, but FlaskEntity.Charges_Cur needs updated first
+		public FlaskEntity Entity => IsValid(Address) && EntityCache.TryGetEntity(Details.Value.entItem, out Entity ent) ? new FlaskEntity(ent, FlaskIndex) : null;
 		public IntPtr ItemPtr => Details.Value.entItem; // sometimes this ptr fails to read, it ends up pointing somewhere our Handle isnt authorized? rarely
 	}
 
@@ -35,11 +36,12 @@ namespace AtE {
 		public FlaskData BaseData;
 
 		public bool Valid = false;
+		public uint Id;
 		// bunch of fields that we have to parse from iterating ItemMods, so we only do it when Address changes
 		public bool IsInstant;
 		public bool IsInstantOnLowLife;
 		public int Charges_Max; // the value in Charges component is unscaled by ItemMods like "Increased Charges"
-		public int Charges_Cur;
+		public int Charges_Cur; // TODO: should read all the way back to the original Entity and Component memory, so we can persist this object and re-use all the other parsing
 		public int Charges_Per;
 		public int Duration; // similarly, Duration is (base duration * quality) * ItemMods like "Increased Duration"
 		public int LifeHealAmount;
@@ -62,6 +64,7 @@ namespace AtE {
 			if ( !IsValid(ent) ) {
 				return;
 			}
+			Id = ent.Id;
 			var charges = ent.GetComponent<Charges>();
 			if( charges == null ) { // not a valid flask entity
 				return;
