@@ -35,9 +35,12 @@ namespace AtE {
 		public float Scale => Address == IntPtr.Zero ? 1.0f : Cache.Scale;
 
 		public Vector2 ScrollOffset => Address == IntPtr.Zero ? Vector2.Zero : Cache.ScrollOffset;
+
+		public string Text => !IsValid(Address) ? null :
+			PoEMemory.TryRead(Address + Offsets.Element_Text, out Offsets.StringHandle str) ? str.Value : null;
+
 		/* correct and available but costly at the moment
 		 * (they increase the IO cost of the Cache object for now)
-		public string Text => Cache.strText.Value;
 		public string LongText => Cache.strLongText.Value;
 		public string InputText => Cache.inputMask2 == Offsets.Element.inputMask2_HasInput
 			? Cache.strInputText.Value : null;
