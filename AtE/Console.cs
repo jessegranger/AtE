@@ -15,6 +15,13 @@ namespace AtE {
 
 		private int selectedIndex = 0;
 
+		private void ImGui_SelectableProfile(CoreSettings settings, string profile) {
+			bool selected = settings.SelectedProfile?.Equals(profile) ?? false;
+			if ( ImGui.Selectable(profile, selected) && !selected ) {
+				settings.SelectedProfile = profile;
+				PluginBase.LoadIniFiles();
+			}
+		}
 		public override IState OnTick(long dt) {
 			var settings = PluginBase.GetPlugin<CoreSettings>();
 			if( settings.ConsoleKey.IsReleased ) {
@@ -33,6 +40,54 @@ namespace AtE {
 						PluginBase.SaveIniFile();
 						Overlay.Close();
 					}
+					ImGui.SameLine();
+					ImGui.AlignTextToFramePadding();
+					ImGui.Text("Profile:");
+					ImGui.SameLine();
+					if( ImGui.BeginCombo("##SelectedProfile", settings.SelectedProfile) ) {
+						var profiles = CoreSettings.GetProfiles();
+						ImGui_SelectableProfile(settings, "default");
+						foreach(var profile in profiles) {
+							ImGui_SelectableProfile(settings, profile);
+						}
+						if( ImGui.Selectable("Create new...", false) ) {
+							string newProfileName = GetPlayer()?.GetComponent<Player>()?.Name ?? new string('\0', 64);
+							string errorText = null;
+							bool showCreateProfile = true;
+							Run("Create Profile", (self, _) => {
+								if ( !showCreateProfile ) return null;
+								ImGui.SetNextWindowPos(Center(Overlay.RenderForm.ClientRectangle), ImGuiCond.Appearing);
+								ImGui.SetNextWindowSize(new Vector2(-1f, 0f));
+								if ( ImGui.Begin("Create Profile", ref showCreateProfile) ) {
+									try {
+										ImGui.AlignTextToFramePadding();
+										ImGui.Text("Name:");
+										ImGui.SameLine();
+										ImGui.InputText("", ref newProfileName, 64);
+										ImGui.SameLine();
+										if ( ImGui.Button("Create##CreateProfileButton") ) {
+											errorText = null;
+											if( CoreSettings.CreateProfile(newProfileName) ) {
+												settings.SelectedProfile = newProfileName;
+												PluginBase.SaveIniFile();
+												return null;
+											} else {
+												errorText = "Profile already exists";
+											}
+										}
+										if( errorText != null ) {
+											ImGui.Text(errorText);
+										}
+									} finally {
+										ImGui.End();
+									}
+								}
+								return self;
+							});
+						}
+						ImGui.EndCombo();
+					}
+
 					/*
 					ImGui.SameLine();
 					ImGui_HotKeyButton("Console", ref settings.ConsoleKey);
