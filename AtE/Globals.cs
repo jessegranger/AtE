@@ -8,6 +8,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -48,14 +49,27 @@ namespace AtE {
 			}
 		}
 
+		public static string FormatNumber(double value) {
+			char suffix = '\0';
+			if( value > 1000d ) {
+				suffix = 'K';
+				value /= 1000d;
+				if( value > 1000d ) {
+					suffix = 'M';
+					value /= 1000d;
+				}
+			}
+			return value.ToString("N2") + suffix;
+		}
+
 		public static string FormatNumber(long value) {
 			char suffix = '\0';
-			if( value > 1024 ) {
+			if( value > 1000 ) {
 				suffix = 'K';
-				value /= 1024;
-				if( value > 1024 ) {
+				value /= 1000;
+				if( value > 1000 ) {
 					suffix = 'M';
-					value /= 1024;
+					value /= 1000;
 				}
 			}
 			return value.ToString("N2") + suffix;
@@ -167,5 +181,6 @@ namespace AtE {
 		public static uint GetItemLevel(Entity ent, uint _default = 1) => GetItemLevel(ent?.GetComponent<Mods>(), _default);
 		public static uint GetItemLevel(Mods mods, uint _default = 1) => mods?.Level ?? _default;
 
+		public static string Slug(string raw) => Regex.Replace(raw, "[^A-Za-z0-9]", "");
 	}
 }
