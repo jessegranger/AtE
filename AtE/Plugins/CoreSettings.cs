@@ -1,6 +1,9 @@
 ﻿using ImGuiNET;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using static AtE.Globals;
 
@@ -18,6 +21,8 @@ namespace AtE {
 		public bool ShowPerformanceWindow = false;
 
 		public bool OnlyRenderWhenFocused = true;
+
+		public string SelectedProfile = "default";
 
 		public HotKey ConsoleKey = new HotKey(Keys.F12);
 		public HotKey PauseKey = new HotKey(Keys.Pause);
@@ -80,11 +85,26 @@ namespace AtE {
 			averageFPS = MovingAverage(averageFPS, Overlay.FPS, 10);
 			DrawBottomLeftText(
 				(Paused ? "[=]" : "[>]")
-				+ $" {timeInZone.Elapsed.ToString(@"mm\:ss")}"
+				+ $" {timeInZone.Elapsed:mm\\:ss}"
 				+ (ShowFPS ? $" fps {averageFPS:F0}" : "")
 			, Color.Orange);
 			return base.OnTick(dt);
 		}
 
+
+		public static IEnumerable<string> GetProfiles() => Directory.EnumerateFiles(".", "Settings-*.ini", SearchOption.TopDirectoryOnly)
+			.Select(s => s.Split('-')[1].Split('.')[0]);
+
+		public static bool CreateProfile(string name) {
+			if ( name == null ) return false;
+			if ( name.Length < 1 ) return false;
+			if ( name.Equals("default") ) return false;
+			string fileName = $"Settings-{Slug(name)}.ini";
+			if( !File.Exists(fileName) ) {
+				File.Copy(SettingsFileName, fileName);
+				return true;
+			}
+			return false;
+		}
 	}
 }

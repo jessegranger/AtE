@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using static AtE.Globals;
 
@@ -17,6 +18,8 @@ namespace AtE {
 
 	public static partial class Globals {
 		public static T GetPlugin<T>() where T : PluginBase => PluginBase.GetPlugin<T>();
+
+
 	}
 
 	/// <summary>
@@ -34,49 +37,61 @@ namespace AtE {
 			// make a new T();
 			var constructor = T.GetConstructor(new Type[] { });
 			var obj = (PluginBase)constructor.Invoke(new object[] { });
+			ApplyIniToPlugin(obj);
+			Instances.Add(T.Name, obj);
+			Machine.Add(obj);
+			return true;
+		}
+
+		private static void ApplyIniToPlugin(PluginBase plugin) {
+			Type T = plugin.GetType();
 			if ( iniSettings.TryGetValue(T.Name, out var iniSection) ) {
 				foreach ( var pair in iniSection ) {
+					Log($"INI [{T.Name}] {pair.Key} = {pair.Value}");
 					// if the plugin can Load the key directly, let them parse it themselves
-					if ( obj.Load(pair.Key, pair.Value) ) {
+					if ( plugin.Load(pair.Key, pair.Value) ) {
 						continue;
 					}
 					// otherwise, let's try a default deserialization
 					var field = T.GetField(pair.Key); // find the public field named by the Key
 					if ( field == null ) {
+						Log($"INI Line did not reference a Plugin field: {pair.Key}");
 						continue;
 					}
 					// skip loading any fields marked as NoPersist
 					if ( field.GetCustomAttribute<NoPersist>() != null ) {
+						Log($"INI Line skipping NoPersist field: {pair.Key}");
 						continue;
 					}
 
 					if ( field.FieldType == typeof(HotKey) ) {
-						field.SetValue(obj, HotKey.Parse(pair.Value));
+						field.SetValue(plugin, HotKey.Parse(pair.Value));
 					} else if ( field.FieldType == typeof(Keys) ) {
-						if( Enum.TryParse(pair.Value, out Keys key) ) {
-							field.SetValue(obj, key);
+						if ( Enum.TryParse(pair.Value, out Keys key) ) {
+							field.SetValue(plugin, key);
 						}
 					} else if ( field.FieldType == typeof(float) ) {
-						field.SetValue(obj, float.Parse(pair.Value));
+						field.SetValue(plugin, float.Parse(pair.Value));
 					} else if ( field.FieldType == typeof(double) ) {
-						field.SetValue(obj, double.Parse(pair.Value));
+						field.SetValue(plugin, double.Parse(pair.Value));
 					} else if ( field.FieldType == typeof(long) ) {
-						field.SetValue(obj, long.Parse(pair.Value));
+						field.SetValue(plugin, long.Parse(pair.Value));
 					} else if ( field.FieldType == typeof(int) ) {
-						field.SetValue(obj, int.Parse(pair.Value));
+						field.SetValue(plugin, int.Parse(pair.Value));
 					} else if ( field.FieldType == typeof(bool) ) {
-						field.SetValue(obj, bool.Parse(pair.Value));
+						field.SetValue(plugin, bool.Parse(pair.Value));
 					} else if ( field.FieldType == typeof(string) ) {
-						field.SetValue(obj, pair.Value);
+						field.SetValue(plugin, pair.Value);
 					} else {
 						throw new ArgumentException($"Unknown Field Type, cannot load from string: {field.FieldType}");
 					}
 				}
 			}
-		
-			Instances.Add(T.Name, obj);
-			Machine.Add(obj);
-			return true;
+		}
+		private static void ReapplyIniToAllPlugins() {
+			foreach(var plugin in Plugins) {
+				ApplyIniToPlugin(plugin);
+			}
 		}
 
 		private static Dictionary<string, PluginBase> Instances;
@@ -88,7 +103,13 @@ namespace AtE {
 			Instances = new Dictionary<string, PluginBase>();
 			Machine = new StateMachine();
 			iniSettings = new Dictionary<string, Dictionary<string, string>>();
-			LoadIniFile();
+			LoadIniFile(SettingsFileName, autoCreate: true);
+			// check if CoreSettings had a SelectedProfile and load that .ini file second
+			if( iniSettings.TryGetValue("CoreSettings", out Dictionary<string, string> settings)
+				&& settings.TryGetValue("SelectedProfile", out string profile) ) {
+				string fileName = $"Settings-{Slug(profile)}.ini";
+				LoadIniFile(fileName, autoCreate: false);
+			}
 
 			foreach(var pluginType in typeof(PluginBase).Assembly.GetTypes() ) {
 				TryRegisterPluginType(pluginType);
@@ -96,15 +117,13 @@ namespace AtE {
 		
 		}
 
-		private static readonly string SettingsFileName = "Settings.ini";
+		public static readonly string SettingsFileName = "Settings.ini";
 		private static Dictionary<string, Dictionary<string, string>> iniSettings;
-		private static void LoadIniFile() {
-			if ( !File.Exists(SettingsFileName) ) {
-				File.Create(SettingsFileName);
-			} else {
-				Log($"Parsing ini file...");
+		internal static void LoadIniFile(string fileName, bool autoCreate = false) {
+			if ( File.Exists(fileName) ) {
+				Log($"Parsing ini file: {fileName}...");
 				string sectionName = "";
-				foreach ( var line in File.ReadAllLines(SettingsFileName) ) {
+				foreach ( var line in File.ReadAllLines(fileName) ) {
 					if ( line.StartsWith("[") ) {
 						sectionName = line.Substring(1, line.Length - 2);
 						if ( !iniSettings.ContainsKey(sectionName) ) {
@@ -116,6 +135,25 @@ namespace AtE {
 							iniSettings[sectionName][key_value[0]] = string.Join("=", key_value.Skip(1));
 						}
 					}
+				}
+			} else if ( autoCreate ) {
+				File.Create(fileName);
+			}
+		}
+		internal static void LoadIniFiles() {
+			LoadIniFile(SettingsFileName, autoCreate: true);
+			CoreSettings settings = GetPlugin<CoreSettings>();
+			string profile = settings.SelectedProfile;
+			if ( profile == null ) return;
+			if ( profile.Equals("default") ) {
+				LoadIniFile(SettingsFileName);
+				ReapplyIniToAllPlugins();
+			} else {
+				string fileName = $"Settings-{Slug(profile)}.ini";
+				if( File.Exists(fileName) ) {
+					LoadIniFile(fileName);
+					ReapplyIniToAllPlugins();
+					settings.SelectedProfile = profile; // we just applied an old value, but are in the middle of changing to a new one
 				}
 			}
 		}
@@ -130,8 +168,7 @@ namespace AtE {
 					foreach ( var field in plugin.GetType().GetFields().Where(field => field.GetCustomAttribute<NoPersist>() == null) ) {
 						sb.AppendLine($"{field.Name}={field.GetValue(plugin)}");
 					}
-				} else {
-					// otherwise, use all the lines from Save()
+				} else { // otherwise, use all the lines from Save()
 					foreach(var line in linesFromPlugin) {
 						sb.AppendLine(line); // they should all be Name=Value pairs suitable for .ini file
 					}
@@ -141,6 +178,12 @@ namespace AtE {
 			string text = sb.ToString();
 			Log($"Saving INI File: {text}");
 			File.WriteAllText(SettingsFileName, text);
+			string profile = GetPlugin<CoreSettings>().SelectedProfile;
+			if ( !profile.Equals("default") ) {
+				string fileName = $"Settings-{Slug(profile)}.ini";
+				Log($"Saving profile: {fileName}");
+				File.WriteAllText(fileName, text);
+			}
 		}
 
 		internal static void PauseAll() {
@@ -208,4 +251,5 @@ namespace AtE {
 			return false;
 		}
 	}
+
 }
