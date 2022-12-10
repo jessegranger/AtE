@@ -76,7 +76,7 @@ namespace AtE.Plugins {
 							// else, tracked and dead monsters we record
 							trackingMonsters.Remove(ent.Id);
 							long elapsed = Time.ElapsedMilliseconds - value.FirstSeen;
-							long dps = 1000 * value.FirstLife / elapsed;
+							double dps = (1000d * value.FirstLife) / elapsed;
 							if( ShowDPSText ) {
 								DriftUpText(ent.GetComponent<Render>()?.Position ?? Vector3.Zero,
 									$"{FormatNumber(dps)}", Color.Cyan, .09f, 8000);

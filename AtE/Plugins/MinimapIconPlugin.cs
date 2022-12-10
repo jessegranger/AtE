@@ -30,16 +30,24 @@ namespace AtE.Plugins {
 
 		public override void Render() {
 			base.Render();
+			var ui = GetUI();
+			var map = ui.Map;
+			bool largeMapVisible = map.LargeMap?.IsVisibleLocal ?? false;
+			bool miniMapVisible = map.MiniMap?.IsVisibleLocal ?? false;
 			ImGui.Checkbox("Show Icons on Mini Map", ref ShowOnMinimap);
+			if( miniMapVisible ) {
+				ImGui.SameLine(); ImGui.TextDisabled("(visible)");
+			}
 			ImGui.Checkbox("Show Icons on Large Map", ref ShowOnLargemap);
+			if( largeMapVisible ) {
+				ImGui.SameLine(); ImGui.TextDisabled("(visible)");
+			}
 			ImGui.SliderInt("Icon Size", ref IconSize, 5, 20);
 			ImGui.Separator();
 			ImGui.Checkbox("Show Enemies", ref ShowEnemies);
 			ImGui.SameLine();
 			ImGui.Checkbox("Also Over Head", ref ShowRareOverhead);
 			ImGui.Checkbox("Show Minions", ref ShowMinions);
-			ImGui.SameLine();
-			ImGui_HelpMarker("Currently expensive.");
 			ImGui.Checkbox("Show Strongboxes", ref ShowChests);
 			ImGui.Checkbox("Show Delve Path", ref ShowDelvePath);
 		}
@@ -58,12 +66,15 @@ namespace AtE.Plugins {
 			if ( !IsValid(map) ) {
 				return this;
 			}
+			bool largeMapVisible = map.LargeMap?.IsVisibleLocal ?? false;
 
-			if ( map.LargeMap.IsVisibleLocal && !ShowOnLargemap ) {
+			if ( largeMapVisible && !ShowOnLargemap ) {
 				return this;
 			}
 
-			if ( map.MiniMap.IsVisibleLocal && !ShowOnMinimap ) {
+			bool smallMapVisible = map.MiniMap?.IsVisibleLocal ?? false;
+
+			if ( smallMapVisible && !ShowOnMinimap ) {
 				return this;
 			}
 

@@ -191,7 +191,7 @@ namespace AtE.Plugins {
 			public override bool Predicate(PlayerEntity p) =>
 				base.Predicate(p) ||
 				(TryGetBuffValue(p, StageBuffName, out int stage) && stage >= 50
-					&& NearbyEnemies(500, Offsets.MonsterRarity.Rare).Any(IsAlive)
+					&& NearbyEnemies(100, Offsets.MonsterRarity.Rare).Any(IsAlive)
 				);
 		}
 

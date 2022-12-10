@@ -163,6 +163,7 @@ namespace AtE {
 				// Feature: Use Life flask
 				if ( UseLifeFlask ) {
 					uint maxHp = MaxLife(life, HasBuff(player, "petrified_blood")); // life.MaxHP - life.TotalReservedHP;
+					if ( maxHp == 0 ) return this;
 					// 0 - 100, to match the scale of the SliderFloat above
 					float pctHp = 100 * life.CurHP / maxHp;
 					if ( pctHp < UseLifeFlaskAtPctLife ) {
@@ -229,7 +230,7 @@ namespace AtE {
 			}
 
 			if ( UseUtilityWhenHitRareOrUnique ) {
-				bool hasHitNearbyRare = NearbyEnemies(500, Offsets.MonsterRarity.Rare)
+				bool hasHitNearbyRare = NearbyEnemies(100, Offsets.MonsterRarity.Rare)
 					// If there are any hurt
 					.Any(e => {
 						var e_life = e.GetComponent<Life>();

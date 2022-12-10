@@ -158,7 +158,7 @@ namespace AtE {
 						xpLastFrame += (uint)xpGain;
 					}
 					xpPerMs = MovingAverage(xpPerMs, xpGain / dt, 1000);
-					if ( xpPerMs > 0f && ShowXPRate ) {
+					if ( xpPerMs > 0f && player.Level > 0 && ShowXPRate ) {
 						// translate the xpPerMs into %/hr and hrs until level
 						uint xpInThisLevel = xpToNextLevel[player.Level] - xpToNextLevel[player.Level - 1];
 						uint xpToLevel = xpToNextLevel[player.Level] - player.XP;
