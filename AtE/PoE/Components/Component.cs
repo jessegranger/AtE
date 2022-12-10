@@ -40,9 +40,9 @@ namespace AtE {
 		public int CurMana => Cache.CurMana;
 
 		public float CurManaRegen => Cache.ManaRegen;
-		public float CurHPRegen => Cache.Regen;
-		public int TotalReservedHP => Cache.ReservedFlatHP + (int)(1f + (Cache.MaxHP * (Cache.ReservedPercentHP / 10000d)));
-		public int TotalReservedMana => Cache.ReservedFlatMana + (int)(1f + (Cache.MaxMana * (Cache.ReservedPercentMana / 10000d)));
+		public float CurHPRegen => Cache.CurHPRegen;
+		public int TotalReservedHP => Cache.ReservedFlatHP + (int)(0.5f + (Cache.MaxHP * (Cache.ReservedPercentHP / 10000d)));
+		public int TotalReservedMana => Cache.ReservedFlatMana + (int)(0.5f + (Cache.MaxMana * (Cache.ReservedPercentMana / 10000d)));
 
 	}
 	public static partial class Globals {
@@ -79,7 +79,7 @@ namespace AtE {
 
 		public IEnumerable<ActorSkill> Skills =>
 			new ArrayHandle<Offsets.ActorSkillArrayEntry>(Cache.ActorSkillsHandle)
-				.ToArray(limit: 200) // anything more than that is corrupt nonsense
+				.ToArray(limit: 100) // anything more than that is corrupt nonsense
 				.Select(x => new ActorSkill(this) { Address = x.ActorSkillPtr })
 				.Where(x => x.IsValid())
 			;
@@ -567,6 +567,8 @@ namespace AtE {
 	}
 
 	public class Player : Component<Offsets.Component_Player> {
+
+		public string Name => IsValid(Address) ? Cache.strName.Value : null;
 		public uint XP => Cache.XP;
 		public uint Str => Cache.Strength;
 		public uint Dex => Cache.Dexterity;
@@ -602,7 +604,6 @@ namespace AtE {
 		public Vector3 Position => Cache.Pos;
 		public Vector3 Bounds => Cache.Bounds;
 		public Vector3 Rotation => Cache.Rotation;
-		public float Height => Cache.Height;
 
 		public string Name => Cache.Name.Value;
 	}

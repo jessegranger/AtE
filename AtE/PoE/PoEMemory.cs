@@ -99,10 +99,6 @@ namespace AtE {
 				return true;
 			}
 			Log($"TryRead: failed to read address {Describe(loc)} error: {LastError}");
-			if ( LastError == 6 ) { // ERROR_INVALID_HANDLE 
-															// Detach();
-				// throw new Exception("TryReadError");
-			}
 			return false;
 		}
 

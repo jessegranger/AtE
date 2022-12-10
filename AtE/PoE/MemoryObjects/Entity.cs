@@ -44,8 +44,8 @@ namespace AtE {
 				&& (e.GetComponent<Positioned>()?.IsHostile ?? false)) ?? Empty<Entity>();
 
 		public static IEnumerable<Entity> NearbyEnemies(float radius) {
-			Vector3 playerPos = Position(GetPlayer());
-			return playerPos == Vector3.Zero ? Empty<Entity>() : GetEnemies().Where(e => Distance(playerPos, Position(e)) <= radius);
+			Vector2 playerPos = GridPosition(GetPlayer());
+			return playerPos == Vector2.Zero ? Empty<Entity>() : GetEnemies().Where(e => Distance(playerPos, GridPosition(e)) <= radius);
 		}
 
 		public static IEnumerable<Entity> NearbyEnemies(float radius, Offsets.MonsterRarity rarity) =>
@@ -151,7 +151,7 @@ namespace AtE {
 				// the entity has a list of ptr to Component
 				// managed by an ArrayHandle at ComponentsArray
 				var entityComponents = new ArrayHandle<IntPtr>(Cache.ComponentsArray)
-					.ToArray(limit: 30); // if it claims to have more than 50 components, its corrupt data
+					.ToArray(limit: 50); // if it claims to have more than 50 components, its corrupt data
 				if ( entityComponents.Length == 0 ) {
 					return;
 				}
@@ -278,6 +278,7 @@ namespace AtE {
 
 		public Pathfinding Pathfinding => GetComponent<Pathfinding>();
 		public Positioned Positioned => GetComponent<Positioned>();
+		public Player Player => GetComponent<Player>();
 
 		public Buffs Buffs => GetComponent<Buffs>();
 

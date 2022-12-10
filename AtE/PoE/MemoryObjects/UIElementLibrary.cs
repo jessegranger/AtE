@@ -41,9 +41,9 @@ namespace AtE {
 		public Element LeagueInteractButtonPanel => IsValid(Address) ? getElement(Cache.LeagueInteractButtonPanel) : null;
 		public Element QuestRewardWindow => IsValid(Address) ? getElement(Cache.QuestRewardWindow) : null;
 		public Element PurchaseWindow => IsValid(Address) ? getElement(Cache.PurchaseWindow) : null;
-		public Element Unknown730 => IsValid(Address) ? getElement(Cache.Unknown730) : null; // LeaguePurchasePanel
 		public Element SellWindow => IsValid(Address) ? getElement(Cache.SellWindow) : null;
 		/*
+		public Element Unknown730 => IsValid(Address) ? getElement(Cache.Unknown730) : null; // LeaguePurchasePanel
 		public Element Unknown740 => IsValid(Address) ? getElement(Cache.Unknown740) : null;
 		public Element Unknown758 => IsValid(Address) ? getElement(Cache.Unknown758) : null;
 		public Element Unknown768 => IsValid(Address) ? getElement(Cache.Unknown768) : null;
@@ -104,8 +104,6 @@ namespace AtE {
 		public Element ExpeditionSelectPanel => IsValid(Address) ? getElement(Cache.ExpeditionSelectPanel) : null;
 		public Element LogbookReceptaclePanel => IsValid(Address) ? getElement(Cache.LogbookReceptaclePanel) : null;
 		public Element ExpeditionLockerPanel => IsValid(Address) ? getElement(Cache.ExpeditionLockerPanel) : null;
-		public Element KalandraMirroredTabletPanel => IsValid(Address) ? getElement(Cache.KalandraMirroredTabletPanel) : null;
-		public Element KalandraReflectionPanel => IsValid(Address) ? getElement(Cache.KalandraReflectionPanel) : null;
 		public Element BuffsPanel => IsValid(Address) ? getElement(Cache.BuffsPanel) : null;
 		public Element DelveDarkness => IsValid(Address) ? getElement(Cache.DelveDarkness) : null; // Debuffs Panel
 		public Element AreaInstanceUi => IsValid(Address) ? getElement(Cache.AreaInstanceUi) : null;

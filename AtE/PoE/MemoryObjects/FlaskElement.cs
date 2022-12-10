@@ -173,6 +173,7 @@ namespace AtE {
 				-1, -1, -1, -1, -1
 			};
 			foreach ( var flaskChild in Children.FirstOrDefault()?.Children.Skip(1) ?? Empty<Element>()) {
+				if ( flaskChild == null ) continue;
 				int flaskIndex = (int)(flaskChild.Position.X / flaskChild.Size.X);
 				if( flaskIndex >= 0 && flaskIndex < 5 ) {
 					flaskIndexToChildIndex[flaskIndex] = flaskChildIndex;

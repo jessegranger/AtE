@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Windows.Forms;
 using System.Linq;
 using static AtE.Globals;
+using System.Collections.Generic;
 
 namespace AtE {
 	public class MapElement : Element {
@@ -165,6 +166,7 @@ namespace AtE {
 			var largeMap = LargeMap;
 			if( IsValid(largeMap) && largeMap.IsVisibleLocal ) {
 				if ( largeMapCenter == Vector2.Zero ) UpdateMiniMapRect();
+
 				var mapCenter = largeMapCenter;
 				var gridDelta = entGrid - playerGrid;
 				float zDelta = entPos.Z - playerPos.Z;
