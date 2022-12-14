@@ -11,6 +11,8 @@ namespace AtE {
 
 		private Element getElement(IntPtr ptr) => IsValid(Address) && ElementCache.TryGetElement(ptr, out Element elem) ? elem : null;
 
+		public IEnumerable<InventoryItem> BackpackItems => BackpackItems();
+
 		public Element GetQuests => IsValid(Address) ? getElement(Cache.GetQuests) : null;
 		public Element GameUI => IsValid(Address) ? getElement(Cache.GameUI) : null;
 		public Element LifeBubble => IsValid(Address) ? getElement(Cache.LifeBubble) : null;
@@ -28,13 +30,15 @@ namespace AtE {
 		public Element OpenRightPanel => IsValid(Address) ? getElement(Cache.OpenRightPanel) : null;
 		public InventoryRoot InventoryPanel => new InventoryRoot() { Address = Cache.InventoryPanel };
 		public Element StashElement => IsValid(Address) ? getElement(Cache.StashElement) : null;
+		public Inventory StashInventory => IsValid(Address) ? new Inventory() { Address = Cache.StashElement } : null;
 		public Element GuildStashElement => IsValid(Address) ? getElement(Cache.GuildStashElement) : null;
 		public Element AtlasPanel => IsValid(Address) ? getElement(Cache.AtlasPanel) : null;
 		public Element AtlasSkillPanel => IsValid(Address) ? getElement(Cache.AtlasSkillPanel) : null;
 		public Element WorldMap => IsValid(Address) ? getElement(Cache.WorldMap) : null;
 		public MapElement Map => new MapElement() { Address = Cache.Map };
 		public LabelsOnGroundRoot LabelsOnGround => new LabelsOnGroundRoot() { Address = Cache.ItemsOnGroundLabelElement };
-		public Element BanditDialog => IsValid(Address) ? getElement(Cache.BanditDialog) : null;
+		// public Element BanditDialog => IsValid(Address) ? getElement(Cache.BanditDialog) : null;
+		public Element Viewport => IsValid(Address) ? getElement(Cache.GameViewport) : null;
 		public Element RootBuffPanel => IsValid(Address) ? getElement(Cache.RootBuffPanel) : null;
 		public Element NpcDialog => IsValid(Address) ? getElement(Cache.NpcDialog) : null;
 		public Element LeagueNpcDialog => IsValid(Address) ? getElement(Cache.LeagueNpcDialog) : null;
