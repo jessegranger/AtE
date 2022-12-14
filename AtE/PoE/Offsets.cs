@@ -403,7 +403,7 @@ namespace AtE {
 			[FieldOffset(0x688)] public readonly IntPtr Map;
 
 			[FieldOffset(0x690)] public readonly IntPtr ItemsOnGroundLabelElement;
-			[FieldOffset(0x698)] public readonly IntPtr BanditDialog;
+			[FieldOffset(0x698)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
 			[FieldOffset(0x700)] public readonly IntPtr RootBuffPanel;
 			[FieldOffset(0x710)] public readonly IntPtr NpcDialog;
 			[FieldOffset(0x718)] public readonly IntPtr LeagueNpcDialog;
@@ -602,11 +602,11 @@ namespace AtE {
 			[FieldOffset(0x19c)] public readonly int MaxHP;
 			[FieldOffset(0x1a0)] public readonly int CurHP;
 
+			[FieldOffset(0x1d0)] public readonly int ReservedFlatMana;
+			[FieldOffset(0x1d4)] public readonly int ReservedPercentMana;
 			[FieldOffset(0x1e8)] public readonly float ManaRegen;
 			[FieldOffset(0x1EC)] public readonly int MaxMana;
 			[FieldOffset(0x1F0)] public readonly int CurMana;
-			[FieldOffset(0x208)] public readonly int ReservedFlatMana;
-			[FieldOffset(0x20c)] public readonly int ReservedPercentMana;
 
 			[FieldOffset(0x224)] public readonly int MaxES;
 			[FieldOffset(0x228)] public readonly int CurES;
@@ -1317,29 +1317,29 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InventoryArray {
-			[FieldOffset(0x00)] public readonly IntPtr None;
-			[FieldOffset(0x08)] public readonly IntPtr Helm; // ptr to Element_Inventory
-			[FieldOffset(0x10)] public readonly IntPtr Amulet;
-			[FieldOffset(0x18)] public readonly IntPtr Chest;
-			[FieldOffset(0x20)] public readonly IntPtr LWeapon;
-			[FieldOffset(0x28)] public readonly IntPtr RWeapon;
-			[FieldOffset(0x30)] public readonly IntPtr LWeaponSwap;
-			[FieldOffset(0x38)] public readonly IntPtr RWeaponSwap;
-			[FieldOffset(0x40)] public readonly IntPtr LRing;
-			[FieldOffset(0x48)] public readonly IntPtr RRing;
-			[FieldOffset(0x50)] public readonly IntPtr Gloves;
-			[FieldOffset(0x58)] public readonly IntPtr Belt;
-			[FieldOffset(0x60)] public readonly IntPtr Boots;
-			[FieldOffset(0x68)] public readonly IntPtr Backpack;
-			[FieldOffset(0x70)] public readonly IntPtr Flask;
-			[FieldOffset(0x78)] public readonly IntPtr Trinket;
-			[FieldOffset(0x80)] public readonly IntPtr LWeaponSkin;
-			[FieldOffset(0x88)] public readonly IntPtr LWeaponEffect;
-			[FieldOffset(0x90)] public readonly IntPtr LWeaponAddedEffect;
-			[FieldOffset(0x98)] public readonly IntPtr RWeaponSkin;
-			[FieldOffset(0xa0)] public readonly IntPtr RWeaponEffect;
-			[FieldOffset(0xa8)] public readonly IntPtr RWeaponAddedEffect;
-			[FieldOffset(0xb0)] public readonly IntPtr HelmSkin;
+			[FieldOffset(0x00)] public readonly IntPtr Helm;
+			[FieldOffset(0x08)] public readonly IntPtr Amulet; // ptr to Element_Inventory
+			[FieldOffset(0x10)] public readonly IntPtr Chest;
+			[FieldOffset(0x18)] public readonly IntPtr LWeapon;
+			[FieldOffset(0x20)] public readonly IntPtr RWeapon;
+			[FieldOffset(0x28)] public readonly IntPtr LWeaponSwap;
+			[FieldOffset(0x30)] public readonly IntPtr RWeaponSwap;
+			[FieldOffset(0x38)] public readonly IntPtr LRing;
+			[FieldOffset(0x40)] public readonly IntPtr RRing;
+			[FieldOffset(0x48)] public readonly IntPtr Gloves;
+			[FieldOffset(0x50)] public readonly IntPtr Belt;
+			[FieldOffset(0x58)] public readonly IntPtr Boots;
+			[FieldOffset(0x60)] public readonly IntPtr Backpack;
+			[FieldOffset(0x68)] public readonly IntPtr Flask;
+			[FieldOffset(0x70)] public readonly IntPtr Trinket;
+			[FieldOffset(0x78)] public readonly IntPtr LWeaponSkin; // nothing below here is verified/updated
+			[FieldOffset(0x80)] public readonly IntPtr LWeaponEffect;
+			[FieldOffset(0x88)] public readonly IntPtr LWeaponAddedEffect;
+			[FieldOffset(0x90)] public readonly IntPtr RWeaponSkin;
+			[FieldOffset(0x98)] public readonly IntPtr RWeaponEffect;
+			[FieldOffset(0xa0)] public readonly IntPtr RWeaponAddedEffect;
+			[FieldOffset(0xa8)] public readonly IntPtr HelmSkin;
+			[FieldOffset(0xb0)] public readonly IntPtr HelmAttachment;
 			[FieldOffset(0xb8)] public readonly IntPtr HelmAttachment1;
 			[FieldOffset(0xc0)] public readonly IntPtr BodySkin;
 			[FieldOffset(0xc8)] public readonly IntPtr BodyAttachment;
@@ -1392,7 +1392,7 @@ namespace AtE {
 			[FieldOffset(0x438)] public readonly IntPtr entItem;
 			[FieldOffset(0x440)] public readonly Vector2i InventPosition;
 			[FieldOffset(0x448)] public readonly int Width;
-			[FieldOffset(0x450)] public readonly int Height;
+			[FieldOffset(0x44c)] public readonly int Height;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_Map {
 			[FieldOffset(0x278)] public readonly IntPtr ptrToSubMap_Full;
