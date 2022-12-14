@@ -21,13 +21,27 @@ namespace AtE {
 		public Element Parent => IsValid(Address) && ElementCache.TryGetElement(Cache.elemParent, out Element elem) ? elem : null;
 
 
-		private ArrayHandle<IntPtr> children;
-		public IEnumerable<Element> Children =>
-			(children ?? (children = new ArrayHandle<IntPtr>(Cache.Children)))
-			.Select(a => ElementCache.TryGetElement(a, out Element elem) ? elem : null);
+		private ArrayHandle<IntPtr> lastKnownChildren;
+		private long lastKnownChildrenUpdated = 0;
+		private const uint lastKnownChildrenInterval = 1000;
 
-		internal IntPtr GetChildPtr(int index) => index < 0 ? default :
-			(children ?? (children = new ArrayHandle<IntPtr>(Cache.Children)))[index];
+		public IEnumerable<Element> Children {
+			get {
+				if( lastKnownChildren == null || lastKnownChildrenUpdated < Time.ElapsedMilliseconds + lastKnownChildrenInterval ) {
+					lastKnownChildren = new ArrayHandle<IntPtr>(Cache.Children);
+					lastKnownChildrenUpdated = Time.ElapsedMilliseconds;
+				}
+				return lastKnownChildren.Select(a => ElementCache.TryGetElement(a, out Element elem) ? elem : null);
+			}
+		}
+
+		internal IntPtr GetChildPtr(int index) {
+			if ( lastKnownChildren == null || lastKnownChildrenUpdated < Time.ElapsedMilliseconds + lastKnownChildrenInterval ) {
+				lastKnownChildren = new ArrayHandle<IntPtr>(Cache.Children);
+				lastKnownChildrenUpdated = Time.ElapsedMilliseconds;
+			}
+			return index < 0 ? IntPtr.Zero : lastKnownChildren[index];
+		}
 		public Element GetChild(int index) => ElementCache.TryGetElement(GetChildPtr(index), out Element child) ? child : null;
 
 
