@@ -185,7 +185,10 @@ namespace AtE {
 		// public MoveMouse(Element label, IState next = null) : this(label?.GetClientRect().Center ?? Vector2.Zero, next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			if ( !PoEMemory.TargetHasFocus ) return Next;
+			if ( !(Overlay.HasFocus || PoEMemory.TargetHasFocus) ) {
+				Log($"Warn: MoveMouse attempted while not focused, skipped.");
+				return Next;
+			}
 			if ( X == 0 && Y == 0 ) {
 				Log($"Warn: MoveMouse to (0,0) attempted, skipped.");
 				return Next;
@@ -198,7 +201,10 @@ namespace AtE {
 		public LeftMouseDown(IState next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			if ( !PoEMemory.TargetHasFocus ) return Next;
+			if ( !(Overlay.HasFocus || PoEMemory.TargetHasFocus) ) {
+				Log($"Warn: MouseDown attempted while not focused, skipped.");
+				return Next;
+			}
 			SendInput(INPUT_Mouse(MouseFlag.LeftDown));
 			return Next;
 		}
@@ -208,7 +214,6 @@ namespace AtE {
 		public LeftMouseUp(IState next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			if ( !PoEMemory.TargetHasFocus ) return Next;
 			SendInput(INPUT_Mouse(MouseFlag.LeftUp));
 			return Next;
 		}
