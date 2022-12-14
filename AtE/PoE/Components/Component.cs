@@ -500,10 +500,10 @@ namespace AtE {
 		public IEnumerable<Offsets.UniqueNameEntry> NameEntries =>
 			new ArrayHandle<Offsets.UniqueNameEntry>(Cache.UniqueName);
 
-		public IEnumerable<ItemMod> ExplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ExplicitModsArray).Select(e => new ItemMod(e));
-		public IEnumerable<ItemMod> ImplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ImplicitModsArray).Select(e => new ItemMod(e));
-		public IEnumerable<ItemMod> EnchantedMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.EnchantedModsArray).Select(e => new ItemMod(e));
-		public IEnumerable<ItemMod> ScourgeMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ScourgeModsArray).Select(e => new ItemMod(e));
+		public IEnumerable<ItemMod> ExplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ExplicitModsArray).Take(16).Select(e => new ItemMod(e));
+		public IEnumerable<ItemMod> ImplicitMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ImplicitModsArray).Take(16).Select(e => new ItemMod(e));
+		public IEnumerable<ItemMod> EnchantedMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.EnchantedModsArray).Take(16).Select(e => new ItemMod(e));
+		public IEnumerable<ItemMod> ScourgeMods => new ArrayHandle<Offsets.ItemModEntry>(Cache.ScourgeModsArray).Take(16).Select(e => new ItemMod(e));
 
 		// TODO: A generic wrapper for a GameStatArray, as a Dictionar<GameStat, int>
 		public IEnumerable<Offsets.ItemStatEntry> ExplicitStats => new ArrayHandle<Offsets.ItemStatEntry>(Stats.Value.ExplicitStatsArray);
