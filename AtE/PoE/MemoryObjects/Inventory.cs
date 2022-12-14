@@ -19,24 +19,25 @@ namespace AtE {
 			Inventories = new Cached<Offsets.InventoryArray>(() => Details.Value.InventoryList);
 		}
 
-		public Inventory Helm => new Inventory() { Address = Inventories.Value.Helm };
-		public Inventory Amulet => new Inventory() { Address = Inventories.Value.Amulet };
-		public Inventory Chest => new Inventory() { Address = Inventories.Value.Chest };
-		public Inventory LWeapon => new Inventory() { Address = Inventories.Value.LWeapon };
-		public Inventory RWeapon => new Inventory() { Address = Inventories.Value.RWeapon };
-		public Inventory LWeaponSwap => new Inventory() { Address = Inventories.Value.LWeaponSwap };
-		public Inventory RWeaponSwap => new Inventory() { Address = Inventories.Value.RWeaponSwap };
-		public Inventory LRing => new Inventory() { Address = Inventories.Value.LRing };
-		public Inventory RRing => new Inventory() { Address = Inventories.Value.RRing };
-		public Inventory Gloves => new Inventory() { Address = Inventories.Value.Gloves };
-		public Inventory Belt => new Inventory() { Address = Inventories.Value.Belt };
-		public Inventory Boots => new Inventory() { Address = Inventories.Value.Boots };
-		public Inventory Backpack => new Inventory() { Address = Inventories.Value.Backpack };
-		public Inventory Flasks => new Inventory() { Address = Inventories.Value.Flask };
-		public Inventory Trinket => new Inventory() { Address = Inventories.Value.Trinket };
-		public Inventory LeveledGems => new Inventory() { Address = Inventories.Value.LeveledGems };
-		public Inventory LWeaponSwapTabPanel => new Inventory() { Address = Inventories.Value.LWeaponSwapTabPanel };
-		public Inventory RWeaponSwapTabPanel => new Inventory() { Address = Inventories.Value.RWeaponSwapTabPanel };
+		// public Inventory None => IsValid(Inventories.Value.None) ? new Inventory() { Address = Inventories.Value.None } : null;
+		public Inventory Helm => IsValid(Inventories.Value.Helm) ? new Inventory() { Address = Inventories.Value.Helm } : null;
+		public Inventory Amulet => IsValid(Inventories.Value.Amulet) ? new Inventory() { Address = Inventories.Value.Amulet } : null;
+		public Inventory Chest => IsValid(Inventories.Value.Chest) ? new Inventory() { Address = Inventories.Value.Chest } : null;
+		public Inventory LWeapon => IsValid(Inventories.Value.LWeapon) ? new Inventory() { Address = Inventories.Value.LWeapon } : null;
+		public Inventory RWeapon => IsValid(Inventories.Value.RWeapon) ? new Inventory() { Address = Inventories.Value.RWeapon } : null;
+		public Inventory LWeaponSwap => IsValid(Inventories.Value.LWeaponSwap) ? new Inventory() { Address = Inventories.Value.LWeaponSwap } : null;
+		public Inventory RWeaponSwap => IsValid(Inventories.Value.RWeaponSwap) ? new Inventory() { Address = Inventories.Value.RWeaponSwap } : null;
+		public Inventory LRing => IsValid(Inventories.Value.LRing) ? new Inventory() { Address = Inventories.Value.LRing } : null;
+		public Inventory RRing => IsValid(Inventories.Value.RRing) ? new Inventory() { Address = Inventories.Value.RRing } : null;
+		public Inventory Gloves => IsValid(Inventories.Value.Gloves) ? new Inventory() { Address = Inventories.Value.Gloves } : null;
+		public Inventory Belt => IsValid(Inventories.Value.Belt) ? new Inventory() { Address = Inventories.Value.Belt } : null;
+		public Inventory Boots => IsValid(Inventories.Value.Boots) ? new Inventory() { Address = Inventories.Value.Boots } : null;
+		public Inventory Backpack => IsValid(Inventories.Value.Backpack) ? new Inventory() { Address = Inventories.Value.Backpack } : null;
+		public Inventory Flasks => IsValid(Inventories.Value.Flask) ? new Inventory() { Address = Inventories.Value.Flask } : null;
+		public Inventory Trinket => IsValid(Inventories.Value.Trinket) ? new Inventory() { Address = Inventories.Value.Trinket } : null;
+		public Inventory LeveledGems => IsValid(Inventories.Value.LeveledGems) ? new Inventory() { Address = Inventories.Value.LeveledGems } : null;
+		public Inventory LWeaponSwapTabPanel => IsValid(Inventories.Value.LWeaponSwapTabPanel) ? new Inventory() { Address = Inventories.Value.LWeaponSwapTabPanel } : null;
+		public Inventory RWeaponSwapTabPanel => IsValid(Inventories.Value.RWeaponSwapTabPanel) ? new Inventory() { Address = Inventories.Value.RWeaponSwapTabPanel } : null;
 	}
 
 	public class Inventory : Element {
