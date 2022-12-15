@@ -152,8 +152,10 @@ namespace AtE.Plugins {
 					icon = SpriteIcon.RewardWeapons;
 				} else if ( path.EndsWith("/Gemcutter") ) {
 					icon = SpriteIcon.RewardGems;
-				} else if ( path.EndsWith("/Cartographer") ) {
+				} else if ( path.Contains("/Cartographer") ) {
 					icon = SpriteIcon.RewardMaps;
+				} else if ( path.EndsWith("/VaultsOfAtziriUniqueChest") ) {
+					icon = SpriteIcon.RewardFragments;
 				} else {
 					ImGui.SetNextWindowPos(WorldToScreen(ent.GetComponent<Render>()?.Position ?? Vector3.Zero));
 					ImGui.Begin($"Debug Chest##{ent.Id}");
