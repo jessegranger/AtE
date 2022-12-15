@@ -114,7 +114,7 @@
     <Compile Include="Plugins\ExamplePlugin.cs" />
     <Compile Include="Plugins\FlasksPlugin.cs" />
     <Compile Include="Plugins\MinimapIconPlugin.cs" />
-    <Compile Include="Plugins\MousePlugin.cs" />
+    <Compile Include="Plugins\MouseKeyboardPlugin.cs" />
     <Compile Include="Plugins\PluginBase.cs" />
     <Compile Include="Plugins\BackpackPlugin.cs" />
     <Compile Include="Plugins\XPPlugin.cs" />
