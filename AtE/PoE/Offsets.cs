@@ -19,12 +19,12 @@ namespace AtE {
 		/// The current version of this file.
 		/// </summary>
 		public const int VersionMajor = 1;
-		public const int VersionMinor = 1;
+		public const int VersionMinor = 2;
 
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.20.0";
+		public const string PoEVersion = "3.20.0b";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
