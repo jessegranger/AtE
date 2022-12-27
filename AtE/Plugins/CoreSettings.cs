@@ -27,9 +27,11 @@ namespace AtE {
 		public HotKey ConsoleKey = new HotKey(Keys.F12);
 		public HotKey PauseKey = new HotKey(Keys.Pause);
 
-		private Stopwatch timeInZone = Stopwatch.StartNew();
+		public Stopwatch TimeInZone = Stopwatch.StartNew();
 		public CoreSettings():base() {
-			OnAreaChange += (sender, areaName) => timeInZone.Restart();
+			PoEMemory.OnAttach += (_, args) => OnAreaChange += (sender, areaName) => {
+				TimeInZone.Restart();
+			};
 		}
 
 		public override string Name => "Core Settings";
@@ -85,7 +87,7 @@ namespace AtE {
 			averageFPS = MovingAverage(averageFPS, Overlay.FPS, 10);
 			DrawBottomLeftText(
 				(Paused ? "[=]" : "[>]")
-				+ $" {timeInZone.Elapsed:mm\\:ss}"
+				+ $" {TimeInZone.Elapsed:mm\\:ss}"
 				+ (ShowFPS ? $" fps {averageFPS:F0}" : "")
 			, Color.Orange);
 			return base.OnTick(dt);
