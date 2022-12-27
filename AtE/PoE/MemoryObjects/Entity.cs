@@ -39,8 +39,7 @@ namespace AtE {
 			.Where(e => 
 				e != null
 				&& e.Id > 0 && e.Id < int.MaxValue
-				&& e.Path != null
-				&& e.Path.StartsWith("Metadata/Monster")
+				&& (e.Path?.StartsWith("Metadata/Monster") ?? false)
 				&& (e.GetComponent<Positioned>()?.IsHostile ?? false)) ?? Empty<Entity>();
 
 		public static IEnumerable<Entity> NearbyEnemies(float radius) {
@@ -259,6 +258,21 @@ namespace AtE {
 				return;
 			}
 		}
+	
+		public struct Icon {
+			public SpriteIcon Sprite;
+			public float Size; // later, Size == 0f will mean a sprite has not yet been determined for the ent
+			// Size == 1f with Sprite == None means the ent has been determined to have no icon
+		}
+		public Icon MinimapIcon = default;
+
+		public RectangleF GetClientRect() {
+			var render = GetComponent<Render>();
+			if ( !IsValid(render) ) return RectangleF.Empty;
+			var pos = WorldToScreen(render.Position);
+			var far = WorldToScreen(render.Position + render.Bounds);
+			return new RectangleF(pos.X, pos.Y, far.X - pos.X, far.Y - pos.Y);
+		}
 	}
 
 	/// <summary>
@@ -287,12 +301,6 @@ namespace AtE {
 		public Vector3 Position => Render?.Position ?? Vector3.Zero;
 		public Vector3 Bounds => Render?.Bounds ?? Vector3.Zero;
 
-		public RectangleF GetClientRect() {
-			if ( !IsValid(Render) ) return RectangleF.Empty;
-			var pos = WorldToScreen(Position);
-			var far = WorldToScreen(Position + Bounds);
-			return new RectangleF(pos.X, pos.Y, far.X - pos.X, far.Y - pos.Y);
-		}
 	}
 
 
