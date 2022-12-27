@@ -115,7 +115,7 @@ namespace AtE {
 			}
 
 			string areaName = PoEMemory.GameRoot?.AreaLoadingState.AreaName ?? null;
-			if( areaName == null || areaName.Equals(Offsets.THE_ROGUE_HARBOUR) || areaName.EndsWith(Offsets.HIDEOUT_SUFFIX) ) {
+			if( areaName == null || areaName.Equals(Offsets.THE_ROGUE_HARBOUR) || (areaName.EndsWith(Offsets.HIDEOUT_SUFFIX) && ! areaName.Equals(Offsets.SYNDICATE_HIDEOUT)) ) {
 				return this;
 			}
 
@@ -185,16 +185,18 @@ namespace AtE {
 				// Feature: Use Mana flask
 				if ( UseManaFlask ) {
 					int maxMana = life.MaxMana - life.TotalReservedMana;
-					float pctMana = 100 * life.CurMana / maxMana;
-					if ( pctMana < UseManaFlaskAtPctMana ) {
-						foreach ( FlaskEntity flask in GetFlasks().Where(IsUsable) ) {
-							if ( flask.ManaHealAmount <= 0 ) {
-								continue;
+					if ( maxMana > 0 ) {
+						float pctMana = 100 * life.CurMana / maxMana;
+						if ( pctMana < UseManaFlaskAtPctMana ) {
+							foreach ( FlaskEntity flask in GetFlasks().Where(IsUsable) ) {
+								if ( flask.ManaHealAmount <= 0 ) {
+									continue;
+								}
+								if ( flask.IsBuffActive ) {
+									continue;
+								}
+								return UseFlask(flask, $"Mana is low ({pctMana} < {UseManaFlaskAtPctMana})");
 							}
-							if ( flask.IsBuffActive ) {
-								continue;
-							}
-							return UseFlask(flask, $"Mana is low ({pctMana} < {UseManaFlaskAtPctMana})");
 						}
 					}
 				}
@@ -224,6 +226,8 @@ namespace AtE {
 			if ( UseUtilityWhenFull ) {
 				if ( TryGetUsableFlask(f => f.LifeHealAmount == 0 && f.ManaHealAmount == 0
 					&& f.Charges_Cur == f.Charges_Max
+					&& !f.Enchanted_UseWhenHitRare
+					&& !f.Enchanted_UseWhenFull
 					&& !f.IsBuffActive, out flaskToUse) ) {
 					return UseFlask(flaskToUse, "it's full");
 				}
@@ -239,6 +243,7 @@ namespace AtE {
 				if ( hasHitNearbyRare ) {
 					if ( TryGetUsableFlask(f => f.LifeHealAmount == 0
 						&& f.ManaHealAmount == 0
+						&& !f.Enchanted_UseWhenHitRare
 						&& !f.IsBuffActive
 						, out flaskToUse) ) {
 						return UseFlask(flaskToUse, "of a nearby rare");
