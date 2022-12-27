@@ -598,6 +598,8 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Life {
 			[FieldOffset(0x8)] public readonly IntPtr entOwner;
+			[FieldOffset(0x180)] public readonly int ReservedFlatHP;
+			[FieldOffset(0x184)] public readonly int ReservedPercentHP;
 			[FieldOffset(0x198)] public readonly float CurHPRegen;
 			[FieldOffset(0x19c)] public readonly int MaxHP;
 			[FieldOffset(0x1a0)] public readonly int CurHP;
@@ -614,8 +616,6 @@ namespace AtE {
 			// 3.19 [FieldOffset(0x230)] public readonly float Regen;
 			// 3.19 [FieldOffset(0x234)] public readonly int MaxHP;
 			// 3.19 [FieldOffset(0x238)] public readonly int CurHP;
-			[FieldOffset(0x258)] public readonly int ReservedFlatHP;
-			[FieldOffset(0x25c)] public readonly int ReservedPercentHP;
 
 		}
 
@@ -1433,6 +1433,7 @@ namespace AtE {
 		// some constant names of things and places (that I think might vary across language settings)
 		public const string THE_ROGUE_HARBOUR = "The Rogue Harbour";
 		public const string HIDEOUT_SUFFIX = "Hideout";
+		public const string SYNDICATE_HIDEOUT = "Syndicate Hideout";
 
 	}
 
