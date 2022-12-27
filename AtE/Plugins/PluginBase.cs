@@ -1,6 +1,7 @@
 ﻿using ImGuiNET;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -82,6 +83,8 @@ namespace AtE {
 						field.SetValue(plugin, bool.Parse(pair.Value));
 					} else if ( field.FieldType == typeof(string) ) {
 						field.SetValue(plugin, pair.Value);
+					} else if ( field.FieldType == typeof(Stopwatch)) {
+						continue;
 					} else {
 						throw new ArgumentException($"Unknown Field Type, cannot load from string: {field.FieldType}");
 					}
