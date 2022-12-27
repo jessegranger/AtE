@@ -250,6 +250,7 @@ namespace AtE {
 				case "Rings":
 					ringCount += 1;
 					if ( mods.Level < GetItemLevel(bestLeftRing?.Entity, 100) ) {
+						bestRightRing = bestRightRing ?? bestLeftRing;
 						bestLeftRing = item;
 						hasOneBelow74 = hasOneBelow74 || GetItemLevel(bestLeftRing) < 75;
 					} else if ( mods.Level < GetItemLevel(bestRightRing?.Entity, 100) ) {
