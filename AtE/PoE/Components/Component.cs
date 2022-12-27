@@ -480,7 +480,17 @@ namespace AtE {
 
 
 	public class MinimapIcon : Component<Offsets.Component_MinimapIcon> {
-		public string Name => PoEMemory.TryReadString(Cache.strName, Encoding.Unicode, out string name) ? name : null;
+		public string Name {
+			get {
+				if( PoEMemory.TryRead(Cache.strName, out Offsets.StringHandle name) ) {
+					return name.Value;
+				}
+				return null;
+			}
+		}
+		// public string Name => PoEMemory.TryReadString(Cache.strName, Encoding.Unicode, out string name) ? name : null;
+		public bool IsVisible => Cache.IsVisible == 0x01;
+		public bool IsHide => Cache.IsHide == 0x01;
 	}
 
 	public class Mods : Component<Offsets.Component_Mods> {
