@@ -38,6 +38,8 @@ namespace AtE {
 			|| float.IsInfinity(v.Z)
 		);
 
+		public static bool IsValid(string s, uint min_length = 0) => (s?.Length ?? 0) >= min_length;
+
 		public static IEnumerable<float> Range(float from, float to, float step = 1f) {
 			for (;from < to; from += step) {
 				yield return from;
