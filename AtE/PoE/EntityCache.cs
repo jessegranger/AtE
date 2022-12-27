@@ -22,7 +22,7 @@ namespace AtE {
 					}
 					return true;
 				} else {
-					Log($"EntityCache: ptr {Describe(ptr)} -> {Describe(ent.Address)} failed to produce valid Entity.");
+					// Log($"EntityCache: ptr {Describe(ptr)} -> {Describe(ent.Address)} failed to produce valid Entity.");
 				}
 			}
 			return false;

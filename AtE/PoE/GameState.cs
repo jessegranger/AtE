@@ -191,6 +191,38 @@ namespace AtE {
 
 			// DrawBottomLeftText($"{PoEMemory.GameRoot.InGameState.Hovered?}");
 
+			if ( false ) {
+				ImGui.Begin("Entities");
+				try {
+					var pos = GridPosition(GetPlayer());
+					foreach ( var ent in GetEntities().Where((ent) => ent.HasComponent<Chest>()).OrderBy((ent) => DistanceSq(GridPosition(ent), pos)).Take(10) ) {
+						ImGui.Text(ent.Path);
+						ImGui.Text(string.Join(" ", ent.GetComponentNames()));
+						//if ( ent.Path.Contains("LeaguesExpedition") ) {
+						var chest = ent.GetComponent<Chest>();
+						if ( IsValid(chest) ) {
+							if ( !chest.IsOpened ) {
+								ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
+								ImGui.Begin($"Chest Window##{ent.Id}");
+								ImGui.Text(ent.Path);
+								ImGui_Object($"Icon##{ent.Id}", "Icon", ent.MinimapIcon, new HashSet<int>());
+								ImGui.SameLine();
+								if( ImGui.Button("Reset Icon") ) {
+									ent.MinimapIcon.Size = 0f;
+								}
+								ImGui_Object($"MinimapIcon##{ent.Id}", "MinimapIcon", ent.GetComponent<MinimapIcon>(), new HashSet<int>());
+								ImGui.End();
+								// DrawLine(WorldToScreen(Position(GetPlayer())), WorldToScreen(Position(ent)), Color.Yellow);
+							}
+						}
+						//}
+						ImGui.Separator();
+					}
+				} finally {
+					ImGui.End();
+				}
+			}
+
 			/* How to debug UI Elements offsets:
 			ImGui.Begin("UI Elements");
 			try {
