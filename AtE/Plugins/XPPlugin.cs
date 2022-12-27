@@ -18,17 +18,19 @@ namespace AtE {
 		public bool ShowPickups = true;
 
 		public XPPlugin():base() {
-			OnAreaChange += (sender, areaName) => {
-				if( xpGainedInThisArea != 0 ) {
-					Notify($"XP: {FormatNumber(xpGainedInThisArea)}", Color.Orange, 8000);
-					Notify($"Kills: {uniquesKilledInThisArea} uniq, {raresKilledInThisArea} rare, {magicMonstersKilledInThisArea} magic, {normalMonstersKilledInThisArea} norm", Color.Orange, 8000);
-				}
-				xpGainedInThisArea = 0;
-				normalMonstersKilledInThisArea = 0;
-				magicMonstersKilledInThisArea = 0;
-				raresKilledInThisArea = 0;
-				uniquesKilledInThisArea = 0;
-				dyingMonsters.Clear();
+			PoEMemory.OnAttach += (_, args) => {
+				OnAreaChange += (sender, areaName) => {
+					if ( xpGainedInThisArea != 0 ) {
+						Notify($"XP: {FormatNumber(xpGainedInThisArea)} in {GetPlugin<CoreSettings>().TimeInZone.Elapsed}", Color.Orange, 8000);
+						Notify($"Kills: {uniquesKilledInThisArea} uniq, {raresKilledInThisArea} rare, {magicMonstersKilledInThisArea} magic, {normalMonstersKilledInThisArea} norm", Color.Orange, 8000);
+					}
+					xpGainedInThisArea = 0;
+					normalMonstersKilledInThisArea = 0;
+					magicMonstersKilledInThisArea = 0;
+					raresKilledInThisArea = 0;
+					uniquesKilledInThisArea = 0;
+					dyingMonsters.Clear();
+				};
 			};
 		}
 

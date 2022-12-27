@@ -37,21 +37,21 @@ namespace AtE.Plugins {
 		private Dictionary<uint, Sighting> trackingMonsters = new Dictionary<uint, Sighting>();
 
 		public DPSPlugin():base() {
-			OnAreaChange += (sender, areaName) => {
+			PoEMemory.OnAttach += (_, args) => OnAreaChange += (sender, areaName) => {
 				trackingMonsters.Clear();
 			};
 		}
 
 		private void DriftUpText(Vector3 startPos, string text, Color color, float speed, long duration) {
 			Run("DriftUpText", (self, dt) => {
-				if ( duration <= 0 ) return null;
+				if ( duration <= 0 ) {
+					return null;
+				}
 				DrawTextAt(startPos, text, color);
 				startPos.Z -= speed * dt;
 				duration -= dt;
 				return self;
 			});
-
-
 		}
 
 		public override IState OnTick(long dt) {

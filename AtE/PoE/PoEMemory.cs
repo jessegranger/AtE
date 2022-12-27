@@ -322,7 +322,7 @@ namespace AtE {
 				return;
 			}
 
-			OnAreaChange += (sender, area) => Log("OnAreaChange: " + area);
+			OnAreaChange += (_, area) => Log("OnAreaChange: " + area);
 
 			OnAttach?.Invoke(null, null);
 		}
