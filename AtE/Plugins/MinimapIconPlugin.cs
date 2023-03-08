@@ -174,6 +174,12 @@ namespace AtE.Plugins {
 						icon = SpriteIcon.RewardGenericItems;
 						iconSize = 1.75f;
 					}
+				} else if ( path.StartsWith("Metadata/Chests/IncursionChest") ) {
+					icon = SpriteIcon.RewardGenericItems;
+					iconSize = 1.75f;
+					if( path.Contains("Currency") ) {
+						icon = SpriteIcon.RewardCurrency;
+					}
 				} else if ( path.StartsWith("Metadata/Chests/LeagueSanctum") ) {
 					icon = SpriteIcon.RewardGenericItems;
 					iconSize = 1.75f;
@@ -207,6 +213,9 @@ namespace AtE.Plugins {
 						iconSize = 1.75f;
 					} else if ( path.EndsWith("/VaultsOfAtziriUniqueChest") ) {
 						icon = SpriteIcon.RewardFragments;
+						iconSize = 1.75f;
+					} else if ( path.EndsWith("/VaalTempleChest") ) {
+						icon = SpriteIcon.RewardGenericItems;
 						iconSize = 1.75f;
 					} else {
 						ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
