@@ -29,7 +29,7 @@ namespace AtE {
 
 		/// <summary>
 		/// Helper to get the full Entity list from the InGameState (safely cached) from anywhere.
-		/// The result is only considered valid for this frame.
+		/// The resulting iterator is only considered valid for this frame.
 		/// </summary>
 		/// <returns>An enumerable over the current entity list.</returns>
 		public static IEnumerable<Entity> GetEntities() => EntityCache.GetEntities();
@@ -58,6 +58,7 @@ namespace AtE {
 		}
 
 	}
+
 	public class Entity : MemoryObject<Offsets.Entity> {
 		public Cached<Offsets.EntityDetails> Details;
 		public Entity() : base() {
@@ -92,9 +93,27 @@ namespace AtE {
 		public uint Id => Address == IntPtr.Zero ? 0 : Cache.Id;
 
 		private string path;
-		public string Path => IsValid(Address) && IsValid(Details.Value.ptrPath)
-			? path ?? (PoEMemory.TryReadString(Details.Value.ptrPath, Encoding.Unicode, out path) ? path : null)
-			: null;
+		private IntPtr pathOrigin = IntPtr.Zero;
+		public string Path {
+			get {
+				if ( !IsValid(Address) ) return null;
+				if ( IsValid(Details.Value.ptrPath) ) {
+					// if we have a cached path, read from the same pointer
+					IntPtr curPath = Details.Value.ptrPath;
+					if ( path != null && pathOrigin == curPath ) {
+						return path;
+					} else {
+						// otherwise, read the path and cache it
+						if( PoEMemory.TryReadString(curPath, Encoding.Unicode, out path) ) {
+							pathOrigin = curPath;
+							return path;
+							// TODO: if could be that this is a good place to invalidate ComponentPtr as well
+						}
+					}
+				}
+				return null;
+			}
+		}
 
 		public bool HasComponent<T>() where T : MemoryObject, new() => IsValid(Address) && GetComponent<T>() != null;
 
