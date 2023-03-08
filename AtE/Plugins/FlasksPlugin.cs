@@ -121,7 +121,7 @@ namespace AtE {
 
 			var ui = GetUI();
 			if ( !IsValid(ui) ) { return this; }
-			if ( ui.PurchaseWindow.IsVisibleLocal || ui.SellWindow.IsVisibleLocal || ui.TradeWindow.IsVisibleLocal ) {
+			if ( (ui.PurchaseWindow?.IsVisibleLocal ?? true) || (ui.SellWindow?.IsVisibleLocal ?? true) || (ui.TradeWindow?.IsVisibleLocal ?? true) ) {
 				return this;
 			}
 
