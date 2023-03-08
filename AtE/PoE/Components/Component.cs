@@ -679,8 +679,19 @@ namespace AtE {
 			return stats;
 		}
 
-		public IEnumerable<Offsets.GameStatArrayEntry> Entries =>
-			new ArrayHandle<Offsets.GameStatArrayEntry>(GameStats.Value.Values);
+		private ArrayHandle<Offsets.GameStatArrayEntry> entries;
+		public IEnumerable<Offsets.GameStatArrayEntry> Entries {
+			get {
+				if( entries == null || (Time.ElapsedMilliseconds - lastStatsTime) > maxAge ) {
+					entries = new ArrayHandle<Offsets.GameStatArrayEntry>(GameStats.Value.Values);
+					if( entries.Length > 500 ) {
+						entries = null;
+						return Empty<Offsets.GameStatArrayEntry>();
+					}
+				}
+				return entries;
+			}
+		}
 
 	}
 
