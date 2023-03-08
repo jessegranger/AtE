@@ -191,7 +191,7 @@ namespace AtE {
 
 			if ( type.Equals(typeof(Entity)) || type.IsSubclassOf(typeof(Entity)) ) {
 				var ent = (Entity)value;
-				return ImGui.TreeNode($"{prefix} {type.Name} {ent.Id} [{(IsValid(ent) ? "Valid" : "Invalid")}]");
+				return ImGui.TreeNode($"{prefix} {type.Name} {ent.Address} [{(IsValid(ent) ? "Valid" : "Invalid")}]");
 			}
 
 			if ( type.Equals(typeof(Vector2)) ) {
