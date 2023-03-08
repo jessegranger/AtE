@@ -385,6 +385,11 @@ namespace AtE {
 			return false;
 		}
 
+		internal void Invalidate() {
+			lastKnownHandle.Head = IntPtr.Zero;
+			lastKnownHandle.Tail = IntPtr.Zero;
+		}
+
 	}
 
 	public static partial class Globals {
@@ -662,8 +667,10 @@ namespace AtE {
 		public Stats() : base() => GameStats = CachedStruct<Offsets.GameStatArray>(() => Cache.GameStats);
 
 		private Dictionary<Offsets.GameStat, int> stats;
+		private long lastStatsTime;
+		private const long maxAge = 1000; // ms
 		public Dictionary<Offsets.GameStat, int> GetStats() {
-			if ( stats == null ) {
+			if ( stats == null || (Time.ElapsedMilliseconds - lastStatsTime) > maxAge ) {
 				stats = new Dictionary<Offsets.GameStat, int>();
 				foreach ( var entry in Entries ) {
 					stats[entry.Key] = entry.Value;

@@ -189,6 +189,12 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( IsDisposed ) return null;
 
+			// Experiment: once each frame, forcefully invalidate the player's buff cache
+			PlayerEntity p = GetPlayer();
+			if( IsValid(p) ) {
+				p.GetComponent<Buffs>()?.Invalidate();
+			}
+
 			// DrawBottomLeftText($"{PoEMemory.GameRoot.InGameState.Hovered?}");
 
 			if ( false ) {
