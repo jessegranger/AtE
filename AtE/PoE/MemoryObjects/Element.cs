@@ -131,14 +131,14 @@ namespace AtE {
 					}
 					cursor = entry.nextEntry;
 				}
-			} while ( cursor != IntPtr.Zero && cursor != Details.Value.labelsOnGroundHead );
+			} while ( IsValid(cursor) && cursor != Details.Value.labelsOnGroundHead );
 		}
 	}
 
 	public class LabelOnGround {
 		private readonly Offsets.ItemsOnGroundLabelEntry Cache;
 		public LabelOnGround(Offsets.ItemsOnGroundLabelEntry entry) => Cache = entry;
-		public Element Label => new Element() { Address = Cache.elemLabel };
+		public Element Label => IsValid(Cache.elemLabel) ? new Element() { Address = Cache.elemLabel } : null;
 		public Entity Item => IsValid(Cache.entItem) && EntityCache.TryGetEntity(Cache.entItem, out Entity ent) ? ent : null;
 	}
 
