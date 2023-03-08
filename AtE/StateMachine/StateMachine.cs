@@ -70,7 +70,6 @@ namespace AtE {
 
 				// terminate the state we just finished ticking
 				if ( gotoState == null ) {
-					// Log($"State Finished: {curState.Name}.");
 					curNode = RemoveAndContinue(States, curNode); // unlink from the linked list
 					continue;
 				}

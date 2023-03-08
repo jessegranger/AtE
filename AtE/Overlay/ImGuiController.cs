@@ -20,6 +20,7 @@ namespace AtE {
 
 		public static void DrawBottomLeftText(string text, Color color) => DrawBottomLeftText(text, color, ImGui.GetFontSize());
 		public static void DrawBottomLeftText(string text, Color color, float lineHeight) =>
+			// use a line id, and a negative line height, so each successive call moves up the screen
 			DrawTextAt(0, new Vector2(4, Overlay.Height - 10 - lineHeight), text, color, -lineHeight);
 
 		public static void DrawTextAt(uint id, Vector2 pos, string text, Color color, float lineHeight = 14f) => ImGuiController.DrawTextAt(id, pos, text, color, lineHeight);
