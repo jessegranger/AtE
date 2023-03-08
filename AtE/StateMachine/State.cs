@@ -96,6 +96,12 @@ namespace AtE {
 					state
 			);
 		}
+
+		// an Empty State is a placeholder, useful for being the head of dynamic sequences of states, for example
+		public class Empty : State {
+			public Empty(IState next = null) : base(next) { }
+			public override IState OnTick(long dt) => Next;
+		}
 		private class ActionState : State {
 			public readonly Action Act;
 			public ActionState(Action action, IState next = null) : base(next) => Act = action;
