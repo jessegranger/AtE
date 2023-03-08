@@ -59,7 +59,7 @@ namespace AtE {
 		private static IEnumerable<Element> AllVisibleChildren(Element cursor, HashSet<int> seen) {
 			int index = 0;
 			foreach ( Element child in cursor.Children ) {
-				if ( !seen.Contains(child.GetHashCode()) ) {
+				if ( IsValid(child) && !seen.Contains(child.GetHashCode()) ) {
 					seen.Add(child.GetHashCode());
 					if ( IsValid(child) && child.IsVisibleLocal ) {
 						yield return child;
@@ -107,10 +107,10 @@ namespace AtE {
 
 		public Entity Entity => IsValid(Address) && EntityCache.TryGetEntity(Details.Value.entItem, out Entity ent) ? ent : null;
 
-		public int X => Details.Value.InventPosition.X;
-		public int Y => Details.Value.InventPosition.Y;
-		public int Width => Details.Value.Width;
-		public int Height => Details.Value.Height;
+		public virtual int X => Details.Value.InventPosition.X;
+		public virtual int Y => Details.Value.InventPosition.Y;
+		public virtual int Width => Details.Value.Width;
+		public virtual int Height => Details.Value.Height;
 
 	}
 

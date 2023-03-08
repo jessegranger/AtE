@@ -15,12 +15,13 @@ namespace AtE.Plugins {
 		public override string Name => "Backpack";
 
 		public HotKey DumpKey = new HotKey(Keys.OemOpenBrackets);
+		public bool OpenStashedDecks = false;
 
 		public override void Render() {
 			base.Render();
 
 			ImGui_HotKeyButton("Deposit All Loot", ref DumpKey);
-
+			ImGui.Checkbox("Open Stashed Decks", ref OpenStashedDecks);
 		}
 
 		private uint InputLatency => (uint)GetPlugin<CoreSettings>().InputLatency;
@@ -38,15 +39,15 @@ namespace AtE.Plugins {
 		}
 
 		private IState OnlyIfStashIsOpen(IState ifOpen, IState ifClosed = null) => NewState("CheckStashIsOpen", (self, dt) => BackpackIsOpen() && StashIsOpen() ? ifOpen : ifClosed, next: ifOpen);
-		private IState OnlyIfBackpackIsOpen(IState ifOpen, IState ifClosed = null) => NewState("CheckStashIsOpen", (self, dt) => BackpackIsOpen() ? ifOpen : ifClosed, next: ifOpen);
+		private IState OnlyIfBackpackIsOpen(IState ifOpen, IState ifClosed = null) => NewState("CheckBackpackIsOpen", (self, dt) => BackpackIsOpen() ? ifOpen : ifClosed, next: ifOpen);
 
 		private IEnumerable<InventoryItem> ItemsToIdentify() => BackpackItems().Where(e => {
 			var mods = e?.Entity?.GetComponent<Mods>();
-			if( !IsValid(mods) ) {
+			if ( !IsValid(mods) ) {
 				return false;
 			}
 			var level = GetItemLevel(mods);
-			if( mods.Rarity == Offsets.ItemRarity.Rare && level >= 50 && level <= 74 ) {
+			if ( mods.Rarity == Offsets.ItemRarity.Rare && level >= 50 && level <= 74 ) {
 				return false; // dont identify the chaos recipe range
 			}
 			if ( IsIdentified(mods) || IsCorrupted(e) ) {
@@ -58,7 +59,7 @@ namespace AtE.Plugins {
 			var ui = GetUI();
 			if ( IsValid(ui) ) {
 				var itemsToIdentify = ItemsToIdentify().ToArray();
-				if( itemsToIdentify.Length == 0 ) {
+				if ( itemsToIdentify.Length == 0 ) {
 					// no work to do
 					return next;
 				}
@@ -72,12 +73,12 @@ namespace AtE.Plugins {
 					new KeyDown(Keys.LShiftKey,
 					new Delay(InputLatency,
 					null))));
-				if( head == null ) {
+				if ( head == null ) {
 					return null;
 				}
 				IState tail = head.Tail();
 				IState keyUp = new KeyUp(Keys.LShiftKey, next);
-				foreach(var item in itemsToIdentify) {
+				foreach ( var item in itemsToIdentify ) {
 					tail.Next = OnlyIfBackpackIsOpen(
 						ifOpen: new LeftClickAt(item.GetClientRect(), InputLatency, 1,
 							new Delay(InputLatency,
@@ -91,6 +92,7 @@ namespace AtE.Plugins {
 			return next;
 		}
 
+		// items in here are left in the backpack, and not stashed
 		private Dictionary<string, int> restockNeeds = new Dictionary<string, int>() {
 			{ Offsets.PATH_SCROLL_WISDOM, 40 },
 			{ Offsets.PATH_SCROLL_PORTAL, 40 },
@@ -99,20 +101,25 @@ namespace AtE.Plugins {
 
 		private IState PlanStashAll(IState next = null) {
 			var ui = GetUI();
-			if( !IsValid(ui) ) {
+			if ( !IsValid(ui) ) {
 				return null;
 			}
-			// make a copy to modify
+			// make a copy to modify, as needs are satisfied (aka, left in backpack, not stashed) they can be removed from this dict
 			var needs = new Dictionary<string, int>(restockNeeds);
+			// then, construct a chain of steps for stashing each item
+			// first, hold Control
 			IState head = new KeyDown(Keys.LControlKey, null);
 			IState tail = head.Tail();
-			foreach(var item in BackpackItems() ) {
+			foreach ( var item in BackpackItems() ) {
 				var ent = item.Entity;
-				if( ! IsValid(ent) ) {
+				if ( !IsValid(ent) ) {
 					continue;
 				}
-				if( needs.TryGetValue(ent.Path, out int needed) && needed > 0) {
+				if ( needs.TryGetValue(ent.Path, out int needed) && needed > 0 ) {
 					needs[ent.Path] -= ent.GetComponent<Stack>()?.CurSize ?? 1;
+					continue;
+				}
+				if ( OpenStashedDecks && ent.Path.Equals(Offsets.PATH_STACKED_DECK) ) {
 					continue;
 				}
 				tail.Next = OnlyIfStashIsOpen(
@@ -133,13 +140,186 @@ namespace AtE.Plugins {
 			return head;
 		}
 
+		/// <summary>
+		/// ExpectedItem is a filler item used to mark backpack slots as full,
+		/// when we know they are or will be very soon (concurrency is hard without locks)
+		/// </summary>
+		private class ExpectedItem : InventoryItem {
+			public ExpectedItem(int x, int y, int w, int h):base() {
+				_x = x; _y = y; _w = w; _h = h;
+				Address = IntPtr.Zero;
+			}
+			private int _x; public override int X => _x;
+			private int _y; public override int Y => _y;
+			private int _w; public override int Width => _w;
+			private int _h; public override int Height => _h;
+		}
+		// This 2D array tracks which InventoryItem is located where
+		private static InventoryItem[,] inventoryMap = new InventoryItem[12,5];
+		// Fill the inventory map with references in the right slots for this one item
+		private static void MarkOccupied(InventoryItem item) {
+			if ( !IsValid(item) ) return;
+			int x = item.X;
+			int y = item.Y;
+			int w = item.Width;
+			int h = item.Height;
+			if ( x < 0 || x > 11 || y < 0 || y > 4 || w > 5 || h > 5 ) return;
+			for(uint i = 0; i < w; i++ ) {
+				for(uint j = 0; j < h; j++ ) {
+					inventoryMap[x + i, y + j] = item;
+				}
+			}
+		}
+		private static void RefreshBackpack() {
+			inventoryMap = new InventoryItem[12, 5];
+			foreach ( var item in BackpackItems() ) {
+				MarkOccupied(item);
+			}
+		}
+		public bool IsOccupied(int x, int y, int w, int h) {
+			if ( x < 0 || x > 11 || y < 0 || y > 4 ) {
+				return true; // anything out of bounds is occupied
+			}
+			int ex = x + w;
+			int ey = y + h;
+			if ( ex > 12 || ey > 5 ) { // any rect that overflows the edge is occupied
+				return true;
+			}
+			for ( int dy = y; dy < ey; dy++ ) {
+				for ( int dx = x; dx < ex; dx++ ) {
+					if ( inventoryMap[dx, dy] != null ) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+		private static Vector2 GetSlotPositionAbsolute(int x, int y) {
+			var elem = GetUI()?.InventoryPanel?.Backpack;
+			if( !IsValid(elem) ) {
+				return Vector2.Zero;
+			}
+			RectangleF rect = elem.GetClientRect(); // applies zoom/scale from UI settings
+			Vector2 topLeft = new Vector2(rect.X, rect.Y);
+			float tileWidth = rect.Width / 12f;
+			float tileHeight = rect.Height / 5f;
+			return topLeft + new Vector2(tileWidth * (x - 0.5f), tileHeight * (y - 0.5f));
+		}
+		// returns an {X, Y} vector of slot indices
+		// so, X is 0-11 and Y is 0-5
+		public Vector2 GetFreeSlot(int w, int h) {
+			for( int y = 0; y < 5; y++ ) {
+				for( int x = 0; x < 12; x++ ) {
+					if( !IsOccupied(x, y, w, h) ) {
+						return new Vector2(1 + x, 1 + y);
+					}
+				}
+			}
+			return Vector2.Zero;
+		}
+		public Vector2 GetSlotCenter(Offsets.Vector2i slot) {
+			return GetSlotPositionAbsolute(slot.X, slot.Y);
+		}
+
+		private IState PlanOpenDeck(InventoryItem deckItem, IState next) {
+			var deckPos = deckItem.GetClientRect();
+			var stackSize = deckItem.Entity?.GetComponent<Stack>()?.CurSize ?? 0;
+			if( stackSize < 1 ) {
+				return next;
+			}
+			return next;
+		}
+
+		private IState PlanOpenOneDeck(InventoryItem deckItem, IState next) {
+			if ( !BackpackIsOpen() ) {
+				Log("OpenOneDeck: canceled, backpack is not open.");
+				return next;
+			}
+			RefreshBackpack();
+			// var freeSlot = GetFreeSlot(1, 1);
+			// if ( freeSlot == Vector2.Zero ) {
+			// return next; // no more free slots
+			// }
+			var stackSize = deckItem.Entity?.GetComponent<Stack>()?.CurSize ?? 0;
+			if ( stackSize <= 0 ) {
+				Log("OpenOneDeck: canceled, stack is empty.");
+				return next;
+			}
+			Log($"OpenOneDeck: Opening a stack of {stackSize} cards...");
+			IState head = new State.Empty();
+			IState tail = head.Tail();
+			while ( stackSize > 0 ) {
+				var freeSlot = GetFreeSlot(1, 1);
+				if ( freeSlot == Vector2.Zero ) {
+					Log($"OpenOneDeck: no more free slots");
+					tail.Next = next;
+					return head;
+				}
+				Log($"OpenOneDeck: marking occupied {freeSlot.X},{freeSlot.Y}");
+				// mark it so future calls to GetFreeSlot dont return the same slot
+				MarkOccupied(new ExpectedItem((int)freeSlot.X, (int)freeSlot.Y, 1, 1));
+				// get the screen position to click the free slot
+				var slotPos = GetSlotPositionAbsolute((int)freeSlot.X, (int)freeSlot.Y);
+				if ( slotPos != Vector2.Zero ) {
+					Log($"OpenOneDeck: appending one step to the plan");
+					// append one step: right click, left click
+					tail.Next = OnlyIfBackpackIsOpen(
+						ifOpen: new RightClickAt(deckItem.GetClientRect(), InputLatency, OnlyIfBackpackIsOpen(
+							ifOpen: new LeftClickAt(slotPos, InputLatency, 1, null),
+							ifClosed: null)
+						),
+						ifClosed: null
+					);
+					tail = tail.Tail();
+				}
+				stackSize -= 1;
+			}
+			Log($"OpenOneDeck: returning established plan...");
+
+			IState debug = head;
+			while( debug != null ) {
+				Log($"OpenOneDeck: then {debug.Name}");
+				debug = debug.Next;
+			}
+			Log($"OpenOneDeck: modifying step {tail.Name} setting .Next = next");
+			tail.Tail().Next = next;
+			return head;
+		}
+
+		private IState PlanOpenAllDecks(IState next) {
+			if( ! OpenStashedDecks ) {
+				return next;
+			}
+			// find a deck, find a free slot
+			// right click the deck, left click the free slot
+			// repeat
+			return NewState((nextDeck, dt) => {
+				RefreshBackpack();
+				// find a deck
+				var deckItem = BackpackItems().FirstOrDefault(i =>
+					i.Entity?.Path?.Equals(Offsets.PATH_STACKED_DECK) ?? false);
+				if ( !IsValid(deckItem) ) {
+					return next; // no more decks
+				}
+				Notify($"Next Deck at {deckItem.X},{deckItem.Y} {deckItem.Width}x{deckItem.Height} path: {deckItem.Entity.Path}");
+				return PlanOpenOneDeck(deckItem, new Delay(100, nextDeck));
+			});
+		}
+
 		public override IState OnTick(long dt) {
 			if( Enabled && !Paused && PoEMemory.IsAttached ) {
 
+				if( false ) {
+					RefreshBackpack();
+					var freeSlot = GetFreeSlot(1, 1);
+					freeSlot = GetSlotPositionAbsolute((int)freeSlot.X, (int)freeSlot.Y);
+					DrawCircle(freeSlot, 6, Color.Yellow);
+				}
+
 				if( PoEMemory.TargetHasFocus && DumpKey.IsReleased ) {
 					Notify("Depositing all your loot.");
-					Run(PlanIdentifyAll(PlanStashAll(null)));
-					// TODO: incubate and open stashed decks
+					Run(PlanIdentifyAll(PlanStashAll(PlanOpenAllDecks(null))));
+					// TODO: incubate
 					return this;
 				}
 
