@@ -16,11 +16,6 @@ Features:
 
 Most of the Features are ported from either older ExileApi plugins, or my Assistant plugin for ExileApi.
 
-More features coming as I port/improve them:
-- Identify/Dump/Sort loot
-- More Skills supported.
-- Better Console
-
 If you want to write a plugin, see `Plugins/Example.cs`.
 
 If all you want are working offests, see `PoE/Offsets.cs`, where all the offsets and memory structures are documented.
