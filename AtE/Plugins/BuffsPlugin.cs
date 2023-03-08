@@ -32,8 +32,17 @@ namespace AtE.Plugins {
 			/// The name of the Buff that will result from using the skill
 			/// </summary>
 			public string BuffName;
+
+			/// <summary>
+			/// Should these tools attempt to use this skill?
+			/// </summary>
 			public bool Enabled = false;
+
+			/// <summary>
+			/// The key binding that is bound to the skill
+			/// </summary>
 			public HotKey Key = new HotKey(Keys.None);
+
 			public SkillData(string displayName, string skillName, string buffName) {
 				DisplayName = displayName;
 				SkillBarName = skillName;
@@ -169,13 +178,18 @@ namespace AtE.Plugins {
 		}
 
 		public class PlagueBearerData : SkillData {
-			public PlagueBearerData() : base("Plague Bearer", "CorrosiveShroud", "corrosive_shroud_accumulating_damage") { }
+			public PlagueBearerData() : base("Plague Bearer", "corrosive_shroud", "corrosive_shroud_accumulating_damage") { }
 			public override bool Predicate(PlayerEntity p) {
 				// TODO: this may not be quite right yet, PB uses three buffs and I haven't tested this logic yet
 				// once the simpler skills are working, I will look more into it
 				var buffs = p.GetComponent<Buffs>();
 				if ( !IsValid(buffs) ) return false;
-				return base.Predicate(p) && HasBuff(buffs, "corrosive_shroud_at_max_damage") || !HasBuff(buffs, "corrossive_shroud_buff");
+				if ( !Enabled ) return false;
+				// DrawTextAt(p, $"PlagueBearer: Enabled: {Enabled} at_max_damage: {HasBuff(buffs, "corrosive_shroud_at_max_damage")} _buff: {HasBuff(buffs, "corrosive_shroud_buff")} accumulating: {HasBuff(buffs, "corrosive_shroud_accumulating_damage")}", Color.Yellow);
+				bool atMax = HasBuff(buffs, "corrosive_shroud_at_max_damage");
+				bool hasBuff = HasBuff(buffs, "corrosive_shroud_buff");
+				// bool isCharging = HasBuff(buffs, "corrosive_shroud_accumulating_damage");
+				return (!hasBuff || atMax);
 			}
 		}
 
@@ -255,7 +269,7 @@ namespace AtE.Plugins {
 			{ "Berserk", new BerserkData() },
 			// { "Corrupting Fever", new CorruptingFeverData() },
 			// { "Enduring Cry", new EnduringCryData() },
-			// { "Plague Bearer", new PlagueBearerData() },
+			{ "Plague Bearer", new PlagueBearerData() },
 			// { "Withering Step", new WitheringStepData() },
 			// { "Vaal Grace", new SkillData("Vaal Grace", "vaal_grace", "vaal_aura_dodge", null, (p) => true) },
 			// { "Vaal Haste", new SkillData("Vaal Haste", "vaal_haste", "vaal_aura_speed", null, (p) => true) },
@@ -305,7 +319,8 @@ namespace AtE.Plugins {
 					return this;
 				}
 
-				if( PoEMemory.GameRoot.AreaLoadingState.AreaName?.EndsWith(Offsets.HIDEOUT_SUFFIX) ?? true ) {
+				string areaName = PoEMemory.GameRoot?.AreaLoadingState.AreaName ?? null;
+				if( areaName == null || areaName.Equals(Offsets.THE_ROGUE_HARBOUR) || (areaName.EndsWith(Offsets.HIDEOUT_SUFFIX) && ! areaName.Equals(Offsets.SYNDICATE_HIDEOUT)) ) {
 					return this;
 				}
 
