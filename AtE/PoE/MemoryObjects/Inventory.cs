@@ -84,7 +84,7 @@ namespace AtE {
 		public static IEnumerable<InventoryItem> BackpackItems() => GetUI()?.InventoryPanel?.Backpack?.VisibleItems.Take(60).Where(IsValid) ?? Empty<InventoryItem>();
 		public static IEnumerable<InventoryItem> StashItems() => new Inventory() { Address = GetUI()?.StashElement?.Address ?? IntPtr.Zero }.VisibleItems;
 
-		public static bool BackpackIsOpen() => GetUI()?.InventoryPanel?.Backpack?.IsVisibleLocal ?? false;
+		public static bool BackpackIsOpen() => GetUI()?.InventoryPanel?.IsVisibleLocal ?? false;
 		public static bool StashIsOpen() => GetUI()?.StashElement?.IsVisibleLocal ?? false;
 	}
 
