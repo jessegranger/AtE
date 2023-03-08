@@ -32,18 +32,18 @@ namespace AtE {
 		public Element StashElement => IsValid(Address) ? getElement(Cache.StashElement) : null;
 		public Inventory StashInventory => IsValid(Address) ? new Inventory() { Address = Cache.StashElement } : null;
 		public Element GuildStashElement => IsValid(Address) ? getElement(Cache.GuildStashElement) : null;
-		public Element AtlasPanel => IsValid(Address) ? getElement(Cache.AtlasPanel) : null;
-		public Element AtlasSkillPanel => IsValid(Address) ? getElement(Cache.AtlasSkillPanel) : null;
-		public Element WorldMap => IsValid(Address) ? getElement(Cache.WorldMap) : null;
+		// public Element AtlasPanel => IsValid(Address) ? getElement(Cache.AtlasPanel) : null;
+		// public Element AtlasSkillPanel => IsValid(Address) ? getElement(Cache.AtlasSkillPanel) : null;
+		// public Element WorldMap => IsValid(Address) ? getElement(Cache.WorldMap) : null;
 		public MapElement Map => new MapElement() { Address = Cache.Map };
 		public LabelsOnGroundRoot LabelsOnGround => new LabelsOnGroundRoot() { Address = Cache.ItemsOnGroundLabelElement };
 		// public Element BanditDialog => IsValid(Address) ? getElement(Cache.BanditDialog) : null;
 		public Element Viewport => IsValid(Address) ? getElement(Cache.GameViewport) : null;
 		public Element RootBuffPanel => IsValid(Address) ? getElement(Cache.RootBuffPanel) : null;
 		public Element NpcDialog => IsValid(Address) ? getElement(Cache.NpcDialog) : null;
-		public Element LeagueNpcDialog => IsValid(Address) ? getElement(Cache.LeagueNpcDialog) : null;
-		public Element LeagueInteractButtonPanel => IsValid(Address) ? getElement(Cache.LeagueInteractButtonPanel) : null;
-		public Element QuestRewardWindow => IsValid(Address) ? getElement(Cache.QuestRewardWindow) : null;
+		// public Element LeagueNpcDialog => IsValid(Address) ? getElement(Cache.LeagueNpcDialog) : null;
+		// public Element LeagueInteractButtonPanel => IsValid(Address) ? getElement(Cache.LeagueInteractButtonPanel) : null;
+		// public Element QuestRewardWindow => IsValid(Address) ? getElement(Cache.QuestRewardWindow) : null;
 		public Element PurchaseWindow => IsValid(Address) ? getElement(Cache.PurchaseWindow) : null;
 		public Element SellWindow => IsValid(Address) ? getElement(Cache.SellWindow) : null;
 		/*
@@ -83,31 +83,31 @@ namespace AtE {
 		public Element Unknown950 => IsValid(Address) ? getElement(Cache.Unknown950) : null;
 		*/
 		public Element TradeWindow => IsValid(Address) ? getElement(Cache.TradeWindow) : null;
-		public Element LabyrinthDivineFontPanel => IsValid(Address) ? getElement(Cache.LabyrinthDivineFontPanel) : null;
+		// public Element LabyrinthDivineFontPanel => IsValid(Address) ? getElement(Cache.LabyrinthDivineFontPanel) : null;
 		public Element MapDeviceWindow => IsValid(Address) ? getElement(Cache.MapDeviceWindow) : null;
 		public Element CardTradePanel => IsValid(Address) ? getElement(Cache.CardTradePanel) : null;
-		public Element IncursionAltarOfSacrificePanel => IsValid(Address) ? getElement(Cache.IncursionAltarOfSacrificePanel) : null;
-		public Element IncursionLapidaryLensPanel => IsValid(Address) ? getElement(Cache.IncursionLapidaryLensPanel) : null;
-		public Element DelveWindow => IsValid(Address) ? getElement(Cache.DelveWindow) : null;
-		public Element ZanaMissionChoice => IsValid(Address) ? getElement(Cache.ZanaMissionChoice) : null; // KiracMissionPanel
-		public Element BetrayalWindow => IsValid(Address) ? getElement(Cache.BetrayalWindow) : null;
+		// public Element IncursionAltarOfSacrificePanel => IsValid(Address) ? getElement(Cache.IncursionAltarOfSacrificePanel) : null;
+		// public Element IncursionLapidaryLensPanel => IsValid(Address) ? getElement(Cache.IncursionLapidaryLensPanel) : null;
+		// public Element DelveWindow => IsValid(Address) ? getElement(Cache.DelveWindow) : null;
+		// public Element ZanaMissionChoice => IsValid(Address) ? getElement(Cache.ZanaMissionChoice) : null; // KiracMissionPanel
+		// public Element BetrayalWindow => IsValid(Address) ? getElement(Cache.BetrayalWindow) : null;
 		public Element CraftBench => IsValid(Address) ? getElement(Cache.CraftBench) : null;
 		public Element UnveilWindow => IsValid(Address) ? getElement(Cache.UnveilWindow) : null;
-		public Element BlightAnointItemPanel => IsValid(Address) ? getElement(Cache.BlightAnointItemPanel) : null;
-		public Element MetamorphWindow => IsValid(Address) ? getElement(Cache.MetamorphWindow) : null;
-		public Element TanesMetamorphPanel => IsValid(Address) ? getElement(Cache.TanesMetamorphPanel) : null;
-		public Element HorticraftingHideoutPanel => IsValid(Address) ? getElement(Cache.HorticraftingHideoutPanel) : null;
-		public Element HeistContractWindow => IsValid(Address) ? getElement(Cache.HeistContractWindow) : null;
-		public Element HeistRevealWindow => IsValid(Address) ? getElement(Cache.HeistRevealWindow) : null;
-		public Element HeistAllyEquipmentWindow => IsValid(Address) ? getElement(Cache.HeistAllyEquipmentWindow) : null;
-		public Element HeistBlueprintWindow => IsValid(Address) ? getElement(Cache.HeistBlueprintWindow) : null;
-		public Element HeistLockerWindow => IsValid(Address) ? getElement(Cache.HeistLockerWindow) : null;
-		public Element RitualWindow => IsValid(Address) ? getElement(Cache.RitualWindow) : null;
-		public Element RitualFavourWindow => IsValid(Address) ? getElement(Cache.RitualFavourWindow) : null;
-		public Element UltimatumProgressWindow => IsValid(Address) ? getElement(Cache.UltimatumProgressWindow) : null;
-		public Element ExpeditionSelectPanel => IsValid(Address) ? getElement(Cache.ExpeditionSelectPanel) : null;
-		public Element LogbookReceptaclePanel => IsValid(Address) ? getElement(Cache.LogbookReceptaclePanel) : null;
-		public Element ExpeditionLockerPanel => IsValid(Address) ? getElement(Cache.ExpeditionLockerPanel) : null;
+		// public Element BlightAnointItemPanel => IsValid(Address) ? getElement(Cache.BlightAnointItemPanel) : null;
+		// public Element MetamorphWindow => IsValid(Address) ? getElement(Cache.MetamorphWindow) : null;
+		// public Element TanesMetamorphPanel => IsValid(Address) ? getElement(Cache.TanesMetamorphPanel) : null;
+		// public Element HorticraftingHideoutPanel => IsValid(Address) ? getElement(Cache.HorticraftingHideoutPanel) : null;
+		// public Element HeistContractWindow => IsValid(Address) ? getElement(Cache.HeistContractWindow) : null;
+		// public Element HeistRevealWindow => IsValid(Address) ? getElement(Cache.HeistRevealWindow) : null;
+		// public Element HeistAllyEquipmentWindow => IsValid(Address) ? getElement(Cache.HeistAllyEquipmentWindow) : null;
+		// public Element HeistBlueprintWindow => IsValid(Address) ? getElement(Cache.HeistBlueprintWindow) : null;
+		// public Element HeistLockerWindow => IsValid(Address) ? getElement(Cache.HeistLockerWindow) : null;
+		// public Element RitualWindow => IsValid(Address) ? getElement(Cache.RitualWindow) : null;
+		// public Element RitualFavourWindow => IsValid(Address) ? getElement(Cache.RitualFavourWindow) : null;
+		// public Element UltimatumProgressWindow => IsValid(Address) ? getElement(Cache.UltimatumProgressWindow) : null;
+		// public Element ExpeditionSelectPanel => IsValid(Address) ? getElement(Cache.ExpeditionSelectPanel) : null;
+		// public Element LogbookReceptaclePanel => IsValid(Address) ? getElement(Cache.LogbookReceptaclePanel) : null;
+		// public Element ExpeditionLockerPanel => IsValid(Address) ? getElement(Cache.ExpeditionLockerPanel) : null;
 		public Element BuffsPanel => IsValid(Address) ? getElement(Cache.BuffsPanel) : null;
 		public Element DelveDarkness => IsValid(Address) ? getElement(Cache.DelveDarkness) : null; // Debuffs Panel
 		public Element AreaInstanceUi => IsValid(Address) ? getElement(Cache.AreaInstanceUi) : null;

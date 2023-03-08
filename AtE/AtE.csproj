@@ -109,6 +109,7 @@
     <Compile Include="Plugins\BuffsPlugin.cs" />
     <Compile Include="Plugins\ChaosRecipe.cs" />
     <Compile Include="Plugins\CoreSettings.cs" />
+    <Compile Include="Plugins\DefenseDisplay.cs" />
     <Compile Include="Plugins\DelvePlugin.cs" />
     <Compile Include="Plugins\DPSPlugin.cs" />
     <Compile Include="Plugins\ExamplePlugin.cs" />
