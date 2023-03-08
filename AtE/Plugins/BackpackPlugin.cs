@@ -15,6 +15,7 @@ namespace AtE.Plugins {
 		public override string Name => "Backpack";
 
 		public HotKey DumpKey = new HotKey(Keys.OemOpenBrackets);
+		public bool ShowDebugMarkers = false;
 		public bool OpenStashedDecks = false;
 
 		public override void Render() {
@@ -22,6 +23,8 @@ namespace AtE.Plugins {
 
 			ImGui_HotKeyButton("Deposit All Loot", ref DumpKey);
 			ImGui.Checkbox("Open Stashed Decks", ref OpenStashedDecks);
+			ImGui.Separator();
+			ImGui.Checkbox("Show Debug Markers", ref ShowDebugMarkers);
 		}
 
 		private uint InputLatency => (uint)GetPlugin<CoreSettings>().InputLatency;
@@ -154,35 +157,38 @@ namespace AtE.Plugins {
 			private int _w; public override int Width => _w;
 			private int _h; public override int Height => _h;
 		}
+		private const uint BACKPACK_WIDTH = 12;
+		private const uint BACKPACK_HEIGHT = 5;
 		// This 2D array tracks which InventoryItem is located where
-		private static InventoryItem[,] inventoryMap = new InventoryItem[12,5];
+		private static InventoryItem[,] inventoryMap = new InventoryItem[BACKPACK_WIDTH,BACKPACK_HEIGHT];
 		// Fill the inventory map with references in the right slots for this one item
 		private static void MarkOccupied(InventoryItem item) {
-			if ( !IsValid(item) ) return;
+			if ( item == null ) return; // dont use IsValid here because we pass in fake items on purpose
 			int x = item.X;
 			int y = item.Y;
 			int w = item.Width;
 			int h = item.Height;
-			if ( x < 0 || x > 11 || y < 0 || y > 4 || w > 5 || h > 5 ) return;
+			if ( x < 0 || x >= BACKPACK_WIDTH || y < 0 || y >= BACKPACK_HEIGHT || w > 5 || h > 5 ) return;
 			for(uint i = 0; i < w; i++ ) {
 				for(uint j = 0; j < h; j++ ) {
 					inventoryMap[x + i, y + j] = item;
 				}
 			}
 		}
+
 		private static void RefreshBackpack() {
-			inventoryMap = new InventoryItem[12, 5];
+			inventoryMap = new InventoryItem[BACKPACK_WIDTH, BACKPACK_HEIGHT];
 			foreach ( var item in BackpackItems() ) {
 				MarkOccupied(item);
 			}
 		}
 		public bool IsOccupied(int x, int y, int w, int h) {
-			if ( x < 0 || x > 11 || y < 0 || y > 4 ) {
+			if ( x < 0 || x >= BACKPACK_WIDTH || y < 0 || y >= BACKPACK_HEIGHT ) {
 				return true; // anything out of bounds is occupied
 			}
 			int ex = x + w;
 			int ey = y + h;
-			if ( ex > 12 || ey > 5 ) { // any rect that overflows the edge is occupied
+			if ( ex > BACKPACK_WIDTH|| ey > BACKPACK_HEIGHT ) { // any rect that overflows the edge is occupied
 				return true;
 			}
 			for ( int dy = y; dy < ey; dy++ ) {
@@ -201,21 +207,21 @@ namespace AtE.Plugins {
 			}
 			RectangleF rect = elem.GetClientRect(); // applies zoom/scale from UI settings
 			Vector2 topLeft = new Vector2(rect.X, rect.Y);
-			float tileWidth = rect.Width / 12f;
-			float tileHeight = rect.Height / 5f;
-			return topLeft + new Vector2(tileWidth * (x - 0.5f), tileHeight * (y - 0.5f));
+			float tileWidth = rect.Width / BACKPACK_WIDTH;
+			float tileHeight = rect.Height / BACKPACK_HEIGHT;
+			return topLeft + new Vector2(tileWidth * (x + 0.5f), tileHeight * (y + 0.5f));
 		}
 		// returns an {X, Y} vector of slot indices
 		// so, X is 0-11 and Y is 0-5
 		public Vector2 GetFreeSlot(int w, int h) {
-			for( int y = 0; y < 5; y++ ) {
-				for( int x = 0; x < 12; x++ ) {
+			for( int x = 0; x < BACKPACK_WIDTH; x++ ) {
+				for( int y = 0; y < BACKPACK_HEIGHT; y++ ) {
 					if( !IsOccupied(x, y, w, h) ) {
-						return new Vector2(1 + x, 1 + y);
+						return new Vector2(x, y);
 					}
 				}
 			}
-			return Vector2.Zero;
+			return new Vector2(-1, -1);
 		}
 		public Vector2 GetSlotCenter(Offsets.Vector2i slot) {
 			return GetSlotPositionAbsolute(slot.X, slot.Y);
@@ -250,7 +256,7 @@ namespace AtE.Plugins {
 			IState tail = head.Tail();
 			while ( stackSize > 0 ) {
 				var freeSlot = GetFreeSlot(1, 1);
-				if ( freeSlot == Vector2.Zero ) {
+				if ( freeSlot.X < 0 || freeSlot.Y < 0 || freeSlot.X >= BACKPACK_WIDTH || freeSlot.Y >= BACKPACK_HEIGHT ) {
 					Log($"OpenOneDeck: no more free slots");
 					tail.Next = next;
 					return head;
@@ -309,11 +315,19 @@ namespace AtE.Plugins {
 		public override IState OnTick(long dt) {
 			if( Enabled && !Paused && PoEMemory.IsAttached ) {
 
-				if( false ) {
+				if( ShowDebugMarkers ) {
 					RefreshBackpack();
-					var freeSlot = GetFreeSlot(1, 1);
-					freeSlot = GetSlotPositionAbsolute((int)freeSlot.X, (int)freeSlot.Y);
-					DrawCircle(freeSlot, 6, Color.Yellow);
+					if ( BackpackIsOpen() ) {
+						for ( int x = 0; x < BACKPACK_WIDTH; x++ ) {
+							for ( int y = 0; y < BACKPACK_HEIGHT; y++ ) {
+								DrawCircle(GetSlotPositionAbsolute(x, y), 6,
+									IsOccupied(x, y, 1, 1) ? Color.Red : Color.Gray);
+							}
+						}
+						var freeSlot = GetFreeSlot(1, 1);
+						freeSlot = GetSlotPositionAbsolute((int)freeSlot.X, (int)freeSlot.Y);
+						DrawCircle(freeSlot, 8, Color.Yellow);
+					}
 				}
 
 				if( PoEMemory.TargetHasFocus && DumpKey.IsReleased ) {
