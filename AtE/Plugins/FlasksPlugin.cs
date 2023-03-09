@@ -37,11 +37,11 @@ namespace AtE {
 
 			ImGui.Checkbox("Use Life Flask at %:", ref UseLifeFlask);
 			ImGui.SameLine();
-			ImGui.SliderFloat("", ref UseLifeFlaskAtPctLife, 25f, 75f);
+			ImGui.SliderFloat("##Life", ref UseLifeFlaskAtPctLife, 25f, 75f);
 
 			ImGui.Checkbox("Use Mana flask at %:", ref UseManaFlask);
 			ImGui.SameLine();
-			ImGui.SliderFloat("", ref UseManaFlaskAtPctMana, 2f, 99f);
+			ImGui.SliderFloat("##Mana", ref UseManaFlaskAtPctMana, 2f, 99f);
 
 			ImGui.Checkbox("Use flasks to cure conditions", ref CureConditions);
 			ImGui.SameLine();

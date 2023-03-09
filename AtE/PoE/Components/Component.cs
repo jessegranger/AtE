@@ -668,10 +668,11 @@ namespace AtE {
 
 		private Dictionary<Offsets.GameStat, int> stats;
 		private long lastStatsTime;
-		private const long maxAge = 1000; // ms
 		public Dictionary<Offsets.GameStat, int> GetStats() {
-			if ( stats == null || (Time.ElapsedMilliseconds - lastStatsTime) > maxAge ) {
+			// if there are no stats, or the stats entries array is newer than the stats dict
+			if ( stats == null || entries == null || lastEntryTime > lastStatsTime ) {
 				stats = new Dictionary<Offsets.GameStat, int>();
+				lastStatsTime = Time.ElapsedTicks;
 				foreach ( var entry in Entries ) {
 					stats[entry.Key] = entry.Value;
 				}
@@ -680,10 +681,13 @@ namespace AtE {
 		}
 
 		private ArrayHandle<Offsets.GameStatArrayEntry> entries;
+		private long lastEntryTime;
+		private const long maxAge = 1000; // ms
 		public IEnumerable<Offsets.GameStatArrayEntry> Entries {
 			get {
-				if( entries == null || (Time.ElapsedMilliseconds - lastStatsTime) > maxAge ) {
+				if( entries == null || (Time.ElapsedTicks - lastEntryTime) > maxAge ) {
 					entries = new ArrayHandle<Offsets.GameStatArrayEntry>(GameStats.Value.Values);
+					lastEntryTime = Time.ElapsedTicks;
 					if( entries.Length > 500 ) {
 						entries = null;
 						return Empty<Offsets.GameStatArrayEntry>();

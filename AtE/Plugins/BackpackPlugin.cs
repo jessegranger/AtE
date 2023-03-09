@@ -248,7 +248,7 @@ namespace AtE.Plugins {
 			// }
 			var stackSize = deckItem.Entity?.GetComponent<Stack>()?.CurSize ?? 0;
 			if ( stackSize <= 0 ) {
-				Log("OpenOneDeck: canceled, stack is empty.");
+				Log($"OpenOneDeck: canceled, stack is empty {stackSize}.");
 				return next;
 			}
 			Log($"OpenOneDeck: Opening a stack of {stackSize} cards...");
