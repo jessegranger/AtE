@@ -9,6 +9,11 @@ using System.Text;
 namespace AtE {
 	public static partial class Globals {
 		public static bool IsValid(Element e) => e != null && e.IsValid;
+
+		public static void DrawTextAt(Element e, string text, Color color) {
+			var rect = e.GetClientRect();
+			DrawTextAt(new Vector2(rect.X, rect.Y), text, color);
+		}
 	}
 
 	public class Element : MemoryObject<Offsets.Element> {
