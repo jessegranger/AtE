@@ -17,12 +17,14 @@ namespace AtE.Plugins {
 		public HotKey DumpKey = new HotKey(Keys.OemOpenBrackets);
 		public bool ShowDebugMarkers = false;
 		public bool OpenStashedDecks = false;
+		public bool ApplyIncubators = false;
 
 		public override void Render() {
 			base.Render();
 
 			ImGui_HotKeyButton("Deposit All Loot", ref DumpKey);
 			ImGui.Checkbox("Open Stashed Decks", ref OpenStashedDecks);
+			ImGui.Checkbox("Apply Incubators", ref ApplyIncubators);
 			ImGui.Separator();
 			ImGui.Checkbox("Show Debug Markers", ref ShowDebugMarkers);
 		}
@@ -312,6 +314,35 @@ namespace AtE.Plugins {
 			});
 		}
 
+		public static IEnumerable<InventoryItem> EquippedItems() {
+			var root = GetUI()?.InventoryPanel;
+			if ( !IsValid(root) ) yield break;
+			yield return root.Helm.VisibleItems.FirstOrDefault();
+			yield return root.Amulet.VisibleItems.FirstOrDefault();
+			yield return root.Chest.VisibleItems.FirstOrDefault();
+			yield return root.LWeapon.VisibleItems.FirstOrDefault();
+			yield return root.RWeapon.VisibleItems.FirstOrDefault();
+			yield return root.LRing.VisibleItems.FirstOrDefault();
+			yield return root.RRing.VisibleItems.FirstOrDefault();
+			yield return root.Gloves.VisibleItems.FirstOrDefault();
+			yield return root.Belt.VisibleItems.FirstOrDefault();
+			yield return root.Boots.VisibleItems.FirstOrDefault();
+			yield return root.Trinket.VisibleItems.FirstOrDefault();
+		}
+
+		private IState PlanIncubateAll(IState next) {
+			if ( !BackpackIsOpen() ) {
+				return null;
+			}
+
+			if ( !ApplyIncubators ) {
+				return next;
+			}
+			// TODO: incubate
+
+			return next;
+		}
+
 		public override IState OnTick(long dt) {
 			if( Enabled && !Paused && PoEMemory.IsAttached ) {
 
@@ -327,13 +358,13 @@ namespace AtE.Plugins {
 						var freeSlot = GetFreeSlot(1, 1);
 						freeSlot = GetSlotPositionAbsolute((int)freeSlot.X, (int)freeSlot.Y);
 						DrawCircle(freeSlot, 8, Color.Yellow);
+
 					}
 				}
 
 				if( PoEMemory.TargetHasFocus && DumpKey.IsReleased ) {
 					Notify("Depositing all your loot.");
-					Run(PlanIdentifyAll(PlanStashAll(PlanOpenAllDecks(null))));
-					// TODO: incubate
+					Run(PlanIdentifyAll(PlanStashAll(PlanOpenAllDecks(PlanIncubateAll(null)))));
 					return this;
 				}
 
