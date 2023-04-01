@@ -174,7 +174,7 @@ namespace AtE {
 				var elem = (Element)value;
 				var elemId = $"{(long)elem.Address:X}".Last(4);
 				var r = elem.GetClientRect();
-				string nextLabel = $"{prefix} {type.Name} {elemId} {(IsValid(elem) ? "Valid" : "Invalid")} <{r.X},{r.Y},{r.Width}x{r.Height}>";
+				string nextLabel = $"{prefix} {type.Name} {elemId} {(IsValid(elem) ? "Valid" : "Invalid")} {(elem.IsVisible ? "Visible" : "")} <{r.X},{r.Y},{r.Width}x{r.Height}>";
 				if ( ImGui.Button($">##{prefix}") ) {
 					Run_ObjectBrowser(nextLabel, value);
 				}
