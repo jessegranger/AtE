@@ -16,6 +16,7 @@ namespace AtE {
 
 		public bool ShowXPRate = true;
 		public bool ShowPickups = true;
+		public bool Verbose = false;
 
 		public XPPlugin():base() {
 			PoEMemory.OnAttach += (_, args) => {
@@ -45,6 +46,9 @@ namespace AtE {
 			ImGui.Checkbox("Show XP Pickups", ref ShowPickups);
 			ImGui.SameLine();
 			ImGui_HelpMarker("XP gains float toward you as numbers");
+
+			// ImGui.Checkbox("Show Verbose Detail", ref Verbose);
+			// ImGui.SameLine();
 
 		}
 
@@ -164,18 +168,23 @@ namespace AtE {
 						// translate the xpPerMs into %/hr and hrs until level
 						uint xpInThisLevel = xpToNextLevel[player.Level] - xpToNextLevel[player.Level - 1];
 						uint xpToLevel = xpToNextLevel[player.Level] - player.XP;
-						var pctPerHr = (xpPerMs * 100 * 1000 * 60 * 60) / xpToLevel;
-						var msToLevel = xpToLevel / xpPerMs;
-						var hrToLevel = Math.Min(999, msToLevel / (1000 * 60 * 60));
+						double xpPerHr = xpPerMs * 1000 * 60 * 60;
+						var pctPerHr = (100 * xpPerHr) / xpInThisLevel;
+						var hrToLevel = Math.Min(999, xpToLevel / xpPerHr);
 						// re-do pctPerHr with an absolute base of the whole level
-						pctPerHr = (xpPerMs * 100 * 1000 * 60 * 60) / xpInThisLevel;
+						// pctPerHr = (xpPerMs * 100 * 1000 * 60 * 60) / xpInThisLevel;
 						string status = $"xp {pctPerHr:F2}%/hr eta {hrToLevel:F2} hrs";
 						// if the xp bar UI element is known, position next to it
 						var ui = GetUI();
 						if ( IsValid(ui?.ExperienceBar) ) {
 							var rect = ui.ExperienceBar.GetClientRect();
 							float padding = ImGui.GetFontSize() + 4;
-							DrawTextAt(new Vector2(rect.Left, rect.Top - padding), status, Color.Orange);
+							Vector2 textPos = new Vector2(rect.Left, rect.Top - padding);
+							DrawTextAt(textPos, status, Color.Orange);
+							if( Verbose ) {
+								textPos.Y -= padding;
+								DrawTextAt(textPos, $"Xp in this level: {xpInThisLevel} Xp to next level: {xpToLevel} Xp per hr: {xpPerHr:F2} Hr to level: {xpToLevel/xpPerHr:F2}", Color.Orange);
+							}
 						} else {
 							DrawBottomLeftText(status, Color.Orange);
 						}
