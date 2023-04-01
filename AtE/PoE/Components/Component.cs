@@ -674,6 +674,9 @@ namespace AtE {
 				stats = new Dictionary<Offsets.GameStat, int>();
 				lastStatsTime = Time.ElapsedTicks;
 				foreach ( var entry in Entries ) {
+					if( entry.Key > Offsets.GameStat.MapShrineGrantedPlayerBuffDurationPct ) {
+						break; // invalid data in the Entries
+					}
 					stats[entry.Key] = entry.Value;
 				}
 			}
