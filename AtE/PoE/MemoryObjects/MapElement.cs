@@ -120,12 +120,12 @@ namespace AtE {
 			miniMapCenter = new Vector2(mapRect.X + (mapRect.Width / 2f), mapRect.Y + (mapRect.Height / 2f));
 			miniMapDiag = (float)Math.Sqrt((mapRect.Width * mapRect.Width) + (mapRect.Height * mapRect.Height));
 			Log($"Minimap setting center and diag: {miniMapCenter} {miniMapDiag}");
-			var camera = GetCamera();
 			var largeMap = ui.Map?.LargeMap;
 			if ( !IsValid(largeMap) ) {
 				return;
 			}
 
+			var camera = GetCamera();
 			largeMapCenter = new Vector2(camera.Width / 2, camera.Height / 2) + largeMap.Shift + largeMap.DefaultShift;
 			largeMapDiag = (float)Math.Sqrt((camera.Width * camera.Width) + (camera.Height * camera.Height));
 			float k = camera.Width < 1024f ? 1120f : 1024f;
