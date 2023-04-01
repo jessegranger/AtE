@@ -1,4 +1,7 @@
 ﻿using ImGuiNET;
+using System.Drawing;
+using System.Linq;
+using System.Numerics;
 using System.Windows.Forms;
 using static AtE.Globals;
 
@@ -25,10 +28,14 @@ namespace AtE {
 		public bool EnableAlsoCast16Second = false;
 		public HotKey AlsoCast16SecondKey = new HotKey(Keys.None);
 
+		public bool ShowMouseCoords = false;
+		public HotKey ResetZoneSecretKey = new HotKey(Keys.None);
+
 		public override void Render() {
 			base.Render();
 
 			ImGui.Text("Mouse:");
+			ImGui.Checkbox("Show Cursor Position", ref ShowMouseCoords);
 			ImGui.Checkbox("Repeat Left Clicks", ref RepeatLeftClicks);
 			ImGui.SliderInt("Start repeating after", ref RepeatLeftClickWait, 300, 1000);
 			ImGui.SliderInt("Then, repeat interval", ref RepeatLeftClickInterval, 100, 300);
@@ -71,6 +78,31 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( Paused || !Enabled || !PoEMemory.IsAttached || !PoEMemory.TargetHasFocus ) return this;
 
+			if( ShowMouseCoords ) {
+				var ui = GetUI();
+				if ( IsValid(ui) ) {
+					var pos = Center(ui.Mouse?.GetClientRect() ?? RectangleF.Empty);
+					DrawBottomLeftText($"Mouse X: {pos.X} Y: {pos.Y}", Color.Yellow);
+				}
+			}
+
+			if( ResetZoneSecretKey.IsReleased ) {
+				var label = GetUI().LabelsOnGround.GetAllLabels().FirstOrDefault(l => l.Label.Text?.Equals("Waypoint") ?? false);
+				if( IsValid(label?.Label) ) {
+					Run(new LeftClickAt(label.Label.GetClientRect(), 30, 1
+						, new Delay(300
+						, new KeyDown(Keys.LControlKey
+						, new LeftClickAt(new Vector2(520, 400), 30, 1
+						, new Delay(300
+						, new LeftClickAt(new Vector2(420, 370), 30, 1
+						, new KeyUp(Keys.LControlKey)
+						))))))
+					);
+				} else {
+					Notify("Did not find a Waypoint label");
+				}
+			}
+
 			bool downNow = Win32.IsKeyDown(Keys.LButton);
 			bool shiftDownNow = Win32.IsKeyDown(Keys.LShiftKey);
 			bool controlDownNow = Win32.IsKeyDown(Keys.LControlKey);
@@ -82,7 +114,7 @@ namespace AtE {
 				} else {
 					if( (now - downSince) > RepeatLeftClickWait ) {
 						if( (now - lastRepeat) > RepeatLeftClickInterval ) {
-							Win32.SendInput(
+							Win32.SendInput( // repeat the already-held left mouse, by releasing and pressing it again
 								Win32.INPUT_Mouse(Win32.MouseFlag.LeftUp),
 								Win32.INPUT_Mouse(Win32.MouseFlag.LeftDown));
 							lastRepeat = now;
