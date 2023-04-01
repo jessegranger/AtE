@@ -19,12 +19,12 @@ namespace AtE {
 		/// The current version of this file.
 		/// </summary>
 		public const int VersionMajor = 1;
-		public const int VersionMinor = 2;
+		public const int VersionMinor = 3;
 
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.20.0b";
+		public const string PoEVersion = "3.20.2c";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -359,10 +359,10 @@ namespace AtE {
 			[FieldOffset(0x10C)] public readonly uint CurrentAreaHash;
 			[FieldOffset(0x120)] public readonly IntPtr MapStats;
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
-			[FieldOffset(0x778)] public readonly IntPtr ServerData;
-			[FieldOffset(0x780)] public readonly IntPtr entPlayer; // ptr Entity
-			[FieldOffset(0x830)] public readonly IntPtr EntityListHead; // ptr EntityListNode
-			[FieldOffset(0x838)] public readonly long EntitiesCount;
+			[FieldOffset(0x750)] public readonly IntPtr ServerData;
+			[FieldOffset(0x758)] public readonly IntPtr entPlayer; // ptr Entity
+			[FieldOffset(0x808)] public readonly IntPtr EntityListHead; // ptr EntityListNode
+			[FieldOffset(0x810)] public readonly long EntitiesCount;
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 		}
 
@@ -399,9 +399,16 @@ namespace AtE {
 			[FieldOffset(0x568)] public readonly IntPtr InventoryPanel;
 			[FieldOffset(0x570)] public readonly IntPtr StashElement;
 			[FieldOffset(0x578)] public readonly IntPtr GuildStashElement;
+			[FieldOffset(0x588)] public readonly IntPtr SocialPanel;
 			// [FieldOffset(0x618)] public readonly IntPtr AtlasPanel;
 			// [FieldOffset(0x620)] public readonly IntPtr AtlasSkillPanel;
 			// [FieldOffset(0x650)] public readonly IntPtr WorldMap;
+			[FieldOffset(0x5b0)] public readonly IntPtr CharacterPanel;
+			[FieldOffset(0x5b8)] public readonly IntPtr OptionsPanel;
+			[FieldOffset(0x5c0)] public readonly IntPtr ChallengesPanel;
+			[FieldOffset(0x5c8)] public readonly IntPtr PantheonPanel;
+			[FieldOffset(0x5d0)] public readonly IntPtr PvPPanel;
+			[FieldOffset(0x5d8)] public readonly IntPtr AreaInstanceUi;
 			[FieldOffset(0x618)] public readonly IntPtr Map;
 
 			[FieldOffset(0x620)] public readonly IntPtr ItemsOnGroundLabelElement;
@@ -474,7 +481,7 @@ namespace AtE {
 			// [FieldOffset(0x910)] public readonly IntPtr Unknown910;
 			// [FieldOffset(0x918)] public readonly IntPtr Unknown918;
 			// [FieldOffset(0x920)] public readonly IntPtr Unknown920;
-			[FieldOffset(0x920)] public readonly IntPtr AreaInstanceUi;
+			// [FieldOffset(0x920)] public readonly IntPtr AreaInstanceUi;
 			// [FieldOffset(0x930)] public readonly IntPtr Unknown930;
 			// [FieldOffset(0x938)] public readonly IntPtr Unknown938;
 			// [FieldOffset(0x940)] public readonly IntPtr Unknown940;
@@ -1157,11 +1164,11 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Positioned {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x1D9)] public readonly byte Reaction;
+			[FieldOffset(0x1E0)] public readonly byte Reaction;
 			// [FieldOffset(0x1F1)] public readonly byte Reaction;
 			public bool IsHostile => (Reaction & 0x7F) != 1;
-			[FieldOffset(0x284)] public readonly Vector2i GridPos;
-			[FieldOffset(0x28C)] public readonly float Rotation;
+			[FieldOffset(0x288)] public readonly Vector2i GridPos;
+			[FieldOffset(0x290)] public readonly float Rotation;
 			[FieldOffset(0x2a0)] public readonly float Scale;
 			[FieldOffset(0x2a4)] public readonly int Size;
 			[FieldOffset(0x2ac)] public readonly Vector2 WorldPos;
