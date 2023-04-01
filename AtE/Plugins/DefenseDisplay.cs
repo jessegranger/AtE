@@ -26,6 +26,7 @@ namespace AtE.Plugins {
 		public bool ShowEnemyResistChaos = false;
 		public bool ShowEnemyPoisonStacks = false;
 		public bool ShowEnemyWitherStacks = false;
+		public bool ShowHighestCorpseLife = false;
 
 		/// <summary>
 		/// Uses ImGui to render controls for configurable fields.
@@ -37,6 +38,7 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("Show Enemy Fire", ref ShowEnemyResistFire);
 			ImGui.Checkbox("Show Enemy Cold", ref ShowEnemyResistCold);
 			ImGui.Checkbox("Show Enemy Lightning", ref ShowEnemyResistLightning);
+			ImGui.Checkbox("Show Highest Corpse Life", ref ShowHighestCorpseLife);
 			if ( false ) {
 				ImGui.BeginListBox("", new Vector2(-1, -2));
 
@@ -61,7 +63,11 @@ namespace AtE.Plugins {
 		public override IState OnTick(long dt) {
 			if ( Enabled && !Paused && PoEMemory.IsAttached ) {
 				var ui = GetUI();
-				if ( ShowPlayerDefenses && IsValid(ui) ) {
+				if ( !IsValid(ui) ) {
+					return this;
+				}
+
+				if ( ShowPlayerDefenses ) {
 					var bubble = ui.LifeBubble?.GetClientRect() ?? RectangleF.Empty;
 					if ( bubble != RectangleF.Empty ) {
 						var spot = new Vector2(bubble.X + bubble.Width + 4, bubble.Y + 1);
@@ -94,10 +100,23 @@ namespace AtE.Plugins {
 						}
 					}
 
-					if( ShowEnemyResistChaos || ShowEnemyResistCold || ShowEnemyResistFire || ShowEnemyResistLightning || ShowEnemyWitherStacks || ShowEnemyPoisonStacks ) {
-						foreach( var enemy in NearbyEnemies(100f) ) {
-							if ( IsAlive(enemy) ) {
-								var s = enemy.GetComponent<Stats>()?.GetStats();
+					if( ShowEnemyResistChaos || ShowEnemyResistCold || ShowEnemyResistFire || ShowEnemyResistLightning || ShowEnemyWitherStacks || ShowEnemyPoisonStacks || ShowHighestCorpseLife ) {
+						float maxCorpseLife = 0;
+						Vector3 maxCorpseLocation = Vector3.Zero;
+						var player = GetPlayer();
+						if( !IsValid(player) ) {
+							return this;
+						}
+						Vector3 playerPos = player.Position;
+						foreach(var ent in GetEntities().Take(200) ) {
+							bool isMonster = ent?.Path?.StartsWith("Metadata/Monsters") ?? false;
+							if ( !isMonster ) {
+								continue;
+							}
+
+							bool isAlive = IsAlive(ent);
+							if( isAlive && IsHostile(ent) ) {
+								var s = ent.GetComponent<Stats>()?.GetStats();
 								if ( s != null ) {
 									var str = "";
 									if ( ShowEnemyResistChaos && s.TryGetValue(GameStat.ChaosDamageResistancePct, out int chaos) ) {
@@ -114,13 +133,25 @@ namespace AtE.Plugins {
 									}
 									// TODO: Wither and Poison (count the buffs)
 									if ( str.Length > 0 ) {
-										DrawTextAt(enemy, str, Color.White);
+										DrawTextAt(ent, str, Color.White);
 									}
+								}
+							} else if ( (!isAlive) && ShowHighestCorpseLife ) {
+								int maxLife = ent?.GetComponent<Life>()?.MaxHP ?? 0;
+								Vector3 loc = Position(ent);
+								float dist = DistanceSq(loc, playerPos);
+								if ( dist < 250000 && maxLife > maxCorpseLife ) {
+									maxCorpseLife = maxLife;
+									maxCorpseLocation = Position(ent);
 								}
 							}
 						}
+						if ( ShowHighestCorpseLife && maxCorpseLocation != Vector3.Zero ) {
+							DrawTextAt(maxCorpseLocation, $"hp:{maxCorpseLife}", Color.White);
+						}
 					}
 				}
+
 			}
 			return this;
 		}

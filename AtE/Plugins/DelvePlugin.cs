@@ -25,7 +25,7 @@ namespace AtE.Plugins {
 		public int UseFlaresAtDarkness = 12;
 		public HotKey FlareKey = new HotKey(Keys.D6);
 
-		public bool ShowHighestCorpseLife = true;
+		// public bool ShowHighestCorpseLife = true;
 
 		public override void Render() {
 			base.Render();
@@ -42,7 +42,6 @@ namespace AtE.Plugins {
 			ImGui.Text("At darkness stacks:");
 			ImGui.SameLine();
 			ImGui.SliderInt("##useFlaresAtDarkness", ref UseFlaresAtDarkness, 2, 20);
-			ImGui.Checkbox("Show Highest Corpse Life", ref ShowHighestCorpseLife);
 		}
 
 		private long lastFlare = 0;
@@ -81,7 +80,7 @@ namespace AtE.Plugins {
 						FlareKey.PressImmediate();
 					}
 				}
-				if( ! (ShowHighestCorpseLife || HighlightWalls || HighlightAzurite || HighlightCurrency || HighlightFossils || HighlightResonators || HighlightSupplies) ) {
+				if( ! (HighlightWalls || HighlightAzurite || HighlightCurrency || HighlightFossils || HighlightResonators || HighlightSupplies) ) {
 					return this;
 				}
 
@@ -100,6 +99,7 @@ namespace AtE.Plugins {
 					lineText = null;
 					bool isMonster = path.StartsWith("Metadata/Monsters");
 
+					/*
 					if( ShowHighestCorpseLife && isMonster && !IsAlive(ent) ) {
 						int maxLife = ent?.GetComponent<Life>()?.MaxHP ?? 0;
 						Vector3 loc = Position(ent);
@@ -109,6 +109,7 @@ namespace AtE.Plugins {
 							maxCorpseLocation = Position(ent);
 						}
 					}
+					*/
 
 					if ( path.Contains("Delve") ) {
 						if ( isMonster || path.EndsWith("DelveLight") ) {
