@@ -23,6 +23,7 @@ namespace AtE {
 		public bool OnlyRenderWhenFocused = true;
 
 		public string SelectedProfile = "default";
+		public bool AutoProfile = false;
 
 		public HotKey ConsoleKey = new HotKey(Keys.F12);
 		public HotKey PauseKey = new HotKey(Keys.Pause);
@@ -84,6 +85,23 @@ namespace AtE {
 					PauseAll();
 				}
 			}
+
+			if ( !Paused ) {
+				// Automatically switch profiles based on the logged-in character
+				var player = GetPlayer();
+				if( player != null ) {
+					var name = player.GetComponent<Player>()?.Name ?? null;
+					if ( name != null ) {
+						if ( !SelectedProfile.Equals(name) ) {
+							Notify($"Profile changing to: {name}");
+							SelectedProfile = name;
+							CreateProfile(name); // does nothing if it exists already
+							LoadIniFiles();
+						}
+					}
+				}
+			}
+
 			averageFPS = MovingAverage(averageFPS, Overlay.FPS, 10);
 			DrawBottomLeftText(
 				(Paused ? "[=]" : "[>]")
@@ -102,11 +120,9 @@ namespace AtE {
 			if ( name.Length < 1 ) return false;
 			if ( name.Equals("default") ) return false;
 			string fileName = $"Settings-{Slug(name)}.ini";
-			if( !File.Exists(fileName) ) {
-				File.Copy(SettingsFileName, fileName);
-				return true;
-			}
-			return false;
+			if ( File.Exists(fileName) ) return false;
+			File.Copy(SettingsFileName, fileName);
+			return true;
 		}
 	}
 }
