@@ -42,7 +42,8 @@ namespace AtE {
 					}
 					ImGui.SameLine();
 					ImGui.AlignTextToFramePadding();
-					ImGui.Text("Profile:");
+					ImGui.Text($"Profile: {settings.SelectedProfile}");
+					/*
 					ImGui.SameLine();
 					if( ImGui.BeginCombo("##SelectedProfile", settings.SelectedProfile) ) {
 						var profiles = CoreSettings.GetProfiles();
@@ -87,6 +88,11 @@ namespace AtE {
 						}
 						ImGui.EndCombo();
 					}
+
+
+					ImGui.SameLine();
+					ImGui.Checkbox("Auto", ref settings.AutoProfile);
+					*/
 
 					/*
 					ImGui.SameLine();
