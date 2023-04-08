@@ -19,12 +19,12 @@ namespace AtE {
 		/// The current version of this file.
 		/// </summary>
 		public const int VersionMajor = 1;
-		public const int VersionMinor = 3;
+		public const int VersionMinor = 4;
 
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.20.2c";
+		public const string PoEVersion = "3.21.0";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -391,25 +391,26 @@ namespace AtE {
 			[FieldOffset(0x3D8)] public readonly IntPtr Mouse;
 			[FieldOffset(0x3E0)] public readonly IntPtr SkillBar;
 			[FieldOffset(0x3E8)] public readonly IntPtr HiddenSkillBar;
-			[FieldOffset(0x480)] public readonly IntPtr ChatBoxRoot;
+			// Crucible: 8 new bytes here
+			[FieldOffset(0x488)] public readonly IntPtr ChatBoxRoot;
 
-			[FieldOffset(0x4b0)] public readonly IntPtr QuestTracker;
-			[FieldOffset(0x538)] public readonly IntPtr OpenLeftPanel;
-			[FieldOffset(0x540)] public readonly IntPtr OpenRightPanel;
-			[FieldOffset(0x568)] public readonly IntPtr InventoryPanel;
-			[FieldOffset(0x570)] public readonly IntPtr StashElement;
-			[FieldOffset(0x578)] public readonly IntPtr GuildStashElement;
-			[FieldOffset(0x588)] public readonly IntPtr SocialPanel;
+			[FieldOffset(0x4b8)] public readonly IntPtr QuestTracker;
+			[FieldOffset(0x540)] public readonly IntPtr OpenLeftPanel;
+			[FieldOffset(0x548)] public readonly IntPtr OpenRightPanel;
+			[FieldOffset(0x570)] public readonly IntPtr InventoryPanel;
+			[FieldOffset(0x578)] public readonly IntPtr StashElement;
+			[FieldOffset(0x580)] public readonly IntPtr GuildStashElement;
+			[FieldOffset(0x590)] public readonly IntPtr SocialPanel;
 			// [FieldOffset(0x618)] public readonly IntPtr AtlasPanel;
 			// [FieldOffset(0x620)] public readonly IntPtr AtlasSkillPanel;
 			// [FieldOffset(0x650)] public readonly IntPtr WorldMap;
-			[FieldOffset(0x5b0)] public readonly IntPtr CharacterPanel;
-			[FieldOffset(0x5b8)] public readonly IntPtr OptionsPanel;
-			[FieldOffset(0x5c0)] public readonly IntPtr ChallengesPanel;
-			[FieldOffset(0x5c8)] public readonly IntPtr PantheonPanel;
-			[FieldOffset(0x5d0)] public readonly IntPtr PvPPanel;
-			[FieldOffset(0x5d8)] public readonly IntPtr AreaInstanceUi;
-			[FieldOffset(0x618)] public readonly IntPtr Map;
+			[FieldOffset(0x5b8)] public readonly IntPtr CharacterPanel;
+			[FieldOffset(0x5c0)] public readonly IntPtr OptionsPanel;
+			[FieldOffset(0x5c8)] public readonly IntPtr ChallengesPanel;
+			[FieldOffset(0x5d0)] public readonly IntPtr PantheonPanel;
+			[FieldOffset(0x5d8)] public readonly IntPtr PvPPanel;
+			[FieldOffset(0x5e0)] public readonly IntPtr AreaInstanceUi;
+			[FieldOffset(0x620)] public readonly IntPtr Map;
 
 			[FieldOffset(0x620)] public readonly IntPtr ItemsOnGroundLabelElement;
 			[FieldOffset(0x640)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
@@ -608,20 +609,20 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Life {
 			[FieldOffset(0x8)] public readonly IntPtr entOwner;
-			[FieldOffset(0x180)] public readonly int ReservedFlatHP;
-			[FieldOffset(0x184)] public readonly int ReservedPercentHP;
-			[FieldOffset(0x198)] public readonly float CurHPRegen;
-			[FieldOffset(0x19c)] public readonly int MaxHP;
-			[FieldOffset(0x1a0)] public readonly int CurHP;
+			[FieldOffset(0x188)] public readonly int ReservedFlatHP;
+			[FieldOffset(0x18c)] public readonly int ReservedPercentHP;
+			[FieldOffset(0x1a0)] public readonly float CurHPRegen;
+			[FieldOffset(0x1a4)] public readonly int MaxHP;
+			[FieldOffset(0x1a8)] public readonly int CurHP;
 
-			[FieldOffset(0x1d0)] public readonly int ReservedFlatMana;
-			[FieldOffset(0x1d4)] public readonly int ReservedPercentMana;
-			[FieldOffset(0x1e8)] public readonly float ManaRegen;
-			[FieldOffset(0x1EC)] public readonly int MaxMana;
-			[FieldOffset(0x1F0)] public readonly int CurMana;
+			[FieldOffset(0x1d8)] public readonly int ReservedFlatMana;
+			[FieldOffset(0x1dc)] public readonly int ReservedPercentMana;
+			[FieldOffset(0x1f0)] public readonly float ManaRegen;
+			[FieldOffset(0x1F4)] public readonly int MaxMana;
+			[FieldOffset(0x1F8)] public readonly int CurMana;
 
-			[FieldOffset(0x224)] public readonly int MaxES;
-			[FieldOffset(0x228)] public readonly int CurES;
+			[FieldOffset(0x22c)] public readonly int MaxES;
+			[FieldOffset(0x230)] public readonly int CurES;
 
 			// 3.19 [FieldOffset(0x230)] public readonly float Regen;
 			// 3.19 [FieldOffset(0x234)] public readonly int MaxHP;
@@ -698,7 +699,7 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GameStatArray {
-			[FieldOffset(0xE8)] public readonly ArrayHandle Values; // of GameStateArrayEntry
+			[FieldOffset(0xF0)] public readonly ArrayHandle Values; // of GameStateArrayEntry
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GameStatArrayEntry {
@@ -1006,21 +1007,23 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Mods {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			[FieldOffset(0x30)] public readonly ArrayHandle UniqueName; // of UniqueNameEntry
-			[FieldOffset(0xA8)] public readonly bool Identified;
-			[FieldOffset(0x0AC)] public readonly ItemRarity ItemRarity;
-			[FieldOffset(0x0B8)] public readonly ArrayHandle ImplicitModsArray; // of ItemModEntry
-			[FieldOffset(0x0D0)] public readonly ArrayHandle ExplicitModsArray; // of ItemModEntry
-			[FieldOffset(0x0E8)] public readonly ArrayHandle EnchantedModsArray; // of ItemModEntry
-			[FieldOffset(0x100)] public readonly ArrayHandle ScourgeModsArray; // of ItemModEntry
-			[FieldOffset(0x1F0)] public readonly IntPtr ModStats;
-			[FieldOffset(0x220)] public readonly uint ItemLevel;
-			[FieldOffset(0x224)] public readonly uint RequiredLevel;
-			[FieldOffset(0x228)] public readonly IntPtr ptrIncubator; // ptr to IncubatorEntry
-			[FieldOffset(0x238)] public readonly short IncubatorKillCount;
-			[FieldOffset(0x23D)] public readonly byte IsMirrored;
-			[FieldOffset(0x23E)] public readonly byte IsSplit;
-			[FieldOffset(0x23F)] public readonly byte IsUsable;
-			[FieldOffset(0x241)] public readonly byte IsSynthesised;
+			// Crucible: some new 8 bytes added in here
+			[FieldOffset(0xB0)] public readonly bool Identified;
+			[FieldOffset(0x0B4)] public readonly ItemRarity ItemRarity;
+			[FieldOffset(0x0C0)] public readonly ArrayHandle ImplicitModsArray; // of ItemModEntry
+			[FieldOffset(0x0D8)] public readonly ArrayHandle ExplicitModsArray; // of ItemModEntry
+			[FieldOffset(0x0F0)] public readonly ArrayHandle EnchantedModsArray; // of ItemModEntry
+			[FieldOffset(0x108)] public readonly ArrayHandle ScourgeModsArray; // of ItemModEntry
+			[FieldOffset(0x1F8)] public readonly IntPtr ModStats;
+			// Crucible: some new 32 bytes added in here
+			[FieldOffset(0x240)] public readonly uint ItemLevel;
+			[FieldOffset(0x244)] public readonly uint RequiredLevel;
+			[FieldOffset(0x248)] public readonly IntPtr ptrIncubator; // ptr to IncubatorEntry
+			[FieldOffset(0x258)] public readonly short IncubatorKillCount;
+			[FieldOffset(0x25D)] public readonly byte IsMirrored;
+			[FieldOffset(0x25E)] public readonly byte IsSplit;
+			[FieldOffset(0x25F)] public readonly byte IsUsable;
+			[FieldOffset(0x261)] public readonly byte IsSynthesised;
 
 			// public const int ItemModRecordSize = 0x38;
 			// public const int NameOffset = 0x04;
@@ -1095,8 +1098,9 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_ObjectMagicProperties {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x13c)] public MonsterRarity Rarity;
-			[FieldOffset(0x160)] public ArrayHandle Mods;
+			// Crucible: 8 new bytes here
+			[FieldOffset(0x144)] public MonsterRarity Rarity;
+			[FieldOffset(0x168)] public ArrayHandle Mods;
 		}
 		public enum MonsterRarity : int {
 			White,
@@ -1126,15 +1130,16 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Player {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x160)] public readonly StringHandle strName; // unicode : the current character name
-			[FieldOffset(0x184)] public readonly uint XP;
-			[FieldOffset(0x188)] public readonly uint Strength;
-			[FieldOffset(0x18C)] public readonly uint Dexterity;
-			[FieldOffset(0x190)] public readonly uint Intelligence;
-			[FieldOffset(0x194)] public readonly byte AllocatedLootId;
-			[FieldOffset(0x198)] public readonly PantheonGod PantheonMinor;
-			[FieldOffset(0x199)] public readonly PantheonGod PantheonMajor;
-			[FieldOffset(0x1A4)] public readonly byte Level;
+			// Crucible: some new 8 bytes here
+			[FieldOffset(0x168)] public readonly StringHandle strName; // unicode : the current character name
+			[FieldOffset(0x18c)] public readonly uint XP;
+			[FieldOffset(0x190)] public readonly uint Strength;
+			[FieldOffset(0x194)] public readonly uint Dexterity;
+			[FieldOffset(0x198)] public readonly uint Intelligence;
+			[FieldOffset(0x19c)] public readonly byte AllocatedLootId;
+			[FieldOffset(0x1a0)] public readonly PantheonGod PantheonMinor;
+			[FieldOffset(0x1a1)] public readonly PantheonGod PantheonMajor;
+			[FieldOffset(0x1AC)] public readonly byte Level;
 		}
 
 		public enum PantheonGod : byte{
@@ -1167,11 +1172,11 @@ namespace AtE {
 			[FieldOffset(0x1E0)] public readonly byte Reaction;
 			// [FieldOffset(0x1F1)] public readonly byte Reaction;
 			public bool IsHostile => (Reaction & 0x7F) != 1;
-			[FieldOffset(0x288)] public readonly Vector2i GridPos;
-			[FieldOffset(0x290)] public readonly float Rotation;
-			[FieldOffset(0x2a0)] public readonly float Scale;
-			[FieldOffset(0x2a4)] public readonly int Size;
-			[FieldOffset(0x2ac)] public readonly Vector2 WorldPos;
+			[FieldOffset(0x290)] public readonly Vector2i GridPos;
+			[FieldOffset(0x298)] public readonly float Rotation;
+			[FieldOffset(0x2a8)] public readonly float Scale;
+			[FieldOffset(0x2ac)] public readonly int Size;
+			[FieldOffset(0x2b4)] public readonly Vector2 WorldPos;
 		}
 
 		public static Vector3 GridToWorld(Vector2i gridPos, float z) {
@@ -1191,11 +1196,12 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Render {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x98)] public readonly Vector3 Pos;
-			[FieldOffset(0xa4)] public readonly Vector3 Bounds;
-			[FieldOffset(0xc0)] public readonly StringHandle Name; // of unicode bytes
-			[FieldOffset(0xDC)] public readonly Vector3 Rotation;
-			[FieldOffset(0xe0)] public readonly float RotationRadians;
+			// Crucible: 8 new bytes here
+			[FieldOffset(0xa0)] public readonly Vector3 Pos;
+			[FieldOffset(0xac)] public readonly Vector3 Bounds;
+			[FieldOffset(0xc8)] public readonly StringHandle Name; // of unicode bytes
+			[FieldOffset(0xE4)] public readonly Vector3 Rotation;
+			[FieldOffset(0xe8)] public readonly float RotationRadians;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_RenderItem {
