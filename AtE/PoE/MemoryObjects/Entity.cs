@@ -304,6 +304,8 @@ namespace AtE {
 		/// </summary>
 		public Life Life => GetComponent<Life>();
 
+		public Stats Stats => GetComponent<Stats>();
+
 		/// <summary>
 		/// Where to find data about your Skills, and the DeployedObjects they create.
 		/// </summary>

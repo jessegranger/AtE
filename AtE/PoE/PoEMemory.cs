@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -203,6 +204,7 @@ namespace AtE {
 			&& Handle != IntPtr.Zero
 			&& IsValid(GameRoot);
 		private static bool wasAttached = false;
+		private static bool wasFocused = false;
 
 		public static EventHandler OnAttach;
 		public static EventHandler OnDetach;
@@ -215,8 +217,19 @@ namespace AtE {
 			if ( IsAttached ) {
 				wasAttached = true;
 				TargetHasFocus = Target.MainWindowHandle == Win32.GetForegroundWindow();
+				bool hasFocus = Overlay.HasFocus || TargetHasFocus;
+				bool enabled = true;
+				if( !hasFocus ) {
+					enabled = !PluginBase.GetPlugin<CoreSettings>().OnlyRenderWhenFocused;
+				}
+				// DrawBottomLeftText($"TargetHasFocus:{TargetHasFocus} Overlay Focus: {Overlay.HasFocus} Enabled: {enabled} Foreground: {Describe(Win32.GetForegroundWindow())}", Color.Yellow);
 				SpriteController.Enabled =  // same as:
-				ImGuiController.Enabled = !PluginBase.GetPlugin<CoreSettings>().OnlyRenderWhenFocused || Overlay.HasFocus || TargetHasFocus;
+				ImGuiController.Enabled = enabled;// same as:
+				D3DController.Enabled = wasFocused;
+				if( wasFocused && !enabled ) {
+					D3DController.Clear();
+				}
+				wasFocused = hasFocus;
 
 				// check if we need to resize the overlay based on target window changing
 				if ( nextCheckResize < Time.ElapsedMilliseconds ) {
@@ -230,7 +243,15 @@ namespace AtE {
 				}
 
 			} else {
+				if ( TargetHasFocus ) {
+					D3DController.Clear();
+				}
+				// if we aren't attached to any process, nothing can be focused
+				D3DController.Enabled = TargetHasFocus; // draw one empty frame
 				TargetHasFocus = false;
+				// also, none of the layers should allow drawing/rendering
+				SpriteController.Enabled = false;
+				ImGuiController.Enabled = false;
 				if( wasAttached ) {
 					Detach();
 				}

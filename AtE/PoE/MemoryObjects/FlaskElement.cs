@@ -57,6 +57,10 @@ namespace AtE {
 		public bool Cures_Shocked;
 		public bool Cures_Curse;
 
+		public Entity realEnt;
+		public Charges realCharges;
+		public Mods realMods;
+
 		public int FlaskIndex = -1;
 		public Keys Key => Valid && (FlaskIndex >= 0 && FlaskIndex < 5) ? (Keys.D1 + FlaskIndex) : Keys.None;
 
@@ -65,14 +69,20 @@ namespace AtE {
 				return;
 			}
 			Id = ent.Id;
+			realEnt = ent;
+
 			var charges = ent.GetComponent<Charges>();
 			if( charges == null ) { // not a valid flask entity
 				return;
 			}
+			realCharges = charges;
+
 			var mods = ent.GetComponent<Mods>();
 			if ( mods == null ) {
 				return;
 			}
+			realMods = mods;
+
 			FlaskIndex = flaskIndex;
 			float qualityFactor = (100 + (ent.GetComponent<Quality>()?.ItemQuality ?? 0)) / 100f;
 			string path = ent.Path.Split('/').Last();

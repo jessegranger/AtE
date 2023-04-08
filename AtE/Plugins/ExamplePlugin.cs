@@ -1,4 +1,6 @@
 ﻿using ImGuiNET;
+using System.Collections.Generic;
+using static AtE.Globals;
 
 namespace AtE {
 	public class ExamplePlugin : PluginBase {
@@ -19,6 +21,8 @@ namespace AtE {
 			ImGui.Checkbox("Show Metrics Window", ref ShowMetricsWindow);
 		}
 
+		private string strDebugId = "";
+
 		/// <summary>
 		/// This is run every frame.
 		/// </summary>
@@ -33,6 +37,34 @@ namespace AtE {
 					ImGui.ShowMetricsWindow();
 				}
 			}
+
+
+			/* How to Debug:
+			ImGui.Begin("Debug Entity");
+			ImGui.InputText("Entity:", ref strDebugId, 5);
+			uint entId = 0;
+			try {
+				entId = uint.Parse(strDebugId);
+				ImGui.Text($"Entity: {entId}");
+			} catch ( System.Exception ) {
+			}
+			if( entId != 0 ) {
+				if( EntityCache.TryGetEntity(entId, out Entity ent) ) {
+					ImGui_Object($"Entity-{entId}", "Entity", ent, new HashSet<int>());
+					// ImGui_Object($"ObjectMagicProperties-{entId}", "ObjectMagicProperties", ent.GetComponent<ObjectMagicProperties>(), new HashSet<int>());
+					// ImGui_Object($"Positioned-{entId}", "Positioned", ent.GetComponent<Positioned>(), new HashSet<int>());
+					// ImGui_Object($"Render-{entId}", "Render", ent.GetComponent<Render>(), new HashSet<int>());
+					// ImGui.Text("Stats:");
+					// ImGui_Object($"Stats-{entId}", "Stats", ent.GetComponent<Stats>(), new HashSet<int>());
+					ImGui.Text("ObjectMagicProperties:");
+					ImGui_Object($"ObjectMagicProperties-{entId}", "ObjectMagicProperties", ent.GetComponent<ObjectMagicProperties>(), new HashSet<int>());
+				}
+			} else {
+				ImGui.Text("No entity selected.");
+			}
+			ImGui.End();
+			*/
+
 			return this;
 		}
 	}

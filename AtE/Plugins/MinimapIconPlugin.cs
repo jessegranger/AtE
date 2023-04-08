@@ -60,31 +60,37 @@ namespace AtE.Plugins {
 
 			var ui = GetUI();
 			if ( !IsValid(ui) ) {
+				DrawBottomLeftText("MinimapIcon: invalid UI", Color.Yellow);
 				return this;
 			}
 
 			var map = ui.Map;
 			if ( !IsValid(map) ) {
+				DrawBottomLeftText("MinimapIcon: invalid Map", Color.Yellow);
 				return this;
 			}
 			bool largeMapVisible = map.LargeMap?.IsVisibleLocal ?? false;
 
 			if ( largeMapVisible && !ShowOnLargemap ) {
+				DrawBottomLeftText("MinimapIcon: large map not visible", Color.Yellow);
 				return this;
 			}
 
 			bool smallMapVisible = map.MiniMap?.IsVisibleLocal ?? false;
 
 			if ( smallMapVisible && !ShowOnMinimap ) {
+				DrawBottomLeftText("MinimapIcon: small map not visible", Color.Yellow);
 				return this;
 			}
 
 			if( !( ShowChests || ShowEnemies || ShowMinions || ShowDelvePath )) { // nothing to show
+				DrawBottomLeftText("MinimapIcon: nothing to show", Color.Yellow);
 				return this;
 			}
 
 			var player = GetPlayer();
 			if( !IsValid(player) ) {
+				DrawBottomLeftText("MinimapIcon: invalid player", Color.Yellow);
 				return this;
 			}
 
@@ -102,6 +108,23 @@ namespace AtE.Plugins {
 				if( path == null ) {
 					continue;
 				}
+
+				/* Debug:
+				if( path.StartsWith("Metadata/Monster") ) {
+					ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
+					ImGui.Begin($"ent:{ent.Id} {ent.Path}");
+					ImGui.Text($"IsAlive: {IsAlive(ent)}");
+					ImGui.Text($"IsHostile: {IsHostile(ent)}");
+					ImGui.Text($"IsTargetable: {IsTargetable(ent)}");
+					// ImGui.Text("Positioned");
+					// ImGui_Object($"Positioned-{ent.Id}", "Positioned", ent.GetComponent<Positioned>(), new HashSet<int>());
+					// ImGui.Text("Render");
+					// ImGui_Object($"Render-{ent.Id}", "Render", ent.GetComponent<Render>(), new HashSet<int>());
+					ImGui.Text("ObjectMagicProperties");
+					ImGui_Object($"ObjectMagicProperties-{ent.Id}", "ObjectMagicProperties", ent.GetComponent<ObjectMagicProperties>(), new HashSet<int>());
+					ImGui.End();
+				}
+				*/
 
 				if( ShowMinions && deployed.Contains((ushort)ent.Id) && IsAlive(ent) ) {
 					TryGetMinionIcon(ent, out icon, out iconSize);

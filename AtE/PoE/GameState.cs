@@ -128,6 +128,7 @@ namespace AtE {
 	}
 
 	public class LoginState : GameState<Offsets.LoginGameState> {
+		public Element UIRoot => IsValid(Address) && ElementCache.TryGetElement(Cache.elemRoot, out Element root) ? root : null;
 
 	}
 	public class WaitingState : GameState<Offsets.Empty> { }
@@ -137,7 +138,7 @@ namespace AtE {
 	}
 
 	public class InGameState : GameState<Offsets.InGameState> {
-		private readonly Cached<Offsets.InGameState_Data> Data;
+		public readonly Cached<Offsets.InGameState_Data> Data;
 
 		public InGameState() : base() {
 			Data = CachedStruct<Offsets.InGameState_Data>(() => Cache.ptrData);
