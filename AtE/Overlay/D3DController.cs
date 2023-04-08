@@ -4,12 +4,14 @@ using SharpDX.DXGI;
 using SharpDX.Mathematics.Interop;
 using System;
 using System.Drawing;
+using System.Threading;
 using static AtE.Globals;
 using Device = SharpDX.Direct3D11.Device;
 using Format = SharpDX.DXGI.Format;
 
 namespace AtE {
 	internal static class D3DController {
+		public static bool Enabled = true;
 		public static Device Device;
 		private static SwapChain deviceSwapChain;
 		private static DeviceContext deviceContext;
@@ -140,15 +142,20 @@ namespace AtE {
 
 		public static bool VSync = true;
 
-		public static void Render() {
+		public static void Render(bool force = false) {
 			// other layers (ImGui, Sprites) should have called things like DrawIndexed() to fill up the current swap chain before now
 			// so all that's left to do is swap the buffers and show the result
-			try {
-				deviceSwapChain.Present(VSync ? 1 : 0, PresentFlags.None);
-			} catch( Exception e ) {
-				Log(e.Message);
-				Log(e.StackTrace);
-				Overlay.Close();
+			if ( Enabled || force ) {
+				try {
+					deviceSwapChain.Present(VSync ? 1 : 0, PresentFlags.None);
+				} catch ( Exception e ) {
+					Log(e.Message);
+					Log(e.StackTrace);
+					Overlay.Close();
+				}
+			} else { // normally, the above will make the CPU stall, to wait for 60Hz vsync
+				// but, if Enabled = false, then we can get CPU spin lock
+				Thread.Sleep(100);
 			}
 		}
 
