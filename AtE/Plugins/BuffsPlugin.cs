@@ -203,7 +203,7 @@ namespace AtE.Plugins {
 				StageBuffName = stageBuffName;
 			}
 			public override bool Predicate(PlayerEntity p) =>
-				base.Predicate(p) ||
+				base.Predicate(p) && 
 				(TryGetBuffValue(p, StageBuffName, out int stage) && stage >= 50
 					&& NearbyEnemies(100, Offsets.MonsterRarity.Rare).Any(IsAlive)
 				);
@@ -288,9 +288,9 @@ namespace AtE.Plugins {
 				buff.Configure();
 			}
 			ImGui.EndTable();
+			/*
 			var player = GetPlayer();
 			var life = player.GetComponent<Life>();
-			/*
 			ImGui.Text($"MaxLife: {MaxLife(player)}");
 			ImGui.Text($"MaxEHP: {MaxEHP(life, HasBuff(player, "petrified_blood"))}");
 			ImGui.Text($"CurEHP: {CurrentEHP(life)}");
