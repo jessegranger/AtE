@@ -359,10 +359,12 @@ namespace AtE {
 			[FieldOffset(0x10C)] public readonly uint CurrentAreaHash;
 			[FieldOffset(0x120)] public readonly IntPtr MapStats;
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
-			[FieldOffset(0x750)] public readonly IntPtr ServerData;
-			[FieldOffset(0x758)] public readonly IntPtr entPlayer; // ptr Entity
-			[FieldOffset(0x808)] public readonly IntPtr EntityListHead; // ptr EntityListNode
-			[FieldOffset(0x810)] public readonly long EntitiesCount;
+
+			// Crucible: 8 new bytes here
+			[FieldOffset(0x758)] public readonly IntPtr ServerData;
+			[FieldOffset(0x760)] public readonly IntPtr entPlayer; // ptr Entity
+			[FieldOffset(0x810)] public readonly IntPtr EntityListHead; // ptr EntityListNode
+			[FieldOffset(0x818)] public readonly long EntitiesCount;
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 		}
 
@@ -639,10 +641,11 @@ namespace AtE {
 			[FieldOffset(0x234)] public readonly int AnimationId;
 
 			// TODO: consider reading on demand
-			[FieldOffset(0x690)] public readonly ArrayHandle ActorSkillsHandle; // of ActorSkillArrayEntry
-			[FieldOffset(0x6A8)] public readonly ArrayHandle ActorSkillUIStatesHandle; // of ActorSkillUIState
-			[FieldOffset(0x6D8)] public readonly ArrayHandle DeployedObjectsHandle; // of ptr to DeployedObjectsArrayElement
-			[FieldOffset(0x6C0)] public readonly ArrayHandle ActorVaalSkillsHandle; // of ActorVaalSkillArrayEntry
+			// Crucible: 48 new bytes here
+			[FieldOffset(0x6c0)] public readonly ArrayHandle ActorSkillsHandle; // of ActorSkillArrayEntry
+			[FieldOffset(0x6D8)] public readonly ArrayHandle ActorSkillUIStatesHandle; // of ActorSkillUIState
+			[FieldOffset(0x708)] public readonly ArrayHandle DeployedObjectsHandle; // of ptr to DeployedObjectsArrayElement
+			[FieldOffset(0x6F0)] public readonly ArrayHandle ActorVaalSkillsHandle; // of ActorVaalSkillArrayEntry
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ActorSkillArrayEntry {
@@ -922,7 +925,8 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Buffs {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x158)] public readonly ArrayHandle Buffs; // of IntPtr to Buff
+			// Crucible: 8 new bytes here
+			[FieldOffset(0x160)] public readonly ArrayHandle Buffs; // of IntPtr to Buff
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Charges {
