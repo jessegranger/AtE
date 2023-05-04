@@ -414,7 +414,7 @@ namespace AtE {
 			[FieldOffset(0x5e0)] public readonly IntPtr AreaInstanceUi;
 			[FieldOffset(0x620)] public readonly IntPtr Map;
 
-			[FieldOffset(0x620)] public readonly IntPtr ItemsOnGroundLabelElement;
+			[FieldOffset(0x628)] public readonly IntPtr ItemsOnGroundLabelElement;
 			[FieldOffset(0x640)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
 			[FieldOffset(0x6A8)] public readonly IntPtr RootBuffPanel;
 
@@ -942,12 +942,13 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Chest {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x158)] public readonly IntPtr ptrToStrongboxDetails;
-			[FieldOffset(0x160)] public readonly bool IsOpened;
-			[FieldOffset(0x161)] public readonly bool IsLocked;
-			[FieldOffset(0x164)] public readonly byte Quality;
-			[FieldOffset(0x1A0)] public readonly bool IsStrongbox;
-			[FieldOffset(0x1A8)] public readonly IntPtr ptrToChestEffect;
+			// Crucible: 8 bytes added here?
+			[FieldOffset(0x160)] public readonly IntPtr ptrToStrongboxDetails;
+			[FieldOffset(0x168)] public readonly bool IsOpened;
+			[FieldOffset(0x169)] public readonly bool IsLocked;
+			[FieldOffset(0x16c)] public readonly byte Quality;
+			[FieldOffset(0x1A8)] public readonly bool IsStrongbox;
+			[FieldOffset(0x1B0)] public readonly IntPtr ptrToChestEffect;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ChestEffect {
 			[FieldOffset(0x08)] public readonly IntPtr strPath;
@@ -1408,17 +1409,18 @@ namespace AtE {
 			[FieldOffset(0x46C)] public readonly Vector2i Size;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_InventoryItem {
-			[FieldOffset(0x3F0)] public readonly IntPtr incorrectTooltip;
-			[FieldOffset(0x438)] public readonly IntPtr entItem;
-			[FieldOffset(0x440)] public readonly Vector2i InventPosition;
-			[FieldOffset(0x448)] public readonly int Width;
-			[FieldOffset(0x44c)] public readonly int Height;
+			// [FieldOffset(0x3F0)] public readonly IntPtr incorrectTooltip;
+			[FieldOffset(0x370)] public readonly IntPtr entItem;
+			[FieldOffset(0x378)] public readonly Vector2i InventPosition;
+			[FieldOffset(0x380)] public readonly int Width;
+			[FieldOffset(0x384)] public readonly int Height;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_Map {
-			[FieldOffset(0x278)] public readonly IntPtr ptrToSubMap_Full;
-			[FieldOffset(0x280)] public readonly IntPtr ptrToSubMap_Mini;
-			[FieldOffset(0x250)] public readonly IntPtr ptrToElement_OrangeWords;
-			[FieldOffset(0x2A8)] public readonly IntPtr ptrToElement_BlueWords;
+			// 3.21.1: 8 new bytes added here
+			[FieldOffset(0x280)] public readonly IntPtr ptrToSubMap_Full;
+			[FieldOffset(0x288)] public readonly IntPtr ptrToSubMap_Mini;
+			[FieldOffset(0x258)] public readonly IntPtr ptrToElement_OrangeWords;
+			[FieldOffset(0x2B0)] public readonly IntPtr ptrToElement_BlueWords;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_SubMap {
