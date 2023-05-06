@@ -19,12 +19,12 @@ namespace AtE {
 		/// The current version of this file.
 		/// </summary>
 		public const int VersionMajor = 1;
-		public const int VersionMinor = 4;
+		public const int VersionMinor = 5;
 
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.21.0";
+		public const string PoEVersion = "3.21.1";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -108,7 +108,10 @@ namespace AtE {
 			/// <param name="recordSize">Usually from sizeof or Marshal.SizeOf</param>
 			/// <returns></returns>
 			public IEnumerable<IntPtr> GetRecordPtrs(int recordSize) {
-				if ( Head == IntPtr.Zero ) yield break;
+				if ( !(IsValid(Head) && IsValid(Tail)) ) {
+					yield break;
+				}
+
 				long head = Head.ToInt64();
 				long tail = Tail.ToInt64();
 				while(head < tail) {
@@ -254,6 +257,7 @@ namespace AtE {
 
 			[FieldOffset(0x28)] public readonly IntPtr elemSelf;
 			[FieldOffset(0x30)] public readonly ArrayHandle Children;
+			[FieldOffset(0x68)] public readonly ArrayHandle unkArrayHandle;
 
 			[FieldOffset(0xA8)] public readonly Vector2 ScrollOffset;
 
@@ -280,9 +284,11 @@ namespace AtE {
 
 			[FieldOffset(0x1C0)] public readonly uint HighlightBorderColor;
 			[FieldOffset(0x1C3)] public readonly bool isHighlighted;
-			
-			/* items below here are correct but greatly increase memory size of this struct
+
+			[FieldOffset(0x1F0)] public readonly IntPtr unkNextRecord;
+			/* items below here greatly increase memory size of this struct
 			 * consider replacing with individual reads if they are needed
+			 * see: Element_Text below.
 
 			[FieldOffset(0x478)] public readonly StringHandle strText;
 
@@ -1411,10 +1417,29 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_InventoryItem {
 			// [FieldOffset(0x3F0)] public readonly IntPtr incorrectTooltip;
 			[FieldOffset(0x370)] public readonly IntPtr entItem;
-			[FieldOffset(0x378)] public readonly Vector2i InventPosition;
-			[FieldOffset(0x380)] public readonly int Width;
-			[FieldOffset(0x384)] public readonly int Height;
+			[FieldOffset(0x378)] public readonly IntPtr unkNearPtr0x378;
+			[FieldOffset(0x380)] public readonly int unkInt0x380;
+			[FieldOffset(0x384)] public readonly short unkShort0x384;
+			[FieldOffset(0x386)] public readonly short unkShort0x386;
+			[FieldOffset(0x388)] public readonly IntPtr unkFarPtr0x388;
+			[FieldOffset(0x390)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
+			[FieldOffset(0x3D0)] public readonly int unkInt0x3D0;
+			[FieldOffset(0x3D4)] public readonly int Width;
+			[FieldOffset(0x3D8)] public readonly int Height;
+			[FieldOffset(0x3E0)] public readonly int unkInt0x3E0;
+			[FieldOffset(0x3F4)] public readonly Vector2i InventPosition;
+			// [FieldOffset(0x3DC)] public readonly byte UnkByte3DC;
+			// [FieldOffset(0x3DD)] public readonly byte UnkByte3DD;
+			// [FieldOffset(0x3DE)] public readonly byte UnkByte3DE;
+			// [FieldOffset(0x3DF)] public readonly byte UnkByte3DF;
 		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct SpriteDetails {
+			[FieldOffset(0x0)] public readonly IntPtr strSpriteFile;
+			[FieldOffset(0x8)] public readonly IntPtr strSpriteFileLong; // always points to enough bytes behind strSpriteFile, and should contain an extra 'path:'
+			[FieldOffset(0x10)] public readonly IntPtr elemUnknown; // some helper element, detached from the tree
+		}
+
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_Map {
 			// 3.21.1: 8 new bytes added here
 			[FieldOffset(0x280)] public readonly IntPtr ptrToSubMap_Full;

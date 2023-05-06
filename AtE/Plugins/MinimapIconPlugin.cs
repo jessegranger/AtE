@@ -124,9 +124,17 @@ namespace AtE.Plugins {
 					ImGui_Object($"ObjectMagicProperties-{ent.Id}", "ObjectMagicProperties", ent.GetComponent<ObjectMagicProperties>(), new HashSet<int>());
 					ImGui.End();
 				}
+				if ( path.StartsWith("Metadata/Chest") ) {
+					ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
+					ImGui.Begin($"Unknown Box##{ent.Id}");
+					ImGui_Object($"Box##{ent.Id}", "Box", ent, new HashSet<int>());
+					ImGui.Text("Chest:");
+					ImGui_Object("$Chest-##{ent.Id}", "Chest", ent.GetComponent<Chest>(), new HashSet<int>());
+					ImGui.End();
+				}
 				*/
 
-				if( ShowMinions && deployed.Contains((ushort)ent.Id) && IsAlive(ent) ) {
+				if ( ShowMinions && deployed.Contains((ushort)ent.Id) && IsAlive(ent) ) {
 					TryGetMinionIcon(ent, out icon, out iconSize);
 				} else if ( ShowEnemies && path.StartsWith("Metadata/Monster") && IsAlive(ent) && IsHostile(ent) && IsTargetable(ent) ) {
 					TryGetEnemyIcon(ent, out icon, out iconSize);
@@ -171,7 +179,10 @@ namespace AtE.Plugins {
 			icon = SpriteIcon.None; // with size = 1f and Icon = None, we only fall through this path scanning once, then assign to ent.MinimapIcon
 			iconSize = 1f; // once that assigns 1f, the next frame will hit the branch above and return ent.MinimapIcon values
 			if ( path.StartsWith("Metadata/Chests") ) {
-				if ( path.Contains("Abyss/AbyssFinal") ) {
+				if ( path.Contains("Breach/BreachChest") ) {
+					icon = SpriteIcon.Breach;
+					iconSize = 1.5f;
+				} else if ( path.Contains("Abyss/AbyssFinal") ) {
 					icon = SpriteIcon.RewardAbyss;
 					iconSize = 1.75f;
 				} else if ( path.StartsWith("Metadata/Chests/LeaguesExpedition/") ) {

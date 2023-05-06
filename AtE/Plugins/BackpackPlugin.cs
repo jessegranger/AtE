@@ -309,6 +309,14 @@ namespace AtE.Plugins {
 				if ( !IsValid(deckItem) ) {
 					return next; // no more decks
 				}
+				if ( deckItem.X < 0 || deckItem.X > 11 ) {
+					Notify($"Invalid deck position data: XY = {deckItem.X}, {deckItem.Y}");
+					return next; // invalid position
+				}
+				if ( deckItem.Y < 0 || deckItem.Y > 5 ) {
+					Notify($"Invalid deck position data: XY = {deckItem.X}, {deckItem.Y}");
+					return next; // invalid position
+				}
 				Notify($"Next Deck at {deckItem.X},{deckItem.Y} {deckItem.Width}x{deckItem.Height} path: {deckItem.Entity.Path}");
 				return PlanOpenOneDeck(deckItem, new Delay(100, nextDeck));
 			});
