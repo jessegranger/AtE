@@ -123,7 +123,7 @@ namespace AtE.Plugins {
 										str += $"C:{chaos} ";
 									}
 									if ( ShowEnemyResistFire && s.TryGetValue(GameStat.FireDamageResistancePct, out int fire) ) {
-										str += $"F:{fire}";
+										str += $"F:{fire} ";
 									}
 									if ( ShowEnemyResistCold && s.TryGetValue(GameStat.ColdDamageResistancePct, out int cold) ) {
 										str += $"C:{cold} ";

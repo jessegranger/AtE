@@ -98,8 +98,8 @@ namespace AtE {
 					&& IsValid(details.entItem)
 					&& details.Width > 0
 					&& details.Height > 0
-					&& details.InventPosition.X >= 0
-					&& details.InventPosition.Y >= 0
+					// && details.InventPosition.X >= 0
+					// && details.InventPosition.Y >= 0
 					&& EntityCache.TryGetEntity(details.entItem, out _) //  IsValid(new Entity() { Address = details.entItem })
 					;
 			}
