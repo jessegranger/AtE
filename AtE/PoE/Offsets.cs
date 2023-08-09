@@ -170,8 +170,30 @@ namespace AtE {
 		// eg, localOffset = Read<int>(match + pattern.Length)
 		// then, ptr = Read<IntPtr>(match + localOffset) is address of a GameRoot_Ref struct
 		// so, the final game state base ptr is, Read<GameRoot_Ref>(ptr).ptrToGameStateBasePtr
+
+		public readonly static string FileRoot_SearchMask = "xxxxxx????x";
+		public readonly static byte[] FileRoot_SearchPattern = new byte[] {
+			  /* From the original ExileApi notes: FileRoot Pointer
+        00007FF6C47EED01  | 48 8D 0D A8 23 7F 00               | lea rcx,qword ptr ds:[7FF6C4FE10B0]        | <--FileRootPtr
+        00007FF6C47EED08  | E8 E3 5C 56 FF                     | call pathofexile_x64.7FF6C3D549F0          |
+        00007FF6C47EED0D  | 48 8B 3D A4 23 7F 00               | mov rdi,qword ptr ds:[7FF6C4FE10B8]        |
+        00007FF6C47EED14  | 48 8B 1F                           | mov rbx,qword ptr ds:[rdi]                 |
+        00007FF6C47EED17  | 48 3B DF                           | cmp rbx,rdi                                |
+        00007FF6C47EED1A  | 0F 84 26 01 00 00                  | je pathofexile_x64.7FF6C47EEE46            |
+        */
+			0x48, 0x8b, 0x08,
+			0x48, 0x8d, 0x3d,
+			0x00, 0x00, 0x00, 0x00,
+			0x41
+		};
+
+
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GameRoot_Ref {
 			[FieldOffset(0x0C)] public readonly IntPtr ptrToGameRootPtr;
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct FileRoot_Ref {
+			[FieldOffset(0x0A)] public readonly IntPtr ptrToFileRootPtr;
 		}
 
 		// GameRoot members:
@@ -225,14 +247,15 @@ namespace AtE {
 			[FieldOffset(0x020)] public readonly int TicksPerLastFrame; // 1000 ticks = 1 ms
 			[FieldOffset(0x078)] public readonly IntPtr ptrWorldData;
 			[FieldOffset(0x098)] public readonly IntPtr ptrEntityLabelMap;
-			[FieldOffset(0x1A0)] public readonly IntPtr elemRoot;
-			[FieldOffset(0x1B0)] public readonly IntPtr elemInputFocus; // which element has input focus or null
-			[FieldOffset(0x1D8)] public readonly IntPtr elemHover; // element which is currently hovered
-			[FieldOffset(0x210)] public readonly int MousePosX;
-			[FieldOffset(0x214)] public readonly int MousePosY;
-			[FieldOffset(0x21C)] public readonly Vector2 UIHoverOffset; // mouse position offset in hovered UI element
-			[FieldOffset(0x224)] public readonly Vector2 MousePos;
-			[FieldOffset(0x450)] public readonly IntPtr ptrUIElements; // ptr to InGameState_UIElements
+			// 3.21.2b: 8 new bytes added here
+			[FieldOffset(0x1A8)] public readonly IntPtr elemRoot;
+			[FieldOffset(0x1B8)] public readonly IntPtr elemInputFocus; // which element has input focus or null
+			[FieldOffset(0x1E0)] public readonly IntPtr elemHover; // element which is currently hovered
+			[FieldOffset(0x218)] public readonly int MousePosX;
+			[FieldOffset(0x21c)] public readonly int MousePosY;
+			[FieldOffset(0x224)] public readonly Vector2 UIHoverOffset; // mouse position offset in hovered UI element
+			[FieldOffset(0x22c)] public readonly Vector2 MousePos;
+			[FieldOffset(0x458)] public readonly IntPtr ptrUIElements; // ptr to InGameState_UIElements
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct PreGameState {
 			[FieldOffset(0x130)] public readonly IntPtr UIRoot;
@@ -317,7 +340,8 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldData {
 			[FieldOffset(0xA0)] public readonly IntPtr ptrToWorldAreaRef;
-			[FieldOffset(0xA8)] public readonly Camera Camera;
+			// 3.12.2b: 648 new bytes here
+			[FieldOffset(0x338)] public readonly Camera Camera;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaRef {
@@ -1017,7 +1041,8 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Mods {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x30)] public readonly ArrayHandle UniqueName; // of UniqueNameEntry
+			// 3.21 Crucible: some new 8 bytes added in here
+			[FieldOffset(0x38)] public readonly ArrayHandle UniqueName; // of UniqueNameEntry
 			// Crucible: some new 8 bytes added in here
 			[FieldOffset(0xB0)] public readonly bool Identified;
 			[FieldOffset(0x0B4)] public readonly ItemRarity ItemRarity;
@@ -1067,12 +1092,8 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemModEntry {
 			[FieldOffset(0x00)] public ArrayHandle Values; // sometimes (always?) the values are not inlined
-			[FieldOffset(0x28)] public readonly IntPtr ptrItemModEntryNames;
-			[FieldOffset(0x30)] public readonly IntPtr Padding; // so size = 0x38
-		}
-		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemModEntryNames {
-			[FieldOffset(0x000)] public readonly IntPtr strGroupName;
-			[FieldOffset(0x064)] public readonly IntPtr strDisplayName;
+			[FieldOffset(0x28)] public readonly IntPtr ptrModsDatEntry; // ptr to File_ModsDat_Entry
+			[FieldOffset(0x30)] public readonly IntPtr ptrModsDatFile; // ptr to base of "Data/Mods.dat" file in memory
 		}
 
 		// size should be 0x20
@@ -1424,8 +1445,9 @@ namespace AtE {
 			[FieldOffset(0x388)] public readonly IntPtr unkFarPtr0x388;
 			[FieldOffset(0x390)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
 			[FieldOffset(0x3D0)] public readonly int unkInt0x3D0;
-			[FieldOffset(0x3D4)] public readonly int Width;
-			[FieldOffset(0x3D8)] public readonly int Height;
+			// 3.21.2b: 72 new bytes here?
+			[FieldOffset(0x41c)] public readonly int Width;
+			[FieldOffset(0x420)] public readonly int Height;
 			[FieldOffset(0x3E0)] public readonly int unkInt0x3E0;
 			[FieldOffset(0x3F4)] public readonly Vector2i InventPosition;
 			// [FieldOffset(0x3DC)] public readonly byte UnkByte3DC;
@@ -1437,7 +1459,11 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct SpriteDetails {
 			[FieldOffset(0x0)] public readonly IntPtr strSpriteFile;
 			[FieldOffset(0x8)] public readonly IntPtr strSpriteFileLong; // always points to enough bytes behind strSpriteFile, and should contain an extra 'path:'
-			[FieldOffset(0x10)] public readonly IntPtr elemUnknown; // some helper element, detached from the tree
+			// 3.21.2b removed: [FieldOffset(0x10)] public readonly IntPtr elemUnknown; // some helper element, detached from the tree
+			[FieldOffset(0x10)] public readonly IntPtr strSpriteFileAgain;
+			[FieldOffset(0x18)] public readonly int unkFlags;
+			[FieldOffset(0x20)] public readonly int Width;
+			[FieldOffset(0x28)] public readonly int Height;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_Map {
@@ -1453,6 +1479,135 @@ namespace AtE {
 			[FieldOffset(0x270)] public readonly Vector2 DefaultShift; // historically, always < 0, -20 >
 			[FieldOffset(0x2a8)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
 		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_RootHeader {
+			[FieldOffset(0x00)] public readonly int unk0x00;
+			[FieldOffset(0x08)] public readonly IntPtr ptrFileNode; // ptr to File_RootNode
+			[FieldOffset(0x10)] public readonly int Capacity; // should this be long? real nodes have small values like 4095
+			[FieldOffset(0x18)] public readonly int unk0x18;
+			[FieldOffset(0x20)] public readonly long Count; // use long here, so that total struct size comes out to 0x28
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_RootNode {
+			[FieldOffset(0x00)] public readonly long unk0x00;
+			[FieldOffset(0x08)] public readonly IntPtr ptrFileInfo;
+			[FieldOffset(0x10)] public readonly long unk0x10;
+			// so that size = 0x18
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_InfoBlock {
+			// [FieldOffset(0x00)] public readonly IntPtr vtable;
+			[FieldOffset(0x08)] public readonly StringHandle strName;
+			[FieldOffset(0x30)] public readonly IntPtr Records;
+			
+			// 3.21 Crucible: 8 new bytes here?
+
+			[FieldOffset(0x40)] public readonly int AreaCount; // the game increments this each time the area changes after the file is loaded
+			[FieldOffset(0x44)] public readonly int Capacity; // ? a guess for now
+			[FieldOffset(0x48)] public readonly int Count; // ? a guess for now, seems to count up forever as long as other players are around
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_RecordSet {
+			[FieldOffset(0x00)] public readonly ArrayHandle recordsArray;
+			[FieldOffset(0x40)] public readonly int recordCount;
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_StatsDat_Entry {
+			[FieldOffset(0x00)] public readonly IntPtr strName;
+			[FieldOffset(0x08)] public readonly byte Flag0;
+			[FieldOffset(0x09)] public readonly byte IsLocal;
+			[FieldOffset(0x0A)] public readonly byte IsWeaponLocal;
+			[FieldOffset(0x0B)] public readonly int Type;
+			[FieldOffset(0x0F)] public readonly IntPtr longName;
+			[FieldOffset(0x69)] public readonly long Padding;
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_ModsDat_Entry {
+			[FieldOffset(0x000)] public readonly IntPtr strName;
+			[FieldOffset(0x008)] public readonly uint Hash;
+			[FieldOffset(0x00C)] public readonly IntPtr ModTypeEntry; // ptr to File_ModTypeDat_Entry
+			[FieldOffset(0x014)] public readonly IntPtr ModTypeFile; // ptr to base of Data/ModTypes.dat
+			[FieldOffset(0x01C)] public readonly uint MinLevel;
+			[FieldOffset(0x020)] public readonly IntPtr Stat0Entry; // ptr to a File_StatsDat_Entry
+			[FieldOffset(0x028)] public readonly IntPtr Stat0File; // ptr to a file base
+			[FieldOffset(0x030)] public readonly IntPtr Stat1Entry; // ptr to a File_StatsDat_Entry
+			[FieldOffset(0x038)] public readonly IntPtr Stat1File;
+			[FieldOffset(0x040)] public readonly IntPtr Stat2Entry; // ptr to a File_StatsDat_Entry
+			[FieldOffset(0x048)] public readonly IntPtr Stat2File;
+			[FieldOffset(0x050)] public readonly IntPtr Stat3Entry; // ptr to a File_StatsDat_Entry
+			[FieldOffset(0x058)] public readonly IntPtr Stat3File;
+			[FieldOffset(0x060)] public readonly uint Domain;
+			[FieldOffset(0x064)] public readonly IntPtr displayName;
+			[FieldOffset(0x06C)] public readonly AffixType AffixType;
+			[FieldOffset(0x070)] public readonly long Group;
+			[FieldOffset(0x078)] public readonly IntPtr Family; // ptr to ptr to Unicode "Strength"
+			[FieldOffset(0x080)] public readonly int Stat0Min;
+			[FieldOffset(0x084)] public readonly int Stat0Max;
+			[FieldOffset(0x088)] public readonly int Stat1Min;
+			[FieldOffset(0x08C)] public readonly int Stat1Max;
+			[FieldOffset(0x090)] public readonly int Stat2Min;
+			[FieldOffset(0x094)] public readonly int Stat2Max;
+			[FieldOffset(0x098)] public readonly int Stat3Min;
+			[FieldOffset(0x09C)] public readonly int Stat3Max;
+			[FieldOffset(0x0A0)] public readonly long TagCount;
+			[FieldOffset(0x0A8)] public readonly IntPtr TagArray;
+			[FieldOffset(0x0B0)] public readonly int TagChanceCount;
+			[FieldOffset(0x0B8)] public readonly IntPtr TagChanceArray;
+			[FieldOffset(0x180)] public readonly byte IsEssence;
+			[FieldOffset(0x206)] public readonly IntPtr MainTag; // ?
+			[FieldOffset(0x287)] public readonly long Padding;
+		}
+
+		public enum AffixType : uint {
+			None,
+			Prefix,
+			Suffix,
+			Unique,
+			Nemesis,
+			Corrupted,
+			BloodLines,
+			Torment,
+			Tempest,
+			Talisman,
+			Enchantment,
+			EssenceMonster,
+			Unknown12,
+			Unknown13,
+			DelveArea,
+			SynthesisArea,
+			SynthesisMonster,
+			SynthesisMapCell,
+			Unknown14,
+			BlightRingAnoint,
+			Unknown15,
+			EnkindlingOrb,
+			InstillingOrb,
+			ExpeditionLogbook
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_ModsDat_TagArray_Entry {
+			[FieldOffset(0x00)] public readonly IntPtr ptrEntry; // ptr to File_TagsDat_Entry
+			[FieldOffset(0x08)] public readonly IntPtr ptrFileBase; // ptr to the base of "Data/Tags.dat"
+		}
+
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_TagsDat_Entry {
+			[FieldOffset(0x000)] public readonly IntPtr strName; // ptr to unicode
+			[FieldOffset(0x008)] public readonly uint Hash;
+			// [FieldOffset(0x00C)] public readonly IntPtr unkPtr0x0C;
+			// [FieldOffset(0x014)] public readonly IntPtr unkPtr0x14;
+			[FieldOffset(0x014)] public readonly IntPtr displayName;
+			// [FieldOffset(0x024)] public readonly int unkInt0x24;
+			// [FieldOffset(0x028)] public readonly IntPtr unkPtr0x28;
+			// [FieldOffset(0x030)] public readonly IntPtr Padding;
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_ModTypeDat_Entry {
+			[FieldOffset(0x000)] public readonly IntPtr strName; // ptr to unicode
+			[FieldOffset(0x008)] public readonly uint Hash;
+			[FieldOffset(0x010)] public readonly IntPtr SellPrice; // ptr to unicode, like "Medium" or "High"
+			[FieldOffset(0x018)] public readonly byte Padding; // unknown
+		} 
+
 
 		public const string PATH_STACKED_DECK = "Metadata/Items/DivinationCards/DivinationCardDeck";
 		public const string PATH_SCROLL_WISDOM = "Metadata/Items/Currency/CurrencyIdentification";
