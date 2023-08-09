@@ -53,6 +53,8 @@ namespace AtE {
 			PoEMemory.TryRead(Handle.Head, result);
 			return result;
 		}
+
+		public static ArrayHandle<T> Empty() => new ArrayHandle<T>(new Offsets.ArrayHandle());
 	}
 
 	public static class PoEMemory {
@@ -61,6 +63,7 @@ namespace AtE {
 		/// Once attached, this is the Target process we will read memory from.
 		/// </summary>
 		public static Process Target;
+
 		/// <summary>
 		/// A Handle with PROCESS_VM_READ permissions to the Target Process
 		/// </summary>
@@ -70,6 +73,36 @@ namespace AtE {
 		/// The GameStateBase structure, with the main GameState array pointers
 		/// </summary>
 		public static GameRoot GameRoot;
+
+		/// <summary>
+		/// The game's data files, each has a name and a base ptr.
+		/// </summary>
+		public static Dictionary<string, IntPtr> FileRoots;
+		private static IntPtr fileRootMatch;
+
+		/// <summary>
+		/// Get the sequence of records stored in a game data file.
+		/// </summary>
+		/// <typeparam name="T">a struct that defines one item in the sequence</typeparam>
+		/// <param name="fileName">the game file, eg "Data/Stats.dat"</param>
+		/// <returns></returns>
+		public static ArrayHandle<T> GetFileContents<T>(string fileName) where T : unmanaged {
+			// the FileRoots array is kept up to date via OnAreaChange
+			if ( FileRoots != null && FileRoots.TryGetValue(fileName, out IntPtr fileBasePtr) ) {
+				if ( TryRead(fileBasePtr, out Offsets.File_InfoBlock fileInfo) ) {
+					if ( TryRead(fileInfo.Records, out Offsets.File_RecordSet recordSet) ) {
+						return new ArrayHandle<T>(recordSet.recordsArray);
+					} else {
+						Log($"PoEMemory: failed to read File_RecordSet from {Describe(fileInfo.Records)}");
+					}
+				} else {
+					Log($"PoEMemory: failed to read File_InfoBlock from {Describe(fileBasePtr)}");
+				}
+			} else {
+				Log($"PoEMemory: file not found {fileName}");
+			}
+			return ArrayHandle<T>.Empty();
+		}
 
 		/// <summary>
 		/// Try to read an array of unmanaged objects from the attached Process.
@@ -99,7 +132,7 @@ namespace AtE {
 			if( ReadProcessMemory(Handle, loc, ref result) ) {
 				return true;
 			}
-			Log($"TryRead: failed to read address {Describe(loc)} error: {LastError}");
+			if( LastError != 6 ) Log($"TryRead: failed to read address {Describe(loc)} error: {LastError}");
 			return false;
 		}
 
@@ -143,7 +176,7 @@ namespace AtE {
 		// eg, we don't currently scan for the file patterns to parse the data files yet
 		// TODO: scan for file base pattern
 
-		private static bool TryFindPatternInExe(out IntPtr result, string mask, params byte[] pattern) {
+		internal static bool TryFindPatternInExe(out IntPtr result, string mask, params byte[] pattern) {
 			result = IntPtr.Zero;
 			if ( mask.Length != pattern.Length ) {
 				throw new ArgumentException("mask and pattern should have the same Length");
@@ -307,7 +340,7 @@ namespace AtE {
 					Detach();
 					return;
 				}
-			} catch( Exception e ) {
+			} catch ( Exception e ) {
 				Log($"PoEMemory: failed to attach to Process: {e.Message}");
 				Detach();
 				return;
@@ -346,8 +379,75 @@ namespace AtE {
 			OnAreaChange += (_, area) => Log("OnAreaChange: " + area);
 
 			OnAttach?.Invoke(null, null);
+
+			FileRoots = new Dictionary<string, IntPtr>();
+			OnAreaChange += (_, area) => {
+				Log($"PoEMemory: Searching for Files root address...");
+				if ( IsValid(fileRootMatch) || TryFindPatternInExe(out fileRootMatch, Offsets.FileRoot_SearchMask, Offsets.FileRoot_SearchPattern) ) {
+					if( ! IsValid(fileRootMatch) ) {
+						return;
+					}
+					long fileParseStarted = Time.ElapsedMilliseconds;
+					long claimedCount = 0;
+					// the fileRootMatch pattern is xxxxxx????x and the ???? int is the local offset we want to read
+					// so we read an int from (match + 6)
+					if ( TryRead(fileRootMatch + 0x6, out int localFileRootOffset) ) {
+						// Log($"PoEMemory: localFileRootOffset = {localFileRootOffset}");
+						// at this local offset (from the match address) is a structure,
+						// that structure contains an array of exactly 16 elements, starting at offset 0xA
+						// (the structure is the top node in a hierarchical hash table, probably boost's flat_map)
+						IntPtr rootBlockArrayStart = fileRootMatch + localFileRootOffset + 0xA;
+						Offsets.File_RootHeader[] fileRoots = new Offsets.File_RootHeader[16];
+						// read all 16 rootBlock array elements at once
+						if ( TryRead(rootBlockArrayStart, fileRoots) > 0 ) {
+							int scanCount = 0;
+							FileRoots.Clear();
+							for ( int rootIndex = 0; rootIndex < 16; rootIndex++ ) {
+								var fileRoot = fileRoots[rootIndex];
+								// Log($"PoEMemory: Parsing file root block # {rootIndex}");
+								if ( fileRoot.Capacity > 0 && fileRoot.Capacity < 9999 ) {
+									claimedCount += fileRoot.Count;
+									// each fileRoot block contains up to Capacity buckets
+									// its sparse, and each bucket is either full or empty
+									// Log($"PoEMemory: File parsing progress: {scanCount} / {16 * 8 * (fileRoot.Capacity + 1) / 8}");
+									for ( int bucketIndex = 0; bucketIndex < (fileRoot.Capacity + 1) / 8; bucketIndex++ ) {
+										// this is the base ptr of one bucket in the hash table, each bucket holds 8 entries with 1-byte sub keys
+										var basePtr = fileRoot.ptrFileNode + (bucketIndex * 0xc8);
+										byte[] hashValues = new byte[8];
+										if ( TryRead(basePtr, hashValues) > 0 ) {
+											for ( int hashIndex = 0; hashIndex < 8; hashIndex++ ) {
+												// each subkey has a value, but 0xFF is a special value that means an empty slot
+												bool empty = hashValues[hashIndex] == 0xFF;
+												scanCount += 1;
+												if ( !empty ) {
+													// read the fileInfoPtr from the array of data in the slot
+													if ( TryRead(basePtr + 8 + (hashIndex * 0x18) + 8, out IntPtr fileInfoPtr) ) {
+														// read the File_InfoBlock struct from that ptr
+														if ( TryRead(fileInfoPtr, out Offsets.File_InfoBlock fileInfo) ) {
+															string name = fileInfo.strName.Value;
+															if ( IsValid(name, 1) ) {
+																// Log($"PoEMemory: data file {name} at {Describe(fileInfoPtr)}");
+																FileRoots[name] = fileInfoPtr;
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					Log($"PoEMemory: parsing ended after {Time.ElapsedMilliseconds - fileParseStarted} ms, found {FileRoots?.Count ?? 0} files of {claimedCount} claimed.");
+				}
+			};
+		
 		}
 
 	}
 
+	public class ModEntry {
+
+	}
 }

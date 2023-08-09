@@ -65,6 +65,7 @@ namespace AtE {
 				if ( ImGui.Button("B##GameRoot") ) {
 					Run_ObjectBrowser("GameRoot", root);
 				}
+				ImGui.Text($"Files: {PoEMemory.FileRoots.Count}");
 				if ( Win32.GetWindowRect(target.MainWindowHandle, out var rect) ) {
 					ImGui.AlignTextToFramePadding();
 					ImGui.Text($"Window: {rect.Width}x{rect.Height} at {rect.Top},{rect.Left} ");

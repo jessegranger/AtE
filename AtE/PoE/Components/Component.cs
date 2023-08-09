@@ -529,16 +529,50 @@ namespace AtE {
 	}
 	public class ItemMod {
 		private Offsets.ItemModEntry Entry;
-		private Cached<Offsets.ItemModEntryNames> Names;
+		public Cached<Offsets.File_ModsDat_Entry> ModData;
 		public ItemMod(Offsets.ItemModEntry entry) {
 			Entry = entry;
-			Names = CachedStruct<Offsets.ItemModEntryNames>(() => entry.ptrItemModEntryNames);
+			ModData = CachedStruct<Offsets.File_ModsDat_Entry>(() => entry.ptrModsDatEntry);
 		}
-		public string GroupName => PoEMemory.TryReadString(Names.Value.strGroupName, Encoding.Unicode, out string name) ? name : null;
-		public string DisplayName => PoEMemory.TryReadString(Names.Value.strDisplayName, Encoding.Unicode, out string name) ? name : null;
+		public string GroupName => PoEMemory.TryReadString(ModData.Value.strName, Encoding.Unicode, out string name) ? name : null;
+		public string DisplayName => PoEMemory.TryReadString(ModData.Value.displayName, Encoding.Unicode, out string name) ? name : null;
 		public IEnumerable<int> Values =>
 			Entry.Values.GetRecordPtrs(sizeof(int))
 				.Select(a => PoEMemory.TryRead(a, out int value) ? value : 0);
+
+		public IntPtr Address => Entry.ptrModsDatEntry;
+
+		public Offsets.AffixType AffixType => ModData.Value.AffixType;
+
+		public string[] GetAllTags() {
+			var mod = ModData.Value;
+			var tagArray = new Offsets.File_ModsDat_TagArray_Entry[mod.TagCount];
+			PoEMemory.TryRead(mod.TagArray, tagArray);
+			return tagArray.Select(tagEntry =>
+				PoEMemory.TryRead(tagEntry.ptrEntry, out Offsets.File_TagsDat_Entry tagData)
+				&& PoEMemory.TryReadString(tagData.strName, Encoding.Unicode, out string tagName)
+				? tagName : null).ToArray();
+		}
+
+		public string Describe() {
+			var data = ModData.Value;
+			string ret = "";
+			if ( IsValid(data.Stat0Entry) ) {
+				if ( PoEMemory.TryRead(Entry.Values.GetRecordPtr(0, 4), out int value) ) {
+					if ( PoEMemory.TryRead(data.Stat0Entry, out Offsets.File_StatsDat_Entry statsEntry) ) {
+						if ( PoEMemory.TryReadString(data.strName, Encoding.Unicode, out string modName) ) {
+							ret += modName + ": ";
+							if ( PoEMemory.TryReadString(statsEntry.strName, Encoding.Unicode, out string statName) ) {
+								ret += $"{(value >= 0 ? "+" : "")}{value} ";
+								ret += $"({data.Stat0Min}-{data.Stat0Max}) to {statName}";
+								ret += " Tags: " + string.Join(",", GetAllTags());
+							}
+						}
+					}
+				}
+			}
+			return ret;
+		}
 
 	}
 	public static partial class Globals {
@@ -674,7 +708,8 @@ namespace AtE {
 				stats = new Dictionary<Offsets.GameStat, int>();
 				lastStatsTime = Time.ElapsedTicks;
 				foreach ( var entry in Entries ) {
-					if( entry.Key > Offsets.GameStat.MapShrineGrantedPlayerBuffDurationPct ) {
+					if( entry.Key < 0 || entry.Key > Offsets.GameStat.UnknownStat18400 ) {
+						Log($"Invalid Stats key {entry.Key} value {entry.Value}");
 						break; // invalid data in the Entries
 					}
 					stats[entry.Key] = entry.Value;
@@ -684,14 +719,16 @@ namespace AtE {
 		}
 
 		private ArrayHandle<Offsets.GameStatArrayEntry> entries;
-		private long lastEntryTime;
+		private long lastEntryTime = 0;
 		private const long maxAge = 1000; // ms
+		private const int maxStatsLength = 500; // anything longer than this is probably corrupt
 		public IEnumerable<Offsets.GameStatArrayEntry> Entries {
 			get {
-				if( entries == null || (Time.ElapsedTicks - lastEntryTime) > maxAge ) {
+				if( (Time.ElapsedTicks - lastEntryTime) > maxAge ) {
 					entries = new ArrayHandle<Offsets.GameStatArrayEntry>(GameStats.Value.Values);
 					lastEntryTime = Time.ElapsedTicks;
-					if( entries.Length > 500 ) {
+					if( entries.Length > maxStatsLength ) {
+						Log($"Invalid Stats entries.Length = {entries.Length} is greater than reasonable limit of {maxStatsLength}");
 						entries = null;
 						return Empty<Offsets.GameStatArrayEntry>();
 					}
