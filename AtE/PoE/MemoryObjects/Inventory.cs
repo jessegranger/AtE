@@ -55,7 +55,7 @@ namespace AtE {
 					.Where(e => Globals.IsValid(e) && e.IsVisible);
 			}
 		}
-
+	
 		private static IEnumerable<Element> AllVisibleChildren(Element cursor, HashSet<int> seen) {
 			int index = 0;
 			foreach ( Element child in cursor.Children ) {

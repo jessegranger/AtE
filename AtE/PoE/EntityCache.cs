@@ -81,15 +81,16 @@ namespace AtE {
 					while ( frontier.Count > 0 && deduper.Count < 2000 ) {
 						var node = frontier.Pop();
 						IntPtr entPtr = node.Entity;
-						if ( deduper.Contains(entPtr) ) {
+						if ( ! deduper.Add(entPtr) ) {
 							continue;
 						}
-						deduper.Add(entPtr);
 
 						// probe only the entity id before we construct a full ent
 						if ( skippedOne && PoEMemory.TryRead(entPtr + idOffset, out uint id)
 							&& id > 0 && id < int.MaxValue ) {
+							// if the cache already knows about an entity at this address,
 							if ( TryGetEntity(entPtr, out Entity ent) ) {
+								// and it's the same entity Id we just found
 								if ( IsValid(ent) && ent.Id == id ) {
 									incomingIds.Add(id);
 									EntitiesById[id] = ent;
@@ -122,6 +123,7 @@ namespace AtE {
 							if ( ent.Address != IntPtr.Zero ) {
 								// Log($"EntityCache[{id}] Unloading from cache at old Address {Describe(ent.Address)}...");
 								EntitiesByAddress.TryRemove(ent.Address, out _);
+								// this will leave a record in EntitiesById[id] but the Entity instance contained there will not pass IsValid()
 								ent.Address = IntPtr.Zero;
 								EntityRemoved?.Invoke(null, id);
 							}
