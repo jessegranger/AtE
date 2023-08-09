@@ -59,6 +59,16 @@ namespace AtE {
 			.ToArray();
 		private bool useStructLabels = true;
 
+		public Debugger usingStructLabelsFrom(string name) {
+			for ( int i = 0; i < knownOffsetNames.Length; i++ ) {
+				if( knownOffsetNames[i].Equals(name) ) {
+					selectedOffsets = i;
+					break;
+				}
+			}
+			return this;
+		}
+
 		public override IState OnTick(long dt) {
 			if ( dt <= 0 ) {
 				return this;
@@ -87,13 +97,13 @@ namespace AtE {
 				if ( ImGui.IsWindowFocused() ) {
 					if ( ImGui.IsKeyPressed(ImGuiKey.UpArrow) || ImGui.GetIO().MouseWheel > 0 ) {
 						ViewAddress = new IntPtr(Convert.ToInt64(InputAddress, 16));
-						ViewAddress -= 8;
+						ViewAddress -= 16;
 						InputAddress = $"{ViewAddress.ToInt64():X}";
 						Resample();
 					}
 					else if ( ImGui.IsKeyPressed(ImGuiKey.DownArrow) || ImGui.GetIO().MouseWheel < 0 ) {
 						ViewAddress = new IntPtr(Convert.ToInt64(InputAddress, 16));
-						ViewAddress += 8;
+						ViewAddress += 16;
 						InputAddress = $"{ViewAddress.ToInt64():X}";
 						Resample();
 					}

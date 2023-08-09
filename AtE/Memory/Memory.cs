@@ -15,7 +15,7 @@ namespace AtE {
 
 		public static string Describe(IntPtr ptr) => $"<0x{ptr.ToInt64():X}>";
 
-		public static void ImGui_Address(IntPtr a, string label) {
+		public static void ImGui_Address(IntPtr a, string label, string typeLabels = null) {
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text(label); ImGui.SameLine(0f, 2f);
 			var str = Describe(a);
@@ -23,7 +23,11 @@ namespace AtE {
 			ImGui.SameLine();
 			if( ImGui.Button($"M##{str}") ) {
 				Log($"{a} launching debugger...");
-				Run(new Debugger(a).WithKnownAddress(label, a));
+				var debugger = new Debugger(a).WithKnownAddress(label, a);
+				if( typeLabels != null ) {
+					debugger.usingStructLabelsFrom(typeLabels);
+				}
+				Run(debugger);
 			}
 		}
 
