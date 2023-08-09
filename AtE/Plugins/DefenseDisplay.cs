@@ -28,6 +28,8 @@ namespace AtE.Plugins {
 		public bool ShowEnemyWitherStacks = false;
 		public bool ShowHighestCorpseLife = false;
 
+		private bool ShowStatDebugControls = false;
+
 		/// <summary>
 		/// Uses ImGui to render controls for configurable fields.
 		/// </summary>
@@ -39,7 +41,9 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("Show Enemy Cold", ref ShowEnemyResistCold);
 			ImGui.Checkbox("Show Enemy Lightning", ref ShowEnemyResistLightning);
 			ImGui.Checkbox("Show Highest Corpse Life", ref ShowHighestCorpseLife);
-			if ( false ) {
+			ImGui.Separator();
+			ImGui.Checkbox("Debug Game Stats", ref ShowStatDebugControls);
+			if ( ShowStatDebugControls ) {
 				ImGui.BeginListBox("", new Vector2(-1, -2));
 
 				ImGui.InputText("filter:", ref inputFilter, 32);
