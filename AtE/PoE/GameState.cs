@@ -309,7 +309,22 @@ namespace AtE {
 		public static UIElementLibrary GetUI() => PoEMemory.GameRoot?.InGameState?.UIElements ?? default;
 
 		public static Offsets.Camera GetCamera() => PoEMemory.GameRoot?.InGameState?.WorldData?.Camera ?? default;
-		public static Vector2 WorldToScreen(Vector3 pos) => GetCamera().WorldToScreen(pos);
+		public static Vector2 WorldToScreen(Vector3 pos) {
+			/* Debug: 
+			ImGui_Address(PoEMemory.GameRoot.InGameState.WorldData.Address
+				+ GetOffset<Offsets.WorldData>("Camera"),
+				"Camera Address", "Camera");
+
+			ImGui.Text($"Position: {camera.Position} ZFar: {camera.ZFar}");
+			ImGui.Text("Matrix:");
+			ImGui.Text($"{camera.Matrix.M11}, {camera.Matrix.M12}, {camera.Matrix.M13}, {camera.Matrix.M14}");
+			ImGui.Text($"{camera.Matrix.M21}, {camera.Matrix.M22}, {camera.Matrix.M23}, {camera.Matrix.M24}");
+			ImGui.Text($"{camera.Matrix.M31}, {camera.Matrix.M32}, {camera.Matrix.M33}, {camera.Matrix.M34}");
+			ImGui.Text($"{camera.Matrix.M41}, {camera.Matrix.M42}, {camera.Matrix.M43}, {camera.Matrix.M44}");
+			ImGui.Text($"old WorldToScreen: {result}");
+			*/
+			return GetCamera().WorldToScreen(pos);
+		}
 		public static void DrawTextAt(Vector3 pos, string text, Color color) => DrawTextAt(WorldToScreen(pos), text, color);
 
 		public static bool IsValid(GameRoot state) => state != null && state.IsValid;

@@ -1,8 +1,10 @@
-﻿using System;
+﻿using ImGuiNET;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
+using static AtE.Globals;
 
 namespace AtE {
 
@@ -248,14 +250,15 @@ namespace AtE {
 			[FieldOffset(0x078)] public readonly IntPtr ptrWorldData;
 			[FieldOffset(0x098)] public readonly IntPtr ptrEntityLabelMap;
 			// 3.21.2b: 8 new bytes added here
-			[FieldOffset(0x1A8)] public readonly IntPtr elemRoot;
-			[FieldOffset(0x1B8)] public readonly IntPtr elemInputFocus; // which element has input focus or null
-			[FieldOffset(0x1E0)] public readonly IntPtr elemHover; // element which is currently hovered
-			[FieldOffset(0x218)] public readonly int MousePosX;
-			[FieldOffset(0x21c)] public readonly int MousePosY;
-			[FieldOffset(0x224)] public readonly Vector2 UIHoverOffset; // mouse position offset in hovered UI element
-			[FieldOffset(0x22c)] public readonly Vector2 MousePos;
-			[FieldOffset(0x458)] public readonly IntPtr ptrUIElements; // ptr to InGameState_UIElements
+			// 3.22: 248 new bytes here?
+			[FieldOffset(0x2A0)] public readonly IntPtr elemRoot;
+			[FieldOffset(0x2B0)] public readonly IntPtr elemInputFocus; // which element has input focus or null
+			[FieldOffset(0x2D8)] public readonly IntPtr elemHover; // element which is currently hovered
+			[FieldOffset(0x310)] public readonly int MousePosX;
+			[FieldOffset(0x314)] public readonly int MousePosY;
+			[FieldOffset(0x320)] public readonly Vector2 UIHoverOffset; // mouse position offset in hovered UI element
+			[FieldOffset(0x324)] public readonly Vector2 MousePos;
+			[FieldOffset(0x568)] public readonly IntPtr ptrUIElements; // ptr to InGameState_UIElements
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct PreGameState {
 			[FieldOffset(0x130)] public readonly IntPtr UIRoot;
@@ -269,7 +272,8 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct AreaGameState {
 			[FieldOffset(0xC8)] public readonly long IsLoading;
 			[FieldOffset(0x100)] public readonly IntPtr elemRoot;
-			[FieldOffset(0x3A8)] public readonly IntPtr strAreaName;
+			// 3.22: 24 new bytes here
+			[FieldOffset(0x3C0)] public readonly IntPtr strAreaName;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LoginGameState {
 			[FieldOffset(0x0D0)] public readonly IntPtr elemRoot;
@@ -340,8 +344,8 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldData {
 			[FieldOffset(0xA0)] public readonly IntPtr ptrToWorldAreaRef;
-			// 3.12.2b: 648 new bytes here
-			[FieldOffset(0x338)] public readonly Camera Camera;
+			// 3.12.2b: some new bytes here
+			[FieldOffset(0x1E8)] public readonly Camera Camera;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaRef {
@@ -361,17 +365,14 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Camera {
-			[FieldOffset(0x8)] public readonly Vector2i Size;
-			[FieldOffset(0x8)] public readonly int Width;
-			[FieldOffset(0xC)] public readonly int Height;
-			// [FieldOffset(0x1C4)] public readonly float ZFar; // correct but not used, and keeping it out makes the struct read smaller
+			[FieldOffset(0x0)] public readonly Matrix4x4 Matrix;
+			//  4x4 floats = 16 floats 64 (0x40) bytes
+			[FieldOffset(0x158)] public readonly Vector2i Size;
+			[FieldOffset(0x158)] public readonly int Width;
+			[FieldOffset(0x15c)] public readonly int Height;
+			// [FieldOffset(0x2a0)] public readonly float ZFar;
 
-			//First value is changing when we change the screen size (ratio)
-			//4 bytes before the matrix doesn't change
-			[FieldOffset(0x80)] public readonly Matrix4x4 Matrix; // 4x4 floats = 16 floats 128 bytes
-																														// the last 3 floats in the matrix are the camera position
-																														// 0x80 + (128 - 12) = 0xF4
-			[FieldOffset(0xF4)] public readonly Vector3 Position; // the last 3 floats of the matrix are the X,Y,Z
+			[FieldOffset(0x268)] public readonly Vector3 Position;
 
 			public unsafe Vector2 WorldToScreen(Vector3 pos) {
 				Vector2 result; // put a struct on the stack
@@ -391,10 +392,11 @@ namespace AtE {
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
 
 			// Crucible: 8 new bytes here
-			[FieldOffset(0x758)] public readonly IntPtr ServerData;
-			[FieldOffset(0x760)] public readonly IntPtr entPlayer; // ptr Entity
-			[FieldOffset(0x810)] public readonly IntPtr EntityListHead; // ptr EntityListNode
-			[FieldOffset(0x818)] public readonly long EntitiesCount;
+			// 3.22: 120 new bytes here
+			[FieldOffset(0x7d0)] public readonly IntPtr ServerData;
+			[FieldOffset(0x7d8)] public readonly IntPtr entPlayer; // ptr Entity
+			[FieldOffset(0x888)] public readonly IntPtr EntityListHead; // ptr EntityListNode
+			[FieldOffset(0x890)] public readonly long EntitiesCount;
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 		}
 
