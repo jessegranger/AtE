@@ -101,97 +101,104 @@ namespace AtE {
 				return this;
 			}
 
-			if ( Enabled && ! Paused && PoEMemory.IsAttached ) {
-				if( !( ShowXPRate || ShowPickups ) ) {
-					return this;
-				}
-				/*
-				ImGui.Begin("Debug Player");
-				try {
-					ImGui_Object("Player", "Player", GetPlayer()?.GetComponent<Player>(), new HashSet<int>());
-				} finally {
-					ImGui.End();
-				}
-				*/
-				var player = GetPlayer()?.GetComponent<Player>();
-				if ( !IsValid(player) ) {
-					return this;
-				}
-
-				if ( PoEMemory.GameRoot.AreaLoadingState.IsLoading ) {
-					return this;
-				}
-
-				if ( ShowPickups ) {
-					var aliveThisFrame = new HashSet<uint>();
-					foreach ( var ent in GetEnemies().Where(IsValid) ) {
-						if ( IsAlive(ent) ) {
-							aliveThisFrame.Add(ent.Id);
-						} else if ( aliveLastFrame.Contains(ent.Id) ) {
-							switch ( ent.GetComponent<ObjectMagicProperties>()?.Rarity ) {
-								case Offsets.MonsterRarity.Unique: uniquesKilledInThisArea += 1; break;
-								case Offsets.MonsterRarity.Rare: raresKilledInThisArea += 1; break;
-								case Offsets.MonsterRarity.Magic: magicMonstersKilledInThisArea += 1; break;
-								case Offsets.MonsterRarity.White: normalMonstersKilledInThisArea += 1; break;
-							}
-							dyingMonsters.Enqueue(ent.GetComponent<Render>()?.Position ?? Vector3.Zero);
-						}
-					}
-					// DrawBottomLeftText($"Tracking {aliveThisFrame.Count} alive / {dyingMonsters.Count} dead ents...", Color.Yellow);
-					aliveLastFrame = aliveThisFrame;
-				}
-
-				if ( xpLastFrame == uint.MaxValue ) {
-					xpLastFrame = player.XP;
-				} else {
-					int xpGain = (int)(player.XP - xpLastFrame);
-					xpGainedInThisArea += xpGain;
-					if ( ShowPickups && xpGain > 0 ) {
-						// deque all the dyingMonsters
-						// show floating text for each share of xp gained
-						string xpShare = $"+{xpGain / Math.Max(1, dyingMonsters.Count):F0}";
-						while ( dyingMonsters.Count > 0 ) {
-							// this may be slow im not sure, the old Assistant had PersistedText as one state, with it's own list of text items to draw 
-							Run("DriftingText", DriftingText(xpShare, Color.Yellow, dyingMonsters.Dequeue(), GetPlayerPos, 900));
-							// the State Added/Removed messages alone will be spam city
-						}
-					}
-					// have to be a tad extra careful about not just casting int to uint here, if we died the gain is negative
-					// even though the result is still always unsigned
-					if ( xpGain < 0 ) {
-						xpLastFrame -= (uint)Math.Abs(xpGain);
-					} else {
-						xpLastFrame += (uint)xpGain;
-					}
-					xpPerMs = MovingAverage(xpPerMs, xpGain / dt, 1000);
-					if ( xpPerMs > 0f && player.Level > 0 && ShowXPRate ) {
-						// translate the xpPerMs into %/hr and hrs until level
-						uint xpInThisLevel = xpToNextLevel[player.Level] - xpToNextLevel[player.Level - 1];
-						uint xpToLevel = xpToNextLevel[player.Level] - player.XP;
-						double xpPerHr = xpPerMs * 1000 * 60 * 60;
-						var pctPerHr = (100 * xpPerHr) / xpInThisLevel;
-						var hrToLevel = Math.Min(999, xpToLevel / xpPerHr);
-						// re-do pctPerHr with an absolute base of the whole level
-						// pctPerHr = (xpPerMs * 100 * 1000 * 60 * 60) / xpInThisLevel;
-						string status = $"xp {pctPerHr:F2}%/hr eta {hrToLevel:F2} hrs";
-						// if the xp bar UI element is known, position next to it
-						var ui = GetUI();
-						if ( IsValid(ui?.ExperienceBar) ) {
-							var rect = ui.ExperienceBar.GetClientRect();
-							float padding = ImGui.GetFontSize() + 4;
-							Vector2 textPos = new Vector2(rect.Left, rect.Top - padding);
-							DrawTextAt(textPos, status, Color.Orange);
-							if( Verbose ) {
-								textPos.Y -= padding;
-								DrawTextAt(textPos, $"Xp in this level: {xpInThisLevel} Xp to next level: {xpToLevel} Xp per hr: {xpPerHr:F2} Hr to level: {xpToLevel/xpPerHr:F2}", Color.Orange);
-							}
-						} else {
-							DrawBottomLeftText(status, Color.Orange);
-						}
-					}
-				}
-
+			if ( Paused || !Enabled ) {
+				return this; // keep it in the PluginBase.Machine, but dont do anything
 			}
+
+			if ( !PoEMemory.IsAttached ) {
+				return this;
+			}
+
+			if ( !(PoEMemory.TargetHasFocus || Overlay.HasFocus) ) {
+				return this;
+			}
+
+			if ( PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true ) {
+				return this;
+			}
+
+			if ( !(ShowXPRate || ShowPickups) ) {
+				return this;
+			}
+
+			var player = GetPlayer()?.GetComponent<Player>();
+			if ( !IsValid(player) ) {
+				return this;
+			}
+
+			if ( PoEMemory.GameRoot.AreaLoadingState.IsLoading ) {
+				return this;
+			}
+
+			if ( ShowPickups ) {
+				var aliveThisFrame = new HashSet<uint>();
+				foreach ( var ent in GetEnemies().Where(IsValid) ) {
+					if ( IsAlive(ent) ) {
+						aliveThisFrame.Add(ent.Id);
+					} else if ( aliveLastFrame.Contains(ent.Id) ) {
+						switch ( ent.GetComponent<ObjectMagicProperties>()?.Rarity ) {
+							case Offsets.MonsterRarity.Unique: uniquesKilledInThisArea += 1; break;
+							case Offsets.MonsterRarity.Rare: raresKilledInThisArea += 1; break;
+							case Offsets.MonsterRarity.Magic: magicMonstersKilledInThisArea += 1; break;
+							case Offsets.MonsterRarity.White: normalMonstersKilledInThisArea += 1; break;
+						}
+						dyingMonsters.Enqueue(ent.GetComponent<Render>()?.Position ?? Vector3.Zero);
+					}
+				}
+				// DrawBottomLeftText($"Tracking {aliveThisFrame.Count} alive / {dyingMonsters.Count} dead ents...", Color.Yellow);
+				aliveLastFrame = aliveThisFrame;
+			}
+
+			if ( xpLastFrame == uint.MaxValue ) {
+				xpLastFrame = player.XP;
+			} else {
+				int xpGain = (int)(player.XP - xpLastFrame);
+				xpGainedInThisArea += xpGain;
+				if ( ShowPickups && xpGain > 0 ) {
+					// deque all the dyingMonsters
+					// show floating text for each share of xp gained
+					string xpShare = $"+{xpGain / Math.Max(1, dyingMonsters.Count):F0}";
+					while ( dyingMonsters.Count > 0 ) {
+						// this may be slow im not sure, the old Assistant had PersistedText as one state, with it's own list of text items to draw 
+						Run("DriftingText", DriftingText(xpShare, Color.Yellow, dyingMonsters.Dequeue(), GetPlayerPos, 900));
+						// the State Added/Removed messages alone will be spam city
+					}
+				}
+				// have to be a tad extra careful about not just casting int to uint here, if we died the gain is negative
+				// even though the result is still always unsigned
+				if ( xpGain < 0 ) {
+					xpLastFrame -= (uint)Math.Abs(xpGain);
+				} else {
+					xpLastFrame += (uint)xpGain;
+				}
+				xpPerMs = MovingAverage(xpPerMs, xpGain / dt, 1000);
+				if ( xpPerMs > 0f && player.Level > 0 && ShowXPRate ) {
+					// translate the xpPerMs into %/hr and hrs until level
+					uint xpInThisLevel = xpToNextLevel[player.Level] - xpToNextLevel[player.Level - 1];
+					uint xpToLevel = xpToNextLevel[player.Level] - player.XP;
+					double xpPerHr = xpPerMs * 1000 * 60 * 60;
+					var pctPerHr = (100 * xpPerHr) / xpInThisLevel;
+					var hrToLevel = Math.Min(999, xpToLevel / xpPerHr);
+					// re-do pctPerHr with an absolute base of the whole level
+					// pctPerHr = (xpPerMs * 100 * 1000 * 60 * 60) / xpInThisLevel;
+					string status = $"xp {pctPerHr:F2}%/hr eta {hrToLevel:F2} hrs";
+					// if the xp bar UI element is known, position next to it
+					var ui = GetUI();
+					if ( IsValid(ui?.ExperienceBar) ) {
+						var rect = ui.ExperienceBar.GetClientRect();
+						float padding = ImGui.GetFontSize() + 4;
+						Vector2 textPos = new Vector2(rect.Left, rect.Top - padding);
+						DrawTextAt(textPos, status, Color.Orange);
+						if ( Verbose ) {
+							textPos.Y -= padding;
+							DrawTextAt(textPos, $"Xp in this level: {xpInThisLevel} Xp to next level: {xpToLevel} Xp per hr: {xpPerHr:F2} Hr to level: {xpToLevel / xpPerHr:F2}", Color.Orange);
+						}
+					} else {
+						DrawBottomLeftText(status, Color.Orange);
+					}
+				}
+			}
+
 			return this;
 		}
 	}
