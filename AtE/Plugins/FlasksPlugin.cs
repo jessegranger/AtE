@@ -103,35 +103,45 @@ namespace AtE {
 			}
 
 			if ( PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true ) {
+				DrawBottomLeftText("Flasks are paused on loading screens.", Color.LightGray);
 				return this;
 			}
 
 			if ( PoEMemory.GameRoot?.InGameState?.HasInputFocus ?? true ) {
+				DrawBottomLeftText("Flasks are paused during text input.", Color.LightGray);
 				return this;
 			}
 
 			if ( PoEMemory.GameRoot?.InGameState?.WorldData?.IsTown ?? true ) {
+				DrawBottomLeftText("Flasks are paused in towns.", Color.LightGray);
 				return this;
 			}
 
 			string areaName = PoEMemory.GameRoot?.AreaLoadingState.AreaName ?? null;
 			if( areaName == null || areaName.Equals(Offsets.THE_ROGUE_HARBOUR) || (areaName.EndsWith(Offsets.HIDEOUT_SUFFIX) && ! areaName.Equals(Offsets.SYNDICATE_HIDEOUT)) ) {
+				DrawBottomLeftText("Flasks are paused in towns and hideouts.", Color.LightGray);
 				return this;
 			}
 
 			var ui = GetUI();
 			if ( !IsValid(ui) ) { return this; }
-			if ( (ui.PurchaseWindow?.IsVisibleLocal ?? true) || (ui.SellWindow?.IsVisibleLocal ?? true) || (ui.TradeWindow?.IsVisibleLocal ?? true) ) {
+			bool sellIsOpen = (ui.SellWindow?.IsVisibleLocal ?? true);
+			bool buyIsOpen = (ui.PurchaseWindow?.IsVisibleLocal ?? true);
+			bool tradeIsOpen = (ui.TradeWindow?.IsVisibleLocal ?? true);
+			if ( buyIsOpen || sellIsOpen || tradeIsOpen ) {
+				DrawBottomLeftText($"Flasks are paused while trade windows are open.", Color.LightGray);
 				return this;
 			}
 
 			var player = GetPlayer();
 			if ( !IsValid(player) ) {
+				DrawBottomLeftText("Cannot show flask status while player is invalid.", Color.LightGray);
 				return this;
 			}
 
 			var buffs = player.GetComponent<Buffs>();
 			if ( HasBuff(buffs, "grace_period") ) {
+				DrawBottomLeftText("Flasks are paused during grace period.", Color.LightGray);
 				return this;
 			}
 
