@@ -87,9 +87,17 @@ namespace AtE {
 				if( useStructLabels && selectedOffsets > -1 ) {
 					Type labelType = knownOffsets[selectedOffsets];
 					foreach ( FieldInfo field in labelType.GetFields() ) {
+						int fieldOffset = field.GetCustomAttribute<FieldOffsetAttribute>()?.Value ?? 0;
+						int alignedOffset = fieldOffset - (fieldOffset % 8); // for label purposes, labelAddr should end up aligned by 8 bytes
 						IntPtr labelAddr = BaseAddress
-							+ (field.GetCustomAttribute<FieldOffsetAttribute>()?.Value ?? 0);
-						temporaryLabels[labelAddr] = knownOffsetNames[selectedOffsets] + "." + field.Name;
+							+ alignedOffset;
+						string labelText = knownOffsetNames[selectedOffsets] + "." + field.Name
+							+ (alignedOffset != fieldOffset ? $" (+{fieldOffset % 8})" : "");
+						if( temporaryLabels.TryGetValue(labelAddr, out string prior) ) {
+							temporaryLabels[labelAddr] = prior + " " + labelText;
+						} else {
+							temporaryLabels[labelAddr] = labelText;
+						}
 					}
 				}
 				ImGui.AlignTextToFramePadding();
