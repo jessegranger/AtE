@@ -79,7 +79,7 @@ namespace AtE {
 
 		public Vector2 Size => Cache.Size;
 
-		private Vector2 GetAbsolutePosition() => GetAbsolutePosition(Vector2.Zero, PoEMemory.GameRoot.InGameState.UIRoot.Scale);
+		private Vector2 GetAbsolutePosition() => GetAbsolutePosition(Vector2.Zero, PoEMemory.GameRoot.InGameState.UIRoot?.Scale ?? .75f);
 		private Vector2 GetAbsolutePosition(Vector2 pos, float rootScale) {
 			Vector2 pPos = Position;
 			float pScale = Scale / rootScale;
@@ -97,7 +97,7 @@ namespace AtE {
 			Offsets.Vector2i size = PoEMemory.GameRoot.InGameState.WorldData.Camera.Size;
 			float width = size.X;
 			float height = size.Y;
-			var rootScale = PoEMemory.GameRoot.InGameState.UIRoot.Scale;
+			var rootScale = PoEMemory.GameRoot?.InGameState?.UIRoot?.Scale ?? .75f;
 			// the UI is developed against a virtual 2560x1600 screen, (a 1.6 aspect ratio)
 			// so all UI coordinates are scaled by rootScale,
 			// and the ratio is adjusted with ratioFixMulti
