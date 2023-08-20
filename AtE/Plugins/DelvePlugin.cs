@@ -84,8 +84,8 @@ namespace AtE.Plugins {
 					return this;
 				}
 
-				Color lineColor;
-				string lineText;
+				SpriteIcon icon = SpriteIcon.None;
+				float iconSize = 1f;
 
 				float maxCorpseLife = 0;
 				Vector3 maxCorpseLocation = Vector3.Zero;
@@ -95,8 +95,8 @@ namespace AtE.Plugins {
 					if ( path == null || path.Length < 16 ) {
 						continue;
 					}
-					lineColor = Color.White;
-					lineText = null;
+					icon = SpriteIcon.None;
+					iconSize = 1f;
 					bool isMonster = path.StartsWith("Metadata/Monsters");
 
 					/*
@@ -119,8 +119,8 @@ namespace AtE.Plugins {
 						if ( path.EndsWith("DelveWall") ) {
 							if ( IsTargetable(ent) ) {
 								// ImGui_Object("DelveWall", "DelveWall", ent, new HashSet<int>());
-								lineText = "Wall";
-								lineColor = Color.Cyan;
+								icon = SpriteIcon.DelveWall;
+								iconSize = 2f;
 							}
 						} else if ( path.StartsWith("Metadata/Chests/DelveChests") ) {
 							var chest = ent.GetComponent<Chest>();
@@ -129,37 +129,30 @@ namespace AtE.Plugins {
 							}
 
 							if ( HighlightSupplies && path.Contains("SuppliesFlares") ) {
-								lineText = "Flares";
-								lineColor = Color.Orange;
+								icon = SpriteIcon.YellowX;
+								iconSize = 1f;
 							} else if ( HighlightSupplies && path.Contains("SuppliesDynamite") ) {
-								lineText = "Dynamite";
-								lineColor = Color.Orange;
+								icon = SpriteIcon.OrangeX;
+								iconSize = 1f;
 							} else if ( HighlightFossils && path.Contains("Fossil") ) {
-								lineText = "Fossil";
-								lineColor = Color.Yellow;
+								icon = SpriteIcon.MediumGreenStar;
+								iconSize = 2f;
 							} else if ( HighlightResonators && path.Contains("Resonator") ) {
-								lineText = "Resonator";
-								lineColor = Color.Yellow;
+								icon = SpriteIcon.MediumPurpleStar;
+								iconSize = 2f;
 							} else if ( HighlightCurrency && path.Contains("Currency") ) {
-								lineText = "Currency";
-								lineColor = Color.Yellow;
+								icon = SpriteIcon.MediumYellowStar;
+								iconSize = 2f;
 							} else if (  HighlightAzurite &&  path.Contains("AzuriteVein") ) {
-								lineText = "Azurite";
-								lineColor = Color.Cyan;
+								icon = SpriteIcon.MediumCyanStar;
+								iconSize = 2f;
 							}
 
 						}
 					}
 
-					if ( lineText != null ) {
-						var entPos = Position(ent);
-						if ( entPos != Vector3.Zero ) {
-							var textPos = (entPos - playerPos) * .15f;
-							DrawLine(WorldToScreen(playerPos), WorldToScreen(entPos), lineColor);
-							DrawTextAt(playerPos + textPos, lineText, lineColor);
-						} else {
-							DrawTextAt(player, "Nearby " + lineText, lineColor);
-						}
+					if ( icon != SpriteIcon.None && iconSize > 0f ) {
+						ent.MinimapIcon = new Entity.Icon() { Size = iconSize, Sprite = icon };
 					}
 				}
 
