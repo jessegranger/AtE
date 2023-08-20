@@ -109,9 +109,10 @@ namespace AtE.Plugins {
 					continue;
 				}
 
+
 				/* Debug:
 				if( path.StartsWith("Metadata/Monster") ) {
-					ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
+					// ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
 					ImGui.Begin($"ent:{ent.Id} {ent.Path}");
 					ImGui.Text($"IsAlive: {IsAlive(ent)}");
 					ImGui.Text($"IsHostile: {IsHostile(ent)}");
@@ -125,7 +126,7 @@ namespace AtE.Plugins {
 					ImGui.End();
 				}
 				if ( path.StartsWith("Metadata/Chest") ) {
-					ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
+					// ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
 					ImGui.Begin($"Unknown Box##{ent.Id}");
 					ImGui_Object($"Box##{ent.Id}", "Box", ent, new HashSet<int>());
 					ImGui.Text("Chest:");
@@ -133,8 +134,14 @@ namespace AtE.Plugins {
 					ImGui.End();
 				}
 				*/
+				if( ent.MinimapIcon.Expires < Time.ElapsedMilliseconds ) {
+					ent.MinimapIcon = new Entity.Icon() { Size = 0f, Sprite = SpriteIcon.None };
+				}
 
-				if ( ShowMinions && deployed.Contains((ushort)ent.Id) && IsAlive(ent) ) {
+				if( ent.MinimapIcon.Size > 0f ) {
+					icon = ent.MinimapIcon.Sprite;
+					iconSize = ent.MinimapIcon.Size;
+				} else if ( ShowMinions && deployed.Contains((ushort)ent.Id) && IsAlive(ent) ) {
 					TryGetMinionIcon(ent, out icon, out iconSize);
 				} else if ( ShowEnemies && path.StartsWith("Metadata/Monster") && IsAlive(ent) && IsHostile(ent) && IsTargetable(ent) ) {
 					TryGetEnemyIcon(ent, out icon, out iconSize);
@@ -172,6 +179,9 @@ namespace AtE.Plugins {
 				return icon != SpriteIcon.None;
 			}
 			var path = ent.Path;
+			if( IsValid(path, 10) ) {
+				return false;
+			}
 			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|Pot|Boulder|Vase|SnowCairn|TemplarChest|InfestationEgg|TribalChest|Labratory/RatCrate)") ) { 
 				ent.MinimapIcon = new Entity.Icon() { Size = 1f, Sprite = SpriteIcon.None };
 				return false;
@@ -271,7 +281,8 @@ namespace AtE.Plugins {
 				ImGui_Object($"Chest##{ent.Id}", "Chest", ent, new HashSet<int>());
 				ImGui.End();
 			}
-			ent.MinimapIcon = new Entity.Icon() { Size = iconSize, Sprite = icon };
+			// save for 1000ms, then check for opened status etc
+			ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 1000);
 			return true;
 		}
 		private bool TryGetEnemyIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
@@ -290,7 +301,7 @@ namespace AtE.Plugins {
 				return icon != SpriteIcon.None;
 			}
 			if ( path.Contains("AfflictionVomitile") || path.Contains("AfflictionVolatile") ) {
-				ent.MinimapIcon = new Entity.Icon() { Size = 1f, Sprite = SpriteIcon.None };
+				ent.MinimapIcon = new Entity.Icon(SpriteIcon.None, 1f);
 				return false;
 			}
 			bool isHidden = HasBuff(ent, "hidden_monster");
@@ -301,11 +312,24 @@ namespace AtE.Plugins {
 				case Offsets.MonsterRarity.Magic: icon = isHidden ? SpriteIcon.SmallBlueHexagon : SpriteIcon.MediumBlueCircle; break;
 				case Offsets.MonsterRarity.White: icon = isHidden ? SpriteIcon.SmallRedHexagon : SpriteIcon.MediumRedCircle; break;
 			}
+			// save the current icon for 300ms, then it will expire and check again for hidden status, etc
+			ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 300);
 			if ( ShowRareOverhead && rarity >= Offsets.MonsterRarity.Rare ) {
 				var render = ent.GetComponent<Render>();
 				if ( IsValid(render) ) {
 					var overhead = WorldToScreen(render.Position + new Vector3(0, 0, -1.5f * render.Bounds.Z));
 					DrawSprite(icon, overhead, IconSize * 4, IconSize * 4);
+					ImGui.Begin("debug_overhead");
+					ImGui.Text("Overhead vector result:");
+					ImGui_Object("overhead", "overhead", overhead, new HashSet<int>());
+					ImGui.Text("Render component:");
+					ImGui_Object("render", "render", render, new HashSet<int>());
+					ImGui.Text("Camera:");
+					ImGui_Object("camera", "camera", PoEMemory.GameRoot.InGameState.WorldData.Camera, new HashSet<int>());
+					ImGui_Address(PoEMemory.GameRoot.InGameState.WorldData.Address
+						+ GetOffset<Offsets.WorldData>("Camera"),
+						"Camera Address", "Camera");
+					ImGui.End();
 				}
 			}
 			return true;
@@ -314,6 +338,8 @@ namespace AtE.Plugins {
 		private bool TryGetMinionIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
 			icon = SpriteIcon.GreenX;
 			iconSize = 1f;
+			// cache the icon for 1 second
+			ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 1000);
 			return IsAlive(ent);
 		}
 	}
