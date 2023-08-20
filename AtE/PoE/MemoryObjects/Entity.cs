@@ -279,19 +279,19 @@ namespace AtE {
 		}
 	
 		public struct Icon {
+			// Size == 1f with Sprite == None means the ent has been determined to have no icon
+			// Size == 0f with Sprite == None means the ent has not checked yet to see what icon it should use
 			public SpriteIcon Sprite;
 			public float Size; // later, Size == 0f will mean a sprite has not yet been determined for the ent
-			// Size == 1f with Sprite == None means the ent has been determined to have no icon
+			public long Expires;
+			public Icon(SpriteIcon icon, float iconSize, long expires = long.MaxValue) {
+				Sprite = icon;
+				Size = iconSize;
+				Expires = expires;
+			}
 		}
 		public Icon MinimapIcon = default;
 
-		public RectangleF GetClientRect() {
-			var render = GetComponent<Render>();
-			if ( !IsValid(render) ) return RectangleF.Empty;
-			var pos = WorldToScreen(render.Position);
-			var far = WorldToScreen(render.Position + render.Bounds);
-			return new RectangleF(pos.X, pos.Y, far.X - pos.X, far.Y - pos.Y);
-		}
 	}
 
 	/// <summary>
