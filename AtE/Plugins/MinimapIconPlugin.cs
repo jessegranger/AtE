@@ -313,12 +313,13 @@ namespace AtE.Plugins {
 				case Offsets.MonsterRarity.White: icon = isHidden ? SpriteIcon.SmallRedHexagon : SpriteIcon.MediumRedCircle; break;
 			}
 			// save the current icon for 300ms, then it will expire and check again for hidden status, etc
-			ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 300);
+			// ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 300);
 			if ( ShowRareOverhead && rarity >= Offsets.MonsterRarity.Rare ) {
 				var render = ent.GetComponent<Render>();
 				if ( IsValid(render) ) {
 					var overhead = WorldToScreen(render.Position + new Vector3(0, 0, -1.5f * render.Bounds.Z));
 					DrawSprite(icon, overhead, IconSize * 4, IconSize * 4);
+					/*
 					ImGui.Begin("debug_overhead");
 					ImGui.Text("Overhead vector result:");
 					ImGui_Object("overhead", "overhead", overhead, new HashSet<int>());
@@ -330,6 +331,7 @@ namespace AtE.Plugins {
 						+ GetOffset<Offsets.WorldData>("Camera"),
 						"Camera Address", "Camera");
 					ImGui.End();
+					*/
 				}
 			}
 			return true;
