@@ -708,7 +708,7 @@ namespace AtE {
 				stats = new Dictionary<Offsets.GameStat, int>();
 				lastStatsTime = Time.ElapsedTicks;
 				foreach ( var entry in Entries ) {
-					if( entry.Key < 0 || entry.Key > Offsets.GameStat.UnknownStat18976 ) {
+					if( entry.Key <= 0 || entry.Key > Offsets.GameStat.UnknownStat18976 ) {
 						Log($"Invalid Stats key {entry.Key} value {entry.Value}");
 						// break; // invalid data in the Entries
 					}
