@@ -84,7 +84,6 @@ namespace AtE.Plugins {
 			}
 
 			if( !( ShowChests || ShowEnemies || ShowMinions || ShowDelvePath )) { // nothing to show
-				DrawBottomLeftText("MinimapIcon: nothing to show", Color.Yellow);
 				return this;
 			}
 
@@ -179,10 +178,10 @@ namespace AtE.Plugins {
 				return icon != SpriteIcon.None;
 			}
 			var path = ent.Path;
-			if( IsValid(path, 10) ) {
+			if( !IsValid(path, 10) ) {
 				return false;
 			}
-			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|Pot|Boulder|Vase|SnowCairn|TemplarChest|InfestationEgg|TribalChest|Labratory/RatCrate)") ) { 
+			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|Pot|Boulder|Vase|Cairn|TemplarChest|InfestationEgg|TribalChest|Labratory/RatCrate)") ) { 
 				ent.MinimapIcon = new Entity.Icon() { Size = 1f, Sprite = SpriteIcon.None };
 				return false;
 			}
