@@ -181,7 +181,8 @@ namespace AtE.Plugins {
 			if( !IsValid(path, 10) ) {
 				return false;
 			}
-			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|Pot|Boulder|Vase|Cairn|TemplarChest|InfestationEgg|TribalChest|Labratory/RatCrate)") ) { 
+			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|SilverChest|.*Rack|Amphora|.*Pot|.*Boulder|Vase|.*Cairn|Crate|Cannibal|TemplarChest|InfestationEgg|AtlasBarrel|FungalBloom|GoldenChest|KaomChest|C[ao]coon|.*Bundle|PordWounded|Tutorial|TribalChest|.*BonePile|Sarcophagi|GoldPot|CopperChest|Labyrinth/Izaro|VaalBoneChest|Betrayal|Laboratory/RatCrate|Laboratory/WormJar)") ) { 
+				// set them to None, and never check them again
 				ent.MinimapIcon = new Entity.Icon() { Size = 1f, Sprite = SpriteIcon.None };
 				return false;
 			}
@@ -261,24 +262,16 @@ namespace AtE.Plugins {
 						icon = SpriteIcon.RewardGenericItems;
 						iconSize = 1.75f;
 					} else {
-						ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
-						ImGui.Begin($"Unknown Strongbox##{ent.Id}");
-						ImGui_Object($"Strongbox##{ent.Id}", "Strongbox", ent, new HashSet<int>());
-						ImGui.End();
+						DrawTextAt(WorldToScreen(Position(ent)), $"Unknown Strongbox: {ent.Path}", Color.White);
+						return false;
 					}
 				} else {
-					ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
-					ImGui.Begin($"Unknown /Chest##{ent.Id}");
-					ImGui.Text(path);
-					ImGui_Object($"Chest##{ent.Id}", "Chest", ent, new HashSet<int>());
-					ImGui.End();
+					DrawTextAt(WorldToScreen(Position(ent)), $"Unknown /Chest: {ent.Path}", Color.White);
+											return false;
 				}
 			} else {
-				ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
-				ImGui.Begin($"Unknown Chest##{ent.Id}");
-				ImGui.Text(path);
-				ImGui_Object($"Chest##{ent.Id}", "Chest", ent, new HashSet<int>());
-				ImGui.End();
+				DrawTextAt(WorldToScreen(Position(ent)), $"Unknown Chest: {ent.Path}", Color.White);
+										return false;
 			}
 			// save for 1000ms, then check for opened status etc
 			ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 1000);
