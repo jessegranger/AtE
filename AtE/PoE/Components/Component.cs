@@ -710,7 +710,7 @@ namespace AtE {
 				foreach ( var entry in Entries ) {
 					if( entry.Key <= 0 || entry.Key > Offsets.GameStat.UnknownStat18976 ) {
 						Log($"Invalid Stats key {entry.Key} value {entry.Value}");
-						// break; // invalid data in the Entries
+						break; // invalid data in the Entries
 					}
 					stats[entry.Key] = entry.Value;
 				}

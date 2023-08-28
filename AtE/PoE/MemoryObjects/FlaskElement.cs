@@ -123,7 +123,7 @@ namespace AtE {
 					LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
 				} else if ( groupName.StartsWith("FlaskFullInstantRecovery") || groupName.StartsWith("FlaskPartialInstantRecovery") ) {
 					IsInstant = true;
-					int lessRecovery = mod.Values.Skip(1).First(); // like -27
+					int lessRecovery = mod.Values?.Skip(1).First() ?? 0; // like -27
 					float recoveryFactor = (100 + lessRecovery) / 100f;
 					LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
 				} else if ( groupName.StartsWith("FlaskPoisonImmunity") ) {
