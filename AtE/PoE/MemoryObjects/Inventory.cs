@@ -107,8 +107,8 @@ namespace AtE {
 
 		public Entity Entity => IsValid(Address) && EntityCache.TryGetEntity(Details.Value.entItem, out Entity ent) ? ent : null;
 
-		public virtual int X => Details.Value.InventPosition.X;
-		public virtual int Y => Details.Value.InventPosition.Y;
+		public virtual int X => (int)(Position.X / (Parent.Size.X / 12));
+		public virtual int Y => (int)(Position.Y / (Parent.Size.Y / 5));
 		public virtual int Width => Details.Value.Width;
 		public virtual int Height => Details.Value.Height;
 
