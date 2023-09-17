@@ -10,7 +10,7 @@ namespace AtE {
 			long a = p.ToInt64();
 			bool ret = a > 0x0000010000000001 && a < 0x00007FFFFFFFFFFF;
 			return ret;
-			// TODO: get better (or even real) ranges here
+			// TODO: get better (or even real) memory address ranges here
 		}
 
 		public static string Describe(IntPtr ptr) => $"<0x{ptr.ToInt64():X}>";

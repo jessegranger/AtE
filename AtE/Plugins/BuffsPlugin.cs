@@ -320,7 +320,7 @@ namespace AtE.Plugins {
 				}
 
 				string areaName = PoEMemory.GameRoot?.AreaLoadingState.AreaName ?? null;
-				if( areaName == null || areaName.Equals(Offsets.THE_ROGUE_HARBOUR) || (areaName.EndsWith(Offsets.HIDEOUT_SUFFIX) && ! areaName.Equals(Offsets.SYNDICATE_HIDEOUT)) ) {
+				if( Offsets.IsHideout(areaName) ) {
 					return this;
 				}
 
