@@ -386,17 +386,21 @@ namespace AtE {
 			}
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InGameState_Data {
-			[FieldOffset(0x0A8)] public readonly byte CurrentAreaLevel;
-			[FieldOffset(0x10C)] public readonly uint CurrentAreaHash;
-			[FieldOffset(0x120)] public readonly IntPtr MapStats;
+			// 3.22.1b: 4 new bytes here
+			[FieldOffset(0x0AC)] public readonly byte CurrentAreaLevel;
+
+			// 3.22.1b: 28 bytes removed here??
+			[FieldOffset(0x0F0)] public readonly uint CurrentAreaHash;
+			[FieldOffset(0x104)] public readonly IntPtr MapStats;
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
 
 			// Crucible: 8 new bytes here
 			// 3.22: 120 new bytes here
-			[FieldOffset(0x7d0)] public readonly IntPtr ServerData;
-			[FieldOffset(0x7d8)] public readonly IntPtr entPlayer; // ptr Entity
-			[FieldOffset(0x888)] public readonly IntPtr EntityListHead; // ptr EntityListNode
-			[FieldOffset(0x890)] public readonly long EntitiesCount;
+			// 3.22.1b: 128 new bytes here?
+			[FieldOffset(0x850)] public readonly IntPtr ServerData;
+			[FieldOffset(0x858)] public readonly IntPtr entPlayer; // ptr Entity
+			[FieldOffset(0x908)] public readonly IntPtr EntityListHead; // ptr EntityListNode
+			[FieldOffset(0x910)] public readonly long EntitiesCount;
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 		}
 
@@ -1638,6 +1642,13 @@ namespace AtE {
 		public const string THE_ROGUE_HARBOUR = "The Rogue Harbour";
 		public const string HIDEOUT_SUFFIX = "Hideout";
 		public const string SYNDICATE_HIDEOUT = "Syndicate Hideout";
+		public const string ANCESTOR_TOWN = "The Halls of the Dead";
+		public static bool IsHideout(string areaName) {
+			return areaName == null
+					|| areaName.Equals(THE_ROGUE_HARBOUR)
+					// || areaName.Equals(ANCESTOR_TOWN)
+					|| (areaName.EndsWith(HIDEOUT_SUFFIX) && !areaName.Equals(SYNDICATE_HIDEOUT));
+		}
 
 	}
 

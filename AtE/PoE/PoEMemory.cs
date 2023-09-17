@@ -176,13 +176,13 @@ namespace AtE {
 		// eg, we don't currently scan for the file patterns to parse the data files yet
 		// TODO: scan for file base pattern
 
-		internal static bool TryFindPatternInExe(out IntPtr result, string mask, params byte[] pattern) {
+		internal static bool TryFindPatternInExe(out IntPtr result, IntPtr startAddress, IntPtr endAddress, string mask, params byte[] pattern) {
 			result = IntPtr.Zero;
 			if ( mask.Length != pattern.Length ) {
 				throw new ArgumentException("mask and pattern should have the same Length");
 			}
 
-			Log($"PoEMemory: FindPattern of {pattern.Length} bytes");
+			// Log($"PoEMemory: FindPattern of {pattern.Length} bytes");
 
 			if ( !IsValid(Target) ) {
 				ImGui.Text($"PoEMemory: No target.");
@@ -196,15 +196,34 @@ namespace AtE {
 				size = Target.MainModule.ModuleMemorySize;
 				exeImage = new byte[size];
 				ReadProcessMemoryArray(Handle, baseAddress, exeImage);
-				Log($"PoEMemory: Seeking {pattern.Length} byte pattern from {size / (1024 * 1024)}M image (base={baseAddress:X},ms={Time.ElapsedMilliseconds - started}).");
+				Log($"PoEMemory: Reading {size / (1024 * 1024)}M executable image (base={baseAddress:X},ms={Time.ElapsedMilliseconds - started}).");
 			} else {
 				size = exeImage.Length;
 			}
 
-			long offset = 0;
+			if ( pattern.Length > size ) {
+				return false;
+			}
+
+			// convert the input addresses into indexes of the exeImage array we read above (where index 0 == baseAddress)
+			long startOffset = startAddress.ToInt64() - baseAddress.ToInt64();
+			long strictSizeLimit = size - pattern.Length;
+			if( startOffset < 0 ) {
+				startOffset = 0;
+			}
+			if( startOffset > strictSizeLimit ) {
+				return false;
+			}
+
+			long endOffset = endAddress.ToInt64() - baseAddress.ToInt64();
+			if ( endOffset <= 0 || endOffset > strictSizeLimit ) {
+				endOffset = strictSizeLimit;
+			}
+
+			long offset = startOffset;
 			long bestMatch = 0; // this is not the fastest way to search (it takes no shortcuts)
 			long bestMatchScore = 0; // because for debugging, we want to be able to see the near matches
-			for ( ; offset < size - pattern.Length; offset++ ) {
+			for ( ; offset < endOffset; offset++ ) {
 				int thisMatchScore = 0;
 				for ( int i = 0; i < pattern.Length; i++ ) {
 					if ( mask[i] == '?' || exeImage[offset + i] == pattern[i] ) {
@@ -215,7 +234,7 @@ namespace AtE {
 						}
 						if ( thisMatchScore == pattern.Length ) {
 							result = new IntPtr(baseAddress.ToInt64() + offset);
-							Log($"PoEMemory: Found pattern at {Describe(result)}");
+							// Log($"PoEMemory: Found pattern at {Describe(result)}");
 							return true;
 						}
 					} else {
@@ -347,7 +366,7 @@ namespace AtE {
 			}
 
 			// Patterns are based from ExileApi Memory.cs
-			if ( !TryFindPatternInExe(out IntPtr matchAddress, Offsets.GameRoot_SearchMask, Offsets.GameRoot_SearchPattern) ) {
+			if ( !TryFindPatternInExe(out IntPtr matchAddress, IntPtr.Zero, IntPtr.Zero, Offsets.GameRoot_SearchMask, Offsets.GameRoot_SearchPattern) ) {
 				Log($"PoEMemory: Failed to find search pattern in memory.");
 				Detach();
 				return;
@@ -383,7 +402,7 @@ namespace AtE {
 			FileRoots = new Dictionary<string, IntPtr>();
 			OnAreaChange += (_, area) => {
 				Log($"PoEMemory: Searching for Files root address...");
-				if ( IsValid(fileRootMatch) || TryFindPatternInExe(out fileRootMatch, Offsets.FileRoot_SearchMask, Offsets.FileRoot_SearchPattern) ) {
+				if ( IsValid(fileRootMatch) || TryFindPatternInExe(out fileRootMatch, IntPtr.Zero, IntPtr.Zero, Offsets.FileRoot_SearchMask, Offsets.FileRoot_SearchPattern) ) {
 					if( ! IsValid(fileRootMatch) ) {
 						return;
 					}
