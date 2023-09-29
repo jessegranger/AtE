@@ -190,6 +190,7 @@ namespace AtE.Plugins {
 			icon = SpriteIcon.None; // with size = 1f and Icon = None, we only fall through this path scanning once, then assign to ent.MinimapIcon
 			iconSize = 1f; // once that assigns 1f, the next frame will hit the branch above and return ent.MinimapIcon values
 			if ( path.StartsWith("Metadata/Chests") ) {
+				// DrawTextAt(WorldToScreen(Position(ent)), $"Unknown /Chest: {ent.Path}", Color.White);
 				if ( path.Contains("Breach/BreachChest") ) {
 					icon = SpriteIcon.Breach;
 					iconSize = 1.5f;
@@ -209,12 +210,27 @@ namespace AtE.Plugins {
 					} else if ( path.Contains("/DelveAzuriteVeinEncounter") ) {
 						icon = SpriteIcon.None;
 						iconSize = 1f;
-					} else if ( path.Contains("/DelveAzuriteVein") ) {
+					} else if ( path.Contains("AzuriteVein") ) {
 						icon = SpriteIcon.SmallBlueTriangle;
 						iconSize = 1.25f;
+					} else if ( path.Contains("Currency") ) {
+						icon = SpriteIcon.RewardCurrency;
+						iconSize = 1.75f;
+					} else if ( path.Contains("Weapon") ) {
+						icon = SpriteIcon.RewardWeapons;
+						iconSize = 1.75f;
+					} else if ( path.Contains("Resonator") ) {
+						icon = SpriteIcon.PCMapArrow;
+						iconSize = 1.75f;
+					} else if ( path.Contains("Fossil") ) {
+						icon = SpriteIcon.RewardFossils;
+						iconSize = 1.85f;
 					} else if ( path.EndsWith("Essence") ) {
 						icon = SpriteIcon.RewardEssences;
 						iconSize = 1.85f;
+					} else if ( path.Contains("Offering") ) {
+						icon = SpriteIcon.RewardLabyrinth;
+						iconSize = 1.75f;
 					} else if ( path.EndsWith("ShaperItem") ) {
 						icon = SpriteIcon.RewardGenericItems;
 						iconSize = 1.75f;
@@ -271,11 +287,11 @@ namespace AtE.Plugins {
 					}
 				} else {
 					DrawTextAt(WorldToScreen(Position(ent)), $"Unknown /Chest: {ent.Path}", Color.White);
-											return false;
+					return false;
 				}
 			} else {
 				DrawTextAt(WorldToScreen(Position(ent)), $"Unknown Chest: {ent.Path}", Color.White);
-										return false;
+				return false;
 			}
 			// save for 1000ms, then check for opened status etc
 			ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 1000);
