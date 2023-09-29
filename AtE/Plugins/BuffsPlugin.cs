@@ -329,7 +329,11 @@ namespace AtE.Plugins {
 					return this;
 				}
 
-				if ( ui.PurchaseWindow.IsVisibleLocal || ui.SellWindow.IsVisibleLocal || ui.TradeWindow.IsVisibleLocal ) {
+				bool isTrading = (ui.PurchaseWindow?.IsVisibleLocal ?? false)
+					|| (ui.SellWindow?.IsVisibleLocal ?? false)
+					|| (ui.TradeWindow?.IsVisibleLocal ?? false);
+
+				if ( isTrading ) {
 					return this;
 				}
 
@@ -339,7 +343,7 @@ namespace AtE.Plugins {
 				}
 
 				var buffs = player.GetComponent<Buffs>();
-				if( HasBuff(buffs, "grace_period") ) {
+				if( buffs == default || HasBuff(buffs, "grace_period") ) {
 					return this;
 				}
 
