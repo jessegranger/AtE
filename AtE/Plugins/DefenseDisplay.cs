@@ -51,7 +51,7 @@ namespace AtE.Plugins {
 				var p = GetPlayer();
 				if ( IsValid(p) ) {
 					var stats = p.GetComponent<Stats>();
-					foreach ( var entry in stats.Entries.Where( (kv) => kv.Key.ToString().Contains(inputFilter))) {
+					foreach ( var entry in stats.Entries.Where( (kv) => kv.Key.ToString().Contains(inputFilter) || kv.Value.ToString().Contains(inputFilter) )) {
 						ImGui.Text(entry.Key + " = " + entry.Value);
 					}
 				}
@@ -89,7 +89,7 @@ namespace AtE.Plugins {
 			if ( ShowPlayerDefenses ) {
 				var bubble = ui.LifeBubble?.GetClientRect() ?? RectangleF.Empty;
 				if ( bubble != RectangleF.Empty ) {
-					var spot = new Vector2(bubble.X + bubble.Width + 4, bubble.Y + 1);
+					var spot = new Vector2(bubble.X + bubble.Width + 4, bubble.Y - 7);
 					var size = ImGui.GetFontSize() - 1f;
 					var stats = GetPlayer()?.GetComponent<Stats>()?.GetStats();
 					if ( stats != null ) {
@@ -116,6 +116,10 @@ namespace AtE.Plugins {
 						stats.TryGetValue(GameStat.EvasionRating, out int evasionRating);
 						stats.TryGetValue(GameStat.ChanceToEvadePct, out int evadeChance);
 						DrawTextAt(1, spot, $"Evasion:   {evasionRating} ({evadeChance}%)", Color.Cornsilk, size);
+
+						stats.TryGetValue(GameStat.AttackBlockPct, out int attackBlock);
+						stats.TryGetValue(GameStat.SpellBlockPct, out int spellBlock);
+						DrawTextAt(1, spot, $"Block:     {attackBlock}% {spellBlock}%", Color.Cornsilk, size);
 					}
 				}
 
