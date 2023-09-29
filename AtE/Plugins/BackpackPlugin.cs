@@ -127,6 +127,9 @@ namespace AtE.Plugins {
 				if ( OpenStashedDecks && ent.Path.Equals(Offsets.PATH_STACKED_DECK) ) {
 					continue;
 				}
+				if ( ApplyIncubators && ent.Path.StartsWith(Offsets.PATH_INCUBATOR_PREFIX) ) {
+					continue;
+				}
 				tail.Next = OnlyIfStashIsOpen(
 					ifOpen: LeftClickItem(item, 1, null),
 					ifClosed: new KeyUp(Keys.LControlKey, null)
@@ -346,8 +349,36 @@ namespace AtE.Plugins {
 			if ( !ApplyIncubators ) {
 				return next;
 			}
-			// TODO: incubate
-
+			var incubatable = new Stack<InventoryItem>(EquippedItems()
+				.Where(item => 
+					IsValid(item) &&
+					(item.Entity?.GetComponent<Mods>()?.HasIncubator ?? true) == false));
+			Log($"IncubateAll: Incubatable Equipment: {string.Join(" ", incubatable.Select(i => i.Entity.Path.Split('/').Last()))}");
+			if( incubatable.Count > 0 ) {
+				IState start = NewState(() => { }, null);
+				IState tail = start;
+				uint inputLatency = (uint)GetPlugin<CoreSettings>().InputLatency;
+				foreach(var item in BackpackItems() ) {
+					var ent = item.Entity;
+					if( ent.Path.StartsWith(Offsets.PATH_INCUBATOR_PREFIX) ) {
+						int count = ent.GetComponent<Stack>()?.CurSize ?? 0;
+						var itemRect = item.GetClientRect();
+						while( count > 0 && incubatable.Count > 0 ) {
+							tail = tail.Tail();
+							var target = incubatable.Pop();
+							tail.Next = OnlyIfBackpackIsOpen(
+								NewState(() => Notify($"Incubating {ent.Path.Split('/').Last()} into {target.Entity.Path.Split('/').Last()}"),
+								new RightClickAt(item.GetClientRect(), inputLatency,
+								new LeftClickAt(target.GetClientRect(), inputLatency, 1,
+								null))),
+								ifClosed: null
+							);
+							count -= 1;
+						}
+					}
+				}
+				return start;
+			}
 			return next;
 		}
 
