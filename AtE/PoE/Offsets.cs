@@ -41,6 +41,18 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Vector2i {
 			[FieldOffset(0x0)] public readonly int X;
 			[FieldOffset(0x4)] public readonly int Y;
+			public Vector2i(int x, int y) {
+				X = x;
+				Y = y;
+			}
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Vector2u {
+			[FieldOffset(0x0)] public readonly uint X;
+			[FieldOffset(0x4)] public readonly uint Y;
+			public Vector2u(uint x, uint y) {
+				X = x;
+				Y = y;
+			}
 		}
 
 		// the PoE engine sometimes stores a string in this format that is either
@@ -360,8 +372,8 @@ namespace AtE {
 			public bool IsTown => IsTownByte == 1;
 			[FieldOffset(0x15)] public readonly byte HasWaypointByte;
 			public bool HasWaypoint => HasWaypointByte == 1;
-			[FieldOffset(0x26)] public readonly int MonsterLevel;
-			[FieldOffset(0x2A)] public readonly int WorldAreaId;
+			[FieldOffset(0x26)] public readonly uint MonsterLevel;
+			[FieldOffset(0x2A)] public readonly uint WorldAreaId;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Camera {
@@ -649,7 +661,7 @@ namespace AtE {
 			[FieldOffset(0x8)] public readonly IntPtr entOwner;
 			[FieldOffset(0x188)] public readonly int ReservedFlatHP;
 			[FieldOffset(0x18c)] public readonly int ReservedPercentHP;
-			[FieldOffset(0x1a0)] public readonly float CurHPRegen;
+			[FieldOffset(0x19c)] public readonly float CurHPRegen;
 			[FieldOffset(0x1a4)] public readonly int MaxHP;
 			[FieldOffset(0x1a8)] public readonly int CurHP;
 
@@ -1158,11 +1170,22 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Pathfinding {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x2C)] public readonly Vector2i ClickToNextPosition;
-			[FieldOffset(0x34)] public readonly Vector2i WasInThisPosition;
-			[FieldOffset(0x470)] public readonly byte IsMoving; // movement type flags, 2 = moving directly (no pathfinding needed)
-			[FieldOffset(0x548)] public readonly Vector2i WantMoveToPosition;
-			[FieldOffset(0x554)] public readonly float StayTime;
+			// 3.22.1c: 168 new bytes here
+			[FieldOffset(0xD4)] public readonly Vector2i ClickToNextPosition;
+			[FieldOffset(0xdc)] public readonly Vector2i WasInThisPosition;
+			// really, the above two Vector2u are the final two hops in whatever the last path was
+			// following them, are all the other steps if the path was longer
+			// so like, a 10 step path will have steps 9 and 10 at offsets 0xD4 and 0xDC like above
+			// and then step 7 will be 0xE4
+			// step 6 at 0xEC and so on, in "reverse" order
+			// i.o.w, when their path search ends, they unroll the path from back to front, appending to an array that starts at 0xD4
+			// the problem as of today is that they dont clean up this array between searches
+			// and pointer to the "highest" valid element is missing as of yet (should be a count or a pointer somewhere)
+
+			[FieldOffset(0x518)] public readonly byte IsMoving; // movement type flags, 2 = moving directly (no pathfinding needed)
+			// 3.22.1c: 160 fewer bytes here
+			[FieldOffset(0x550)] public readonly Vector2i WantMoveToPosition;
+			[FieldOffset(0x55c)] public readonly float StayTime;
 
 		}
 
