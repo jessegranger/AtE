@@ -300,6 +300,8 @@ namespace AtE {
 		private string areaName = null;
 		public string AreaName => areaName ?? (PoEMemory.TryReadString(AreaDetails.Value.strName, Encoding.Unicode, out areaName) ? areaName : null);
 
+		public uint AreaId => AreaDetails.Value.WorldAreaId;
+
 		// TODO: won't work in non-English
 		public bool IsHideout => AreaName.Contains("Hideout");
 	}
@@ -325,6 +327,7 @@ namespace AtE {
 			*/
 			return GetCamera().WorldToScreen(pos);
 		}
+		public static Vector2 GridToScreen(Offsets.Vector2i pos, float z = 0) => WorldToScreen(Offsets.GridToWorld(pos, z));
 		public static void DrawTextAt(Vector3 pos, string text, Color color) => DrawTextAt(WorldToScreen(pos), text, color);
 
 		public static bool IsValid(GameRoot state) => state != null && state.IsValid;
