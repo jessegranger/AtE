@@ -58,7 +58,17 @@ namespace AtE {
 				: life.MaxHP - life.TotalReservedHP) : 0;
 		public static bool IsMissingEHP(Entity ent, float pct = .10f, bool petrified = false) {
 			var life = ent?.GetComponent<Life>();
-			return IsAlive(life) && CurrentEHP(life) < MaxEHP(life, petrified) * (1.0f - pct);
+			var ehp = CurrentEHP(life);
+			var max = MaxEHP(life, petrified) * (1.0f - pct);
+			if ( !IsAlive(life) ) {
+				return false;
+			}
+
+			if ( ehp < max ) {
+				// Log($"Missing EHP: {ehp} > {max} (petrified:{petrified})");
+				return true;
+			}
+			return false;
 		}
 		public static bool IsFullEHP(Life life, bool petrified = false) => IsValid(life) 
 			? CurrentEHP(life) == MaxEHP(life, petrified) : false;
@@ -300,12 +310,15 @@ namespace AtE {
 		private static int buffsOffset = GetOffset<Offsets.Component_Buffs>("Buffs");
 
 		// from that arrayhandle we will get this array of ptr to the active buffs
-		private IntPtr[] buffPtrs;
+		public IntPtr[] buffPtrs;
 		// this cached reader lets us read the real current arrayhandle from PoE memory once per frame per entity
-		private Cached<Offsets.ArrayHandle> currentHandle;
+		public Cached<Offsets.ArrayHandle> currentHandle;
 		// this copy of the arrayhandle is saved so it can be compared
 		// if they dont match, we re-parse the whole buffs array
-		private Offsets.ArrayHandle lastKnownHandle;
+		public Offsets.ArrayHandle lastKnownHandle;
+		// also refresh them every 1 second, in case the buffs change but the array pointers dont
+		public long lastRefresh;
+
 		// if HasBuff() is called once, we memoize all the strings here for future calls
 		private HashSet<string> buffCache;
 
@@ -314,18 +327,27 @@ namespace AtE {
 		}
 
 		private bool UpdateBuffPtrs() {
+
+			long timeSinceRefresh = Time.ElapsedMilliseconds - lastRefresh;
+
+			// skip buff updates if the array pointers haven't changed in the last second
 			var buffsArray = currentHandle.Value;
-			if ( buffsArray.Head == lastKnownHandle.Head && buffsArray.Tail == lastKnownHandle.Tail ) {
+			if ( timeSinceRefresh < 1000 && buffsArray.Head == lastKnownHandle.Head && buffsArray.Tail == lastKnownHandle.Tail ) {
 				return true;
 			}
+
+			// reject updates that claim to have too many buffs
 			int count = buffsArray.ItemCount(8); // sizeof(IntPtr)
 			if ( count < 0 || count > 500 ) {
 				Log($"Rejecting corrupt(?) buffs data with {count} elements.");
 				return false;
 			}
+
+			// do the refresh
 			lastKnownHandle = buffsArray;
 			buffPtrs = new IntPtr[count];
 			buffCache = null;
+			lastRefresh = Time.ElapsedMilliseconds;
 			if ( count > 0 ) {
 				if ( 0 == PoEMemory.TryRead(buffsArray.Head, buffPtrs) ) {
 					Log($"Failed to read buffs data from {Describe(buffsArray.Head)}");
@@ -352,7 +374,10 @@ namespace AtE {
 			}
 		}
 
-		public IEnumerable<Buff> GetBuffs() => buffPtrs?.Select(ptr => new Buff() { Address = ptr }) ?? Empty<Buff>();
+		public IEnumerable<Buff> GetBuffs() {
+			UpdateBuffPtrs();
+			return buffPtrs?.Select(ptr => new Buff() { Address = ptr }) ?? Empty<Buff>();
+		}
 
 		public bool HasBuff(string buffName) {
 			if( !IsValid(Address) ) {
@@ -372,6 +397,8 @@ namespace AtE {
 
 		public bool TryGetBuffValue(string buffName, out int value) {
 			value = 0;
+			// check if the buff array size changed, and if so, re-parse it
+			UpdateBuffPtrs();
 			if( buffPtrs == null ) {
 				return false;
 			}
@@ -383,11 +410,6 @@ namespace AtE {
 				return true;
 			}
 			return false;
-		}
-
-		internal void Invalidate() {
-			lastKnownHandle.Head = IntPtr.Zero;
-			lastKnownHandle.Tail = IntPtr.Zero;
 		}
 
 	}
@@ -416,7 +438,6 @@ namespace AtE {
 		public int Max => Details.Value.Max;
 		public int PerUse => Details.Value.PerUse;
 	}
-
 
 	public class Chest : Component<Offsets.Component_Chest> {
 		public Cached<Offsets.StrongboxDetails> Details;
@@ -708,7 +729,7 @@ namespace AtE {
 				stats = new Dictionary<Offsets.GameStat, int>();
 				lastStatsTime = Time.ElapsedTicks;
 				foreach ( var entry in Entries ) {
-					if( entry.Key <= 0 || entry.Key > Offsets.GameStat.UnknownStat18976 ) {
+					if( entry.Key <= 0 || entry.Key > Offsets.GameStat.DisplayTattooGrantsRandomKeystone ) {
 						Log($"Invalid Stats key {entry.Key} value {entry.Value}");
 						break; // invalid data in the Entries
 					}
