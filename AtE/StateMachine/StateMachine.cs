@@ -77,7 +77,7 @@ namespace AtE {
 				// replace the state
 				if ( gotoState != curState ) {
 					gotoState = gotoState.OnEnter();
-					Log($"State Changed: {curState.Name} to {gotoState.Name}");
+					// Log($"State Changed: {curState.Name} to {gotoState.Name}");
 					curState.Next = null; // remove the forward reference from the old state, just in case
 					curNode.Value = gotoState; // often, gotoState has captured it anyway, and brings it back, but that's up to the States
 					// fall through to continue
