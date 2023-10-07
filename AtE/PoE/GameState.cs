@@ -190,14 +190,15 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( IsDisposed ) return null;
 
+			/*
 			// Experiment: once each frame, forcefully invalidate the player's buff cache
 			PlayerEntity p = GetPlayer();
 			if( IsValid(p) ) {
 				p.GetComponent<Buffs>()?.Invalidate();
 			}
+			*/
 
-			// DrawBottomLeftText($"{PoEMemory.GameRoot.InGameState.Hovered?}");
-
+			/*
 			if ( false ) {
 				ImGui.Begin("Entities");
 				try {
@@ -229,6 +230,7 @@ namespace AtE {
 					ImGui.End();
 				}
 			}
+			*/
 
 			/* How to debug UI Elements offsets:
 			ImGui.Begin("UI Elements");
@@ -267,6 +269,7 @@ namespace AtE {
 				}
 			}
 			*/
+
 			return base.OnTick(dt);
 		}
 
@@ -290,10 +293,15 @@ namespace AtE {
 	public class WorldData : MemoryObject<Offsets.WorldData> {
 		public Offsets.Camera Camera => Cache.Camera;
 		public Cached<Offsets.WorldAreaDetails> AreaDetails;
-		public WorldData() : base() => AreaDetails = CachedStruct<Offsets.WorldAreaDetails>(
-			() => PoEMemory.TryRead(Cache.ptrToWorldAreaRef, out Offsets.WorldAreaRef ptr)
-				? ptr.ptrToWorldAreaDetails : IntPtr.Zero
-			);
+		public Cached<Offsets.WorldAreaRef> AreaRef;
+		public WorldData() : base() {
+			AreaRef = CachedStruct<Offsets.WorldAreaRef>(() => Cache.ptrToWorldAreaRef);
+			AreaDetails = CachedStruct<Offsets.WorldAreaDetails>(() => AreaRef.Value.ptrToWorldAreaDetails);
+
+				// PoEMemory.TryRead(Cache.ptrToWorldAreaRef, out Offsets.WorldAreaRef ptr)
+					// ? ptr.ptrToWorldAreaDetails : IntPtr.Zero
+			// );
+		}
 
 		public bool IsTown => AreaDetails.Value.IsTown;
 
@@ -301,6 +309,7 @@ namespace AtE {
 		public string AreaName => areaName ?? (PoEMemory.TryReadString(AreaDetails.Value.strName, Encoding.Unicode, out areaName) ? areaName : null);
 
 		public uint AreaId => AreaDetails.Value.WorldAreaId;
+		public uint AreaHash => AreaRef.Value.areaHash;
 
 		// TODO: won't work in non-English
 		public bool IsHideout => AreaName.Contains("Hideout");
