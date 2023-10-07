@@ -27,8 +27,19 @@ namespace AtE {
 			seen.Add(hash);
 
 			if ( type.IsArray ) {
-				object[] array = (object[])value;
-				// if ( ImGui.BeginChild(id + "_array", new Vector2(-1f, 200f), false, ImGuiWindowFlags.AlwaysAutoResize) ) {
+				var elemType = type.GetElementType();
+				if ( elemType == typeof(IntPtr) ) {
+					IntPtr[] ptrs = (IntPtr[])value;
+					for ( int i = 0; i < ptrs.Length; i++ ) {
+						var item = ptrs[i];
+						nextLabel = $"[{i}]";
+						if ( ImGui_ObjectLabel(id, nextLabel, item, seen) ) {
+							ImGui_Object(id, $"[{i}]", item, seen);
+							ImGui_ObjectLabelPop();
+						}
+					}
+				} else {
+					object[] array = (object[])value;
 					for ( int i = 0; i < array.Length; i++ ) {
 						var item = array[i];
 						nextLabel = $"{label}[{i}]";
@@ -37,8 +48,7 @@ namespace AtE {
 							ImGui_ObjectLabelPop();
 						}
 					}
-					// ImGui.EndChild();
-				// }
+				}
 				return;
 			}
 
@@ -131,8 +141,14 @@ namespace AtE {
 			}
 
 			if ( type.IsArray ) {
-				object[] array = (object[])value;
-				return ImGui.TreeNode($"{prefix} [{array.Length} items]##{id}");
+				var elemType = type.GetElementType();
+				if ( elemType == typeof(IntPtr) ) {
+					IntPtr[] ptrs = (IntPtr[])value;
+					return ImGui.TreeNode($"{prefix} [{ptrs.Length} items]##{id}");
+				} else {
+					object[] array = (object[])value;
+					return ImGui.TreeNode($"{prefix} [{array.Length} items]##{id}");
+				}
 			}
 
 			if ( type.Equals(typeof(Offsets.ArrayHandle)) ) {
