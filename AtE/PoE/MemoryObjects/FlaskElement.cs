@@ -20,7 +20,9 @@ namespace AtE {
 		public int FlaskIndex;
 
 		// TODO: re-use a FlaskEntity if address didn't change, but FlaskEntity.Charges_Cur needs updated first
-		public FlaskEntity Entity => IsValid(Address) && EntityCache.TryGetEntity(Details.Value.entItem, out Entity ent) ? new FlaskEntity(ent, FlaskIndex) : null;
+		public FlaskEntity Entity => IsValid(Address) 
+			&& EntityCache.TryGetEntity(Details.Value.entItem, out Entity ent)
+			? new FlaskEntity(ent, FlaskIndex) : null;
 		public IntPtr ItemPtr => Details.Value.entItem; // sometimes this ptr fails to read, it ends up pointing somewhere our Handle isnt authorized? rarely
 	}
 
@@ -64,6 +66,8 @@ namespace AtE {
 		public int FlaskIndex = -1;
 		public Keys Key => Valid && (FlaskIndex >= 0 && FlaskIndex < 5) ? (Keys.D1 + FlaskIndex) : Keys.None;
 
+		private static bool debugOnce = true;
+
 		public FlaskEntity(Entity ent, int flaskIndex) {
 			if ( !IsValid(ent) ) {
 				return;
@@ -72,8 +76,21 @@ namespace AtE {
 			realEnt = ent;
 
 			var charges = ent.GetComponent<Charges>();
-			if( charges == null ) { // not a valid flask entity
+			if( !IsValid(charges) ) { // not a valid flask entity
 				return;
+			}
+			if( charges.Cache.entOwner != ent.Address ) {
+				Log($"Charges component appears corrupt, entOwner {charges.Cache.entOwner.ToInt64():X} != ent {ent.Address.ToInt64():X}, attempting repair...");
+				ent.ClearComponents(); // force the Components map to re-parse at next call to GetComponent
+				charges = ent.GetComponent<Charges>();
+				if( charges.Cache.entOwner != ent.Address ) {
+					if ( debugOnce ) {
+						Log($"Charges component appears corrupt, entOwner {charges.Cache.entOwner.ToInt64():X} != ent {ent.Address.ToInt64():X}");
+						// Run(new Debugger(charges.Address).usingStructLabelsFrom("Component_Charges"));
+						debugOnce = false;
+					}
+					return;
+				}
 			}
 			realCharges = charges;
 
