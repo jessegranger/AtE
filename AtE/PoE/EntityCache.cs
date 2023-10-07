@@ -57,7 +57,7 @@ namespace AtE {
 				using ( Perf.Section("EntityThread Idle") ) {
 					// do nothing if not attached
 					if ( !PoEMemory.IsAttached ) {
-						Thread.Sleep(3000); // wait 3 seconds
+						Thread.Sleep(9000);
 						continue; // check again
 					} else {
 						// use FrameLock to make sure we dont advance any faster than the main frame rate
