@@ -61,6 +61,10 @@ namespace AtE {
 
 	public class Entity : MemoryObject<Offsets.Entity> {
 		public Cached<Offsets.EntityDetails> Details;
+		// maps the Type (of a Component) to the Address of that Component instance for this Entity
+		private Dictionary<string, IntPtr> ComponentPtrs; // we have to parse this all at once
+		private Dictionary<string, MemoryObject> ComponentCache; // these are filled in as requested, then re-used if requested a second time
+
 		public Entity() : base() {
 			Details = CachedStruct<Offsets.EntityDetails>(() => Cache.ptrDetails);
 		}
@@ -129,8 +133,7 @@ namespace AtE {
 			}
 			if ( ComponentPtrs == null ) {
 				// all the above failed to parse any ptrs, so there are no components
-				ComponentCache?.Clear();
-				ComponentCache = null;
+				ClearComponents();
 				return null;
 			}
 
@@ -153,26 +156,30 @@ namespace AtE {
 
 		public IEnumerable<string> GetComponentNames() => ComponentPtrs?.Keys ?? Empty<string>();
 
-		// maps the Type (of a Component) to the Address of that Component instance for this Entity
-		private Dictionary<string, IntPtr> ComponentPtrs; // we have to parse this all at once
-		private Dictionary<string, MemoryObject> ComponentCache; // these are filled in as requested, then re-used if requested a second time
 		private void UpdateParsedIndex(string name, IntPtr addr) {
 			if ( IsValid(addr) ) {
 				ComponentPtrs.Add(name, addr);
 			}
 		}
 
+		public void ClearComponents() {
+			ComponentPtrs = null;
+			ComponentCache?.Clear();
+			ComponentCache = null;
+		}
 		private void ParseComponents() {
 
 			using ( Perf.Section("ParseComponents") ) {
 				ComponentPtrs = new Dictionary<string, IntPtr>();
-				// the entity has a list of ptr to Component
-				// managed by an ArrayHandle at ComponentsArray
+				// the entity has a list of ptr to Component managed by an ArrayHandle at ComponentsArray
+				// this is basically the .Values element of the ComponentMap
 				var entityComponents = new ArrayHandle<IntPtr>(Cache.ComponentsArray)
 					.ToArray(limit: 50); // if it claims to have more than 50 components, its corrupt data
 				if ( entityComponents.Length == 0 ) {
 					return;
 				}
+
+				// stored separately, is the control structure of the ComponentMap, called a ComponentLookup
 				if ( !PoEMemory.TryRead(Details.Value.ptrComponentLookup, out Offsets.ComponentLookup lookup) ) {
 					return;
 				}
@@ -305,6 +312,7 @@ namespace AtE {
 		public Life Life => GetComponent<Life>();
 
 		public Stats Stats => GetComponent<Stats>();
+		public Animated Animated => GetComponent<Animated>();
 
 		/// <summary>
 		/// Where to find data about your Skills, and the DeployedObjects they create.
