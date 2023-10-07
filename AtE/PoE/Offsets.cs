@@ -26,7 +26,7 @@ namespace AtE {
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.21.1";
+		public const string PoEVersion = "3.22.1c";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -39,19 +39,27 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Vector2i {
+			[FieldOffset(0x0)] public readonly long Id;
 			[FieldOffset(0x0)] public readonly int X;
+			[FieldOffset(0x0)] public readonly uint uX;
 			[FieldOffset(0x4)] public readonly int Y;
+			[FieldOffset(0x4)] public readonly uint uY;
 			public Vector2i(int x, int y) {
+				Id = uX = uY = 0;
 				X = x;
 				Y = y;
 			}
-		}
-		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Vector2u {
-			[FieldOffset(0x0)] public readonly uint X;
-			[FieldOffset(0x4)] public readonly uint Y;
-			public Vector2u(uint x, uint y) {
-				X = x;
-				Y = y;
+
+			public Vector2i(uint x, uint y) {
+				Id = X = Y = 0;
+				uX = x;
+				uY = y;
+			}
+
+			public Vector2i(long id) {
+				X = Y = 0;
+				uX = uY = 0;
+				Id = id;
 			}
 		}
 
@@ -362,6 +370,8 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaRef {
 			[FieldOffset(0x88)] public readonly IntPtr ptrToWorldAreaDetails;
+			[FieldOffset(0x90)] public readonly IntPtr ptrUnk90;
+			[FieldOffset(0xec)] public readonly uint areaHash;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaDetails {
@@ -374,6 +384,13 @@ namespace AtE {
 			public bool HasWaypoint => HasWaypointByte == 1;
 			[FieldOffset(0x26)] public readonly uint MonsterLevel;
 			[FieldOffset(0x2A)] public readonly uint WorldAreaId;
+			/* true but useless:
+			[FieldOffset(0x36)] public readonly IntPtr strTextureLoadingImage;
+			[FieldOffset(0x3e)] public readonly IntPtr ptrQuestData;
+			[FieldOffset(0x46)] public readonly IntPtr ptrQuestDataFile;
+			[FieldOffset(0x6a)] public readonly IntPtr ptrUnk6a;
+			[FieldOffset(0x72)] public readonly IntPtr ptrWorldAreaDetailsOfNearbyTown;
+			*/
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Camera {
@@ -1246,7 +1263,7 @@ namespace AtE {
 			return new Vector3(
 				gridCenter + (gridPos.X / gridScale),
 				gridCenter + (gridPos.Y / gridScale),
-				z
+				z + 80f
 			);
 		}
 
