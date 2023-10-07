@@ -125,6 +125,9 @@ namespace AtE.Plugins {
 					ImGui.End();
 				}
 				if ( path.StartsWith("Metadata/Chest") ) {
+			ImGui.Begin("Player Buffs");
+			ImGui_Object("Buffs", "Buffs", GetPlayer()?.GetComponent<Buffs>(), new HashSet<int>());
+			ImGui.End();
 					// ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
 					ImGui.Begin($"Unknown Box##{ent.Id}");
 					ImGui_Object($"Box##{ent.Id}", "Box", ent, new HashSet<int>());
@@ -216,6 +219,9 @@ namespace AtE.Plugins {
 					} else if ( path.Contains("Currency") ) {
 						icon = SpriteIcon.RewardCurrency;
 						iconSize = 1.75f;
+					} else if ( path.Contains("Trinkets") ) {
+						icon = SpriteIcon.RewardJewellery;
+						iconSize = 1.75f;
 					} else if ( path.Contains("Weapon") ) {
 						icon = SpriteIcon.RewardWeapons;
 						iconSize = 1.75f;
@@ -227,12 +233,18 @@ namespace AtE.Plugins {
 						iconSize = 1.85f;
 					} else if ( path.EndsWith("Essence") ) {
 						icon = SpriteIcon.RewardEssences;
-						iconSize = 1.85f;
+						iconSize = 1.95f;
 					} else if ( path.Contains("Offering") ) {
 						icon = SpriteIcon.RewardLabyrinth;
 						iconSize = 1.75f;
 					} else if ( path.EndsWith("ShaperItem") ) {
 						icon = SpriteIcon.RewardGenericItems;
+						iconSize = 1.75f;
+					} else if ( path.Contains("Flares") ) {
+						icon = SpriteIcon.SmallYellowTriangle;
+						iconSize = 1.75f;
+					} else if ( path.Contains("SuppliesDynamite") ) {
+						icon = SpriteIcon.SmallRedTriangle;
 						iconSize = 1.75f;
 					}
 				} else if ( path.StartsWith("Metadata/Chests/IncursionChest") ) {
