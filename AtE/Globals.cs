@@ -91,7 +91,7 @@ namespace AtE {
 				 .GetCustomAttribute<FieldOffsetAttribute>()
 				 .Value;
 
-		public static void Log(params string[] line) => Debug.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] " + string.Join(" ", line));
+		public static void Log(params string[] line) => Debug.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}:{Time.Elapsed}] " + string.Join(" ", line));
 
 		public static EventHandler<string> OnAreaChange;
 
