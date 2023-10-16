@@ -55,16 +55,6 @@ namespace AtE {
 		public bool ShowMouseCoords = false;
 		public HotKey ResetZoneSecretKey = new HotKey(Keys.None);
 
-		private Queue<State> RunningInputs = new Queue<State>();
-		private void RunNextInput() {
-			State next = RunningInputs.Dequeue();
-		}
-		private void QueueAlsoCastInput(Keys key) {
-			// the auto cast input keys have to be a little careful that they dont send at the exact same time
-			State next = new PressKey(key, (uint)GetPlugin<CoreSettings>().InputLatency, null);
-
-		}
-
 		public override void Render() {
 			base.Render();
 
