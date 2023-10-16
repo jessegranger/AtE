@@ -328,17 +328,17 @@ namespace AtE.Plugins {
 		public static IEnumerable<InventoryItem> EquippedItems() {
 			var root = GetUI()?.InventoryPanel;
 			if ( !IsValid(root) ) yield break;
-			yield return root.Helm.VisibleItems.FirstOrDefault();
-			yield return root.Amulet.VisibleItems.FirstOrDefault();
-			yield return root.Chest.VisibleItems.FirstOrDefault();
-			yield return root.LWeapon.VisibleItems.FirstOrDefault();
-			yield return root.RWeapon.VisibleItems.FirstOrDefault();
-			yield return root.LRing.VisibleItems.FirstOrDefault();
-			yield return root.RRing.VisibleItems.FirstOrDefault();
-			yield return root.Gloves.VisibleItems.FirstOrDefault();
-			yield return root.Belt.VisibleItems.FirstOrDefault();
-			yield return root.Boots.VisibleItems.FirstOrDefault();
-			yield return root.Trinket.VisibleItems.FirstOrDefault();
+			yield return root.Helm?.VisibleItems.FirstOrDefault();
+			yield return root.Amulet?.VisibleItems.FirstOrDefault();
+			yield return root.Chest?.VisibleItems.FirstOrDefault();
+			yield return root.LWeapon?.VisibleItems.FirstOrDefault();
+			yield return root.RWeapon?.VisibleItems.FirstOrDefault();
+			yield return root.LRing?.VisibleItems.FirstOrDefault();
+			yield return root.RRing?.VisibleItems.FirstOrDefault();
+			yield return root.Gloves?.VisibleItems.FirstOrDefault();
+			yield return root.Belt?.VisibleItems.FirstOrDefault();
+			yield return root.Boots?.VisibleItems.FirstOrDefault();
+			yield return root.Trinket?.VisibleItems.FirstOrDefault();
 		}
 
 		private IState PlanIncubateAll(IState next) {
@@ -399,6 +399,16 @@ namespace AtE.Plugins {
 						DrawCircle(freeSlot, 8, Color.Yellow);
 
 					}
+
+					ImGui.Begin("Debug IncubateAll");
+					var incubatable = BackpackItems().Where(IsValid);
+					foreach(var item in incubatable) {
+						var ent = item.Entity;
+						var mods = ent.GetComponent<Mods>();
+						ImGui.Text($"Item #{ent.Id} [ {ent.Path} ]");
+						ImGui_Object($"Mods##{ent.Id}", $"Mods##{ent.Id}", mods, new HashSet<int>());
+					}
+					ImGui.End();
 				}
 
 				if( PoEMemory.TargetHasFocus && DumpKey.IsReleased ) {
