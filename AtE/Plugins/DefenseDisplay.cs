@@ -29,6 +29,7 @@ namespace AtE.Plugins {
 		public bool ShowHighestCorpseLife = false;
 
 		private bool ShowStatDebugControls = false;
+		private bool ShowEnemyComponents = false;
 
 		/// <summary>
 		/// Uses ImGui to render controls for configurable fields.
@@ -42,6 +43,7 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("Show Enemy Lightning", ref ShowEnemyResistLightning);
 			ImGui.Checkbox("Show Highest Corpse Life", ref ShowHighestCorpseLife);
 			ImGui.Separator();
+			ImGui.Checkbox("Debug Enemy Components", ref ShowEnemyComponents);
 			ImGui.Checkbox("Debug Game Stats", ref ShowStatDebugControls);
 			if ( ShowStatDebugControls ) {
 				ImGui.BeginListBox("", new Vector2(-1, -2));
@@ -123,7 +125,7 @@ namespace AtE.Plugins {
 					}
 				}
 
-				if ( ShowEnemyResistChaos || ShowEnemyResistCold || ShowEnemyResistFire || ShowEnemyResistLightning || ShowEnemyWitherStacks || ShowEnemyPoisonStacks || ShowHighestCorpseLife ) {
+				if ( ShowEnemyComponents || ShowEnemyResistChaos || ShowEnemyResistCold || ShowEnemyResistFire || ShowEnemyResistLightning || ShowEnemyWitherStacks || ShowEnemyPoisonStacks || ShowHighestCorpseLife ) {
 					float maxCorpseLife = 0;
 					Vector3 maxCorpseLocation = Vector3.Zero;
 					var player = GetPlayer();
@@ -138,7 +140,21 @@ namespace AtE.Plugins {
 						}
 
 						bool isAlive = IsAlive(ent);
-						if ( isAlive && IsHostile(ent) ) {
+						bool isHostile = IsHostile(ent);
+						if( ShowEnemyComponents && isHostile && isAlive ) {
+							var actor = ent.GetComponent<Actor>();
+							if( actor != null ) {
+								var action = actor.CurrentAction;
+								var textPos = WorldToScreen(Position(ent));
+								DrawTextAt(ent.Id, textPos, $"Animation: {actor.AnimationId} {actor.ActionFlags}", Color.White);
+								if( action != null ) {
+									DrawTextAt(ent.Id, textPos,
+										$"Action: {action.Skill} at {action.Destination} target {(IsValid(action.Target) ? "valid" : "invalid")}",
+										Color.White);
+								}
+							}
+						}
+						if ( isAlive && isHostile ) {
 							var s = ent.GetComponent<Stats>()?.GetStats();
 							if ( s != null ) {
 								var str = "";
