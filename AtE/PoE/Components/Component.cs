@@ -521,7 +521,7 @@ namespace AtE {
 
 	public class Mods : Component<Offsets.Component_Mods> {
 		public Cached<Offsets.ModStats> Stats;
-		public Mods() : base() => Stats = CachedStruct<Offsets.ModStats>(() => Address);
+		public Mods() : base() => Stats = CachedStruct<Offsets.ModStats>(() => Cache.ModStats);
 
 		public bool IsIdentified => Cache.Identified;
 		public Offsets.ItemRarity Rarity => Cache.ItemRarity;
