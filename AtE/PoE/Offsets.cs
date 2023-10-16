@@ -481,9 +481,8 @@ namespace AtE {
 
 			[FieldOffset(0x628)] public readonly IntPtr ItemsOnGroundLabelElement;
 			[FieldOffset(0x640)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
-			[FieldOffset(0x6A8)] public readonly IntPtr RootBuffPanel;
-
-			[FieldOffset(0x6B0)] public readonly IntPtr NpcDialog;
+			[FieldOffset(0x6B0)] public readonly IntPtr RootBuffPanel;
+			[FieldOffset(0x6B8)] public readonly IntPtr NpcDialog;
 			// [FieldOffset(0x718)] public readonly IntPtr LeagueNpcDialog;
 			// [FieldOffset(0x720)] public readonly IntPtr LeagueInteractButtonPanel;
 			// [FieldOffset(0x728)] public readonly IntPtr QuestRewardWindow;
@@ -700,10 +699,11 @@ namespace AtE {
 		// Actor members:
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Actor {
 			[FieldOffset(0x008)] public readonly IntPtr entOwner; // Entity
-			[FieldOffset(0x1A8)] public readonly IntPtr ptrAction; // ptr Component_Actor_Action
-			[FieldOffset(0x208)] public readonly Component_ActionFlags ActionFlags;
+			// 3.22.1c: 8 new bytes here
+			[FieldOffset(0x1B0)] public readonly IntPtr ptrAction; // ptr Component_Actor_Action
+			[FieldOffset(0x210)] public readonly Component_ActionFlags ActionFlags;
 
-			[FieldOffset(0x234)] public readonly int AnimationId;
+			[FieldOffset(0x23c)] public readonly int AnimationId;
 
 			// TODO: consider reading on demand
 			// Crucible: 48 new bytes here
@@ -883,7 +883,8 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Animated {
 			[FieldOffset(0x008)] public readonly IntPtr entOwner;
-			[FieldOffset(0x1E8)] public readonly IntPtr ptrToAnimatedEntity;
+			// 3.22.1c: 72 new bytes here?
+			[FieldOffset(0x230)] public readonly IntPtr ptrToAnimatedEntity;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_AreaTransition {
@@ -1085,16 +1086,20 @@ namespace AtE {
 			[FieldOffset(0x0D8)] public readonly ArrayHandle ExplicitModsArray; // of ItemModEntry
 			[FieldOffset(0x0F0)] public readonly ArrayHandle EnchantedModsArray; // of ItemModEntry
 			[FieldOffset(0x108)] public readonly ArrayHandle ScourgeModsArray; // of ItemModEntry
-			[FieldOffset(0x1F8)] public readonly IntPtr ModStats;
+			// 3.22.1c: 24 new bytes here
+			[FieldOffset(0x210)] public readonly IntPtr ModStats;
 			// Crucible: some new 32 bytes added in here
 			[FieldOffset(0x240)] public readonly uint ItemLevel;
 			[FieldOffset(0x244)] public readonly uint RequiredLevel;
-			[FieldOffset(0x248)] public readonly IntPtr ptrIncubator; // ptr to IncubatorEntry
-			[FieldOffset(0x258)] public readonly short IncubatorKillCount;
-			[FieldOffset(0x25D)] public readonly byte IsMirrored;
-			[FieldOffset(0x25E)] public readonly byte IsSplit;
-			[FieldOffset(0x25F)] public readonly byte IsUsable;
-			[FieldOffset(0x261)] public readonly byte IsSynthesised;
+			// 3.22.1c: 8 new bytes here
+			[FieldOffset(0x250)] public readonly IntPtr ptrIncubator; // ptr to IncubatorEntry
+			[FieldOffset(0x260)] public readonly short IncubatorKillCount;
+			// 3.22.1c: 1 new bytes here
+			[FieldOffset(0x266)] public readonly byte IsMirrored;
+			[FieldOffset(0x267)] public readonly byte IsSplit;
+			[FieldOffset(0x268)] public readonly byte IsUsable;
+			// 3.22.1c: 1 new bytes here
+			[FieldOffset(0x26b)] public readonly byte IsSynthesised;
 
 			// public const int ItemModRecordSize = 0x38;
 			// public const int NameOffset = 0x04;
