@@ -353,32 +353,36 @@ namespace AtE.Plugins {
 				.Where(item => 
 					IsValid(item) &&
 					(item.Entity?.GetComponent<Mods>()?.HasIncubator ?? true) == false));
+			var incubators = BackpackItems().Where((ent) => ent?.Entity?.Path?.StartsWith(Offsets.PATH_INCUBATOR_PREFIX) ?? false).ToArray();
+
+			Log($"IncubateAll: Incubators: {string.Join(" ", incubators.Select(i => i.Entity.Path.Split('/').Last()))}"); 
 			Log($"IncubateAll: Incubatable Equipment: {string.Join(" ", incubatable.Select(i => i.Entity.Path.Split('/').Last()))}");
-			if( incubatable.Count > 0 ) {
+			if( incubatable.Count > 0 && incubators.Count() > 0 ) {
 				IState start = NewState(() => { }, null);
 				IState tail = start;
 				uint inputLatency = (uint)GetPlugin<CoreSettings>().InputLatency;
-				foreach(var item in BackpackItems() ) {
+				foreach(var item in incubators) {
 					var ent = item.Entity;
-					if( ent.Path.StartsWith(Offsets.PATH_INCUBATOR_PREFIX) ) {
-						int count = ent.GetComponent<Stack>()?.CurSize ?? 0;
-						var itemRect = item.GetClientRect();
-						while( count > 0 && incubatable.Count > 0 ) {
-							tail = tail.Tail();
-							var target = incubatable.Pop();
-							tail.Next = OnlyIfBackpackIsOpen(
-								NewState(() => Notify($"Incubating {ent.Path.Split('/').Last()} into {target.Entity.Path.Split('/').Last()}"),
-								new RightClickAt(item.GetClientRect(), inputLatency,
-								new LeftClickAt(target.GetClientRect(), inputLatency, 1,
-								null))),
-								ifClosed: null
-							);
-							count -= 1;
-						}
+					int count = ent.GetComponent<Stack>()?.CurSize ?? 0;
+					Log($"Step: {ent.Path.Split('/').Last()} ({count})");
+					var itemRect = item.GetClientRect();
+					while ( count > 0 && incubatable.Count > 0 ) {
+						tail = tail.Tail();
+						var target = incubatable.Pop();
+						tail.Next = OnlyIfBackpackIsOpen(
+							NewState(() => Notify($"Incubating {ent.Path.Split('/').Last()} into {target.Entity.Path.Split('/').Last()}"),
+							new RightClickAt(item.GetClientRect(), inputLatency,
+							new LeftClickAt(target.GetClientRect(), inputLatency, 1,
+							null))),
+							ifClosed: null
+						);
+						count -= 1;
 					}
 				}
+				tail.Tail().Next = next;
 				return start;
 			}
+			Log($"IncubateAll: {incubators.Count()} / {incubatable.Count}");
 			return next;
 		}
 
@@ -405,8 +409,10 @@ namespace AtE.Plugins {
 					foreach(var item in incubatable) {
 						var ent = item.Entity;
 						var mods = ent.GetComponent<Mods>();
+						var stack = ent.GetComponent<Stack>();
 						ImGui.Text($"Item #{ent.Id} [ {ent.Path} ]");
 						ImGui_Object($"Mods##{ent.Id}", $"Mods##{ent.Id}", mods, new HashSet<int>());
+						ImGui_Object($"Stack##{ent.Id}", $"Stack##{ent.Id}", stack, new HashSet<int>());
 					}
 					ImGui.End();
 				}
