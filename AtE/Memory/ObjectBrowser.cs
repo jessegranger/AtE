@@ -33,7 +33,7 @@ namespace AtE {
 					for ( int i = 0; i < ptrs.Length; i++ ) {
 						var item = ptrs[i];
 						nextLabel = $"[{i}]";
-						if ( ImGui_ObjectLabel(id, nextLabel, item, seen) ) {
+						if ( ImGui_ObjectLabel(id, nextLabel, item, seen, type) ) {
 							ImGui_Object(id, $"[{i}]", item, seen);
 							ImGui_ObjectLabelPop();
 						}
@@ -43,7 +43,7 @@ namespace AtE {
 					for ( int i = 0; i < array.Length; i++ ) {
 						var item = array[i];
 						nextLabel = $"{label}[{i}]";
-						if ( ImGui_ObjectLabel(id, nextLabel, item, seen) ) {
+						if ( ImGui_ObjectLabel(id, nextLabel, item, seen, type) ) {
 							ImGui_Object(id, $"[{i}]", item, seen);
 							ImGui_ObjectLabelPop();
 						}
@@ -58,7 +58,7 @@ namespace AtE {
 					foreach ( object key in dict.Keys ) {
 						nextLabel = $"[{key}]";
 						var item = dict[key];
-						if ( ImGui_ObjectLabel(id, nextLabel, item, seen) ) {
+						if ( ImGui_ObjectLabel(id, nextLabel, item, seen, type) ) {
 							ImGui_Object(id, nextLabel, item, seen);
 							ImGui_ObjectLabelPop();
 						}
@@ -74,7 +74,7 @@ namespace AtE {
 					// not the generic interface, so we get only objects
 					foreach ( object item in (System.Collections.IEnumerable)value ) {
 						nextLabel = $"[{itemCount}]";
-						if ( ImGui_ObjectLabel(id, nextLabel, item, seen) ) {
+						if ( ImGui_ObjectLabel(id, nextLabel, item, seen, type) ) {
 							ImGui_Object(id, nextLabel, item, seen);
 							ImGui_ObjectLabelPop();
 						}
@@ -92,7 +92,7 @@ namespace AtE {
 					.Select(f => (f.Name, f.FieldType.Name + f.Name, f.GetValue(value)));
 
 			foreach ( var field in fields.Concat(props).OrderBy(x => x.Item2) ) {
-				if ( ImGui_ObjectLabel(id, field.Item1, field.Item3, seen) ) {
+				if ( ImGui_ObjectLabel(id, field.Item1, field.Item3, seen, type) ) {
 					ImGui_Object(id, field.Item1, field.Item3, seen);
 					ImGui_ObjectLabelPop();
 				}
@@ -106,7 +106,7 @@ namespace AtE {
 					// ImGui.Text("method " + method.Name);
 					// ImGui_BrowseObjectField(method.Name +"()", method.ReturnType, method.Invoke(obj, new object[] { }), seen);
 					var v = method.Invoke(value, new object[] { });
-					if ( ImGui_ObjectLabel(id, method.Name + "()", v, seen) ) {
+					if ( ImGui_ObjectLabel(id, method.Name + "()", v, seen, type) ) {
 						ImGui_Object(id, method.Name, v, seen);
 						ImGui_ObjectLabelPop();
 					}
@@ -114,7 +114,7 @@ namespace AtE {
 			}
 		}
 
-		public static bool ImGui_ObjectLabel(string id, string prefix, object value, HashSet<int> seen) {
+		public static bool ImGui_ObjectLabel(string id, string prefix, object value, HashSet<int> seen, Type parentType = null) {
 			ImGui.AlignTextToFramePadding();
 			if ( value == null ) {
 				ImGui.BulletText($"{prefix} is null");
@@ -125,8 +125,12 @@ namespace AtE {
 
 			if ( type == typeof(IntPtr) ) {
 				ImGui.AlignTextToFramePadding();
+				string strParent = parentType == null ? "" : parentType.Name;
+				if( parentType.IsSubclassOf(typeof(MemoryObject)) ) {
+					strParent = parentType.BaseType.GenericTypeArguments.FirstOrDefault()?.Name ?? strParent;
+				}
 				ImGui.BulletText($"{prefix}"); ImGui.SameLine(0f, 2f);
-				ImGui_Address((IntPtr)value, "@");
+				ImGui_Address((IntPtr)value, " @ ", strParent);
 				return false;
 			}
 
