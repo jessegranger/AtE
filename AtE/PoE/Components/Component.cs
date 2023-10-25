@@ -42,7 +42,7 @@ namespace AtE {
 		public float CurManaRegen => Cache.ManaRegen;
 		public float CurHPRegen => Cache.CurHPRegen;
 		public int TotalReservedHP => Cache.ReservedFlatHP + (int)(0.5f + (Cache.MaxHP * (Cache.ReservedPercentHP / 10000d)));
-		public int TotalReservedMana => Cache.ReservedFlatMana + (int)(0.5f + (Cache.MaxMana * (Cache.ReservedPercentMana / 10000d)));
+		public int TotalReservedMana => Cache.ReservedFlatMana + (int)(0.7f + (Cache.MaxMana * (Cache.ReservedPercentMana / 10000d)));
 
 	}
 	public static partial class Globals {
@@ -338,7 +338,7 @@ namespace AtE {
 
 			// reject updates that claim to have too many buffs
 			int count = buffsArray.ItemCount(8); // sizeof(IntPtr)
-			if ( count < 0 || count > 500 ) {
+			if ( count < 0 || count > 2000 ) { // poisons add one buff per stack, so this count can get quite high on a boss
 				Log($"Rejecting corrupt(?) buffs data with {count} elements.");
 				return false;
 			}
@@ -712,8 +712,10 @@ namespace AtE {
 	}
 
 	public class Stack : Component<Offsets.Component_Stack> {
+		public Cached<Offsets.Component_Stack_Details> Details;
+		public Stack() : base() => Details = CachedStruct<Offsets.Component_Stack_Details>(() => Cache.ptrStackDetails);
 		public int CurSize => Cache.CurSize;
-		public int MaxSize => Cache.MaxSize;
+		public int MaxSize => Details.Value.MaxSize;
 	}
 
 	public class Stats : Component<Offsets.Component_Stats> {
