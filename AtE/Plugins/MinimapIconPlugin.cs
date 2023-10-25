@@ -185,7 +185,7 @@ namespace AtE.Plugins {
 				return false;
 			}
 			// TODO: pre-compile and cache this expression
-			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|SilverChest|.*Rack|Amphora|.*Pot|.*Boulder|Vase|.*Cairn|Crate|Cannibal|TemplarChest|InfestationEgg|.*Barrel|.*Wounded|FungalBloom|GoldenChest|KaomChest|C[ao]coon|.*Bundle|PordWounded|Tutorial|TribalChest|.*BonePile|Sarcophagi|GoldPot|CopperChest|Labyrinth/Izaro|VaalBoneChest|Betrayal|Laboratory/|LegionChests)") ) { 
+			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|SilverChest|StatueMakers|.*Rack|Amphora|.*Pot|.*Boulder|Vase|MapChest|.*Cairn|Crate|Cannibal|TemplarChest|InfestationEgg|.*Barrel|.*Wounded|FungalBloom|GoldenChest|KaomChest|C[ao]coon|.*Bundle|PordWounded|Tutorial|TribalChest|.*BonePile|Sarcophagi|GoldPot|CopperChest|Labyrinth/Izaro|VaalBoneChest|Betrayal|Laboratory/|LegionChests)") ) { 
 				// set them to None, and never check them again
 				ent.MinimapIcon = new Entity.Icon() { Size = 1f, Sprite = SpriteIcon.None };
 				return false;
@@ -256,6 +256,11 @@ namespace AtE.Plugins {
 				} else if ( path.StartsWith("Metadata/Chests/LeagueSanctum") ) {
 					icon = SpriteIcon.RewardGenericItems;
 					iconSize = 1.75f;
+				} else if ( path.StartsWith("Metadata/Chests/LeagueHeist") ) {
+					if ( path.Contains("PrimaryTarget") ) {
+						icon = SpriteIcon.None;
+						iconSize = 0f;
+					}
 				} else if ( path.StartsWith("Metadata/Chests/SynthesisChests") ) {
 					icon = SpriteIcon.LargeCyanStar;
 					iconSize = 1.5f;
