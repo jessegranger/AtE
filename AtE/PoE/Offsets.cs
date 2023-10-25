@@ -26,7 +26,7 @@ namespace AtE {
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.22.1c";
+		public const string PoEVersion = "3.22.2";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -426,10 +426,11 @@ namespace AtE {
 			// Crucible: 8 new bytes here
 			// 3.22: 120 new bytes here
 			// 3.22.1b: 128 new bytes here?
-			[FieldOffset(0x850)] public readonly IntPtr ServerData;
-			[FieldOffset(0x858)] public readonly IntPtr entPlayer; // ptr Entity
-			[FieldOffset(0x908)] public readonly IntPtr EntityListHead; // ptr EntityListNode
-			[FieldOffset(0x910)] public readonly long EntitiesCount;
+			// 3.22.2: 8 bytes removed here
+			[FieldOffset(0x848)] public readonly IntPtr ServerData;
+			[FieldOffset(0x850)] public readonly IntPtr entPlayer; // ptr Entity
+			[FieldOffset(0x900)] public readonly IntPtr EntityListHead; // ptr EntityListNode
+			[FieldOffset(0x908)] public readonly long EntitiesCount;
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 		}
 
@@ -445,56 +446,57 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InGameState_UIElements {
-			[FieldOffset(0x250)] public readonly IntPtr GetQuests;
-			[FieldOffset(0x288)] public readonly IntPtr GameUI;
-			[FieldOffset(0x2a0)] public readonly IntPtr LifeBubble;
-			[FieldOffset(0x2a8)] public readonly IntPtr ManaBubble;
-			[FieldOffset(0x2c8)] public readonly IntPtr Flasks;
-			[FieldOffset(0x2d0)] public readonly IntPtr ExperienceBar;
-			[FieldOffset(0x2e8)] public readonly IntPtr OpenMenuPopoutButton ;
-			[FieldOffset(0x300)] public readonly IntPtr CurrentTime;
-			[FieldOffset(0x398)] public readonly IntPtr GreenShopButton;
-			[FieldOffset(0x3a0)] public readonly IntPtr HelpPanelButton;
-			[FieldOffset(0x3D8)] public readonly IntPtr Mouse;
-			[FieldOffset(0x3E0)] public readonly IntPtr SkillBar;
-			[FieldOffset(0x3E8)] public readonly IntPtr HiddenSkillBar;
+			// 3.22.2: 32 bytes removed here
+			[FieldOffset(0x230)] public readonly IntPtr GetQuests;
+			[FieldOffset(0x268)] public readonly IntPtr GameUI;
+			[FieldOffset(0x280)] public readonly IntPtr LifeBubble;
+			[FieldOffset(0x288)] public readonly IntPtr ManaBubble;
+			[FieldOffset(0x2a8)] public readonly IntPtr Flasks;
+			[FieldOffset(0x2b0)] public readonly IntPtr ExperienceBar;
+			[FieldOffset(0x2c8)] public readonly IntPtr OpenMenuPopoutButton ;
+			[FieldOffset(0x2e0)] public readonly IntPtr CurrentTime;
+			[FieldOffset(0x378)] public readonly IntPtr GreenShopButton;
+			[FieldOffset(0x380)] public readonly IntPtr HelpPanelButton;
+			[FieldOffset(0x3b8)] public readonly IntPtr Mouse;
+			[FieldOffset(0x3c0)] public readonly IntPtr SkillBar;
+			[FieldOffset(0x3c8)] public readonly IntPtr HiddenSkillBar;
 			// Crucible: 8 new bytes here
-			[FieldOffset(0x488)] public readonly IntPtr ChatBoxRoot;
+			[FieldOffset(0x468)] public readonly IntPtr ChatBoxRoot;
 
-			[FieldOffset(0x4b8)] public readonly IntPtr QuestTracker;
-			[FieldOffset(0x540)] public readonly IntPtr OpenLeftPanel;
-			[FieldOffset(0x548)] public readonly IntPtr OpenRightPanel;
-			[FieldOffset(0x570)] public readonly IntPtr InventoryPanel;
-			[FieldOffset(0x578)] public readonly IntPtr StashElement;
-			[FieldOffset(0x580)] public readonly IntPtr GuildStashElement;
-			[FieldOffset(0x590)] public readonly IntPtr SocialPanel;
+			[FieldOffset(0x498)] public readonly IntPtr QuestTracker;
+			[FieldOffset(0x520)] public readonly IntPtr OpenLeftPanel;
+			[FieldOffset(0x528)] public readonly IntPtr OpenRightPanel;
+			[FieldOffset(0x550)] public readonly IntPtr InventoryPanel;
+			[FieldOffset(0x558)] public readonly IntPtr StashElement;
+			[FieldOffset(0x560)] public readonly IntPtr GuildStashElement;
+			[FieldOffset(0x570)] public readonly IntPtr SocialPanel;
 			// [FieldOffset(0x618)] public readonly IntPtr AtlasPanel;
 			// [FieldOffset(0x620)] public readonly IntPtr AtlasSkillPanel;
 			// [FieldOffset(0x650)] public readonly IntPtr WorldMap;
-			[FieldOffset(0x5b8)] public readonly IntPtr CharacterPanel;
-			[FieldOffset(0x5c0)] public readonly IntPtr OptionsPanel;
-			[FieldOffset(0x5c8)] public readonly IntPtr ChallengesPanel;
-			[FieldOffset(0x5d0)] public readonly IntPtr PantheonPanel;
-			[FieldOffset(0x5d8)] public readonly IntPtr PvPPanel;
-			[FieldOffset(0x5e0)] public readonly IntPtr AreaInstanceUi;
-			[FieldOffset(0x620)] public readonly IntPtr Map;
+			[FieldOffset(0x598)] public readonly IntPtr CharacterPanel;
+			[FieldOffset(0x5a0)] public readonly IntPtr OptionsPanel;
+			[FieldOffset(0x5a8)] public readonly IntPtr ChallengesPanel;
+			[FieldOffset(0x5b0)] public readonly IntPtr PantheonPanel;
+			[FieldOffset(0x5b8)] public readonly IntPtr PvPPanel;
+			[FieldOffset(0x5c0)] public readonly IntPtr AreaInstanceUi;
+			[FieldOffset(0x608)] public readonly IntPtr Map;
 
-			[FieldOffset(0x628)] public readonly IntPtr ItemsOnGroundLabelElement;
-			[FieldOffset(0x640)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
-			[FieldOffset(0x6B0)] public readonly IntPtr RootBuffPanel;
-			[FieldOffset(0x6B8)] public readonly IntPtr NpcDialog;
+			[FieldOffset(0x610)] public readonly IntPtr ItemsOnGroundLabelElement;
+			[FieldOffset(0x620)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
+			[FieldOffset(0x698)] public readonly IntPtr RootBuffPanel;
+			[FieldOffset(0x6a0)] public readonly IntPtr NpcDialog;
 			// [FieldOffset(0x718)] public readonly IntPtr LeagueNpcDialog;
 			// [FieldOffset(0x720)] public readonly IntPtr LeagueInteractButtonPanel;
 			// [FieldOffset(0x728)] public readonly IntPtr QuestRewardWindow;
 			// [FieldOffset(0x730)] public readonly IntPtr Unknown730;
-			[FieldOffset(0x6D8)] public readonly IntPtr PurchaseWindow;
+			[FieldOffset(0x6c8)] public readonly IntPtr PurchaseWindow;
 			// [FieldOffset(0x740)] public readonly IntPtr Unknown740; // LeagueSellPanel
-			[FieldOffset(0x6E8)] public readonly IntPtr SellWindow;
-			[FieldOffset(0x6F0)] public readonly IntPtr TradeWindow;
+			[FieldOffset(0x6d8)] public readonly IntPtr SellWindow;
+			[FieldOffset(0x6e0)] public readonly IntPtr TradeWindow;
 			// [FieldOffset(0x758)] public readonly IntPtr Unknown758;
 			// [FieldOffset(0x758)] public readonly IntPtr LabyrinthDivineFontPanel;
 			// [FieldOffset(0x768)] public readonly IntPtr Unknown768;
-			[FieldOffset(0x718)] public readonly IntPtr MapDeviceWindow;
+			[FieldOffset(0x708)] public readonly IntPtr MapDeviceWindow;
 			// [FieldOffset(0x778)] public readonly IntPtr Unknown778;
 			// [FieldOffset(0x780)] public readonly IntPtr Unknown780;
 			// [FieldOffset(0x788)] public readonly IntPtr Unknown788;
@@ -504,7 +506,7 @@ namespace AtE {
 			// [FieldOffset(0x7a8)] public readonly IntPtr Unknown7a8;
 			// [FieldOffset(0x7b0)] public readonly IntPtr Unknown7b0;
 			// [FieldOffset(0x7b8)] public readonly IntPtr Unknown7b8;
-			[FieldOffset(0x760)] public readonly IntPtr CardTradePanel;
+			[FieldOffset(0x750)] public readonly IntPtr CardTradePanel;
 			// [FieldOffset(0x7C8)] public readonly IntPtr Unknown7C8;
 			// [FieldOffset(0x7c8)] public readonly IntPtr IncursionAltarOfSacrificePanel;
 			// [FieldOffset(0x7D0)] public readonly IntPtr IncursionLapidaryLensPanel;
@@ -514,8 +516,8 @@ namespace AtE {
 			// [FieldOffset(0x800)] public readonly IntPtr Unknown800; // KiracMissionPanel
 			// [FieldOffset(0x800)] public readonly IntPtr BetrayalWindow;
 			// [FieldOffset(0x810)] public readonly IntPtr Unknown810;
-			[FieldOffset(0x810)] public readonly IntPtr CraftBench;
-			[FieldOffset(0x818)] public readonly IntPtr UnveilWindow;
+			[FieldOffset(0x7a8)] public readonly IntPtr CraftBench;
+			[FieldOffset(0x7b0)] public readonly IntPtr UnveilWindow;
 			// [FieldOffset(0x828)] public readonly IntPtr Unknown828;
 			// [FieldOffset(0x830)] public readonly IntPtr Unknown830;
 			// [FieldOffset(0x838)] public readonly IntPtr Unknown838;
@@ -540,8 +542,8 @@ namespace AtE {
 			// [FieldOffset(0x8D0)] public readonly IntPtr Unknown8D0;
 			// [FieldOffset(0x8D8)] public readonly IntPtr Unknown8D8;
 			// [FieldOffset(0x8E0)] public readonly IntPtr Unknown8E0;
-			[FieldOffset(0x8E0)] public readonly IntPtr BuffsPanel;
-			[FieldOffset(0x8e8)] public readonly IntPtr DelveDarkness; // Debuffs Panel
+			[FieldOffset(0x8d8)] public readonly IntPtr BuffsPanel;
+			[FieldOffset(0x8f0)] public readonly IntPtr DelveDarkness; // Debuffs Panel
 			// [FieldOffset(0x8F8)] public readonly IntPtr Unknown8F8;
 			// [FieldOffset(0x900)] public readonly IntPtr Unknown900;
 			// [FieldOffset(0x908)] public readonly IntPtr Unknown908;
@@ -560,24 +562,24 @@ namespace AtE {
 			// [FieldOffset(0x970)] public readonly IntPtr Unknown970;
 			// [FieldOffset(0x978)] public readonly IntPtr Unknown978;
 			// [FieldOffset(0x980)] public readonly IntPtr Unknown980;
-			[FieldOffset(0x980)] public readonly IntPtr InteractButtonWrapper;
-			[FieldOffset(0x988)] public readonly IntPtr SkipAheadButton;
-			[FieldOffset(0x990)] public readonly IntPtr SyndicateHelpButton;
-			[FieldOffset(0x998)] public readonly IntPtr SyndicateReleasePanel;
-			[FieldOffset(0x9A0)] public readonly IntPtr LeagueInteractPanel;
-			[FieldOffset(0x9a8)] public readonly IntPtr MetamorphInteractPanel;
-			[FieldOffset(0x9B0)] public readonly IntPtr RitualInteractPanel;
-			[FieldOffset(0x9b8)] public readonly IntPtr ExpeditionInteractPanel;
+			[FieldOffset(0x960)] public readonly IntPtr InteractButtonWrapper;
+			[FieldOffset(0x968)] public readonly IntPtr SkipAheadButton;
+			[FieldOffset(0x970)] public readonly IntPtr SyndicateHelpButton;
+			[FieldOffset(0x978)] public readonly IntPtr SyndicateReleasePanel;
+			[FieldOffset(0x980)] public readonly IntPtr LeagueInteractPanel;
+			[FieldOffset(0x988)] public readonly IntPtr MetamorphInteractPanel;
+			[FieldOffset(0x990)] public readonly IntPtr RitualInteractPanel;
+			[FieldOffset(0x998)] public readonly IntPtr ExpeditionInteractPanel;
 			// [FieldOffset(0x9C8)] public readonly IntPtr Unknown9C8;
 			// [FieldOffset(0x9D0)] public readonly IntPtr Unknown9D0;
 			// [FieldOffset(0x9D8)] public readonly IntPtr Unknown9D8;
 			// [FieldOffset(0x9E0)] public readonly IntPtr Unknown9E0;
 			// [FieldOffset(0x9E8)] public readonly IntPtr Unknown9E8;
 			// [FieldOffset(0x9F0)] public readonly IntPtr Unknown9F0;
-			[FieldOffset(0x9F0)] public readonly IntPtr InvitesPanel;
-			[FieldOffset(0xA40)] public readonly IntPtr GemLvlUpPanel;
-			[FieldOffset(0xA50)] public readonly IntPtr SkillBarNotifyPanel1;
-			[FieldOffset(0xB10)] public readonly IntPtr ItemOnGroundTooltip;
+			[FieldOffset(0x9d0)] public readonly IntPtr InvitesPanel;
+			[FieldOffset(0xA20)] public readonly IntPtr GemLvlUpPanel;
+			[FieldOffset(0xA30)] public readonly IntPtr SkillBarNotifyPanel1;
+			[FieldOffset(0xAf0)] public readonly IntPtr ItemOnGroundTooltip;
 
 		}
 
@@ -1339,8 +1341,11 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Stack {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			[FieldOffset(0x10)] public readonly IntPtr ptrStackDetails; // ptr to Component_Stack_Details
 			[FieldOffset(0x18)] public readonly int CurSize;
-			[FieldOffset(0x38)] public readonly int MaxSize;
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Stack_Details {
+			[FieldOffset(0x28)] public readonly int MaxSize;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Stats {
@@ -1396,7 +1401,7 @@ namespace AtE {
 			[FieldOffset(0x378)] public readonly StringHandle textHandle;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_ItemsOnGroundLabelRoot {
-			[FieldOffset(0x278)] public readonly ItemsOnGroundLabelEntry hoverLabel; // ptr to EntityLabel : Element
+			[FieldOffset(0x288)] public readonly ItemsOnGroundLabelEntry hoverLabel; // ptr to EntityLabel : Element
 			[FieldOffset(0x2A0)] public readonly IntPtr labelsOnGroundHead;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemsOnGroundLabelEntry {
