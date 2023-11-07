@@ -41,7 +41,7 @@ namespace AtE {
 		public Element Viewport => IsValid(Address) ? getElement(Cache.GameViewport) : null;
 		public Element RootBuffPanel => IsValid(Address) ? getElement(Cache.RootBuffPanel) : null;
 		public Element NpcDialog => IsValid(Address) ? getElement(Cache.NpcDialog) : null;
-		// public Element LeagueNpcDialog => IsValid(Address) ? getElement(Cache.LeagueNpcDialog) : null;
+		public Element NpcOptions => IsValid(Address) ? getElement(Cache.NpcOptions) : null;
 		// public Element LeagueInteractButtonPanel => IsValid(Address) ? getElement(Cache.LeagueInteractButtonPanel) : null;
 		// public Element QuestRewardWindow => IsValid(Address) ? getElement(Cache.QuestRewardWindow) : null;
 		public Element PurchaseWindow => IsValid(Address) ? getElement(Cache.PurchaseWindow) : null;
