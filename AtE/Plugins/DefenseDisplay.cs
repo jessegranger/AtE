@@ -46,18 +46,31 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("Debug Enemy Components", ref ShowEnemyComponents);
 			ImGui.Checkbox("Debug Game Stats", ref ShowStatDebugControls);
 			if ( ShowStatDebugControls ) {
-				ImGui.BeginListBox("", new Vector2(-1, -2));
 
 				ImGui.InputText("filter:", ref inputFilter, 32);
-
 				var p = GetPlayer();
-				if ( IsValid(p) ) {
-					var stats = p.GetComponent<Stats>();
-					foreach ( var entry in stats.Entries.Where( (kv) => kv.Key.ToString().Contains(inputFilter) || kv.Value.ToString().Contains(inputFilter) )) {
+				if( !IsValid(p) ) {
+					ImGui.Text("Invalid Player");
+					return;
+				}
+				var stats = p.GetComponent<Stats>();
+				if( !IsValid(stats) ) {
+					ImGui.Text("Invalid Stats component");
+					return;
+				}
+				var entries = stats.Entries;
+				var filteredItems = entries.Where((kv) => kv.Key.ToString().Contains(inputFilter) || kv.Value.ToString().Contains(inputFilter)).ToArray();
+				float maxWidth = 0;
+				if ( filteredItems.Length > 0 ) {
+					maxWidth = filteredItems.Select((kv) => ImGui.CalcTextSize(kv.Key.ToString()).X).Max();
+					ImGui.Text($"Max Width: {maxWidth}");
+
+					ImGui.BeginListBox("##debugStatsList", new Vector2(maxWidth + 60, -2));
+					foreach ( var entry in filteredItems ) {
 						ImGui.Text(entry.Key + " = " + entry.Value);
 					}
+					ImGui.EndListBox();
 				}
-				ImGui.EndListBox();
 			}
 		}
 
