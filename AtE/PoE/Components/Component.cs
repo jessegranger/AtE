@@ -57,7 +57,10 @@ namespace AtE {
 				petrified ? Math.Min(life.MaxHP - life.TotalReservedHP, life.MaxHP / 2)
 				: life.MaxHP - life.TotalReservedHP) : 0;
 		public static bool IsMissingEHP(Entity ent, float pct = .10f, bool petrified = false) {
-			var life = ent?.GetComponent<Life>();
+			if( !IsValid(ent) ) {
+				return false;
+			}
+			var life = ent.GetComponent<Life>();
 			var ehp = CurrentEHP(life);
 			var max = MaxEHP(life, petrified) * (1.0f - pct);
 			if ( !IsAlive(life) ) {
@@ -727,11 +730,12 @@ namespace AtE {
 		private long lastStatsTime;
 		public Dictionary<Offsets.GameStat, int> GetStats() {
 			// if there are no stats, or the stats entries array is newer than the stats dict
-			if ( stats == null || entries == null || lastEntryTime > lastStatsTime ) {
+			long elapsed = Time.ElapsedMilliseconds;
+			if ( stats == null || entries == null || lastEntryTime > lastStatsTime || (elapsed - lastStatsTime) > maxAge ) {
 				stats = new Dictionary<Offsets.GameStat, int>();
-				lastStatsTime = Time.ElapsedTicks;
+				lastStatsTime = elapsed;
 				foreach ( var entry in Entries ) {
-					if( entry.Key <= 0 || entry.Key > Offsets.GameStat.DisplayTattooGrantsRandomKeystone ) {
+					if ( entry.Key <= 0 || entry.Key > Offsets.GameStat.DisplayTattooGrantsRandomKeystone ) {
 						Log($"Invalid Stats key {entry.Key} value {entry.Value}");
 						break; // invalid data in the Entries
 					}
@@ -744,20 +748,37 @@ namespace AtE {
 		private ArrayHandle<Offsets.GameStatArrayEntry> entries;
 		private long lastEntryTime = 0;
 		private const long maxAge = 1000; // ms
-		private const int maxStatsLength = 500; // anything longer than this is probably corrupt
+		private const int maxStatsLength = 512; // anything longer than this is probably corrupt
 		public IEnumerable<Offsets.GameStatArrayEntry> Entries {
 			get {
-				if( (Time.ElapsedTicks - lastEntryTime) > maxAge ) {
+				long elapsed = Time.ElapsedMilliseconds;
+				if( (elapsed - lastEntryTime) > maxAge || entries == null ) {
 					entries = new ArrayHandle<Offsets.GameStatArrayEntry>(GameStats.Value.Values);
-					lastEntryTime = Time.ElapsedTicks;
+					lastEntryTime = Time.ElapsedMilliseconds;
 					if( entries.Length > maxStatsLength ) {
 						Log($"Invalid Stats entries.Length = {entries.Length} is greater than reasonable limit of {maxStatsLength}");
 						entries = null;
 						return Empty<Offsets.GameStatArrayEntry>();
 					}
+				} else {
+					Log($"Not re-parsing Stats because {elapsed} - {lastEntryTime} (= {elapsed - lastEntryTime}) < {maxAge} (max age)");
 				}
 				return entries;
 			}
+		}
+
+		private Dictionary<Offsets.GameStat, int> parsedValues;
+		private long parsedTime = 0;
+		public bool TryGetStatValue(Offsets.GameStat Key, out int value) {
+			value = 0;
+			if( parsedTime < lastEntryTime ) {
+				parsedValues = new Dictionary<Offsets.GameStat, int>();
+				foreach(var entry in this.Entries ) {
+					parsedValues[entry.Key] = entry.Value;
+				}
+				parsedTime = Time.ElapsedMilliseconds;
+			}
+			return parsedValues.TryGetValue(Key, out value);
 		}
 
 	}
