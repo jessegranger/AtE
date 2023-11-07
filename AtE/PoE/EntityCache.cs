@@ -74,7 +74,7 @@ namespace AtE {
 					incomingIds.Clear();
 					frontier.Clear();
 
-					var head = PoEMemory.GameRoot.InGameState.EntityListHead;
+					Offsets.EntityListNode head = PoEMemory.GameRoot.InGameState.EntityListHead;
 					frontier.Push(head);
 					// we are going to skip reading the Ent from the first (head) node
 					bool skippedOne = false;
