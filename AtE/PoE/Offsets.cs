@@ -356,7 +356,7 @@ namespace AtE {
 		/// <summary>
 		/// A StringHandle, offset from Element Address.
 		/// </summary>
-		public static readonly int Element_Text = 0x558;
+		public static readonly int Element_Text = 0x578;
 
 		[StructLayout(LayoutKind.Explicit)] public struct ChildrenArrayEntry {
 			[FieldOffset(0x0)] public readonly IntPtr ptrChild;
@@ -485,7 +485,7 @@ namespace AtE {
 			[FieldOffset(0x620)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
 			[FieldOffset(0x698)] public readonly IntPtr RootBuffPanel;
 			[FieldOffset(0x6a0)] public readonly IntPtr NpcDialog;
-			// [FieldOffset(0x718)] public readonly IntPtr LeagueNpcDialog;
+			[FieldOffset(0x6a8)] public readonly IntPtr NpcOptions;
 			// [FieldOffset(0x720)] public readonly IntPtr LeagueInteractButtonPanel;
 			// [FieldOffset(0x728)] public readonly IntPtr QuestRewardWindow;
 			// [FieldOffset(0x730)] public readonly IntPtr Unknown730;
