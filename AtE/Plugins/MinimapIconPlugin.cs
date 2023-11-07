@@ -185,7 +185,7 @@ namespace AtE.Plugins {
 				return false;
 			}
 			// TODO: pre-compile and cache this expression
-			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|SilverChest|StatueMakers|.*Rack|Amphora|.*Pot|.*Boulder|Vase|MapChest|.*Cairn|Crate|Cannibal|TemplarChest|InfestationEgg|.*Barrel|.*Wounded|FungalBloom|GoldenChest|KaomChest|C[ao]coon|.*Bundle|PordWounded|Tutorial|TribalChest|.*BonePile|Sarcophagi|GoldPot|CopperChest|Labyrinth/Izaro|VaalBoneChest|Betrayal|Laboratory/|LegionChests)") ) { 
+			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|SilverChest|PrimevalChest|StatueMakers|.*Rack|Amphora|.*Pot|.*Boulder|Vase|MapChest|.*Cairn|Crate|Cannibal|TemplarChest|InfestationEgg|.*Barrel|.*Wounded|FungalBloom|GoldenChest|KaomChest|C[ao]coon|.*Bundle|PordWounded|Tutorial|TribalChest|.*BonePile|Sarcophagi|GoldPot|CopperChest|Labyrinth/Izaro|VaalBoneChest|Betrayal|Laboratory/|LegionChests)") ) { 
 				// set them to None, and never check them again
 				ent.MinimapIcon = new Entity.Icon() { Size = 1f, Sprite = SpriteIcon.None };
 				return false;
@@ -196,6 +196,9 @@ namespace AtE.Plugins {
 				// DrawTextAt(WorldToScreen(Position(ent)), $"Unknown /Chest: {ent.Path}", Color.White);
 				if ( path.Contains("Breach/BreachChest") ) {
 					icon = SpriteIcon.Breach;
+					iconSize = 1.5f;
+				} else if ( path.Contains("SideArea/SideAreaChest") ) {
+					icon = SpriteIcon.VaalSideArea;
 					iconSize = 1.5f;
 				} else if ( path.Contains("Abyss/AbyssFinal") ) {
 					icon = SpriteIcon.RewardAbyss;
