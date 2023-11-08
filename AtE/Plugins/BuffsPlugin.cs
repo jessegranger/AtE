@@ -137,6 +137,18 @@ namespace AtE.Plugins {
 			}
 		}
 
+		public class BoneArmourData : SkillData {
+			public int UseAtLifePercent = 90;
+			public BoneArmourData() : base("Bone Armour", "bone_armour", "bone_armour") { }
+			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
+			public override void Configure() {
+				base.Configure();
+				ImGui.Text(" at ");
+				ImGui.SameLine();
+				ImGui.SliderInt("% eHP##Bone Armour", ref UseAtLifePercent, 2, 99);
+			}
+		}
+
 		public class MoltenShellData : SkillData {
 			public int UseAtLifePercent = 90;
 			public MoltenShellData() : base("Molten Shell", "molten_shell_barrier", "molten_shell_shield") { }
@@ -261,6 +273,7 @@ namespace AtE.Plugins {
 			/// many of those are not quite right yet, like they need their SkillBarName checked/corrected, eg
 			{ "Steelskin", new SteelskinData() },
 			{ "Immortal Call", new ImmortalCallData() },
+			{ "Bone Armour", new BoneArmourData() },
 			{ "Molten Shell", new MoltenShellData() },
 			{ "Defiance Banner", new DefianceBanner() },
 			{ "War Banner", new WarBanner() },
