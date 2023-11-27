@@ -36,7 +36,7 @@ namespace AtE.Plugins {
 		/// </summary>
 		public override void Render() {
 			base.Render();
-			ImGui.Checkbox("Show Player", ref ShowPlayerDefenses);
+			ImGui.Checkbox("Show Player Defenses", ref ShowPlayerDefenses);
 			ImGui.Checkbox("Show Enemy Chaos", ref ShowEnemyResistChaos);
 			ImGui.Checkbox("Show Enemy Fire", ref ShowEnemyResistFire);
 			ImGui.Checkbox("Show Enemy Cold", ref ShowEnemyResistCold);
@@ -135,6 +135,13 @@ namespace AtE.Plugins {
 						stats.TryGetValue(GameStat.AttackBlockPct, out int attackBlock);
 						stats.TryGetValue(GameStat.SpellBlockPct, out int spellBlock);
 						DrawTextAt(1, spot, $"Block:     {attackBlock}% {spellBlock}%", Color.Cornsilk, size);
+
+						ImGui.SetNextWindowPos(new Vector2(spot.X, spot.Y + ImGuiController.GetNextOffsetForTextAt(1)));
+						ImGui.Begin("Defense Global Checkbox", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoBackground );
+						ImGui.Checkbox("Defenses", ref ShowPlayerDefenses);
+						ImGui.End();
+						// ImGui.PopStyleVar(1);
+						// ImGuiController.GetNextOffsetForTextAt(1);
 					}
 				}
 
