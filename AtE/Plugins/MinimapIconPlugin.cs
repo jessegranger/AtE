@@ -143,7 +143,7 @@ namespace AtE.Plugins {
 				if( ent.MinimapIcon.Size > 0f ) {
 					icon = ent.MinimapIcon.Sprite;
 					iconSize = ent.MinimapIcon.Size;
-				} else if ( ShowMinions && deployed.Contains((ushort)ent.Id) && IsAlive(ent) ) {
+				} else if ( ShowMinions && deployed.Contains((ushort)ent.Id) ) {
 					TryGetMinionIcon(ent, out icon, out iconSize);
 				} else if ( ShowEnemies && path.StartsWith("Metadata/Monster") && IsAlive(ent) && IsHostile(ent) && IsTargetable(ent) ) {
 					TryGetEnemyIcon(ent, out icon, out iconSize);
@@ -370,11 +370,21 @@ namespace AtE.Plugins {
 		}
 
 		private bool TryGetMinionIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
-			icon = SpriteIcon.GreenX;
+			icon = SpriteIcon.None;
 			iconSize = 1f;
-			// cache the icon for 1 second
-			ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 1000);
-			return IsAlive(ent);
+
+			if ( ent?.Path?.StartsWith("Metadata/Monsters/AnimatedItem") ?? false ) {
+				icon = SpriteIcon.SmallGreenCircle;
+			} else if ( IsAlive(ent) ) {
+				icon = SpriteIcon.GreenX;
+			}
+
+			if ( icon != SpriteIcon.None ) {
+				// cache the icon for 1 second
+				ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 1000);
+				return true;
+			}
+			return false;
 		}
 	}
 }
