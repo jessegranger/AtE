@@ -79,6 +79,8 @@ namespace AtE {
 						field.SetValue(plugin, long.Parse(pair.Value));
 					} else if ( field.FieldType == typeof(int) ) {
 						field.SetValue(plugin, int.Parse(pair.Value));
+					} else if ( field.FieldType == typeof(uint) ) {
+						field.SetValue(plugin, uint.Parse(pair.Value));
 					} else if ( field.FieldType == typeof(bool) ) {
 						field.SetValue(plugin, bool.Parse(pair.Value));
 					} else if ( field.FieldType == typeof(string) ) {
@@ -101,10 +103,10 @@ namespace AtE {
 		internal static IEnumerable<PluginBase> Plugins => Instances.Values;
 		internal static T GetPlugin<T>() where T : PluginBase => Instances.TryGetValue(typeof(T).Name, out PluginBase value) ? (T)value : null;
 
-		internal static StateMachine Machine;
+		internal static Machine Machine;
 		static PluginBase() {
 			Instances = new Dictionary<string, PluginBase>();
-			Machine = new StateMachine();
+			Machine = new Machine();
 			iniSettings = new Dictionary<string, Dictionary<string, string>>();
 			LoadIniFile(SettingsFileName, autoCreate: true);
 			// check if CoreSettings had a SelectedProfile and load that .ini file second
