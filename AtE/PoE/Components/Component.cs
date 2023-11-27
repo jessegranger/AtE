@@ -97,6 +97,10 @@ namespace AtE {
 				.Where(x => x.IsValid())
 			;
 
+		public ActorSkill GetSkill(string name) {
+			return Skills.FirstOrDefault((skill) => skill.InternalName.Equals(name));
+		}
+
 		public IEnumerable<Offsets.ActorVaalSkillArrayEntry> VaalSkills =>
 			new ArrayHandle<Offsets.ActorVaalSkillArrayEntry>(Cache.ActorVaalSkillsHandle);
 
@@ -201,6 +205,27 @@ namespace AtE {
 		public int SoulsPerUse => GemEffects.Value.VaalSoulsPerUse;
 		public int SoulGainPreventionMS => GemEffects.Value.VaalSoulGainPreventionMS;
 
+		// an int like 33, or 100, or 120, etc
+		public int EffectivenessOfAddedDamage => GemEffects.Value.EffectivenessOfAddedDamage;
+
+		private Dictionary<Offsets.GameStat, int> gameStatValues;
+		public Dictionary<Offsets.GameStat, int> GetAllStats() {
+			if ( gameStatValues == null ) {
+				gameStatValues = new Dictionary<Offsets.GameStat, int>();
+				if ( PoEMemory.TryRead(Cache.ptrGameStats, out Offsets.GameStatArray gameStatArray) ) {
+					foreach ( Offsets.GameStatArrayEntry entry in new ArrayHandle<Offsets.GameStatArrayEntry>(gameStatArray.Values) ) {
+						gameStatValues[entry.Key] = entry.Value;
+					}
+				}
+			}
+			return gameStatValues;
+		}
+
+		public bool TryGetStat(Offsets.GameStat Key, out int Value) {
+			Value = 0;
+			GetAllStats();
+			return gameStatValues?.TryGetValue(Key, out Value) ?? false;
+		}
 
 	}
 
@@ -223,8 +248,12 @@ namespace AtE {
 		}
 	}
 
+	public class Melee : Component<Offsets.Component_Empty> { }
+	public class Hull : Component<Offsets.Component_Empty> { }
+	public class AttachedAnimatedObject : Component<Offsets.Component_Empty> { }
+	public class AnimatedRender : Component<Offsets.Component_Empty> { }
+	public class SkinMesh : Component<Offsets.Component_Empty> { }
 	public class Animated : Component<Offsets.Component_Animated> {
-
 		public Entity AnimatedObject => IsValid(Address) && EntityCache.TryGetEntity(Cache.ptrToAnimatedEntity, out Entity ent) ? ent : null;
 	}
 
@@ -458,6 +487,7 @@ namespace AtE {
 
 	class ClientAnimationController : Component<Offsets.Component_ClientAnimationController> {
 		public int AnimationId => Cache.AnimationId;
+		public float TimeSpentAnimating => Cache.TimeSpentAnimating;
 	}
 	class ClientBetrayalChoice : Component<Offsets.Component_Empty> { }
 	class Counter : Component<Offsets.Component_Empty> { }
@@ -469,7 +499,9 @@ namespace AtE {
 	}
 
 	class DelveLight : Component<Offsets.Component_Empty> { }
-	class DiesAfterTime : Component<Offsets.Component_Empty> { }
+	class DiesAfterTime : Component<Offsets.Component_DiesAfterTime> { }
+	class StateMachine : Component<Offsets.Component_Empty> { }
+	class Brackets : Component<Offsets.Component_Empty> { }
 	class Flask : Component<Offsets.Component_Empty> { }
 	class Functions : Component<Offsets.Component_Empty> { }
 	class HeistBlueprint : Component<Offsets.Component_Empty> { }
