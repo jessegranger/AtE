@@ -133,6 +133,8 @@ namespace AtE {
 					Duration = (int)(Duration * ((100 + mod.Values.First()) / 100f));
 				} else if ( groupName.StartsWith("FlaskExtraCharges") ) {
 					Charges_Max += mod.Values.First();
+				} else if ( groupName.StartsWith("FlaskChargesUsed") ) { // value will be like -16 for "16% reduced charges used"
+					Charges_Per = (int)(Charges_Per * (100 + mod.Values.First()) / 100f);
 				} else if ( groupName.StartsWith("FlaskInstantRecoveryOnLowLife") ) {
 					IsInstantOnLowLife = true;
 					int lessRecovery = mod.Values.Skip(1).First(); // like -27
