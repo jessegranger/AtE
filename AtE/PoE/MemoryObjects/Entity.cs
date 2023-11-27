@@ -154,7 +154,16 @@ namespace AtE {
 			return null;
 		}
 
-		public IEnumerable<string> GetComponentNames() => ComponentPtrs?.Keys ?? Empty<string>();
+		public Dictionary<Offsets.GameStat, int> GetStats() => GetComponent<Stats>()?.GetStats();
+
+		public IEnumerable<ActorSkill> GetSkills() => GetComponent<Actor>()?.Skills ?? Empty<ActorSkill>();
+
+		public IEnumerable<string> GetComponentNames() {
+			if( ComponentPtrs == null ) {
+				ParseComponents();
+			}
+			return ComponentPtrs?.Keys ?? Empty<string>();
+		}
 
 		private void UpdateParsedIndex(string name, IntPtr addr) {
 			if ( IsValid(addr) ) {
@@ -167,6 +176,36 @@ namespace AtE {
 			ComponentCache?.Clear();
 			ComponentCache = null;
 		}
+		public void DebugComponents() {
+			var componentsArray = new ArrayHandle<IntPtr>(Cache.ComponentsArray);
+			ImGui.Text($"ComponentsArray claims to have {componentsArray.Length} items.");
+			if ( !PoEMemory.TryRead(Details.Value.ptrComponentLookup, out Offsets.ComponentLookup lookup) ) {
+				ImGui.Text("Failed to read ptrComponentLookup");
+			} else {
+				ImGui.Text($"ComponentLookup Capacity: {lookup.Counter} of {lookup.Capacity}");
+			}
+			// each entry in the array packs 8 items into one struct, so we read N / 8 structs
+			int trueCapacity = (int)((lookup.Capacity + 1) / 8);
+			ImGui.Text($"True Capacity: {trueCapacity}");
+			var componentArray = new Offsets.ComponentArrayEntry[trueCapacity];
+			if ( 0 == PoEMemory.TryRead(lookup.ComponentMap, componentArray) ) {
+				ImGui.Text($"Read 0 bytes, aborting.");
+				return;
+			}
+
+			foreach(var entry in componentArray ) {
+				ImGui.Text($"Entry: ---");
+				ImGui.Text($"  Flag0: 0x{entry.Flag0:X} {entry.Pointer0.Index} {(PoEMemory.TryReadString(entry.Pointer0.ptrName, Encoding.ASCII, out string name0) ? name0 : "")}");
+				ImGui.Text($"  Flag1: 0x{entry.Flag1:X} {entry.Pointer1.Index} {(PoEMemory.TryReadString(entry.Pointer1.ptrName, Encoding.ASCII, out string name1) ? name1 : "")}");
+				ImGui.Text($"  Flag2: 0x{entry.Flag2:X} {entry.Pointer2.Index} {(PoEMemory.TryReadString(entry.Pointer2.ptrName, Encoding.ASCII, out string name2) ? name2 : "")}");
+				ImGui.Text($"  Flag3: 0x{entry.Flag3:X} {entry.Pointer3.Index} {(PoEMemory.TryReadString(entry.Pointer3.ptrName, Encoding.ASCII, out string name3) ? name3 : "")}");
+				ImGui.Text($"  Flag4: 0x{entry.Flag4:X} {entry.Pointer4.Index} {(PoEMemory.TryReadString(entry.Pointer4.ptrName, Encoding.ASCII, out string name4) ? name4 : "")}");
+				ImGui.Text($"  Flag5: 0x{entry.Flag5:X} {entry.Pointer5.Index} {(PoEMemory.TryReadString(entry.Pointer5.ptrName, Encoding.ASCII, out string name5) ? name5 : "")}");
+				ImGui.Text($"  Flag6: 0x{entry.Flag6:X} {entry.Pointer6.Index} {(PoEMemory.TryReadString(entry.Pointer6.ptrName, Encoding.ASCII, out string name6) ? name6 : "")}");
+				ImGui.Text($"  Flag7: 0x{entry.Flag7:X} {entry.Pointer7.Index} {(PoEMemory.TryReadString(entry.Pointer7.ptrName, Encoding.ASCII, out string name7) ? name7 : "")}");
+			}
+
+		}
 		private void ParseComponents() {
 
 			using ( Perf.Section("ParseComponents") ) {
@@ -176,6 +215,7 @@ namespace AtE {
 				var entityComponents = new ArrayHandle<IntPtr>(Cache.ComponentsArray)
 					.ToArray(limit: 50); // if it claims to have more than 50 components, its corrupt data
 				if ( entityComponents.Length == 0 ) {
+					ClearComponents();
 					return;
 				}
 
@@ -183,7 +223,9 @@ namespace AtE {
 				if ( !PoEMemory.TryRead(Details.Value.ptrComponentLookup, out Offsets.ComponentLookup lookup) ) {
 					return;
 				}
-				if ( lookup.Capacity < 1 || lookup.Capacity > 24 ) {
+				// sanity checks on the lookup structure and what it claims to hold
+				if ( lookup.Capacity < 1 || lookup.Capacity > 1024 ) {
+					ClearComponents();
 					return;
 				}
 
@@ -194,6 +236,7 @@ namespace AtE {
 				int trueCapacity = (int)((lookup.Capacity + 1) / 8);
 				var componentArray = new Offsets.ComponentArrayEntry[trueCapacity];
 				if ( 0 == PoEMemory.TryRead(lookup.ComponentMap, componentArray) ) {
+					ClearComponents();
 					return;
 				}
 
