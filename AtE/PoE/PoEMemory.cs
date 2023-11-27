@@ -182,7 +182,6 @@ namespace AtE {
 				throw new ArgumentException("mask and pattern should have the same Length");
 			}
 
-			// Log($"PoEMemory: FindPattern of {pattern.Length} bytes");
 
 			if ( !IsValid(Target) ) {
 				ImGui.Text($"PoEMemory: No target.");
@@ -219,6 +218,7 @@ namespace AtE {
 			if ( endOffset <= 0 || endOffset > strictSizeLimit ) {
 				endOffset = strictSizeLimit;
 			}
+			Log($"PoEMemory: FindPattern of {pattern.Length} bytes within {endOffset - startOffset} byte range");
 
 			long offset = startOffset;
 			long bestMatch = 0; // this is not the fastest way to search (it takes no shortcuts)
@@ -234,7 +234,7 @@ namespace AtE {
 						}
 						if ( thisMatchScore == pattern.Length ) {
 							result = new IntPtr(baseAddress.ToInt64() + offset);
-							// Log($"PoEMemory: Found pattern at {Describe(result)}");
+							Log($"PoEMemory: Found pattern at {Describe(result)}");
 							return true;
 						}
 					} else {
@@ -242,7 +242,15 @@ namespace AtE {
 					}
 				}
 			}
+			Log($"PoEMemory: Pattern not found.");
 			return false;
+
+		}
+
+		public static void SpiderSearch(IntPtr startPtr, uint pageSize, int maxDepth, string mask, params byte[] pattern) {
+			if( maxDepth < 1 ) {
+				return;
+			}
 
 		}
 		
@@ -401,54 +409,62 @@ namespace AtE {
 
 			FileRoots = new Dictionary<string, IntPtr>();
 			OnAreaChange += (_, area) => {
+				if( IsValid(fileRootMatch) ) {
+					return;
+				}
 				Log($"PoEMemory: Searching for Files root address...");
-				if ( IsValid(fileRootMatch) || TryFindPatternInExe(out fileRootMatch, IntPtr.Zero, IntPtr.Zero, Offsets.FileRoot_SearchMask, Offsets.FileRoot_SearchPattern) ) {
+				if ( TryFindPatternInExe(out fileRootMatch, IntPtr.Zero, IntPtr.Zero, Offsets.FileRoot_SearchMask, Offsets.FileRoot_SearchPattern) ) {
 					if( ! IsValid(fileRootMatch) ) {
+						Log($"PoEMemory: No match for Files root address...");
 						return;
 					}
 					long fileParseStarted = Time.ElapsedMilliseconds;
 					long claimedCount = 0;
 					// the fileRootMatch pattern is xxxxxx????x and the ???? int is the local offset we want to read
 					// so we read an int from (match + 6)
-					if ( TryRead(fileRootMatch + 0x6, out int localFileRootOffset) ) {
-						// Log($"PoEMemory: localFileRootOffset = {localFileRootOffset}");
-						// at this local offset (from the match address) is a structure,
-						// that structure contains an array of exactly 16 elements, starting at offset 0xA
-						// (the structure is the top node in a hierarchical hash table, probably boost's flat_map)
-						IntPtr rootBlockArrayStart = fileRootMatch + localFileRootOffset + 0xA;
-						Offsets.File_RootHeader[] fileRoots = new Offsets.File_RootHeader[16];
-						// read all 16 rootBlock array elements at once
-						if ( TryRead(rootBlockArrayStart, fileRoots) > 0 ) {
-							int scanCount = 0;
-							FileRoots.Clear();
-							for ( int rootIndex = 0; rootIndex < 16; rootIndex++ ) {
-								var fileRoot = fileRoots[rootIndex];
-								// Log($"PoEMemory: Parsing file root block # {rootIndex}");
-								if ( fileRoot.Capacity > 0 && fileRoot.Capacity < 9999 ) {
-									claimedCount += fileRoot.Count;
-									// each fileRoot block contains up to Capacity buckets
-									// its sparse, and each bucket is either full or empty
-									// Log($"PoEMemory: File parsing progress: {scanCount} / {16 * 8 * (fileRoot.Capacity + 1) / 8}");
-									for ( int bucketIndex = 0; bucketIndex < (fileRoot.Capacity + 1) / 8; bucketIndex++ ) {
-										// this is the base ptr of one bucket in the hash table, each bucket holds 8 entries with 1-byte sub keys
-										var basePtr = fileRoot.ptrFileNode + (bucketIndex * 0xc8);
-										byte[] hashValues = new byte[8];
-										if ( TryRead(basePtr, hashValues) > 0 ) {
-											for ( int hashIndex = 0; hashIndex < 8; hashIndex++ ) {
-												// each subkey has a value, but 0xFF is a special value that means an empty slot
-												bool empty = hashValues[hashIndex] == 0xFF;
-												scanCount += 1;
-												if ( !empty ) {
-													// read the fileInfoPtr from the array of data in the slot
-													if ( TryRead(basePtr + 8 + (hashIndex * 0x18) + 8, out IntPtr fileInfoPtr) ) {
-														// read the File_InfoBlock struct from that ptr
-														if ( TryRead(fileInfoPtr, out Offsets.File_InfoBlock fileInfo) ) {
-															string name = fileInfo.strName.Value;
-															if ( IsValid(name, 1) ) {
-																// Log($"PoEMemory: data file {name} at {Describe(fileInfoPtr)}");
-																FileRoots[name] = fileInfoPtr;
-															}
-														}
+					if ( ! TryRead(fileRootMatch + 0x6, out int localFileRootOffset) ) {
+						Log($"PoEMemory: Failed to read a local offset from match + 6");
+						return;
+					}
+					Log($"PoEMemory: localFileRootOffset = {localFileRootOffset}");
+					// at this local offset (from the match address) is a structure,
+					// that structure contains an array of exactly 16 elements, starting at offset 0xA
+					// (the structure is the top node in a hierarchical hash table, probably boost's flat_map)
+					IntPtr rootBlockArrayStart = fileRootMatch + localFileRootOffset + 0xA;
+					Offsets.File_RootHeader[] fileRoots = new Offsets.File_RootHeader[16];
+					// read all 16 rootBlock array elements at once
+					if ( TryRead(rootBlockArrayStart, fileRoots) <= 0 ) {
+						Log($"PoEMemory: Failed to read rootBlockArrayStructure from {Describe(rootBlockArrayStart)}");
+						return;
+					}
+					int scanCount = 0;
+					FileRoots.Clear();
+					for ( int rootIndex = 0; rootIndex < 16; rootIndex++ ) {
+						var fileRoot = fileRoots[rootIndex];
+						// Log($"PoEMemory: Parsing file root block # {rootIndex}");
+						if ( fileRoot.Capacity > 0 && fileRoot.Capacity < 9999 ) {
+							claimedCount += fileRoot.Count;
+							// each fileRoot block contains up to Capacity buckets
+							// its sparse, and each bucket is either full or empty
+							// Log($"PoEMemory: File parsing progress: {scanCount} / {16 * 8 * (fileRoot.Capacity + 1) / 8}");
+							for ( int bucketIndex = 0; bucketIndex < (fileRoot.Capacity + 1) / 8; bucketIndex++ ) {
+								// this is the base ptr of one bucket in the hash table, each bucket holds 8 entries with 1-byte sub keys
+								var basePtr = fileRoot.ptrFileNode + (bucketIndex * 0xc8);
+								byte[] hashValues = new byte[8];
+								if ( TryRead(basePtr, hashValues) > 0 ) {
+									for ( int hashIndex = 0; hashIndex < 8; hashIndex++ ) {
+										// each subkey has a value, but 0xFF is a special value that means an empty slot
+										bool empty = hashValues[hashIndex] == 0xFF;
+										scanCount += 1;
+										if ( !empty ) {
+											// read the fileInfoPtr from the array of data in the slot
+											if ( TryRead(basePtr + 8 + (hashIndex * 0x18) + 8, out IntPtr fileInfoPtr) ) {
+												// read the File_InfoBlock struct from that ptr
+												if ( TryRead(fileInfoPtr, out Offsets.File_InfoBlock fileInfo) ) {
+													string name = fileInfo.strName.Value;
+													if ( IsValid(name, 1) ) {
+														// Log($"PoEMemory: data file {name} at {Describe(fileInfoPtr)}");
+														FileRoots[name] = fileInfoPtr;
 													}
 												}
 											}
@@ -459,6 +475,9 @@ namespace AtE {
 						}
 					}
 					Log($"PoEMemory: parsing ended after {Time.ElapsedMilliseconds - fileParseStarted} ms, found {FileRoots?.Count ?? 0} files of {claimedCount} claimed.");
+				}
+				else {
+					Log($"PoEMemory: Cannot find files root.");
 				}
 			};
 		
