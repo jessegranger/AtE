@@ -8,8 +8,8 @@ namespace AtE {
 	// public static implicit operator Func<State, State>(State state) => (s) => { try { return state.OnTick(); } catch ( Exception ) { return null; } };
 
 	public static partial class Globals {
-		public static void Run(IState s) => StateMachine.DefaultMachine.Add(s);
-		public static void Run(string label, Func<IState, long, IState> func) => StateMachine.DefaultMachine.Add(State.NewState(label, func));
+		public static void Run(IState s) => Machine.DefaultMachine.Add(s);
+		public static void Run(string label, Func<IState, long, IState> func) => Machine.DefaultMachine.Add(State.NewState(label, func));
 		public static void RunForever(string label, Action action) => Run(label, (self, dt) => { action(); return self; });
 		public static void RunForever(string label, Action<long> action) => Run(label, (self, dt) => { action(dt); return self; });
 		public static void RunFor(long duration_ms, string label, Action action) {
@@ -24,17 +24,17 @@ namespace AtE {
 		}
 	}
 
-	internal class StateMachine : State {
+	internal class Machine : State {
 
 		public bool Paused = false;
 
-		public StateMachine(params IState[] states) {
+		public Machine(params IState[] states) {
 			States = new LinkedList<IState>(states);
 			Next = this; // state machines are states that run forever, unless you manually assign Next
 		}
 
 		// there is one default static machine that runs all the other machinery
-		public static readonly StateMachine DefaultMachine = new StateMachine();
+		public static readonly Machine DefaultMachine = new Machine();
 
 		// each machine runs any number of states at once
 		public readonly LinkedList<IState> States; // OnTick below will tick the states in this list, and manage the results

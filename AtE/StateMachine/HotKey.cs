@@ -11,7 +11,7 @@ namespace AtE {
 		public Keys Key;
 		public HotKey(Keys key) {
 			Key = key;
-			StateMachine.DefaultMachine.Add(this);
+			Machine.DefaultMachine.Add(this);
 		}
 		public bool IsUp => !IsDown;
 		public bool IsDown = false;
@@ -33,7 +33,7 @@ namespace AtE {
 		public void Dispose() {
 			if ( !(isDisposed || isDisposing) ) {
 				isDisposing = true;
-				StateMachine.DefaultMachine.Remove(this);
+				Machine.DefaultMachine.Remove(this);
 				isDisposed = true;
 			}
 		}

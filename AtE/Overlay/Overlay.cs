@@ -107,7 +107,7 @@ namespace AtE {
 					// Advance all the States by one frame
 					// in here they end up calling ImGuiController and SpriteController Draw functions
 					// this adds up some draw lists
-					StateMachine.DefaultMachine.OnTick(dt);
+					Machine.DefaultMachine.OnTick(dt);
 
 					// Render the draw lists to vertexes and Draw them to the GPU
 					SpriteController.Render(dt);

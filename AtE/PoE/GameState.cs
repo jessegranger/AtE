@@ -23,8 +23,8 @@ namespace AtE {
 				if ( IsDisposed || value == base.Address ) return;
 
 				if ( base.Address != IntPtr.Zero ) {
-					StateMachine.DefaultMachine.Remove(InGameState);
-					StateMachine.DefaultMachine.Remove(AreaLoadingState);
+					Machine.DefaultMachine.Remove(InGameState);
+					Machine.DefaultMachine.Remove(AreaLoadingState);
 				}
 
 				base.Address = value;
@@ -42,11 +42,11 @@ namespace AtE {
 					// the other states are here in the Cache if we want them, but they are useless
 
 					if ( IsValid(InGameState) ) {
-						StateMachine.DefaultMachine.Add(InGameState);
+						Machine.DefaultMachine.Add(InGameState);
 					}
 
 					if ( IsValid(AreaLoadingState) ) {
-						StateMachine.DefaultMachine.Add(AreaLoadingState);
+						Machine.DefaultMachine.Add(AreaLoadingState);
 					}
 				}
 			}
@@ -75,8 +75,8 @@ namespace AtE {
 		public override void Dispose() {
 			if ( IsDisposed || isDisposing ) return;
 			isDisposing = true;
-			StateMachine.DefaultMachine.Remove(InGameState);
-			StateMachine.DefaultMachine.Remove(AreaLoadingState);
+			Machine.DefaultMachine.Remove(InGameState);
+			Machine.DefaultMachine.Remove(AreaLoadingState);
 			Address = IntPtr.Zero;
 			IsDisposed = true;
 			base.Dispose();

@@ -144,7 +144,7 @@
     <Compile Include="PoE\PoEMemory.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StateMachine\HotKey.cs" />
-    <Compile Include="StateMachine\StateMachine.cs" />
+    <Compile Include="StateMachine\Machine.cs" />
     <Compile Include="StateMachine\Runner.cs" />
     <Compile Include="StateMachine\State.cs" />
     <Compile Include="Overlay\TextureCache.cs" />
