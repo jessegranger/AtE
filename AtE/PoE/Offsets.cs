@@ -193,7 +193,7 @@ namespace AtE {
 		// then, ptr = Read<IntPtr>(match + localOffset) is address of a GameRoot_Ref struct
 		// so, the final game state base ptr is, Read<GameRoot_Ref>(ptr).ptrToGameStateBasePtr
 
-		public readonly static string FileRoot_SearchMask = "xxxxxx????x";
+		public readonly static string FileRoot_SearchMask = "xxxxxx????xxx";
 		public readonly static byte[] FileRoot_SearchPattern = new byte[] {
 			  /* From the original ExileApi notes: FileRoot Pointer
         00007FF6C47EED01  | 48 8D 0D A8 23 7F 00               | lea rcx,qword ptr ds:[7FF6C4FE10B0]        | <--FileRootPtr
@@ -206,7 +206,7 @@ namespace AtE {
 			0x48, 0x8b, 0x08,
 			0x48, 0x8d, 0x3d,
 			0x00, 0x00, 0x00, 0x00,
-			0x41
+			0x8b, 0x04, 0x0E
 		};
 
 
@@ -883,6 +883,10 @@ namespace AtE {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 		}
 
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_DiesAfterTime {
+			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			[FieldOffset(0x20)] public readonly IntPtr ptrAt0x20;
+		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Animated {
 			[FieldOffset(0x008)] public readonly IntPtr entOwner;
 			// 3.22.1c: 72 new bytes here?
@@ -1032,6 +1036,7 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_ClientAnimationController {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner; // Entity
 			[FieldOffset(0x9C)] public readonly int AnimationId;
+			[FieldOffset(0x1A4)] public readonly float TimeSpentAnimating;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_CurrencyInfo {
@@ -1174,7 +1179,7 @@ namespace AtE {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			// Crucible: 8 new bytes here
 			[FieldOffset(0x144)] public MonsterRarity Rarity;
-			[FieldOffset(0x168)] public ArrayHandle Mods;
+			[FieldOffset(0x150)] public ArrayHandle Mods;
 		}
 		public enum MonsterRarity : int {
 			White,
