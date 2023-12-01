@@ -19,7 +19,7 @@ namespace AtE {
 		}
 
 		public bool DismissStoryText = false;
-		public uint ClickDelayMilliseconds = 250;
+		public uint ClickDelayMilliseconds = 350;
 
 		public bool ShowMinionStats = false;
 		public bool ShowSpectreSpells = false;
@@ -38,10 +38,15 @@ namespace AtE {
 		}
 		static LevelingPlugin() {
 			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/AnimatedWeapon", "Animated Weapon", "animate_weapon", Color.White);
-			AddMinionSkillDesc("Metadata/Monsters/SummonedSkull/SummonedSkull", "Raging Spirit", "summon_raging_spirit", Color.White);
+			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/AnimatedArmour", "Animated Guardian", "animate_armour", Color.White);
+			AddMinionSkillDesc("Metadata/Monsters/SummonedSkull/SummonedSkull", "Raging Spirit", "summon_raging_spirit", Color.LightGoldenrodYellow);
+			AddMinionSkillDesc("Metadata/Monsters/SummonedSkull/SummonedRaven", "Summoned Raven", "summon_raging_spirit", Color.MediumPurple);
+			AddMinionSkillDesc("Metadata/Monsters/SummonedPhantasm/SummonedPhantasm", "Summoned Phantasm", "summon_phantasm", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/IcyRagingSpirit/IcyRagingSpirit", "Decree of the Grave", "decree_of_the_grave_on_kill", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/BoneGolem/BoneGolem", "Golem - Carrion", "summon_bone_golem", Color.LimeGreen);
-			AddMinionSkillDesc("Metadata/Monsters/RaisedZombies/RaisedZombie", "Raised Zombie", "raise_zombie", Color.White);
+			AddMinionSkillDesc("Metadata/Monsters/LightningGolem/LightningGolemSummoned", "Golem - Lightning", "summon_lightning_golem", Color.SkyBlue);
+			AddMinionSkillDesc("Metadata/Monsters/RaisedZombies/RaisedZombieStandard", "Raised Zombie", "raise_zombie", Color.White);
+			AddMinionSkillDesc("Metadata/Monsters/RaisedSkeletons/RaisedSkeletonStandard", "Summoned Skeleton", "summon_skeletons", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/Skitterbot/SkitterbotCold", "Skitterbot - Chill", "skitterbots", Color.Cyan);
 			AddMinionSkillDesc("Metadata/Monsters/Skitterbot/SkitterbotLightning", "Skitterbot - Shock", "skitterbots", Color.Yellow);
 			AddMinionSkillDesc("Raised Spectre", "Raised Spectre", "raise_spectre", Color.White);
@@ -152,7 +157,7 @@ namespace AtE {
 								}
 							} else if( HasBuff(ent, "spectre_buff") ) {
 								color = Color.CornflowerBlue;
-								label = $"Spectre - {path.Replace("Metadata/Monsters/","")}";
+								label = $"Spectre - {path.Split('/').LastOrDefault()}";
 								if ( ShowSpectreSpells ) {
 									label += " " + string.Join(", ", ent.GetComponent<Actor>().Skills
 										.Where((skill) => !skill.InternalName.Equals("melee"))
@@ -171,13 +176,14 @@ namespace AtE {
 					foreach(var entry in minionSummary ) {
 						Color color = entry.Value.Color;
 						string label = entry.Value.DisplayName;
+						if ( label == null ) label = "null";
 						if( entry.Value.Count > 1 ) {
 							label += $" (x{entry.Value.Count})";
 						}
 						float min = entry.Value.MinTimeLeft;
 						float max = entry.Value.MaxTimeLeft;
 						float ratio = (min / max);
-						if( min > 0 && min < float.PositiveInfinity ) {
+						if ( min > 0 && min < float.PositiveInfinity ) {
 							label += $" {min:f}s";
 							if ( ratio < 0.1 ) {
 								color = Color.Red;
@@ -186,11 +192,16 @@ namespace AtE {
 							} else if ( ratio < 0.5 ) {
 								color = Color.Yellow;
 							} else if ( ratio > 0.9 ) {
-								color = Color.SpringGreen;
+								color = Color.ForestGreen;
 							}
+							ImGui.PushStyleColor(ImGuiCol.FrameBg, ImGui.GetColorU32(new Vector4(color.R/256f, color.G/256f, color.B/256f, .166f)));
+							ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)));
+							ImGui.PushStyleColor(ImGuiCol.PlotHistogram, ImGui.GetColorU32(new Vector4(color.R/256f, color.G/256f, color.B/256f, .5f)));
+							ImGui.ProgressBar(ratio, new Vector2(-1f, 0f), label);
+							ImGui.PopStyleColor(3);
+						} else {
+							ImGui.TextColored(new Vector4(color.R / 256f, color.G / 256f, color.B / 256f, color.A / 256f), label);
 						}
-						if ( label == null ) label = "null";
-						ImGui.TextColored(new Vector4(color.R / 256f, color.G / 256f, color.B / 256f, color.A / 256f), label);
 						// ImGui.Text(label);
 						// DrawTextAt(36, spot, label, color);
 					}
