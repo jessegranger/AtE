@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 using static AtE.Globals;
 
@@ -225,6 +226,22 @@ namespace AtE {
 			Value = 0;
 			GetAllStats();
 			return gameStatValues?.TryGetValue(Key, out Value) ?? false;
+		}
+
+		public IEnumerable<string> GetAllTags() {
+			int tagCount = ActiveSkill.Value.SkillTagCount;
+			IntPtr nextTag = ActiveSkill.Value.SkillTags;
+			while( tagCount < 100 && tagCount > 0 ) {
+				if( PoEMemory.TryRead(nextTag, out Offsets.SkillTagEntry entry) ) {
+					if( PoEMemory.TryRead(entry.ptrSkillTagDesc, out Offsets.SkillTagDesc tag) ) {
+						if( PoEMemory.TryReadString(tag.DisplayName, Encoding.Unicode, out string name) ) {
+							yield return name;
+						}
+					}
+				}
+				tagCount -= 1;
+				nextTag += Marshal.SizeOf(typeof(Offsets.SkillTagEntry));
+			}
 		}
 
 	}

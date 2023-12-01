@@ -849,7 +849,7 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct SkillTagDesc {
 			[FieldOffset(0x00)] public readonly IntPtr DisplayName; // ptr to string unicode
-			[FieldOffset(0x08)] public readonly IntPtr InternalName; // ptr to string unicode
+			[FieldOffset(0x08)] public readonly IntPtr InternalName; // ptr to ptr to string unicode
 			[FieldOffset(0x10)] public readonly IntPtr ptrDataFile; // ptr to a StatRecord in the data files
 		}
 
