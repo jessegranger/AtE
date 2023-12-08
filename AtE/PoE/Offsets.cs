@@ -863,10 +863,11 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ActorVaalSkillArrayEntry {
 			[FieldOffset(0x00)] public readonly IntPtr ptrActiveSkill; // ptr to ActiveSkill struct
+			[FieldOffset(0x08)] public readonly IntPtr ptrDataFile; // ptr to a Data file entry
 			[FieldOffset(0x10)] public readonly int MaxVaalSouls;
 			[FieldOffset(0x14)] public readonly int CurVaalSouls;
-			[FieldOffset(0x18)] public readonly IntPtr ptrUnknown; // possibly into DataFile, or a stat array
-
+			[FieldOffset(0x18)] public readonly long longUnknown; // possibly into DataFile, or a stat array
+			// total entry size = 32 bytes
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct DeployedObjectsArrayEntry {
@@ -1164,6 +1165,18 @@ namespace AtE {
 			[FieldOffset(0x20)] public readonly ArrayHandle EssenceTypes;
 			[FieldOffset(0x70)] public readonly byte OpenStage;
 		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Monster {
+			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			[FieldOffset(0x10)] public readonly long padding;
+			[FieldOffset(0x18)] public readonly IntPtr ptrMonsterData;
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct MonsterData {
+			[FieldOffset(0x08)] public readonly IntPtr ptrUnknown08;
+			[FieldOffset(0x10)] public readonly IntPtr ptrUnknown10; // ptr to ptr to unicode string (the Path string of the monster type)
+			[FieldOffset(0x18)] public readonly IntPtr ptrUnknown18;
+			[FieldOffset(0x20)] public readonly int intUnknown;
+		}
+
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct EssenceTypeEntry {
 			[FieldOffset(0x04)] public readonly IntPtr ptrType;
 		}
