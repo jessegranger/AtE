@@ -268,6 +268,43 @@ namespace AtE.Plugins {
 			}
 		}
 
+		public class VaalDiscipline : SkillData {
+			public int UseAtPercentES = 50;
+			public VaalDiscipline() : base("Vaal Discipline", "vaal_discipline", "vaal_aura_energy_shield") { }
+			public override bool Predicate(PlayerEntity p) {
+				if ( !Enabled ) {
+					return false;
+				}
+
+				var skill = p.Actor.Skills.Where((s) => s.InternalName.Equals("vaal_discipline")).FirstOrDefault();
+				if( !IsValid(skill) ) {
+					DrawBottomLeftText("Vaal Discipline: no skill found", Color.OrangeRed);
+					return false;
+				}
+
+				if ( skill.CurVaalSouls < skill.SoulsPerUse ) {
+					DrawBottomLeftText("Vaal Discipline: not enough souls", Color.Orange);
+					return false;
+				}
+
+				var life = p.GetComponent<Life>();
+				if( !IsValid(life) ) {
+					DrawBottomLeftText("Vaal Discipline: invalid life component", Color.Orange);
+					return false;
+				}
+				int pct = (100 * life.CurES) / life.MaxES;
+				DrawBottomLeftText($"Vaal Discipline: {pct}% es", Color.AliceBlue);
+				return pct <= UseAtPercentES;
+
+			}
+
+			public override void Configure() {
+				base.Configure();
+				ImGui.SliderInt("Use at % ES##VaalDisciplineUseAtES", ref UseAtPercentES, 1, 99);
+			}
+
+		}
+
 		private Dictionary<string, SkillData> KnownSkills = new Dictionary<string, SkillData>() {
 			{ "Blood Rage", new BloodRageData() },
 			/// many of those are not quite right yet, like they need their SkillBarName checked/corrected, eg
@@ -287,7 +324,7 @@ namespace AtE.Plugins {
 			// { "Vaal Grace", new SkillData("Vaal Grace", "vaal_grace", "vaal_aura_dodge", null, (p) => true) },
 			// { "Vaal Haste", new SkillData("Vaal Haste", "vaal_haste", "vaal_aura_speed", null, (p) => true) },
 			// { "Vaal Cold Snap", new SkillData("Vaal Cold Snap", "new_vaal_cold_snap", "vaal_cold_snap_degen", null, (p) => false) }, // HasNearbyRares( },
-			// { "Vaal Discipline", new SkillData("Vaal Discipline", "vaal_discipline", "vaal_aura_energy_shield", null, (p) => IsMissingEHP(p, .5f) )},
+			{ "Vaal Discipline", new VaalDiscipline() },
 		};
 
 		/// <summary>
