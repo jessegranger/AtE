@@ -39,19 +39,38 @@ namespace AtE {
 		static LevelingPlugin() {
 			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/AnimatedWeapon", "Animated Weapon", "animate_weapon", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/AnimatedArmour", "Animated Guardian", "animate_armour", Color.White);
+			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/HolyLivingRelic", "Summoned Holy Relic", "summon_relic", Color.PaleGoldenrod);
 			AddMinionSkillDesc("Metadata/Monsters/SummonedSkull/SummonedSkull", "Raging Spirit", "summon_raging_spirit", Color.LightGoldenrodYellow);
 			AddMinionSkillDesc("Metadata/Monsters/SummonedSkull/SummonedRaven", "Summoned Raven", "summon_raging_spirit", Color.MediumPurple);
 			AddMinionSkillDesc("Metadata/Monsters/SummonedPhantasm/SummonedPhantasm", "Summoned Phantasm", "summon_phantasm", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/IcyRagingSpirit/IcyRagingSpirit", "Decree of the Grave", "decree_of_the_grave_on_kill", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/BoneGolem/BoneGolem", "Golem - Carrion", "summon_bone_golem", Color.LimeGreen);
 			AddMinionSkillDesc("Metadata/Monsters/LightningGolem/LightningGolemSummoned", "Golem - Lightning", "summon_lightning_golem", Color.SkyBlue);
+			AddMinionSkillDesc("Metadata/Monsters/RockGolem/RockGolemSummoned", "Golem - Stone", "summon_rock_golem", Color.BurlyWood);
+			AddMinionSkillDesc("Metadata/Monsters/FireElemental/FireElementalSummoned", "Golem - Flame", "summon_fire_elemental", Color.LightSalmon);
+			AddMinionSkillDesc("Metadata/Monsters/IceElemental/IceElementalSummoned", "Golem - Ice", "summon_ice_elemental", Color.SkyBlue);
+			AddMinionSkillDesc("Metadata/Monsters/ChaosElemental/ChaosElementalSummoned", "Golem - Chaos", "summon_chaos_elemental", Color.MediumPurple);
 			AddMinionSkillDesc("Metadata/Monsters/RaisedZombies/RaisedZombieStandard", "Raised Zombie", "raise_zombie", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/RaisedSkeletons/RaisedSkeletonStandard", "Summoned Skeleton", "summon_skeletons", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/Skitterbot/SkitterbotCold", "Skitterbot - Chill", "skitterbots", Color.Cyan);
 			AddMinionSkillDesc("Metadata/Monsters/Skitterbot/SkitterbotLightning", "Skitterbot - Shock", "skitterbots", Color.Yellow);
+			AddMinionSkillDesc("Metadata/Monsters/Totems/TauntTotem", "Totem - Decoy", "totem_taunt", Color.Beige);
+			AddMinionSkillDesc("Metadata/Monsters/SpiderPlated/HeraldOfAgonySpiderPlated", "Herald - Agony", "herald_of_agony", Color.LightGreen);
+			AddMinionSkillDesc("Metadata/Monsters/Totems/SlamTotem", "Totem - Ancestral Warchief", "ancestor_totem_slam", Color.Orange);
+			AddMinionSkillDesc("Metadata/Monsters/Totems/VaalSlamTotem", "Totem - Vaal Ancestral Warchief", "vaal_ancestral_warchief", Color.Orange);
+			AddMinionSkillDesc("Metadata/Monsters/Totems/MeleeTotem", "Totem - Ancestral Protector", "totem_melee", Color.Orange);
+			AddMinionSkillDesc("Metadata/Monsters/Mirage/WitchMirage", "Mirage Archer", "mirage_archer", Color.LightGreen);
+			AddMinionSkillDesc("Metadata/Monsters/Mirage/RangerMirage", "Mirage Archer", "mirage_archer", Color.LightGreen);
+			AddMinionSkillDesc("Metadata/Monsters/Mirage/TemplarMirage", "Mirage Archer", "mirage_archer", Color.LightGreen);
+			AddMinionSkillDesc("Metadata/Monsters/Mirage/DuelistMirage", "Mirage Archer", "mirage_archer", Color.LightGreen);
+			AddMinionSkillDesc("Metadata/Monsters/Mirage/ShadowMirage", "Mirage Archer", "mirage_archer", Color.LightGreen);
+			AddMinionSkillDesc("Metadata/Monsters/Mirage/MarauderMirage", "Mirage Archer", "mirage_archer", Color.LightGreen);
+			AddMinionSkillDesc("Metadata/Monsters/Mirage/ScionMirage", "Mirage Archer", "mirage_archer", Color.LightGreen);
+			// traps? mines?
+			// skitterbot curse ring
 			AddMinionSkillDesc("Raised Spectre", "Raised Spectre", "raise_spectre", Color.White);
 		}
-			
+
 		private static Dictionary<string, MinionSkillDesc> MinionDescriptors;
 
 		public override void Render() {
@@ -121,14 +140,7 @@ namespace AtE {
 					var deployed = (actor?.DeployedObjects ?? Empty<DeployedObject>()).ToArray();
 					var minionSummary = new Dictionary<string, MinionSummary>();
 					var spot = new Vector2(loc.X, loc.Y);
-					ImGui.SetNextWindowPos(spot);
-					ImGui.Begin("Minion Summary", 
-						ImGuiWindowFlags.None
-						| ImGuiWindowFlags.NoDecoration 
-						| ImGuiWindowFlags.NoBackground
-						| ImGuiWindowFlags.NoMove
-						| ImGuiWindowFlags.AlwaysAutoResize
-						| ImGuiWindowFlags.NoInputs );
+					float maxTextWidth = 0f;
 					foreach(var minion in deployed) {
 						var ent = minion.GetEntity();
 						if( IsValid(ent) ) {
@@ -144,7 +156,7 @@ namespace AtE {
 								summary.DisplayName = desc.DisplayName;
 								summary.Color = desc.Color;
 								int minionDuration = 0;
-								if( actor.GetSkill(desc.InternalName)?.TryGetStat(Offsets.GameStat.MinionDuration, out minionDuration) ?? false ) {
+								if ( minion.GetSkill()?.TryGetStat(Offsets.GameStat.MinionDuration, out minionDuration) ?? false ) {
 									float expectedTimeAlive = (minionDuration / 1000f);
 									float timeAlive = ent.GetComponent<Animated>()?.AnimatedObject?.GetComponent<ClientAnimationController>()?.TimeSpentAnimating ?? 0f;
 									float timeRemaining = expectedTimeAlive - timeAlive;
@@ -157,11 +169,11 @@ namespace AtE {
 								}
 							} else if( HasBuff(ent, "spectre_buff") ) {
 								color = Color.CornflowerBlue;
-								label = $"Spectre - {path.Split('/').LastOrDefault()}";
+								label = $"Spectre - {ent.GetComponent<Render>()?.Name ?? path.Split('/').LastOrDefault()}";
 								if ( ShowSpectreSpells ) {
 									label += " " + string.Join(", ", ent.GetComponent<Actor>().Skills
 										.Where((skill) => !skill.InternalName.Equals("melee"))
-										.Select((skill) => skill.InternalName));
+										.Select((skill) => skill.Name ?? skill.InternalName));
 								}
 								summary.DisplayName = label;
 								summary.Color = MinionDescriptors["Raised Spectre"].Color;
@@ -169,10 +181,26 @@ namespace AtE {
 								ImGui.Text($"Unknown path {path}");
 							}
 							minionSummary[path] = summary;
+							float width = ImGui.CalcTextSize(summary.DisplayName).X + ((float)(1f + Math.Ceiling(Math.Log10(summary.Count))) * 14f);
+							if( summary.MinTimeLeft != float.PositiveInfinity ) {
+								width += 60f;
+							}
+							if( width > maxTextWidth ) {
+								maxTextWidth = width;
+							}
 							// DrawTextAt(36, spot, label, color);
 						}
 					}
 					
+					ImGui.SetNextWindowPos(spot);
+					ImGui.SetNextWindowSize(new Vector2(maxTextWidth + 20f, 0f));
+					ImGui.Begin("Minion Summary", 
+						ImGuiWindowFlags.None
+						| ImGuiWindowFlags.NoDecoration 
+						| ImGuiWindowFlags.NoBackground
+						| ImGuiWindowFlags.NoMove
+						| ImGuiWindowFlags.AlwaysAutoResize
+						| ImGuiWindowFlags.NoInputs );
 					foreach(var entry in minionSummary ) {
 						Color color = entry.Value.Color;
 						string label = entry.Value.DisplayName;
@@ -197,7 +225,7 @@ namespace AtE {
 							ImGui.PushStyleColor(ImGuiCol.FrameBg, ImGui.GetColorU32(new Vector4(color.R/256f, color.G/256f, color.B/256f, .166f)));
 							ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)));
 							ImGui.PushStyleColor(ImGuiCol.PlotHistogram, ImGui.GetColorU32(new Vector4(color.R/256f, color.G/256f, color.B/256f, .5f)));
-							ImGui.ProgressBar(ratio, new Vector2(-1f, 0f), label);
+							ImGui.ProgressBar(ratio, new Vector2(maxTextWidth + 10f, 0f), label);
 							ImGui.PopStyleColor(3);
 						} else {
 							ImGui.TextColored(new Vector4(color.R / 256f, color.G / 256f, color.B / 256f, color.A / 256f), label);
