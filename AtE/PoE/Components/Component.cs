@@ -178,6 +178,13 @@ namespace AtE {
 
 		public ushort Id => Cache.Id;
 
+		private string name = null;
+		public string Name => name != null
+			? name
+			: PoEMemory.TryReadString(SkillGem.Value.NamePtr, Encoding.Unicode, out name)
+			? name
+			: null;
+
 		private string internalName = null;
 		public string InternalName => internalName != null
 			? internalName
@@ -660,7 +667,11 @@ namespace AtE {
 	public class Monolith : Component<Offsets.Component_Monolith> {
 		public byte OpenStage => Cache.OpenStage;
 	}
-	public class Monster : Component<Offsets.Component_Empty> {
+	public class Monster : Component<Offsets.Component_Monster> {
+		public Cached<Offsets.MonsterData> Data;
+		public Monster() {
+			Data = CachedStruct<Offsets.MonsterData>(() => Cache.ptrMonsterData);
+		}
 	}
 	public class NPC : Component<Offsets.Component_NPC> {
 		public bool Hidden => Cache.Hidden == 0;
@@ -809,8 +820,8 @@ namespace AtE {
 						entries = null;
 						return Empty<Offsets.GameStatArrayEntry>();
 					}
-				} else {
-					Log($"Not re-parsing Stats because {elapsed} - {lastEntryTime} (= {elapsed - lastEntryTime}) < {maxAge} (max age)");
+				// } else {
+					// Log($"Not re-parsing Stats because {elapsed} - {lastEntryTime} (= {elapsed - lastEntryTime}) < {maxAge} (max age)");
 				}
 				return entries;
 			}
