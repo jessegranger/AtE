@@ -51,8 +51,9 @@ namespace AtE {
 		public IEnumerable<InventoryItem> VisibleItems {
 			get {
 				return AllVisibleChildren(this, new HashSet<int>())
+					.Where(e => Globals.IsValid(e))
 					.Select(e => new InventoryItem() { Address = e.Address })
-					.Where(e => Globals.IsValid(e) && e.IsVisible);
+					.Where(e => e.IsVisible);
 			}
 		}
 	
