@@ -69,6 +69,8 @@ namespace AtE {
 			return this;
 		}
 
+		private int showColumnTypeAsFloat = 0; // 0 = show as int, 1 = show as floats
+
 		public override IState OnTick(long dt) {
 			if ( dt <= 0 ) {
 				return this;
@@ -127,6 +129,12 @@ namespace AtE {
 				if( (Time.ElapsedMilliseconds - lastSampleTime) > 200 ) {
 					Resample();
 				}
+				ImGui.SameLine();
+				ImGui.Text("- preview as:");
+				ImGui.SameLine();
+				ImGui.RadioButton("int", ref showColumnTypeAsFloat, 0);
+				ImGui.SameLine();
+				ImGui.RadioButton("float", ref showColumnTypeAsFloat, 1);
 				if ( ImGui.BeginTable($"Table-{Id}", 24, ImGuiTableFlags.SizingFixedFit ) ) {
 
 
@@ -171,16 +179,36 @@ namespace AtE {
 						}
 
 						// then try to read this value as different number forms
-						ImGui.TableNextColumn();
-						if( PoEMemory.TryRead(offset, out int intValue1) ) {
-							ImGui.Text($"{intValue1}i");
+						long longValue = 0;
+						if ( showColumnTypeAsFloat == 0 ) {
+							ImGui.TableNextColumn();
+							if ( PoEMemory.TryRead(offset, out int intValue1) ) {
+								ImGui.Text($"{intValue1}i");
+							}
+							ImGui.TableNextColumn();
+							if ( PoEMemory.TryRead(offset + 4, out int intValue2) ) {
+								ImGui.Text($"{intValue2}i");
+							}
+							ImGui.TableNextColumn();
+							if ( PoEMemory.TryRead(offset, out longValue) ) {
+								ImGui.Text($"{longValue}l");
+							}
+						} else if( showColumnTypeAsFloat == 1 ) {
+							ImGui.TableNextColumn();
+							if( PoEMemory.TryRead(offset, out double doubleValue) ) {
+								ImGui.Text($"{doubleValue}d");
+							}
+							ImGui.TableNextColumn();
+							if( PoEMemory.TryRead(offset, out float floatValue) ) {
+								ImGui.Text($"{floatValue}f");
+							}
+							ImGui.TableNextColumn();
+							if( PoEMemory.TryRead(offset + 4, out float floatValue2) ) {
+								ImGui.Text($"{floatValue2}f");
+							}
 						}
 						ImGui.TableNextColumn();
-						if( PoEMemory.TryRead(offset + 4, out int intValue2) ) {
-							ImGui.Text($"{intValue2}i");
-						}
-						ImGui.TableNextColumn();
-						if( PoEMemory.TryRead(offset, out long longValue) ) {
+						if( PoEMemory.TryRead(offset, out longValue) ) {
 							ImGui.Text($"0x{longValue:X}");
 							ImGui.TableNextColumn();
 							IntPtr ptr = new IntPtr(longValue);
@@ -206,8 +234,8 @@ namespace AtE {
 									if ( PoEMemory.TryReadString(ptr, Encoding.ASCII, out string asc, 16) ) {
 										ImGui.Text($"s\"{Truncate(asc.Replace('\n', '?'), 16)}\"");
 									}
-									ImGui.TableNextColumn();
 									if ( PoEMemory.TryReadString(ptr, Encoding.Unicode, out string utf, 16) ) {
+										ImGui.SameLine();
 										ImGui.Text($"u\"{Truncate(utf.Replace('\n', '?'), 16)}\"");
 									}
 								}
