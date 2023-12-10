@@ -487,10 +487,9 @@ namespace AtE {
 			[FieldOffset(0x5c8)] public readonly IntPtr PvPPanel;
 			[FieldOffset(0x5d0)] public readonly IntPtr AreaInstanceUi;
 
-			// 3.23: guessing 8 new bytes here, unconfirmed
-			[FieldOffset(0x618)] public readonly IntPtr ItemsOnGroundLabelElement;
-			[FieldOffset(0x620)] public readonly IntPtr Map;
-			[FieldOffset(0x628)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
+			[FieldOffset(0x610)] public readonly IntPtr ItemsOnGroundLabelElement;
+			[FieldOffset(0x618)] public readonly IntPtr Map;
+			[FieldOffset(0x620)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
 			[FieldOffset(0x6a0)] public readonly IntPtr RootBuffPanel;
 			[FieldOffset(0x6a8)] public readonly IntPtr NpcDialog;
 			[FieldOffset(0x6b0)] public readonly IntPtr NpcOptions;
@@ -1309,11 +1308,12 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Render {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			// Crucible: 8 new bytes here
-			[FieldOffset(0xa0)] public readonly Vector3 Pos;
-			[FieldOffset(0xac)] public readonly Vector3 Bounds;
-			[FieldOffset(0xc8)] public readonly StringHandle Name; // of unicode bytes
-			[FieldOffset(0xE4)] public readonly Vector3 Rotation;
-			[FieldOffset(0xe8)] public readonly float RotationRadians;
+			// 3.23: 8 new bytes here
+			[FieldOffset(0xa8)] public readonly Vector3 Pos;
+			[FieldOffset(0xb4)] public readonly Vector3 Bounds;
+			[FieldOffset(0xd0)] public readonly StringHandle Name; // of unicode bytes
+			[FieldOffset(0xEC)] public readonly Vector3 Rotation;
+			[FieldOffset(0xf0)] public readonly float RotationRadians;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_RenderItem {
@@ -1553,16 +1553,18 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_Map {
 			// 3.21.1: 8 new bytes added here
-			[FieldOffset(0x280)] public readonly IntPtr ptrToSubMap_Full;
-			[FieldOffset(0x288)] public readonly IntPtr ptrToSubMap_Mini;
-			[FieldOffset(0x258)] public readonly IntPtr ptrToElement_OrangeWords;
-			[FieldOffset(0x2B0)] public readonly IntPtr ptrToElement_BlueWords;
+			// 3.23: 16 new bytes here
+			[FieldOffset(0x290)] public readonly IntPtr ptrToSubMap_Full;
+			[FieldOffset(0x298)] public readonly IntPtr ptrToSubMap_Mini;
+			// [FieldOffset(0x268)] public readonly IntPtr ptrToElement_OrangeWords;
+			// [FieldOffset(0x2C0)] public readonly IntPtr ptrToElement_BlueWords;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_SubMap {
-			[FieldOffset(0x268)] public readonly Vector2 Shift;
-			[FieldOffset(0x270)] public readonly Vector2 DefaultShift; // historically, always < 0, -20 >
-			[FieldOffset(0x2a8)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
+			// 3.23: 24 new bytes here
+			[FieldOffset(0x280)] public readonly Vector2 Shift;
+			[FieldOffset(0x288)] public readonly Vector2 DefaultShift; // historically, always < 0, -20 >
+			[FieldOffset(0x2c0)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_RootHeader {
