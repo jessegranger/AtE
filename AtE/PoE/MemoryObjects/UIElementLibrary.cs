@@ -28,7 +28,7 @@ namespace AtE {
 		public Element QuestTracker => IsValid(Address) ? getElement(Cache.QuestTracker) : null;
 		public Element OpenLeftPanel => IsValid(Address) ? getElement(Cache.OpenLeftPanel) : null;
 		public Element OpenRightPanel => IsValid(Address) ? getElement(Cache.OpenRightPanel) : null;
-		public InventoryRoot InventoryPanel => new InventoryRoot() { Address = Cache.InventoryPanel };
+		public InventoryRoot InventoryPanel => IsValid(Cache.InventoryPanel) ? new InventoryRoot() { Address = Cache.InventoryPanel } : null;
 		public Element StashElement => IsValid(Address) ? getElement(Cache.StashElement) : null;
 		public Inventory StashInventory => IsValid(Address) ? new Inventory() { Address = Cache.StashElement } : null;
 		public Element GuildStashElement => IsValid(Address) ? getElement(Cache.GuildStashElement) : null;
