@@ -33,6 +33,7 @@ namespace AtE {
 		public Inventory Belt => IsValid(Inventories.Value.Belt) ? new Inventory() { Address = Inventories.Value.Belt } : null;
 		public Inventory Boots => IsValid(Inventories.Value.Boots) ? new Inventory() { Address = Inventories.Value.Boots } : null;
 		public Inventory Backpack => IsValid(Inventories.Value.Backpack) ? new Inventory() { Address = Inventories.Value.Backpack } : null;
+		public Inventory LeagueBackpack => IsValid(Inventories.Value.LeagueBackpack) ? new Inventory() { Address = Inventories.Value.LeagueBackpack } : null;
 		public Inventory Flasks => IsValid(Inventories.Value.Flask) ? new Inventory() { Address = Inventories.Value.Flask } : null;
 		public Inventory Trinket => IsValid(Inventories.Value.Trinket) ? new Inventory() { Address = Inventories.Value.Trinket } : null;
 		public Inventory LeveledGems => IsValid(Inventories.Value.LeveledGems) ? new Inventory() { Address = Inventories.Value.LeveledGems } : null;
@@ -82,7 +83,28 @@ namespace AtE {
 		public static bool IsCorrupted(InventoryItem item) => IsValid(item) && IsCorrupted(item.Entity);
 		public static bool IsCorrupted(Entity item) => IsValid(item) && (item.GetComponent<Base>()?.IsCorrupted ?? true);
 
-		public static IEnumerable<InventoryItem> BackpackItems() => GetUI()?.InventoryPanel?.Backpack?.VisibleItems.Take(60).Where(IsValid) ?? Empty<InventoryItem>();
+		public static IEnumerable<InventoryItem> BackpackItems(bool includeLeagueBackpack = false) {
+			var ui = GetUI();
+			if( !IsValid(ui) ) {
+				yield break;
+			}
+			var panel = ui.InventoryPanel;
+			if( !IsValid(panel) ) {
+				yield break;
+			}
+			if ( includeLeagueBackpack ) {
+				foreach ( var item in panel.LeagueBackpack?.VisibleItems.Take(20) ?? Empty<InventoryItem>() ) {
+					if ( IsValid(item) ) {
+						yield return item;
+					}
+				}
+			}
+			foreach ( var item in panel.Backpack?.VisibleItems.Take(60) ?? Empty<InventoryItem>() ) {
+				if( IsValid(item) ) {
+					yield return item;
+				}
+			}
+		}
 		public static IEnumerable<InventoryItem> StashItems() => new Inventory() { Address = GetUI()?.StashElement?.Address ?? IntPtr.Zero }.VisibleItems;
 
 		public static bool BackpackIsOpen() => GetUI()?.InventoryPanel?.IsVisibleLocal ?? false;
