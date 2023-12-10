@@ -158,6 +158,8 @@ namespace AtE {
 
 		public IEnumerable<ActorSkill> GetSkills() => GetComponent<Actor>()?.Skills ?? Empty<ActorSkill>();
 
+		public Mods GetMods() => GetComponent<Mods>();
+
 		public IEnumerable<string> GetComponentNames() {
 			if( ComponentPtrs == null ) {
 				ParseComponents();
