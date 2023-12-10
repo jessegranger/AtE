@@ -257,7 +257,10 @@ namespace AtE {
 						.GetChild(2)?
 						.GetChild(2)?
 						.GetChild(0) ?? null;
-					if ( IsValid(continueOption) && continueOption.IsVisibleLocal && continueOption.Text.Equals("Continue") ) {
+					string text;
+					if ( IsValid(continueOption)
+						&& continueOption.IsVisibleLocal
+						&& ((text = continueOption.Text)?.Equals("Continue") ?? false) ) {
 						ClickElement(continueOption);
 						return new Delay(ClickDelayMilliseconds, this);
 					}
