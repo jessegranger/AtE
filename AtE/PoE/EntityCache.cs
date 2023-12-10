@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ImGuiNET;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,13 +15,15 @@ namespace AtE {
 
 		public static bool TryGetEntity(IntPtr ptr, out Entity ent) {
 			ent = null;
+			// if the ptr is to a valid memory range
 			if( IsValid(ptr) ) {
+				// ensure ptr is in the cache, as an Entity, constructing one if the ptr is being added
 				ent = EntitiesByAddress.GetOrAdd(ptr, newEnt);
 				if ( IsValid(ent) ) {
 					if( ent.Address != ptr ) {
 						ent.Address = ptr;
 					}
-					return true;
+					return IsValid(ent);
 				} else {
 					// Log($"EntityCache: ptr {Describe(ptr)} -> {Describe(ent.Address)} failed to produce valid Entity.");
 				}
@@ -42,11 +45,19 @@ namespace AtE {
 		public static int IdCount => EntitiesById.Count;
 		private static readonly int idOffset = GetOffset<Offsets.Entity>("Id");
 
+		internal static void Debug() {
+		}
+
 		internal static void MainThread() {
 			Log($"EntityCache: MainThread starting...");
+
+			// used to make sure we dont visit the same node in this tree structure more than once
 			HashSet<IntPtr> deduper = new HashSet<IntPtr>();
+			// incomingIds is the set of entity ids that we found on the most recent full walk of the tree
 			HashSet<uint> incomingIds = new HashSet<uint>();
+			// the frontier stack is used to explore the tree, it should start and end empty with each walk of the tree
 			Stack<Offsets.EntityListNode> frontier = new Stack<Offsets.EntityListNode>();
+
 			while( true ) {
 
 				// exit if the main form exits
@@ -86,22 +97,24 @@ namespace AtE {
 						}
 
 						// probe only the entity id before we construct a full ent
-						if ( skippedOne && PoEMemory.TryRead(entPtr + idOffset, out uint id)
-							&& id > 0 && id < int.MaxValue ) {
-							// if the cache already knows about an entity at this address,
-							if ( TryGetEntity(entPtr, out Entity ent) ) {
-								// and it's the same entity Id we just found
-								if ( IsValid(ent) && ent.Id == id ) {
-									incomingIds.Add(id);
-									EntitiesById[id] = ent;
-								} else {
-									Log($"EntityCache[{id}] Failed to produce a valid ent, rejecting.");
-									EntitiesByAddress.TryRemove(ent.Address, out _);
-									ent.Address = default;
+						if( skippedOne == false ) {
+							skippedOne = true;
+						} else if ( PoEMemory.TryRead(entPtr + idOffset, out uint id)) {
+							if ( id == 0 || ((int)id < 0) ) {
+								// Log($"EntityCache[id={id}] Failed to produce a valid ent, rejecting.");
+							} else {
+								// attempt to construct and cache an Entity instance from this ptr
+								if ( TryGetEntity(entPtr, out Entity ent) ) {
+									if ( IsValid(ent) && ent.Id == id ) {
+										incomingIds.Add(id);
+										EntitiesById[id] = ent;
+									} else {
+										Log($"EntityCache[{id}] Failed to produce a valid ent, rejecting.");
+										EntitiesByAddress.TryRemove(ent.Address, out _);
+										ent.Address = default;
+									}
 								}
 							}
-						} else {
-							skippedOne = true;
 						}
 
 						if ( PoEMemory.TryRead(node.First, out Offsets.EntityListNode first) ) {
