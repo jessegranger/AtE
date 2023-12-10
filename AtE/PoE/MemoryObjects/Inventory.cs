@@ -54,7 +54,7 @@ namespace AtE {
 				return AllVisibleChildren(this, new HashSet<int>())
 					.Where(e => Globals.IsValid(e))
 					.Select(e => new InventoryItem() { Address = e.Address })
-					.Where(e => e.IsVisible);
+					.Where(e => Globals.IsValid(e) && e.IsVisible);
 			}
 		}
 	
