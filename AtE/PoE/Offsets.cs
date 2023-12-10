@@ -267,7 +267,7 @@ namespace AtE {
 			[FieldOffset(0x0B)] public readonly GameStateType Kind;
 			[FieldOffset(0x018)] public readonly IntPtr ptrData; // ptr to InGameState_Data struct
 			[FieldOffset(0x020)] public readonly int TicksPerLastFrame; // 1000 ticks = 1 ms
-			[FieldOffset(0x078)] public readonly IntPtr ptrWorldData;
+			[FieldOffset(0x078)] public readonly IntPtr ptrWorldData; // ptr to WorldData
 			[FieldOffset(0x098)] public readonly IntPtr ptrEntityLabelMap;
 			// 3.21.2b: 8 new bytes added here
 			// 3.22: 248 new bytes here?
@@ -373,9 +373,10 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaRef {
-			[FieldOffset(0x88)] public readonly IntPtr ptrToWorldAreaDetails;
-			[FieldOffset(0x90)] public readonly IntPtr ptrUnk90;
-			[FieldOffset(0xec)] public readonly uint areaHash;
+			// 3.23: 40 new bytes here?
+			[FieldOffset(0xb0)] public readonly IntPtr ptrToWorldAreaDetails;
+			[FieldOffset(0xb8)] public readonly IntPtr ptrUnk90;
+			[FieldOffset(0x114)] public readonly uint areaHash;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaDetails {
