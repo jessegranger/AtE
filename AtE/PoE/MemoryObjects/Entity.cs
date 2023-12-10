@@ -18,7 +18,7 @@ namespace AtE {
 			// && ent.ServerId > 0 && ent.ServerId < int.MaxValue
 			&& (ent.Path?.StartsWith("Meta") ?? false);
 
-		public static Entity GetEntityById(ushort id) => EntityCache.TryGetEntity(id, out Entity ret) ? ret : null;
+		public static Entity GetEntityById(uint id) => EntityCache.TryGetEntity(id, out Entity ret) ? ret : null;
 
 		/// <summary>
 		/// Helper to get the Player from the GameRoot.

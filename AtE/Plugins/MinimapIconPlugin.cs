@@ -93,9 +93,9 @@ namespace AtE.Plugins {
 				return this;
 			}
 
-			ushort[] deployed = null;
+			uint[] deployed = null;
 			if ( ShowMinions ) { // get this list ahead of time so we can only iterate GetEntities once
-				deployed = (GetPlayer()?.GetComponent<Actor>()?.DeployedObjects.Select(d => d.EntityId) ?? Empty<ushort>()).ToArray();
+				deployed = (GetPlayer()?.GetComponent<Actor>()?.DeployedObjects.Select(d => d.EntityId) ?? Empty<uint>()).ToArray();
 			}
 			foreach ( var ent in GetEntities().Take(2000).Where(IsValid) ) {
 
