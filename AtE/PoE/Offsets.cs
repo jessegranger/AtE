@@ -26,7 +26,7 @@ namespace AtE {
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.22.2";
+		public const string PoEVersion = "3.23.01";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -291,10 +291,11 @@ namespace AtE {
 
 		// members of AreaLoadingState
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct AreaGameState {
-			[FieldOffset(0xC8)] public readonly long IsLoading;
-			[FieldOffset(0x100)] public readonly IntPtr elemRoot;
+			// 3.23: 128 new bytes here
+			[FieldOffset(0x148)] public readonly long IsLoading;
+			[FieldOffset(0x180)] public readonly IntPtr elemRoot;
 			// 3.22: 24 new bytes here
-			[FieldOffset(0x3C0)] public readonly IntPtr strAreaName;
+			[FieldOffset(0x440)] public readonly IntPtr strAreaName;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LoginGameState {
 			[FieldOffset(0x0D0)] public readonly IntPtr elemRoot;
@@ -433,9 +434,8 @@ namespace AtE {
 			// 3.22.2: 8 bytes removed here
 			[FieldOffset(0x870)] public readonly IntPtr ServerData;
 			[FieldOffset(0x878)] public readonly IntPtr entPlayer; // ptr Entity
-			// 3.23: 16 bytes here?
-			[FieldOffset(0x938)] public readonly IntPtr EntityListHead; // ptr EntityListNode
-			[FieldOffset(0x940)] public readonly long EntitiesCount;
+			[FieldOffset(0x928)] public readonly IntPtr EntityListHead; // ptr EntityListNode
+			[FieldOffset(0x930)] public readonly long EntitiesCount;
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 		}
 
@@ -595,8 +595,9 @@ namespace AtE {
 			[FieldOffset(0x00)] public readonly IntPtr vtable;
 			[FieldOffset(0x08)] public readonly IntPtr ptrDetails;
 			[FieldOffset(0x10)] public readonly ArrayHandle ComponentsArray; // of IntPtr (to base address of a Component)
-			[FieldOffset(0x50)] public readonly Vector3 WorldPos; // possible
-			[FieldOffset(0x60)] public readonly uint Id;
+			// [FieldOffset(0x50)] public readonly Vector3 WorldPos; // possible
+			// 3.23: 48 new bytes here
+			[FieldOffset(0x90)] public readonly uint Id;
 		}
 
 		public static bool IsValid(Entity ent) {
@@ -716,9 +717,10 @@ namespace AtE {
 
 			// TODO: consider reading on demand
 			// Crucible: 48 new bytes here
+			[FieldOffset(0x6a8)] public readonly IntPtr entOwnerAgain;
 			[FieldOffset(0x6c0)] public readonly ArrayHandle ActorSkillsHandle; // of ActorSkillArrayEntry
 			[FieldOffset(0x6D8)] public readonly ArrayHandle ActorSkillUIStatesHandle; // of ActorSkillUIState
-			[FieldOffset(0x708)] public readonly ArrayHandle DeployedObjectsHandle; // of ptr to DeployedObjectsArrayElement
+			[FieldOffset(0x708)] public readonly ArrayHandle DeployedObjectsHandle; // of ptr to DeployedObjectsArrayEntry
 			[FieldOffset(0x6F0)] public readonly ArrayHandle ActorVaalSkillsHandle; // of ActorVaalSkillArrayEntry
 		}
 
@@ -878,10 +880,9 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct DeployedObjectsArrayEntry {
-			[FieldOffset(0x00)] public readonly ushort Unknown0;
-			[FieldOffset(0x02)] public readonly ushort SkillId; // matches some Skill.Id in the player's skill array
-			[FieldOffset(0x04)] public readonly ushort EntityId; // matches some Entity.Id in the world
-			[FieldOffset(0x06)] public readonly ushort Unknown1;
+			[FieldOffset(0x00)] public readonly uint EntityId; // matches some Entity.Id in the world
+			[FieldOffset(0x04)] public readonly uint SkillId; // matches some Skill.Id in the player's skill array
+			[FieldOffset(0x08)] public readonly uint intUnknown;
 		}
 
 		/// <summary>
@@ -1442,7 +1443,8 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_InventoryRoot {
-			[FieldOffset(0x370)] public readonly InventoryArray InventoryList;
+			// 3.23: 32 new bytes here
+			[FieldOffset(0x390)] public readonly InventoryArray InventoryList;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InventoryArray {
@@ -1461,8 +1463,8 @@ namespace AtE {
 			[FieldOffset(0x60)] public readonly IntPtr Backpack;
 			[FieldOffset(0x68)] public readonly IntPtr Flask;
 			[FieldOffset(0x70)] public readonly IntPtr Trinket;
-			[FieldOffset(0x78)] public readonly IntPtr LWeaponSkin; // nothing below here is verified/updated
-			[FieldOffset(0x80)] public readonly IntPtr LWeaponEffect;
+			[FieldOffset(0x78)] public readonly IntPtr LeagueBackpack;
+			[FieldOffset(0x80)] public readonly IntPtr LWeaponEffect; // nothing below here is verified/updated
 			[FieldOffset(0x88)] public readonly IntPtr LWeaponAddedEffect;
 			[FieldOffset(0x90)] public readonly IntPtr RWeaponSkin;
 			[FieldOffset(0x98)] public readonly IntPtr RWeaponEffect;
@@ -1518,19 +1520,20 @@ namespace AtE {
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_InventoryItem {
 			// [FieldOffset(0x3F0)] public readonly IntPtr incorrectTooltip;
-			[FieldOffset(0x370)] public readonly IntPtr entItem;
-			[FieldOffset(0x378)] public readonly IntPtr unkNearPtr0x378;
-			[FieldOffset(0x380)] public readonly int unkInt0x380;
-			[FieldOffset(0x384)] public readonly short unkShort0x384;
-			[FieldOffset(0x386)] public readonly short unkShort0x386;
-			[FieldOffset(0x388)] public readonly IntPtr unkFarPtr0x388;
-			[FieldOffset(0x390)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
-			[FieldOffset(0x3D0)] public readonly int unkInt0x3D0;
+			// 3.23: 16 new bytes here
+			[FieldOffset(0x380)] public readonly IntPtr entItem;
+			// [FieldOffset(0x378)] public readonly IntPtr unkNearPtr0x378;
+			// [FieldOffset(0x380)] public readonly int unkInt0x380;
+			// [FieldOffset(0x384)] public readonly short unkShort0x384;
+			// [FieldOffset(0x386)] public readonly short unkShort0x386;
+			// [FieldOffset(0x388)] public readonly IntPtr unkFarPtr0x388;
+			[FieldOffset(0x3a0)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
+			// [FieldOffset(0x3D0)] public readonly int unkInt0x3D0;
 			// 3.21.2b: 72 new bytes here?
-			[FieldOffset(0x41c)] public readonly int Width;
-			[FieldOffset(0x420)] public readonly int Height;
-			[FieldOffset(0x3E0)] public readonly int unkInt0x3E0;
-			[FieldOffset(0x3F4)] public readonly Vector2i InventPosition;
+			[FieldOffset(0x42c)] public readonly int Width;
+			[FieldOffset(0x430)] public readonly int Height;
+			// [FieldOffset(0x3E0)] public readonly int unkInt0x3E0;
+			[FieldOffset(0x404)] public readonly Vector2i InventPosition;
 			// [FieldOffset(0x3DC)] public readonly byte UnkByte3DC;
 			// [FieldOffset(0x3DD)] public readonly byte UnkByte3DD;
 			// [FieldOffset(0x3DE)] public readonly byte UnkByte3DE;
