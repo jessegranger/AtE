@@ -262,8 +262,8 @@ namespace AtE {
 			Entry = entry;
 		}
 
-		public ushort SkillId => Entry.SkillId;
-		public ushort EntityId => Entry.EntityId;
+		public uint SkillId => Entry.SkillId;
+		public uint EntityId => Entry.EntityId;
 		public ActorSkill GetSkill() => Actor?.Skills.FirstOrDefault(s => s.Id == Entry.SkillId);
 		public Entity GetEntity() => GetEntityById(Entry.EntityId);
 
@@ -795,7 +795,7 @@ namespace AtE {
 				stats = new Dictionary<Offsets.GameStat, int>();
 				lastStatsTime = elapsed;
 				foreach ( var entry in Entries ) {
-					if ( entry.Key <= 0 || entry.Key > Offsets.GameStat.DisplayTattooGrantsRandomKeystone ) {
+					if ( entry.Key <= 0 || entry.Key > Offsets.GameStat.DisplayVoodooPoleLife) {
 						Log($"Invalid Stats key {entry.Key} value {entry.Value}");
 						break; // invalid data in the Entries
 					}
