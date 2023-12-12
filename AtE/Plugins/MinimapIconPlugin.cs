@@ -21,6 +21,7 @@ namespace AtE.Plugins {
 		public bool ShowEnemies = true;
 		public bool ShowChests = true;
 		public bool ShowDelvePath = true;
+		public bool ShowLeagueNPCs = true;
 
 		public bool ShowRareOverhead = true;
 
@@ -51,6 +52,7 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("Show Minions", ref ShowMinions);
 			ImGui.Checkbox("Show Strongboxes", ref ShowChests);
 			ImGui.Checkbox("Show Delve Path", ref ShowDelvePath);
+			ImGui.Checkbox("Show League NPCs", ref ShowLeagueNPCs);
 		}
 
 		public override IState OnTick(long dt) {
@@ -140,11 +142,14 @@ namespace AtE.Plugins {
 					ent.MinimapIcon = new Entity.Icon() { Size = 0f, Sprite = SpriteIcon.None };
 				}
 
-				if( ent.MinimapIcon.Size > 0f ) {
+				if ( ent.MinimapIcon.Size > 0f ) {
 					icon = ent.MinimapIcon.Sprite;
 					iconSize = ent.MinimapIcon.Size;
 				} else if ( ShowMinions && deployed.Contains((ushort)ent.Id) ) {
 					TryGetMinionIcon(ent, out icon, out iconSize);
+				} else if ( ShowLeagueNPCs && path.StartsWith("Metadata/NPC/League") ) {
+					icon = SpriteIcon.YellowExclamation;
+					iconSize = 1.5f;
 				} else if ( ShowEnemies && path.StartsWith("Metadata/Monster") && IsAlive(ent) && IsHostile(ent) && IsTargetable(ent) ) {
 					TryGetEnemyIcon(ent, out icon, out iconSize);
 				} else if ( ShowChests && path.StartsWith("Metadata/Chest") ) {
@@ -204,6 +209,9 @@ namespace AtE.Plugins {
 					icon = SpriteIcon.RewardAbyss;
 					iconSize = 1.75f;
 				} else if ( path.StartsWith("Metadata/Chests/LeaguesExpedition/") ) {
+					icon = SpriteIcon.BlueFlag;
+					iconSize = 1.1f;
+				} else if ( path.StartsWith("Metadata/Chests/LeagueAzmeri/") ) {
 					icon = SpriteIcon.BlueFlag;
 					iconSize = 1.1f;
 				} else if ( path.EndsWith("/BootyChest") ) {
