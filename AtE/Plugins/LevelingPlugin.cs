@@ -52,6 +52,8 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/ChaosElemental/ChaosElementalSummoned", "Golem - Chaos", "summon_chaos_elemental", Color.MediumPurple);
 			AddMinionSkillDesc("Metadata/Monsters/RaisedZombies/RaisedZombieStandard", "Raised Zombie", "raise_zombie", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/RaisedSkeletons/RaisedSkeletonStandard", "Summoned Skeleton", "summon_skeletons", Color.White);
+			AddMinionSkillDesc("Metadata/Monsters/RaisedSkeletons/RaisedSkeletonRanged1Quality", "Summoned Skeleton", "summon_skeletons", Color.White);
+			AddMinionSkillDesc("Metadata/Monsters/RaisedSkeletons/RaisedSkeletonRanged2Quality", "Summoned Skeleton", "summon_skeletons", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/Skitterbot/SkitterbotCold", "Skitterbot - Chill", "skitterbots", Color.Cyan);
 			AddMinionSkillDesc("Metadata/Monsters/Skitterbot/SkitterbotLightning", "Skitterbot - Shock", "skitterbots", Color.Yellow);
 			AddMinionSkillDesc("Metadata/Monsters/Totems/TauntTotem", "Totem - Decoy", "totem_taunt", Color.Beige);
