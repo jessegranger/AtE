@@ -22,6 +22,8 @@ namespace AtE.Plugins {
 		public bool ShowChests = true;
 		public bool ShowDelvePath = true;
 		public bool ShowLeagueNPCs = true;
+		public bool ShowLeagueResources = true;
+		public bool DebugUnknownResources = false;
 
 		public bool ShowRareOverhead = true;
 
@@ -53,6 +55,8 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("Show Strongboxes", ref ShowChests);
 			ImGui.Checkbox("Show Delve Path", ref ShowDelvePath);
 			ImGui.Checkbox("Show League NPCs", ref ShowLeagueNPCs);
+			ImGui.Indent(); ImGui.Checkbox("Show League Resources", ref ShowLeagueResources);
+			ImGui.Checkbox("Debug Unknown Resources", ref DebugUnknownResources);
 		}
 
 		public override IState OnTick(long dt) {
@@ -99,6 +103,8 @@ namespace AtE.Plugins {
 			if ( ShowMinions ) { // get this list ahead of time so we can only iterate GetEntities once
 				deployed = (GetPlayer()?.GetComponent<Actor>()?.DeployedObjects.Select(d => d.EntityId) ?? Empty<uint>()).ToArray();
 			}
+			// debug: var distinctPaths = new Dictionary<string, Entity>();
+
 			foreach ( var ent in GetEntities().Take(2000).Where(IsValid) ) {
 
 				// each entity picks an icon to display
@@ -109,7 +115,11 @@ namespace AtE.Plugins {
 				if( path == null ) {
 					continue;
 				}
-
+				/* debug: unknown objects in the area
+				if( ! distinctPaths.ContainsKey(path) ) {
+					distinctPaths.Add(ent.Path, ent);
+				}
+				*/
 
 				/* Debug:
 				if( path.StartsWith("Metadata/Monster") ) {
@@ -147,9 +157,11 @@ namespace AtE.Plugins {
 					iconSize = ent.MinimapIcon.Size;
 				} else if ( ShowMinions && deployed.Contains((ushort)ent.Id) ) {
 					TryGetMinionIcon(ent, out icon, out iconSize);
-				} else if ( ShowLeagueNPCs && path.StartsWith("Metadata/NPC/League") ) {
+				} else if ( ShowLeagueNPCs && path.StartsWith("Metadata/NPC/League/Azmeri") ) {
 					icon = SpriteIcon.YellowExclamation;
 					iconSize = 1.5f;
+				} else if ( ShowLeagueResources && path.StartsWith("Metadata/MiscellaneousObjects/Azmeri") ) {
+					TryGetLeagueResourceIcon(ent, out icon, out iconSize);
 				} else if ( ShowEnemies && path.StartsWith("Metadata/Monster") && IsAlive(ent) && IsHostile(ent) && IsTargetable(ent) ) {
 					TryGetEnemyIcon(ent, out icon, out iconSize);
 				} else if ( ShowChests && path.StartsWith("Metadata/Chest") ) {
@@ -164,7 +176,58 @@ namespace AtE.Plugins {
 				}
 			}
 
+			/* debug: how to find unknown objects in the area
+			ImGui.Begin("Paths");
+			foreach(var pair in distinctPaths) {
+				ImGui.Text(pair.Key);
+				if( pair.Key.Contains("AzmeriLightBomb") ) {
+					ImGui_Object("LightBomb", "LightBomb", pair.Value, new HashSet<int>());
+				}
+			}
+			ImGui.End();
+			*/
+
 			return this;
+		}
+		
+		private bool TryGetLeagueResourceIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
+			icon = SpriteIcon.None;
+			iconSize = 1f;
+			string path = ent.Path;
+			if ( ! IsValid(path, 1) ) {
+				return false;
+			}
+			if ( path.EndsWith("FuelResupply") ) {
+				icon = SpriteIcon.LargeGreenCircle;
+				iconSize = 1.1f;
+			} else if ( path.Contains("Azmeri/SacrificeAltar") ) {
+				icon = SpriteIcon.RedFlag;
+			} else if ( path.Contains("Azmeri/AzmeriFlaskRefill") ) {
+				icon = SpriteIcon.GreenFlag;
+			} else if ( path.EndsWith("Azmeri/AzmeriResourcePrimalist") ) {
+				icon = SpriteIcon.BlightPath;
+				iconSize = 2.9f;
+			} else if ( path.EndsWith("Azmeri/AzmeriResourceWarden") ) {
+				icon = SpriteIcon.BlightPath;
+				iconSize = 2.9f;
+			} else if ( path.EndsWith("Azmeri/AzmeriResourceVoodoo") ) {
+				icon = SpriteIcon.BlightPath;
+				iconSize = 2.9f;
+			} else if ( path.EndsWith("Azmeri/AzmeriResourceWardenLow") ) {
+				icon = SpriteIcon.BlightPath;
+				iconSize = 1.9f;
+			} else if ( path.EndsWith("Azmeri/AzmeriResourcePrimalistLow") ) {
+				icon = SpriteIcon.BlightPath;
+				iconSize = 1.9f;
+			} else if ( path.Contains("Azmeri/AzmeriResourceVoodooLow") ) {
+				icon = SpriteIcon.BlightPath;
+				iconSize = 1.9f;
+			} else if ( path.EndsWith("AzmeriResourceBase") ) {
+				icon = SpriteIcon.BlightPath;
+			} else if ( DebugUnknownResources ) {
+				DrawTextAt(ent, ent.Path, Color.White);
+			}
+			return icon != SpriteIcon.None;
 		}
 
 		private bool TryGetChestIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
@@ -261,7 +324,7 @@ namespace AtE.Plugins {
 				} else if ( path.StartsWith("Metadata/Chests/IncursionChest") ) {
 					icon = SpriteIcon.RewardGenericItems;
 					iconSize = 1.75f;
-					if( path.Contains("Currency") ) {
+					if ( path.Contains("Currency") ) {
 						icon = SpriteIcon.RewardCurrency;
 					}
 				} else if ( path.StartsWith("Metadata/Chests/LeagueSanctum") ) {
@@ -271,6 +334,11 @@ namespace AtE.Plugins {
 					if ( path.Contains("PrimaryTarget") ) {
 						icon = SpriteIcon.None;
 						iconSize = 0f;
+					}
+				} else if ( path.StartsWith("Metadata/Chests/Labyrinth") ) {
+					if ( path.EndsWith("TrinketChest") ) {
+						icon = SpriteIcon.Labyrinth;
+						iconSize = 1.7f;
 					}
 				} else if ( path.StartsWith("Metadata/Chests/SynthesisChests") ) {
 					icon = SpriteIcon.LargeCyanStar;
