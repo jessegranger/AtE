@@ -160,6 +160,16 @@ namespace AtE {
 
 		public Mods GetMods() => GetComponent<Mods>();
 
+		public RectangleF GetClientRect() {
+			var render = GetComponent<Render>();
+			if( !IsValid(render) ) {
+				return RectangleF.Empty;
+			}
+			var pos = WorldToScreen(render.Position);
+			var bounds = render.Bounds;
+			return new RectangleF(pos.X - bounds.X, pos.Y - bounds.Y, bounds.X, bounds.Y);
+		}
+
 		public IEnumerable<string> GetComponentNames() {
 			if( ComponentPtrs == null ) {
 				ParseComponents();
