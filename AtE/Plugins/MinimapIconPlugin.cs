@@ -157,11 +157,17 @@ namespace AtE.Plugins {
 					iconSize = ent.MinimapIcon.Size;
 				} else if ( ShowMinions && deployed.Contains((ushort)ent.Id) ) {
 					TryGetMinionIcon(ent, out icon, out iconSize);
-				} else if ( ShowLeagueNPCs && path.StartsWith("Metadata/NPC/League/Azmeri") ) {
-					icon = SpriteIcon.YellowExclamation;
-					iconSize = 1.5f;
+				} else if ( ShowLeagueNPCs && path.StartsWith("Metadata/NPC/League/") ) {
+					if( path.Contains("Azmeri") || path.Contains("Affliction") ) {
+						icon = SpriteIcon.YellowExclamation;
+						iconSize = 1.5f;
+					}
 				} else if ( ShowLeagueResources && path.StartsWith("Metadata/MiscellaneousObjects/Azmeri") ) {
 					TryGetLeagueResourceIcon(ent, out icon, out iconSize);
+				} else if ( ShowLeagueResources && path.StartsWith("Metadata/Terrain/Leagues/Azmeri") ) {
+					// TryGetLeagueResourceIcon(ent, out icon, out iconSize);
+					icon = SpriteIcon.GreenExclamation;
+					iconSize = 1.25f;
 				} else if ( ShowEnemies && path.StartsWith("Metadata/Monster") && IsAlive(ent) && IsHostile(ent) && IsTargetable(ent) ) {
 					TryGetEnemyIcon(ent, out icon, out iconSize);
 				} else if ( ShowChests && path.StartsWith("Metadata/Chest") ) {
@@ -180,9 +186,6 @@ namespace AtE.Plugins {
 			ImGui.Begin("Paths");
 			foreach(var pair in distinctPaths) {
 				ImGui.Text(pair.Key);
-				if( pair.Key.Contains("AzmeriLightBomb") ) {
-					ImGui_Object("LightBomb", "LightBomb", pair.Value, new HashSet<int>());
-				}
 			}
 			ImGui.End();
 			*/
@@ -415,7 +418,7 @@ namespace AtE.Plugins {
 			bool isHidden = HasBuff(ent, "hidden_monster");
 			var rarity = ent.GetComponent<ObjectMagicProperties>()?.Rarity;
 			switch ( rarity ) {
-				case Offsets.MonsterRarity.Unique: icon = isHidden ? SpriteIcon.SmallPurpleHexagon : SpriteIcon.MediumPurpleCircle; break;
+				case Offsets.MonsterRarity.Unique: icon = isHidden ? SpriteIcon.SmallPurpleHexagon : SpriteIcon.LargePurpleCircle; break;
 				case Offsets.MonsterRarity.Rare: icon = isHidden ? SpriteIcon.SmallYellowHexagon : SpriteIcon.MediumYellowCircle; break;
 				case Offsets.MonsterRarity.Magic: icon = isHidden ? SpriteIcon.SmallBlueHexagon : SpriteIcon.MediumBlueCircle; break;
 				case Offsets.MonsterRarity.White: icon = isHidden ? SpriteIcon.SmallRedHexagon : SpriteIcon.MediumRedCircle; break;
