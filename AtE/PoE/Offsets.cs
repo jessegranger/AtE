@@ -360,7 +360,7 @@ namespace AtE {
 		/// <summary>
 		/// A StringHandle, offset from Element Address.
 		/// </summary>
-		public static readonly int Element_Text = 0x578;
+		public static readonly int Element_Text = 0x588;
 
 		[StructLayout(LayoutKind.Explicit)] public struct ChildrenArrayEntry {
 			[FieldOffset(0x0)] public readonly IntPtr ptrChild;
@@ -997,9 +997,10 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Buff {
 			[FieldOffset(0x8)] public readonly IntPtr ptrName; // ptr to (ptr to?) string unicode
+			[FieldOffset(0x10)] public readonly IntPtr ptrData; // ptr to data file
 			[FieldOffset(0x18)] public readonly byte IsInvisible;
 			[FieldOffset(0x19)] public readonly byte IsRemovable;
-			[FieldOffset(0x3E)] public readonly byte Charges;
+			[FieldOffset(0x42)] public readonly byte Charges;
 			[FieldOffset(0x18)] public readonly float MaxTime;
 			[FieldOffset(0x1C)] public readonly float Timer;
 		}
