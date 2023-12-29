@@ -272,12 +272,14 @@ namespace AtE {
 		public RightClickAt(RectangleF rect, uint duration, IState next = null) : this(Center(rect), duration, next) { }
 		public RightClickAt(Vector2 pos, uint duration, IState next = null) : this(pos.X, pos.Y, duration, next) { }
 		public RightClickAt(float x, float y, uint duration, IState next = null) : base(
+				(x == 0 && y == 0) ? next :
 				new MoveMouse(x, y, new Delay(duration, new RightMouseDown(new Delay(duration, new RightMouseUp(next)))))) { }
 	}
 	class CtrlRightClickAt : InputState {
 		// public CtrlRightClickAt(Element item, uint duration, IState next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
 		public CtrlRightClickAt(Vector2 pos, uint duration, IState next = null) : this(pos.X, pos.Y, duration, next) { }
 		public CtrlRightClickAt(float x, float y, uint duration, IState next = null) : base(
+				(x == 0 && y == 0) ? next :
 				new MoveMouse(x, y, new Delay(duration, 
 					new KeyDown(Keys.LControlKey, new Delay(duration,
 						new RightMouseDown(new Delay(duration,
@@ -288,6 +290,7 @@ namespace AtE {
 		// public CtrlLeftClickAt(Element item, uint duration, IState next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
 		public CtrlLeftClickAt(Vector2 pos, uint duration, IState next = null) : this(pos.X, pos.Y, duration, next) { }
 		public CtrlLeftClickAt(float x, float y, uint duration, IState next = null) : base(
+				(x == 0 && y == 0) ? next :
 				new MoveMouse(x, y, new Delay(duration, 
 					new KeyDown(Keys.LControlKey, new Delay(duration,
 						new LeftMouseDown(new Delay(duration,
@@ -298,6 +301,7 @@ namespace AtE {
 		// public ShiftLeftClickAt(Element item, uint duration, IState next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
 		public ShiftLeftClickAt(Vector2 pos, uint duration, IState next = null) : this(pos.X, pos.Y, duration, next) { }
 		public ShiftLeftClickAt(float x, float y, uint duration, IState next = null) : base(
+				(x == 0 && y == 0) ? next :
 				new MoveMouse(x, y, new Delay(duration, 
 					new KeyDown(Keys.LShiftKey, new Delay(duration,
 						new LeftMouseDown(new Delay(duration,
