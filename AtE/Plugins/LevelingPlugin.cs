@@ -23,6 +23,7 @@ namespace AtE {
 
 		public bool ShowMinionStats = false;
 		public bool ShowSpectreSpells = false;
+		public bool DebugUnknownMinions = false;
 
 		private struct MinionSkillDesc {
 			public string PathPrefix;
@@ -68,6 +69,10 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/Mirage/ShadowMirage", "Mirage Archer", "mirage_archer", Color.LightGreen);
 			AddMinionSkillDesc("Metadata/Monsters/Mirage/MarauderMirage", "Mirage Archer", "mirage_archer", Color.LightGreen);
 			AddMinionSkillDesc("Metadata/Monsters/Mirage/ScionMirage", "Mirage Archer", "mirage_archer", Color.LightGreen);
+			AddMinionSkillDesc("Metadata/Monsters/Totems/IntelligenceTotem", "Totem - Spell Totem", "spell_totem", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Totems/StrengthTotem", "Totem - Spell Totem", "spell_totem", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Totems/DexterityTotem", "Totem - Spell Totem", "spell_totem", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Totems/HolyFireSprayTotem", "Totem - Holy Flame", "spell_totem", Color.LightGoldenrodYellow);
 			// traps? mines?
 			// skitterbot curse ring
 			AddMinionSkillDesc("Raised Spectre", "Raised Spectre", "raise_spectre", Color.White);
@@ -104,6 +109,44 @@ namespace AtE {
 			Element[] children = elem.Children.ToArray();
 			for(uint i = 0; i < children.Length; i++ ) {
 				DebugElement(children[i], prefix + $".{i}");
+			}
+		}
+
+		private uint GetColorU32(byte red, byte green, byte blue, byte alpha) => ImGui.GetColorU32(new Vector4(red / 256f, green / 256f, blue / 256f, alpha / 256f));
+		private uint GetColorU32(Color color) => GetColorU32(color.R, color.G, color.B, color.A);
+
+
+		private void ProgressBar(float percentComplete, string label, Vector2 size, Color background, Color foreground, Color text) {
+			ImGui.PushStyleColor(ImGuiCol.FrameBg, GetColorU32(background));
+			ImGui.PushStyleColor(ImGuiCol.Text, GetColorU32(text));
+			ImGui.PushStyleColor(ImGuiCol.PlotHistogram, GetColorU32(foreground));
+			ImGui.ProgressBar(percentComplete, size, label);
+			ImGui.PopStyleColor(3);
+		}
+
+		private void HealthBars(Entity ent, Color healthColor, Color manaColor, Color energyShieldColor) {
+			if( !IsValid(ent) ) {
+				return;
+			}
+			var life = ent.GetComponent<Life>();
+			if( !IsValid(life) ) {
+				return;
+			}
+			var lineHeight = ImGui.GetFontSize();
+			ImGui.Text($"-- {ent.Path} --");
+			ImGui.PushStyleVar(ImGuiStyleVar.ItemInnerSpacing, 0);
+			ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 0);
+			if( life.MaxHP > 0 ) {
+				float pctLife = life.CurHP / (float)life.MaxHP;
+				ProgressBar(pctLife, $"{life.CurHP}", new Vector2(100, lineHeight), Color.Transparent, healthColor, Color.White);
+			}
+			if ( life.MaxES > 0 ) {
+				float pctES = life.CurES / (float)life.MaxES;
+				ImGui.SameLine(7f, 0); ProgressBar(pctES, $"", new Vector2(100, lineHeight), Color.Transparent, Color.FromArgb(128, energyShieldColor), Color.Black);
+			}
+			if( life.MaxMana > 0 ) {
+				float pctMana = life.CurMana / (float)life.MaxMana;
+				ProgressBar(pctMana, "", new Vector2(100, 3), Color.Transparent, manaColor, Color.White);
 			}
 		}
 
@@ -146,6 +189,7 @@ namespace AtE {
 					foreach(var minion in deployed) {
 						var ent = minion.GetEntity();
 						if( IsValid(ent) ) {
+							// HealthBars(ent, Color.Green, Color.DarkBlue, Color.SkyBlue);
 							var color = Color.White;
 							string path = ent.Path?.Split('@').FirstOrDefault() ?? "null";
 							if( ! minionSummary.ContainsKey(path) ) {
@@ -179,7 +223,7 @@ namespace AtE {
 								}
 								summary.DisplayName = label;
 								summary.Color = MinionDescriptors["Raised Spectre"].Color;
-							} else {
+							} else if ( DebugUnknownMinions ) {
 								ImGui.Text($"Unknown path {path}");
 							}
 							minionSummary[path] = summary;
