@@ -370,9 +370,9 @@ namespace AtE.Plugins {
 						tail = tail.Tail();
 						var target = incubatable.Pop();
 						tail.Next = OnlyIfBackpackIsOpen(
-							NewState(() => Notify($"Incubating {ent.Path.Split('/').Last()} into {target.Entity.Path.Split('/').Last()}"),
-							new RightClickAt(item.GetClientRect(), inputLatency,
-							new LeftClickAt(target.GetClientRect(), inputLatency, 1,
+							NewState(() => Notify($"Incubating into {target?.Entity?.Path?.Split('/').Last() ?? "null"}"),
+							new RightClickAt(item?.GetClientRect() ?? RectangleF.Empty, inputLatency,
+							new LeftClickAt(target?.GetClientRect() ?? RectangleF.Empty, inputLatency, 1,
 							null))),
 							ifClosed: null
 						);
