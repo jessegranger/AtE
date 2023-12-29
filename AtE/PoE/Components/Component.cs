@@ -16,6 +16,9 @@ namespace AtE {
 
 		public static bool IsAlive(Entity ent) => IsValid(ent) && IsAlive(ent.GetComponent<Life>());
 		public static bool IsAlive(Life life) => (life?.CurHP ?? 0) > 0;
+
+		public static bool IsRareOrUnique(Entity ent) => IsValid(ent)
+			&& (ent.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White) >= Offsets.MonsterRarity.Rare;
 	}
 	public abstract class Component<T> : MemoryObject<T>, IDisposable where T : unmanaged {
 
