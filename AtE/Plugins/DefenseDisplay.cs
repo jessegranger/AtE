@@ -26,10 +26,14 @@ namespace AtE.Plugins {
 		public bool ShowEnemyResistChaos = false;
 		public bool ShowEnemyPoisonStacks = false;
 		public bool ShowEnemyWitherStacks = false;
+		public bool ShowEnemyGraspingVines = false;
 		public bool ShowHighestCorpseLife = false;
 
 		private bool ShowStatDebugControls = false;
 		private bool ShowEnemyComponents = false;
+		private bool ShowEnemyBuffs = false;
+
+		private HashSet<string> seenBuffs = new HashSet<string>();
 
 		/// <summary>
 		/// Uses ImGui to render controls for configurable fields.
@@ -42,12 +46,21 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("Show Enemy Cold", ref ShowEnemyResistCold);
 			ImGui.Checkbox("Show Enemy Lightning", ref ShowEnemyResistLightning);
 			ImGui.Checkbox("Show Highest Corpse Life", ref ShowHighestCorpseLife);
+			ImGui.Text("Debuffs:"); ImGui.Separator();
+			ImGui.Checkbox("Show Poison Stacks", ref ShowEnemyPoisonStacks);
+			ImGui.Checkbox("Show Wither Stacks", ref ShowEnemyWitherStacks);
+			ImGui.Checkbox("Show Grasping Vines", ref ShowEnemyGraspingVines);
+			ImGui.Text("Debugging:");
 			ImGui.Separator();
 			ImGui.Checkbox("Debug Enemy Components", ref ShowEnemyComponents);
+			ImGui.Checkbox("Debug Enemy Buffs", ref ShowEnemyBuffs);
 			ImGui.Checkbox("Debug Game Stats", ref ShowStatDebugControls);
 			if ( ShowStatDebugControls ) {
 
-				ImGui.InputText("filter:", ref inputFilter, 32);
+				ImGui.Separator();
+				ImGui.AlignTextToFramePadding();
+				ImGui.Text("filter:"); ImGui.SameLine();
+				ImGui.InputText("##filter:", ref inputFilter, 32);
 				var p = GetPlayer();
 				if( !IsValid(p) ) {
 					ImGui.Text("Invalid Player");
@@ -58,18 +71,20 @@ namespace AtE.Plugins {
 					ImGui.Text("Invalid Stats component");
 					return;
 				}
-				var entries = stats.Entries;
-				var filteredItems = entries.Where((kv) => kv.Key.ToString().Contains(inputFilter) || kv.Value.ToString().Contains(inputFilter)).ToArray();
-				float maxWidth = 0;
-				if ( filteredItems.Length > 0 ) {
-					maxWidth = filteredItems.Select((kv) => ImGui.CalcTextSize(kv.Key.ToString()).X).Max();
-					ImGui.Text($"Max Width: {maxWidth}");
+				if ( inputFilter.Length > 0 ) {
+					var entries = stats.Entries;
+					var filteredItems = entries.Where((kv) => kv.Key.ToString().Contains(inputFilter) || kv.Value.ToString().Contains(inputFilter)).ToArray();
+					float maxWidth = 0;
+					if ( filteredItems.Length > 0 ) {
+						maxWidth = filteredItems.Select((kv) => ImGui.CalcTextSize(kv.Key.ToString()).X).Max();
+						// ImGui.Text($"Max Width: {maxWidth}");
 
-					ImGui.BeginListBox("##debugStatsList", new Vector2(maxWidth + 60, -2));
-					foreach ( var entry in filteredItems ) {
-						ImGui.Text(entry.Key + " = " + entry.Value);
+						ImGui.BeginListBox("##debugStatsList", new Vector2(maxWidth + 60, ImGui.GetFontSize() * filteredItems.Length));
+						foreach ( var entry in filteredItems ) {
+							ImGui.Text(entry.Key + " = " + entry.Value);
+						}
+						ImGui.EndListBox();
 					}
-					ImGui.EndListBox();
 				}
 			}
 		}
@@ -145,7 +160,7 @@ namespace AtE.Plugins {
 					}
 				}
 
-				if ( ShowEnemyComponents || ShowEnemyResistChaos || ShowEnemyResistCold || ShowEnemyResistFire || ShowEnemyResistLightning || ShowEnemyWitherStacks || ShowEnemyPoisonStacks || ShowHighestCorpseLife ) {
+				if ( ShowEnemyComponents || ShowEnemyBuffs || ShowEnemyResistChaos || ShowEnemyResistCold || ShowEnemyResistFire || ShowEnemyResistLightning || ShowEnemyWitherStacks || ShowEnemyPoisonStacks || ShowHighestCorpseLife ) {
 					float maxCorpseLife = 0;
 					Vector3 maxCorpseLocation = Vector3.Zero;
 					var player = GetPlayer();
@@ -172,6 +187,39 @@ namespace AtE.Plugins {
 										$"Action: {action.Skill} at {action.Destination} target {(IsValid(action.Target) ? "valid" : "invalid")}",
 										Color.White);
 								}
+							}
+						} 
+						if ( (ShowEnemyBuffs || ShowEnemyPoisonStacks || ShowEnemyWitherStacks || ShowEnemyGraspingVines) && isHostile && isAlive ) {
+							if( IsRareOrUnique(ent) ) {
+								var buffs = ent.GetComponent<Buffs>();
+								int poisonStacks = 0;
+								int graspingVines = 0;
+								int witherStacks = 0;
+								string buffstr = "";
+								foreach(var buff in buffs.GetBuffs()) {
+									if( IsValid(buff) ) {
+										string name = buff.Name;
+										if ( name == null ) continue;
+										seenBuffs.Add(buff.Name);
+										if( name.Equals("poison") ) {
+											poisonStacks += 1;
+										} else if( name.Equals("wither") ) {
+											witherStacks += 1;
+										} else if( name.Equals("grasping_vines_buff") ) {
+											graspingVines = buff.Charges;
+										}
+									}
+								}
+								if( ShowEnemyPoisonStacks && poisonStacks > 0 ) {
+									buffstr += $"P: {poisonStacks} ";
+								}
+								if( ShowEnemyWitherStacks && witherStacks > 0 ) {
+									buffstr += $"W: {witherStacks} ";
+								}
+								if( ShowEnemyGraspingVines ) {
+									buffstr += $"V: {graspingVines} ";
+								}
+								if( buffstr.Length > 0 ) DrawTextAt(ent.Id, WorldToScreen(Position(ent)), buffstr, Color.White);
 							}
 						}
 						if ( isAlive && isHostile ) {
@@ -208,6 +256,9 @@ namespace AtE.Plugins {
 					if ( ShowHighestCorpseLife && maxCorpseLocation != Vector3.Zero ) {
 						DrawTextAt(maxCorpseLocation, $"hp:{maxCorpseLife}", Color.White);
 					}
+				}
+				if( ShowEnemyBuffs ) foreach(string buff in seenBuffs) {
+					DrawBottomLeftText("Seen buff: " + buff, Color.White);
 				}
 			}
 
