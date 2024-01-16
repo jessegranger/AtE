@@ -98,13 +98,15 @@ namespace AtE {
 		public static string Describe(Keys key) {
 			switch ( key & ~Keys.Modifiers ) {
 				case Keys.OemPipe:
-					return "|";
+					return "| (pipe)";
 				case Keys.OemPeriod:
-					return ".";
+					return ". (period)";
 				case Keys.OemOpenBrackets:
 					return "[";
 				case Keys.Oem6:
 					return "]";
+				case Keys.Oemcomma:
+					return ", (comma)";
 				default:
 					return key.ToString();
 			}
