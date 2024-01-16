@@ -89,6 +89,7 @@ namespace AtE {
 		public static ArrayHandle<T> GetFileContents<T>(string fileName) where T : unmanaged {
 			// the FileRoots array is kept up to date via OnAreaChange
 			if ( FileRoots != null && FileRoots.TryGetValue(fileName, out IntPtr fileBasePtr) ) {
+				// each file starts with a File_InfoBlock, which points to a File_RecordSet
 				if ( TryRead(fileBasePtr, out Offsets.File_InfoBlock fileInfo) ) {
 					if ( TryRead(fileInfo.Records, out Offsets.File_RecordSet recordSet) ) {
 						return new ArrayHandle<T>(recordSet.recordsArray);

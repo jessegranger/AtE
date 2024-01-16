@@ -311,14 +311,15 @@ namespace AtE {
 			[FieldOffset(0xA8)] public readonly Vector2 ScrollOffset;
 
 			// 3.23: 32 fewer bytes here
-			[FieldOffset(0xC0)] public readonly IntPtr elemParent; // ptr to Element
+			// 3.23.1: 128 more bytes here
+			[FieldOffset(0x110)] public readonly float Scale;
+			[FieldOffset(0x140)] public readonly IntPtr elemParent; // ptr to Element
 
-			[FieldOffset(0xC8)] public readonly Vector2 Position;
-			[FieldOffset(0xC8)] public readonly float X;
-			[FieldOffset(0xCC)] public readonly float Y;
+			[FieldOffset(0xC0)] public readonly Vector2 Position;
+			[FieldOffset(0xC0)] public readonly float X;
+			[FieldOffset(0xC4)] public readonly float Y;
 			// 3.23: 32 fewer bytes here again
-			[FieldOffset(0x118)] public readonly float Scale;
-			[FieldOffset(0x145)] public readonly byte IsVisibleByte;
+			[FieldOffset(0x149)] public readonly byte IsVisibleByte;
 			public bool IsVisibleLocal => (IsVisibleByte & 8) == 8;
 
 			// [FieldOffset(0x160)] public readonly uint ElementBorderColor;
@@ -360,7 +361,7 @@ namespace AtE {
 		/// <summary>
 		/// A StringHandle, offset from Element Address.
 		/// </summary>
-		public static readonly int Element_Text = 0x588;
+		public static readonly int Element_Text = 0x608;
 
 		[StructLayout(LayoutKind.Explicit)] public struct ChildrenArrayEntry {
 			[FieldOffset(0x0)] public readonly IntPtr ptrChild;
@@ -487,9 +488,9 @@ namespace AtE {
 			[FieldOffset(0x5c8)] public readonly IntPtr PvPPanel;
 			[FieldOffset(0x5d0)] public readonly IntPtr AreaInstanceUi;
 
-			[FieldOffset(0x610)] public readonly IntPtr ItemsOnGroundLabelElement;
 			[FieldOffset(0x618)] public readonly IntPtr Map;
-			[FieldOffset(0x620)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
+			[FieldOffset(0x620)] public readonly IntPtr ItemsOnGroundLabelElement;
+			//[FieldOffset(0x620)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
 			[FieldOffset(0x6a0)] public readonly IntPtr RootBuffPanel;
 			[FieldOffset(0x6a8)] public readonly IntPtr NpcDialog;
 			[FieldOffset(0x6b0)] public readonly IntPtr NpcOptions;
@@ -1429,8 +1430,8 @@ namespace AtE {
 			[FieldOffset(0x378)] public readonly StringHandle textHandle;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_ItemsOnGroundLabelRoot {
-			[FieldOffset(0x288)] public readonly ItemsOnGroundLabelEntry hoverLabel; // ptr to EntityLabel : Element
-			[FieldOffset(0x2A0)] public readonly IntPtr labelsOnGroundHead;
+			[FieldOffset(0x2A0)] public readonly ItemsOnGroundLabelEntry hoverLabel; // 2 ptrs, one Element, one Entity
+			[FieldOffset(0x2B8)] public readonly IntPtr labelsOnGroundHead;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemsOnGroundLabelEntry {
 			[FieldOffset(0x00)] public readonly IntPtr nextEntry;
@@ -1640,9 +1641,11 @@ namespace AtE {
 			[FieldOffset(0x0A8)] public readonly IntPtr TagArray;
 			[FieldOffset(0x0B0)] public readonly int TagChanceCount;
 			[FieldOffset(0x0B8)] public readonly IntPtr TagChanceArray;
+			[FieldOffset(0x0C0)] public readonly int UnkTagsCount;
+			[FieldOffset(0x0C8)] public readonly IntPtr UnkTagsArray;
 			[FieldOffset(0x180)] public readonly byte IsEssence;
 			[FieldOffset(0x206)] public readonly IntPtr MainTag; // ?
-			[FieldOffset(0x287)] public readonly long Padding;
+			[FieldOffset(0x287)] public readonly long Padding; // so that total size = 0x28F (655)
 		}
 
 		public enum AffixType : uint {
@@ -1700,6 +1703,7 @@ namespace AtE {
 		public const string PATH_STACKED_DECK = "Metadata/Items/DivinationCards/DivinationCardDeck";
 		public const string PATH_SCROLL_WISDOM = "Metadata/Items/Currency/CurrencyIdentification";
 		public const string PATH_SCROLL_PORTAL = "Metadata/Items/Currency/CurrencyPortal";
+		public const string PATH_CHAOS = "Metadata/Items/Currency/CurrencyRerollRare";
 		public const string PATH_CHISEL = "Metadata/Items/Currency/CurrencyMapQuality";
 		public const string PATH_ALCHEMY = "Metadata/Items/Currency/CurrencyUpgradeToRare";
 		public const string PATH_TRANSMUTATION = "Metadata/Items/Currency/CurrencyUpgradeToMagic";

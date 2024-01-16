@@ -106,6 +106,7 @@
     <Compile Include="Memory\ObjectBrowser.cs" />
     <Compile Include="Overlay\Perf.cs" />
     <Compile Include="Overlay\SpriteController.cs" />
+    <Compile Include="Plugins\BreadcrumbsPlugin.cs" />
     <Compile Include="Plugins\BuffsPlugin.cs" />
     <Compile Include="Plugins\ChaosRecipe.cs" />
     <Compile Include="Plugins\CoreSettings.cs" />
@@ -114,6 +115,7 @@
     <Compile Include="Plugins\DPSPlugin.cs" />
     <Compile Include="Plugins\ExamplePlugin.cs" />
     <Compile Include="Plugins\FlasksPlugin.cs" />
+    <Compile Include="Plugins\ItemRollingPlugin.cs" />
     <Compile Include="Plugins\LevelingPlugin.cs" />
     <Compile Include="Plugins\MinimapIconPlugin.cs" />
     <Compile Include="Plugins\MouseKeyboardPlugin.cs" />
