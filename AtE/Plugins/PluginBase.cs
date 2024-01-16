@@ -211,7 +211,13 @@ namespace AtE {
 		public bool Enabled = true; // Enabled is persistent, saved to profile settings
 
 		/// <summary>
-		/// Paused it meant to be toggled via HotKey, and temporarily pauses some Plugin functions.
+		/// A hidden Plugin does not display in the list of plugins on the Console.
+		/// A hidden Plugin is considered disabled. For experimental / debugging plugins, not ready for release.
+		/// </summary>
+		public virtual bool Hidden => false;
+
+		/// <summary>
+		/// Paused is meant to be toggled via HotKey, and temporarily pauses some Plugin functions.
 		/// The Plugin remains Enabled, and it's OnTick() will be called, but should determine it's own
 		/// appropriate response to Paused being true.
 		/// </summary>
