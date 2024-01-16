@@ -19,6 +19,9 @@ namespace AtE.Plugins {
 
 		public bool ShowMinions = true;
 		public bool ShowEnemies = true;
+		public bool ShowEnemyRares = true;
+		public bool ShowEnemyMagic = true;
+		public bool ShowEnemyNormal = true;
 		public bool ShowChests = true;
 		public bool ShowDelvePath = true;
 		public bool ShowLeagueNPCs = true;
@@ -49,14 +52,20 @@ namespace AtE.Plugins {
 			ImGui.SliderInt("Icon Size", ref IconSize, 5, 20);
 			ImGui.Separator();
 			ImGui.Checkbox("Show Enemies", ref ShowEnemies);
-			ImGui.SameLine();
-			ImGui.Checkbox("Also Over Head", ref ShowRareOverhead);
+			ImGui.Indent();
+				ImGui.Checkbox("Show Rares", ref ShowEnemyRares);
+				ImGui.Checkbox("Show Magic", ref ShowEnemyMagic);
+				ImGui.Checkbox("Show Normal", ref ShowEnemyNormal);
+				ImGui.Checkbox("Also Over Head", ref ShowRareOverhead);
+			ImGui.Unindent();
 			ImGui.Checkbox("Show Minions", ref ShowMinions);
 			ImGui.Checkbox("Show Strongboxes", ref ShowChests);
 			ImGui.Checkbox("Show Delve Path", ref ShowDelvePath);
 			ImGui.Checkbox("Show League NPCs", ref ShowLeagueNPCs);
-			ImGui.Indent(); ImGui.Checkbox("Show League Resources", ref ShowLeagueResources);
-			ImGui.Checkbox("Debug Unknown Resources", ref DebugUnknownResources);
+			ImGui.Indent();
+				ImGui.Checkbox("Show League Resources", ref ShowLeagueResources);
+				ImGui.Checkbox("Debug Unknown Resources", ref DebugUnknownResources);
+			ImGui.Unindent();
 		}
 
 		public override IState OnTick(long dt) {
@@ -165,12 +174,13 @@ namespace AtE.Plugins {
 				} else if ( ShowLeagueResources && path.StartsWith("Metadata/MiscellaneousObjects/Azmeri") ) {
 					TryGetLeagueResourceIcon(ent, out icon, out iconSize);
 				} else if ( ShowLeagueResources && path.StartsWith("Metadata/Terrain/Leagues/Azmeri") ) {
-					// TryGetLeagueResourceIcon(ent, out icon, out iconSize);
-					icon = SpriteIcon.GreenExclamation;
-					iconSize = 1.25f;
+					TryGetLeagueResourceIcon(ent, out icon, out iconSize);
+					// icon = SpriteIcon.GreenExclamation;
+					// iconSize = 1.25f;
+					// DrawBottomLeftText($"Unknown terrain: {ent.Path} components: {string.Join(" ", ent.GetComponents().Keys)}", Color.Yellow);
 				} else if ( ShowEnemies && path.StartsWith("Metadata/Monster") && IsAlive(ent) && IsHostile(ent) && IsTargetable(ent) ) {
 					TryGetEnemyIcon(ent, out icon, out iconSize);
-				} else if ( ShowChests && path.StartsWith("Metadata/Chest") ) {
+				} else if ( ShowChests && dt < 33 && path.StartsWith("Metadata/Chest") ) {
 					TryGetChestIcon(ent, out icon, out iconSize);
 				} else if ( ShowDelvePath && path.EndsWith("DelveLight") ) {
 					icon = SpriteIcon.BlightPath;
@@ -227,8 +237,19 @@ namespace AtE.Plugins {
 				iconSize = 1.9f;
 			} else if ( path.EndsWith("AzmeriResourceBase") ) {
 				icon = SpriteIcon.BlightPath;
+			} else if ( path.EndsWith("Spawners/WolfSpawner") || path.EndsWith("SpiderEmergeSpawner") ) {
+				icon = SpriteIcon.RedX;
+				iconSize = 1.4f;
+			} else if ( path.Contains("Azmeri/Objects/Spawners/Harvest") ) {
+				icon = SpriteIcon.GreenExclamation;
+				iconSize = 1.4f;
+			} else if ( path.Contains("Azmeri/WoodsEntrance") || path.Contains("AzmeriLightBomb") ) {
+				icon = SpriteIcon.None;
 			} else if ( DebugUnknownResources ) {
+				DrawBottomLeftText($"Unknown Terrain: {ent.Path}", Color.Yellow);
 				DrawTextAt(ent, ent.Path, Color.White);
+				icon = SpriteIcon.GreenExclamation;
+				iconSize = 1.25f;
 			}
 			return icon != SpriteIcon.None;
 		}
@@ -397,7 +418,7 @@ namespace AtE.Plugins {
 			return true;
 		}
 		private bool TryGetEnemyIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
-			icon = SpriteIcon.MediumRedCircle;
+			icon = SpriteIcon.None;
 			iconSize = 1f;
 			if ( ent.HasComponent<MinimapIcon>() ) {
 				return false;
@@ -417,6 +438,11 @@ namespace AtE.Plugins {
 			}
 			bool isHidden = HasBuff(ent, "hidden_monster");
 			var rarity = ent.GetComponent<ObjectMagicProperties>()?.Rarity;
+			switch( rarity ) {
+				case Offsets.MonsterRarity.Rare: if( ! ShowEnemyRares ) { return false; } break;
+				case Offsets.MonsterRarity.Magic: if( ! ShowEnemyMagic ) { return false; } break;
+				case Offsets.MonsterRarity.White: if( ! ShowEnemyNormal ) { return false; } break;
+			}
 			switch ( rarity ) {
 				case Offsets.MonsterRarity.Unique: icon = isHidden ? SpriteIcon.SmallPurpleHexagon : SpriteIcon.LargePurpleCircle; break;
 				case Offsets.MonsterRarity.Rare: icon = isHidden ? SpriteIcon.SmallYellowHexagon : SpriteIcon.MediumYellowCircle; break;
