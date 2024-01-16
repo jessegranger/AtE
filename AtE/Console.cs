@@ -119,12 +119,14 @@ namespace AtE {
 					foreach ( var plugin in PluginBase.Plugins.OrderBy(p => p.SortIndex) ) {
 						bool selected = selectedIndex == pluginIndex;
 						if ( selected ) selectedPlugin = plugin;
-						ImGui.Checkbox($"##{plugin.Name}", ref plugin.Enabled);
-						ImGui.SameLine();
-						if( ImGui.Selectable(plugin.Name, selected) ) {
-							selectedIndex = pluginIndex;
+						if ( !plugin.Hidden ) {
+							ImGui.Checkbox($"##{plugin.Name}", ref plugin.Enabled);
+							ImGui.SameLine();
+							if ( ImGui.Selectable(plugin.Name, selected) ) {
+								selectedIndex = pluginIndex;
+							}
+							pluginIndex += 1;
 						}
-						pluginIndex += 1;
 					}
 					ImGui.TableNextColumn();
 					if( selectedPlugin != null ) {
