@@ -19,7 +19,7 @@ namespace AtE {
 		}
 
 		public bool DismissStoryText = false;
-		public uint ClickDelayMilliseconds = 350;
+		public uint ClickDelayMilliseconds = 550;
 
 		public bool ShowMinionStats = false;
 		public bool ShowSpectreSpells = false;
