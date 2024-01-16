@@ -69,7 +69,8 @@ namespace AtE {
 				ImGui.Text($"Files: {PoEMemory.FileRoots.Count}");
 				ImGui.SameLine();
 				if ( ImGui.Button("B##FileRoot") ) {
-					Run_ObjectBrowser("FileRoots", PoEMemory.FileRoots);
+					// Run_ObjectBrowser("FileRoots", PoEMemory.FileRoots);
+					Run_FileBrowser();
 				}
 				if ( Win32.GetWindowRect(target.MainWindowHandle, out var rect) ) {
 					ImGui.AlignTextToFramePadding();
