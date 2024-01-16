@@ -34,13 +34,13 @@ namespace AtE.Plugins {
 		private IState RightClickItem(InventoryItem item, IState next = null) => IsValid(item) ? new RightClickAt(Center(item.GetClientRect()), InputLatency, next) : null;
 		private IState LeftClickItem(InventoryItem item, uint count = 1, IState next = null) => IsValid(item) ? new LeftClickAt(Center(item.GetClientRect()), InputLatency, count, next) : null;
 
-		private IState PlanUseItemFromBackpack(string usePath, IState next = null, IState fail = null) {
+		public IState PlanUseItemFromBackpack(string usePath, IState next = null, IState fail = null) {
 			var useItem = BackpackItems().Where(i => i.Entity?.Path?.Equals(usePath) ?? false).FirstOrDefault();
 			if ( !IsValid(useItem) ) {
 				Notify($"Could not find any {usePath} to use.");
 				return fail;
 			}
-			return RightClickItem(useItem, next);
+			return OnlyIfBackpackIsOpen(RightClickItem(useItem, next), ifClosed: fail);
 		}
 
 		private IState OnlyIfStashIsOpen(IState ifOpen, IState ifClosed = null) => NewState("CheckStashIsOpen", (self, dt) => BackpackIsOpen() && StashIsOpen() ? ifOpen : ifClosed, next: ifOpen);
