@@ -180,12 +180,15 @@ namespace AtE {
 		}
 		private Cached<Vector3> playerPos = new Cached<Vector3>(() => GetPlayer()?.GetComponent<Render>()?.Position ?? Vector3.Zero);
 		private Cached<Vector2> playerGrid = new Cached<Vector2>(() => GetPlayer()?.GetComponent<Positioned>()?.GridPosF ?? Vector2.Zero);
+		public Vector2 WorldToMap(Vector2 entGrid, Vector3 entPos) {
+				return WorldToLargeMap(entGrid, entPos, playerGrid.Value, playerPos.Value) // one of these two will always be Vector2.Zero
+					+ WorldToMinimap(entGrid, entPos, playerGrid.Value, playerPos.Value); // so we just add them together instead of branching
+		}
 		public Vector2 WorldToMap(Entity ent) {
 			if ( IsValid(ent) ) {
 				Vector2 entGrid = ent.GetComponent<Positioned>()?.GridPosF ?? Vector2.Zero;
 				Vector3 entPos = ent.GetComponent<Render>()?.Position ?? Vector3.Zero;
-				return WorldToLargeMap(entGrid, entPos, playerGrid.Value, playerPos.Value) // one of these two will always be Vector2.Zero
-					+ WorldToMinimap(entGrid, entPos, playerGrid.Value, playerPos.Value); // so we just add them together instead of branching
+				return WorldToMap(entGrid, entPos);
 			}
 			return Vector2.Zero;
 			/*

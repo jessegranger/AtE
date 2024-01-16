@@ -41,7 +41,11 @@ namespace AtE {
 		public Inventory RWeaponSwapTabPanel => IsValid(Inventories.Value.RWeaponSwapTabPanel) ? new Inventory() { Address = Inventories.Value.RWeaponSwapTabPanel } : null;
 	}
 
-	public class Inventory : Element {
+	// most inventories by default contain InventoryItem objects
+	public class Inventory : Inventory<InventoryItem> { }
+
+
+	public class Inventory<T> : Element where T : InventoryItem {
 		// public Cached<Offsets.Element_Inventory> Details;
 		// public Inventory() : base() => Details = CachedStruct<Offsets.Element_Inventory>(() => Address);
 
@@ -49,11 +53,13 @@ namespace AtE {
 		/// This is the generic slow way that all Inventory nodes can use.
 		/// More specific code will be needed for specific panels, Maps, Exotic currency, etc
 		/// </summary>
-		public IEnumerable<InventoryItem> VisibleItems {
+		public IEnumerable<T> VisibleItems {
 			get {
+				// get the constructor that accepts an IntPtr address
+				var ctor = typeof(T).GetConstructor(new Type[] { typeof(IntPtr) });
 				return AllVisibleChildren(this, new HashSet<int>())
 					.Where(e => Globals.IsValid(e))
-					.Select(e => new InventoryItem() { Address = e.Address })
+					.Select(e => (T)ctor.Invoke(new object[] { e.Address })) //  new InventoryItem() { Address = e.Address })
 					.Where(e => Globals.IsValid(e) && e.IsVisible);
 			}
 		}
@@ -105,7 +111,7 @@ namespace AtE {
 				}
 			}
 		}
-		public static IEnumerable<InventoryItem> StashItems() => new Inventory() { Address = GetUI()?.StashElement?.Address ?? IntPtr.Zero }.VisibleItems;
+		public static IEnumerable<StashItem> StashItems() => new Inventory<StashItem>() { Address = GetUI()?.StashElement?.Address ?? IntPtr.Zero }.VisibleItems;
 
 		public static bool BackpackIsOpen() => GetUI()?.InventoryPanel?.IsVisibleLocal ?? false;
 		public static bool StashIsOpen() => GetUI()?.StashElement?.IsVisibleLocal ?? false;
@@ -114,6 +120,10 @@ namespace AtE {
 	public class InventoryItem : Element {
 		public Cached<Offsets.Element_InventoryItem> Details;
 		public InventoryItem() : base() => Details = CachedStruct<Offsets.Element_InventoryItem>(() => Address);
+		public InventoryItem(IntPtr address) : base() {
+			Address = address;
+			Details = CachedStruct<Offsets.Element_InventoryItem>(() => Address);
+		}
 		public override bool IsValid {
 			get {
 				var details = Details.Value;
@@ -130,11 +140,21 @@ namespace AtE {
 
 		public Entity Entity => IsValid(Address) && EntityCache.TryGetEntity(Details.Value.entItem, out Entity ent) ? ent : null;
 
-		public virtual int X => (int)(Position.X / (Parent.Size.X / 12));
-		public virtual int Y => (int)(Position.Y / (Parent.Size.Y / 5));
+		public virtual int X => (int)(Position.X / ((Parent?.Size.X ?? 0) / 12));
+		public virtual int Y => (int)(Position.Y / ((Parent?.Size.Y ?? 0) / 5));
 		public virtual int Width => Details.Value.Width;
 		public virtual int Height => Details.Value.Height;
 
+	}
+
+	public class StashItem : InventoryItem {
+		public StashItem(IntPtr addr) : base(addr) { }
+		public override int X => 0;
+		public override int Y => 0;
+		// with a StashItem, the Parent is in the real Position
+		public override RectangleF GetClientRect() => Parent.GetClientRect();
+		// and the item count is held in a Child element
+		public int Count => int.Parse(GetChild(0)?.Text ?? "1");
 	}
 
 

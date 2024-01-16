@@ -170,11 +170,11 @@ namespace AtE {
 			return new RectangleF(pos.X - bounds.X, pos.Y - bounds.Y, bounds.X, bounds.Y);
 		}
 
-		public IEnumerable<string> GetComponentNames() {
+		public Dictionary<string,IntPtr> GetComponents() {
 			if( ComponentPtrs == null ) {
 				ParseComponents();
 			}
-			return ComponentPtrs?.Keys ?? Empty<string>();
+			return ComponentPtrs;
 		}
 
 		private void UpdateParsedIndex(string name, IntPtr addr) {
