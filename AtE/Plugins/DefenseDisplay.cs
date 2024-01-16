@@ -25,6 +25,7 @@ namespace AtE.Plugins {
 		public bool ShowEnemyResistLightning = false;
 		public bool ShowEnemyResistChaos = false;
 		public bool ShowEnemyPoisonStacks = false;
+		public bool ShowEnemyEnergyStacks = false;
 		public bool ShowEnemyWitherStacks = false;
 		public bool ShowEnemyGraspingVines = false;
 		public bool ShowHighestCorpseLife = false;
@@ -46,14 +47,20 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("Show Enemy Cold", ref ShowEnemyResistCold);
 			ImGui.Checkbox("Show Enemy Lightning", ref ShowEnemyResistLightning);
 			ImGui.Checkbox("Show Highest Corpse Life", ref ShowHighestCorpseLife);
-			ImGui.Text("Debuffs:"); ImGui.Separator();
-			ImGui.Checkbox("Show Poison Stacks", ref ShowEnemyPoisonStacks);
-			ImGui.Checkbox("Show Wither Stacks", ref ShowEnemyWitherStacks);
-			ImGui.Checkbox("Show Grasping Vines", ref ShowEnemyGraspingVines);
+			ImGui.Text("Debuffs:"); ImGui.SameLine();  ImGui_HelpMarker("shown on Rare and Unique");
+			ImGui.Separator();
+			ImGui.Checkbox("Show Enemy Energy Stacks", ref ShowEnemyEnergyStacks);
+			ImGui.Checkbox("Show Enemy Poison Stacks", ref ShowEnemyPoisonStacks);
+			ImGui.Checkbox("Show Enemy Wither Stacks", ref ShowEnemyWitherStacks);
+			ImGui.Checkbox("Show Enemy Grasping Vines", ref ShowEnemyGraspingVines);
 			ImGui.Text("Debugging:");
 			ImGui.Separator();
 			ImGui.Checkbox("Debug Enemy Components", ref ShowEnemyComponents);
 			ImGui.Checkbox("Debug Enemy Buffs", ref ShowEnemyBuffs);
+			ImGui.SameLine();
+			if( ImGui.Button("Clear##seenBuffs") ) {
+				seenBuffs.Clear();
+			}
 			ImGui.Checkbox("Debug Game Stats", ref ShowStatDebugControls);
 			if ( ShowStatDebugControls ) {
 
@@ -195,7 +202,17 @@ namespace AtE.Plugins {
 								int poisonStacks = 0;
 								int graspingVines = 0;
 								int witherStacks = 0;
+								int energyStacks = 0; // from penance brand of dissipation
 								string buffstr = "";
+								/*
+								var screenPos = WorldToScreen(Position(ent));
+								ImGui.SetNextWindowPos(screenPos);
+								ImGui.Begin($"Ent { ent.Id}");
+								var components = ent.GetComponents();
+								ImGui.Text(string.Join(" ", components.Keys));
+								ImGui_Object($"Buffs##{ent.Id}", $"Buffs", ent.GetComponent<Buffs>(), new HashSet<int>());
+								ImGui.End();
+								*/
 								foreach(var buff in buffs.GetBuffs()) {
 									if( IsValid(buff) ) {
 										string name = buff.Name;
@@ -207,6 +224,8 @@ namespace AtE.Plugins {
 											witherStacks += 1;
 										} else if( name.Equals("grasping_vines_buff") ) {
 											graspingVines = buff.Charges;
+										} else if( name.Equals("magma_pustule") ) {
+											energyStacks = buff.Charges;
 										}
 									}
 								}
@@ -218,6 +237,9 @@ namespace AtE.Plugins {
 								}
 								if( ShowEnemyGraspingVines ) {
 									buffstr += $"V: {graspingVines} ";
+								}
+								if( ShowEnemyEnergyStacks ) {
+									buffstr += $"E: {energyStacks}";
 								}
 								if( buffstr.Length > 0 ) DrawTextAt(ent.Id, WorldToScreen(Position(ent)), buffstr, Color.White);
 							}
