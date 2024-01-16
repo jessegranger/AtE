@@ -286,5 +286,40 @@ namespace AtE {
 			});
 		}
 
+		public static void Run_FileBrowser() {
+			bool open = true;
+			HashSet<string> openFiles = new HashSet<string>();
+			// PoEMemory.GetFileContents
+			string filter = "";
+			Run("FileBrowser", (self, dt) => {
+				ImGui.SetNextWindowSize(new Vector2(300, 200), ImGuiCond.FirstUseEver);
+				if ( ImGui.Begin("FileBrowser", ref open) ) {
+					ImGui.AlignTextToFramePadding();
+					ImGui.Text("filter:");
+					ImGui.SameLine();
+					ImGui.InputText("##FileBrowser_filter", ref filter, 32);
+					foreach( var file in PoEMemory.FileRoots ) {
+						if( filter == null || filter.Length == 0 || file.Key.Contains(filter) ) {
+							ImGui_Address(file.Value, file.Key, "File_InfoBlock");
+						}
+
+					}
+					try {
+					} catch ( Exception e ) {
+						ImGui.PushStyleColor(ImGuiCol.Text, (uint)ToRGBA(Color.Red));
+						ImGui.Text(e.Message);
+						ImGui.TextWrapped(e.StackTrace);
+						ImGui.PopStyleColor();
+						Log(e.Message);
+						Log(e.StackTrace);
+					} finally {
+						ImGui.End();
+					}
+				}
+				return open ? self : null;
+			});
+
+		}
+
 	}
 }
