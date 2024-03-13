@@ -60,7 +60,7 @@ namespace AtE {
 				ImGui.AlignTextToFramePadding();
 				ImGui.Text($"Handle: {PoEMemory.Handle}");
 				var root = PoEMemory.GameRoot;
-				ImGui_Address(root.Address, "Game Root:");
+				ImGui_Address(root.Address, "Game Root:", "GameRoot");
 				ImGui.SameLine();
 				if ( ImGui.Button("B##GameRoot") ) {
 					Run_ObjectBrowser("GameRoot", root);

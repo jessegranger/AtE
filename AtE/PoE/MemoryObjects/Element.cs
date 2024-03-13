@@ -94,7 +94,7 @@ namespace AtE {
 
 		public virtual RectangleF GetClientRect() {
 			if ( Address == IntPtr.Zero ) return RectangleF.Empty;
-			Offsets.Vector2i size = PoEMemory.GameRoot.InGameState.WorldData.Camera.Size;
+			Offsets.Vector2i size = PoEMemory.GameRoot.InGameState?.WorldData?.Camera.Size ?? default;
 			float width = size.X;
 			float height = size.Y;
 			var rootScale = PoEMemory.GameRoot?.InGameState?.UIRoot?.Scale ?? .75f;

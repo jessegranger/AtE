@@ -357,7 +357,7 @@ namespace AtE.Plugins {
 		public override IState OnTick(long dt) {
 			if ( Enabled && !Paused && PoEMemory.TargetHasFocus ) {
 
-				if( PoEMemory.GameRoot.InGameState.WorldData.IsTown ) {
+				if( PoEMemory.GameRoot?.InGameState?.WorldData?.IsTown ?? true ) {
 					return this;
 				}
 
