@@ -24,6 +24,7 @@ namespace AtE.Plugins {
 		public bool ShowEnemyResistCold = false;
 		public bool ShowEnemyResistLightning = false;
 		public bool ShowEnemyResistChaos = false;
+		public bool ShowEnemyImpaleStacks = false;
 		public bool ShowEnemyPoisonStacks = false;
 		public bool ShowEnemyEnergyStacks = false;
 		public bool ShowEnemyWitherStacks = false;
@@ -50,6 +51,7 @@ namespace AtE.Plugins {
 			ImGui.Text("Debuffs:"); ImGui.SameLine();  ImGui_HelpMarker("shown on Rare and Unique");
 			ImGui.Separator();
 			ImGui.Checkbox("Show Enemy Energy Stacks", ref ShowEnemyEnergyStacks);
+			ImGui.Checkbox("Show Enemy Impale Stacks", ref ShowEnemyImpaleStacks);
 			ImGui.Checkbox("Show Enemy Poison Stacks", ref ShowEnemyPoisonStacks);
 			ImGui.Checkbox("Show Enemy Wither Stacks", ref ShowEnemyWitherStacks);
 			ImGui.Checkbox("Show Enemy Grasping Vines", ref ShowEnemyGraspingVines);
@@ -167,7 +169,7 @@ namespace AtE.Plugins {
 					}
 				}
 
-				if ( ShowEnemyComponents || ShowEnemyBuffs || ShowEnemyResistChaos || ShowEnemyResistCold || ShowEnemyResistFire || ShowEnemyResistLightning || ShowEnemyWitherStacks || ShowEnemyPoisonStacks || ShowHighestCorpseLife ) {
+				if ( ShowEnemyComponents || ShowEnemyBuffs || ShowEnemyResistChaos || ShowEnemyResistCold || ShowEnemyResistFire || ShowEnemyResistLightning || ShowEnemyWitherStacks || ShowEnemyPoisonStacks || ShowHighestCorpseLife || ShowEnemyImpaleStacks ) {
 					float maxCorpseLife = 0;
 					Vector3 maxCorpseLocation = Vector3.Zero;
 					var player = GetPlayer();
@@ -196,13 +198,14 @@ namespace AtE.Plugins {
 								}
 							}
 						} 
-						if ( (ShowEnemyBuffs || ShowEnemyPoisonStacks || ShowEnemyWitherStacks || ShowEnemyGraspingVines) && isHostile && isAlive ) {
+						if ( (ShowEnemyBuffs || ShowEnemyPoisonStacks || ShowEnemyImpaleStacks || ShowEnemyWitherStacks || ShowEnemyGraspingVines) && isHostile && isAlive ) {
 							if( IsRareOrUnique(ent) ) {
 								var buffs = ent.GetComponent<Buffs>();
 								int poisonStacks = 0;
 								int graspingVines = 0;
 								int witherStacks = 0;
 								int energyStacks = 0; // from penance brand of dissipation
+								int impaleStacks = 0;
 								string buffstr = "";
 								/*
 								var screenPos = WorldToScreen(Position(ent));
@@ -226,20 +229,25 @@ namespace AtE.Plugins {
 											graspingVines = buff.Charges;
 										} else if( name.Equals("magma_pustule") ) {
 											energyStacks = buff.Charges;
+										} else if( name.Equals("impaled_debuff") ) {
+											impaleStacks += Math.Max((int)buff.Charges, 1);
 										}
 									}
 								}
 								if( ShowEnemyPoisonStacks && poisonStacks > 0 ) {
-									buffstr += $"P: {poisonStacks} ";
+									buffstr += $"Po: {poisonStacks} ";
+								}
+								if( ShowEnemyImpaleStacks && impaleStacks > 0 ) {
+									buffstr += $"Im: {impaleStacks} ";
 								}
 								if( ShowEnemyWitherStacks && witherStacks > 0 ) {
-									buffstr += $"W: {witherStacks} ";
+									buffstr += $"Wi: {witherStacks} ";
 								}
 								if( ShowEnemyGraspingVines ) {
-									buffstr += $"V: {graspingVines} ";
+									buffstr += $"Vn: {graspingVines} ";
 								}
 								if( ShowEnemyEnergyStacks ) {
-									buffstr += $"E: {energyStacks}";
+									buffstr += $"En: {energyStacks}";
 								}
 								if( buffstr.Length > 0 ) DrawTextAt(ent.Id, WorldToScreen(Position(ent)), buffstr, Color.White);
 							}
