@@ -120,6 +120,7 @@ namespace AtE {
 		}
 
 		public bool HasComponent<T>() where T : MemoryObject, new() => IsValid(Address) && GetComponent<T>() != null;
+		public bool HasComponent(string name) => ComponentPtrs?.ContainsKey(name) ?? false;
 
 		public T GetComponent<T>() where T : MemoryObject, new() {
 			if ( !IsValid(Address) ) {

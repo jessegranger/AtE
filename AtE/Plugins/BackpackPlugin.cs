@@ -341,6 +341,18 @@ namespace AtE.Plugins {
 			yield return root.Trinket?.VisibleItems.FirstOrDefault();
 		}
 
+		private bool FilterIncubatableEquipmentItem(InventoryItem item) {
+			if ( !IsValid(item) ) return false;
+			var ent = item.Entity;
+			if ( !IsValid(ent) ) return false;
+			// cannot incubate into transformed items (like Energy Blade)
+			if ( ent.HasComponent("Transformed") ) return false;
+			var mods = ent.GetComponent<Mods>();
+			if ( !IsValid(mods) ) return false;
+			if ( mods.HasIncubator ) return false;
+			return true;
+		}
+
 		private IState PlanIncubateAll(IState next) {
 			if ( !BackpackIsOpen() ) {
 				return null;
@@ -350,9 +362,7 @@ namespace AtE.Plugins {
 				return next;
 			}
 			var incubatable = new Stack<InventoryItem>(EquippedItems()
-				.Where(item => 
-					IsValid(item) &&
-					(item.Entity?.GetComponent<Mods>()?.HasIncubator ?? true) == false));
+				.Where(FilterIncubatableEquipmentItem));
 			var incubators = BackpackItems().Where((ent) => ent?.Entity?.Path?.StartsWith(Offsets.PATH_INCUBATOR_PREFIX) ?? false).ToArray();
 
 			Log($"IncubateAll: Incubators: {string.Join(" ", incubators.Select(i => i.Entity.Path.Split('/').Last()))}"); 
@@ -404,8 +414,9 @@ namespace AtE.Plugins {
 
 					}
 
-					ImGui.Begin("Debug IncubateAll");
-					var incubatable = BackpackItems().Where(IsValid);
+					var incubatable = BackpackItems().Where(IsValid).ToList();
+					ImGui.Begin("Debug BackpackItems");
+					ImGui.Text($"Items in backpack: {incubatable.Count}");
 					foreach(var item in incubatable) {
 						var ent = item.Entity;
 						var mods = ent.GetComponent<Mods>();
@@ -415,9 +426,24 @@ namespace AtE.Plugins {
 						ImGui_Object($"Stack##{ent.Id}", $"Stack##{ent.Id}", stack, new HashSet<int>());
 					}
 					ImGui.End();
+
+
+					var equipped = new Stack<InventoryItem>(EquippedItems()
+						.Where(FilterIncubatableEquipmentItem));
+					ImGui.Begin("Debug EquippedItems");
+					ImGui.Text($"Items Equipped: {equipped.Count}");
+					foreach ( var item in equipped ) {
+						var ent = item.Entity;
+						ImGui.Text($"Item #{ent.Id} [ {ent.Path} ]");
+						ImGui.SameLine();
+						if( ImGui.Button($"B##Browse_{ent.Address.ToInt64()}") ) {
+							Run_ObjectBrowser($"Item at 0x{item.Address:X}", item);
+						}
+					}
+					ImGui.End();
 				}
 
-				if( PoEMemory.TargetHasFocus && DumpKey.IsReleased ) {
+				if ( PoEMemory.TargetHasFocus && DumpKey.IsReleased ) {
 					Notify("Depositing all your loot.");
 					Run(PlanIdentifyAll(PlanStashAll(PlanOpenAllDecks(PlanIncubateAll(null)))));
 					return this;
