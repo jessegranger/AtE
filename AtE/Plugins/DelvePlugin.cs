@@ -42,6 +42,10 @@ namespace AtE.Plugins {
 			ImGui.Text("At darkness stacks:");
 			ImGui.SameLine();
 			ImGui.SliderInt("##useFlaresAtDarkness", ref UseFlaresAtDarkness, 2, 20);
+			var player = GetPlayer();
+			if( IsValid(player) && TryGetBuffValue(player, "delve_degen_buff", out int stacks ) ) {
+				ImGui.Text($"Current Stacks: {stacks}");
+			}
 		}
 
 		private long lastFlare = 0;
