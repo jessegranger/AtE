@@ -161,6 +161,10 @@ namespace AtE.Plugins {
 					ent.MinimapIcon = new Entity.Icon() { Size = 0f, Sprite = SpriteIcon.None };
 				}
 
+				if ( path.EndsWith("FuelResupply") ) {
+					DrawLine(WorldToScreen(Position(GetPlayer())), WorldToScreen(Position(ent)), Color.LightGreen);
+				}
+
 				if ( ent.MinimapIcon.Size > 0f ) {
 					icon = ent.MinimapIcon.Sprite;
 					iconSize = ent.MinimapIcon.Size;
@@ -240,7 +244,7 @@ namespace AtE.Plugins {
 			} else if ( path.EndsWith("Spawners/WolfSpawner") || path.EndsWith("SpiderEmergeSpawner") ) {
 				icon = SpriteIcon.RedX;
 				iconSize = 1.4f;
-			} else if ( path.Contains("Azmeri/Objects/Spawners/Harvest") ) {
+			} else if ( path.Contains("Azmeri/Objects/Spawners/") && (path.Contains("/Harvest") || path.Contains("/Beyond_")) ) {
 				icon = SpriteIcon.GreenExclamation;
 				iconSize = 1.4f;
 			} else if ( path.Contains("Azmeri/WoodsEntrance") || path.Contains("AzmeriLightBomb") ) {
