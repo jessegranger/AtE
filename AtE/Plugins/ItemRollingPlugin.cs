@@ -15,7 +15,11 @@ namespace AtE.Plugins {
 
 		public override string Name => "Item Rolling";
 
+#if DEBUG
+		public override bool Hidden => false;
+#else
 		public override bool Hidden => true;
+#endif
 
 		public HotKey RollOnceKey = new HotKey(Keys.None);
 

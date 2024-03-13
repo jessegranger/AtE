@@ -85,7 +85,7 @@ namespace AtE {
 						field.SetValue(plugin, bool.Parse(pair.Value));
 					} else if ( field.FieldType == typeof(string) ) {
 						field.SetValue(plugin, pair.Value);
-					} else if ( field.FieldType == typeof(Stopwatch)) {
+					} else if ( field.FieldType == typeof(Stopwatch) ) {
 						continue;
 					} else {
 						throw new ArgumentException($"Unknown Field Type, cannot load from string: {field.FieldType}");
@@ -94,7 +94,7 @@ namespace AtE {
 			}
 		}
 		private static void ReapplyIniToAllPlugins() {
-			foreach(var plugin in Plugins) {
+			foreach ( var plugin in Plugins ) {
 				ApplyIniToPlugin(plugin);
 			}
 		}
@@ -110,16 +110,16 @@ namespace AtE {
 			iniSettings = new Dictionary<string, Dictionary<string, string>>();
 			LoadIniFile(SettingsFileName, autoCreate: true);
 			// check if CoreSettings had a SelectedProfile and load that .ini file second
-			if( iniSettings.TryGetValue("CoreSettings", out Dictionary<string, string> settings)
+			if ( iniSettings.TryGetValue("CoreSettings", out Dictionary<string, string> settings)
 				&& settings.TryGetValue("SelectedProfile", out string profile) ) {
 				string fileName = $"Settings-{Slug(profile)}.ini";
 				LoadIniFile(fileName, autoCreate: false);
 			}
 
-			foreach(var pluginType in typeof(PluginBase).Assembly.GetTypes() ) {
+			foreach ( var pluginType in typeof(PluginBase).Assembly.GetTypes() ) {
 				TryRegisterPluginType(pluginType);
 			}
-		
+
 		}
 
 		public static readonly string SettingsFileName = "Settings.ini";
@@ -155,7 +155,7 @@ namespace AtE {
 				ReapplyIniToAllPlugins();
 			} else {
 				string fileName = $"Settings-{Slug(profile)}.ini";
-				if( File.Exists(fileName) ) {
+				if ( File.Exists(fileName) ) {
 					LoadIniFile(fileName);
 					ReapplyIniToAllPlugins();
 					settings.SelectedProfile = profile; // we just applied an old value, but are in the middle of changing to a new one
@@ -165,7 +165,7 @@ namespace AtE {
 
 		internal static void SaveIniFile() {
 			StringBuilder sb = new StringBuilder();
-			foreach(var plugin in Instances.Values.OrderBy(p => p.SortIndex) ) {
+			foreach ( var plugin in Instances.Values.OrderBy(p => p.SortIndex) ) {
 				sb.AppendLine($"[{plugin.GetType().Name}]");
 				string[] linesFromPlugin = plugin.Save();
 				if ( linesFromPlugin == null ) {
@@ -174,7 +174,7 @@ namespace AtE {
 						sb.AppendLine($"{field.Name}={field.GetValue(plugin)}");
 					}
 				} else { // otherwise, use all the lines from Save()
-					foreach(var line in linesFromPlugin) {
+					foreach ( var line in linesFromPlugin ) {
 						sb.AppendLine(line); // they should all be Name=Value pairs suitable for .ini file
 					}
 				}
@@ -192,13 +192,13 @@ namespace AtE {
 		}
 
 		internal static void PauseAll() {
-			foreach(var plugin in Instances.Values) {
+			foreach ( var plugin in Instances.Values ) {
 				plugin.Paused = true;
 			}
 		}
 
 		internal static void ResumeAll() {
-			foreach(var plugin in Instances.Values) {
+			foreach ( var plugin in Instances.Values ) {
 				plugin.Paused = false;
 			}
 		}
