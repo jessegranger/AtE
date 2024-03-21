@@ -1,4 +1,5 @@
 ﻿using ImGuiNET;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -65,6 +66,7 @@ namespace AtE {
 				if ( ImGui.Button("B##GameRoot") ) {
 					Run_ObjectBrowser("GameRoot", root);
 				}
+				/*
 				ImGui.AlignTextToFramePadding();
 				ImGui.Text($"Files: {PoEMemory.FileRoots.Count}");
 				ImGui.SameLine();
@@ -72,6 +74,15 @@ namespace AtE {
 					// Run_ObjectBrowser("FileRoots", PoEMemory.FileRoots);
 					Run_FileBrowser();
 				}
+				ImGui.SameLine();
+				if( ImGui.Button("R##FileRoot") ) {
+					OnAreaChange.Invoke(null, null);
+				}
+				if( PoEMemory.FileRoots.TryGetValue("Address", out IntPtr fileRootAddress) ) {
+					ImGui.SameLine();
+					ImGui_Address(fileRootAddress, "", "File_RootHeader");
+				}
+				*/
 				if ( Win32.GetWindowRect(target.MainWindowHandle, out var rect) ) {
 					ImGui.AlignTextToFramePadding();
 					ImGui.Text($"Window: {rect.Width}x{rect.Height} at {rect.Top},{rect.Left} ");

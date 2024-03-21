@@ -193,7 +193,7 @@ namespace AtE {
 		// then, ptr = Read<IntPtr>(match + localOffset) is address of a GameRoot_Ref struct
 		// so, the final game state base ptr is, Read<GameRoot_Ref>(ptr).ptrToGameStateBasePtr
 
-		public readonly static string FileRoot_SearchMask = "xxxxxx????xxx";
+		public readonly static string FileRoot_SearchMask = "xxxxxx????";
 		public readonly static byte[] FileRoot_SearchPattern = new byte[] {
 			  /* From the original ExileApi notes: FileRoot Pointer
         00007FF6C47EED01  | 48 8D 0D A8 23 7F 00               | lea rcx,qword ptr ds:[7FF6C4FE10B0]        | <--FileRootPtr
@@ -204,9 +204,38 @@ namespace AtE {
         00007FF6C47EED1A  | 0F 84 26 01 00 00                  | je pathofexile_x64.7FF6C47EEE46            |
         */
 			0x48, 0x8b, 0x08,
-			0x48, 0x8d, 0x3d,
+			0x48, 0x8d, 0x05,
 			0x00, 0x00, 0x00, 0x00,
-			0x8b, 0x04, 0x0E
+			// 0x48, 0x39, 0x01
+			/* How to use Ghidra to find this pattern, if it changes.
+			 * Project -> New Project
+			 * File -> Import File... PathOfExile.exe
+			 *   Analyze? Yes
+			 * Search -> For Instruction Pattern
+			 *   Pencil Icon [Edit Manually], Enter the full pattern above
+			 *   00's are masks (wildcards)
+			 *   Search, no results.
+			 *   Replace trailing values with 00's until you get a single match.
+			 *   In 3.23.2, this had a single match at:
+			 *   48 8b 08
+			 *   48 8d 00 00 00 00 00
+			 *   00 00 00
+			 *   (having replaced four previous (wrong) values with 00, it now matches)
+			 *   The real four 00's you are looking for, when viewed in the Code Listing, should look something like:
+			 *    48 8b 08        MOV        param_1,qword ptr [RAX]
+       *    48 8d 05        LEA        RAX,[DAT_14003b5c0]
+       *    fc c9 01 00 <-- this here is the local offset that gets read everytime
+       *    48 39 01        CMP        qword ptr [param_1],RAX
+       *    
+       *    Once you see what the real full pattern should be,
+       *    use the Code Listing to fill in the right values for the pattern:
+       *    48 8b 08
+       *    48 8d 05
+       *    00 00 00 00
+       *    48 39 01
+       *    
+			 *  But, none of this worked in 3.23.2 update... still working on it.
+			 */ 
 		};
 
 
@@ -215,7 +244,7 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct FileRoot_Ref {
-			[FieldOffset(0x0A)] public readonly IntPtr ptrToFileRootPtr;
+			[FieldOffset(0x08)] public readonly IntPtr ptrToFileRootPtr;
 		}
 
 		// GameRoot members:
@@ -684,10 +713,10 @@ namespace AtE {
 		/// Index refers to the Entity.ComponentsArray (not the ComponentMap)
 		/// ie, ComponentsArray[Index] is the base address of the Component instance in memory
 		/// </summary>
-		[StructLayout(LayoutKind.Sequential, Pack = 1)] public struct ComponentNameAndIndexStruct {
-			public readonly IntPtr ptrName;
-			public readonly int Index;
-			public readonly int Padding;
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct NameAndIndexStruct {
+			[FieldOffset(0x00)] public readonly IntPtr ptrName;
+			[FieldOffset(0x08)] public readonly uint Index;
+			[FieldOffset(0x0c)] public readonly uint Padding;
 		}
 
 
@@ -1596,7 +1625,7 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_InfoBlock {
-			// [FieldOffset(0x00)] public readonly IntPtr vtable;
+			[FieldOffset(0x00)] public readonly IntPtr vtable;
 			[FieldOffset(0x08)] public readonly StringHandle strName;
 			[FieldOffset(0x30)] public readonly IntPtr Records;
 			

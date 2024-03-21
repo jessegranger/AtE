@@ -616,6 +616,12 @@ namespace AtE {
 		public ItemMod(Offsets.ItemModEntry entry) {
 			Entry = entry;
 			ModData = CachedStruct<Offsets.File_ModsDat_Entry>(() => entry.ptrModsDatEntry);
+			if( IsValid(entry.ptrModsDatFile) ) {
+				if( ! PoEMemory.FileRoots.ContainsKey("Data/Mods.dat") ) {
+					Log($"Component: recognizing Data/Mods.dat at {Describe(entry.ptrModsDatFile)}");
+					PoEMemory.FileRoots["Data/Mods.dat"] = entry.ptrModsDatFile;
+				}
+			}
 		}
 		public string GroupName => PoEMemory.TryReadString(ModData.Value.strName, Encoding.Unicode, out string name) ? name : null;
 		public string DisplayName => PoEMemory.TryReadString(ModData.Value.displayName, Encoding.Unicode, out string name) ? name : null;
@@ -637,7 +643,7 @@ namespace AtE {
 				? tagName : null).ToArray();
 		}
 
-		public string Describe() {
+		public string Debug() {
 			var data = ModData.Value;
 			string ret = "";
 			if ( IsValid(data.Stat0Entry) ) {
@@ -656,8 +662,8 @@ namespace AtE {
 			}
 			return ret;
 		}
-
 	}
+
 	public static partial class Globals {
 		public static bool HasMod(Entity ent, string groupName) => HasMod(ent.GetComponent<Mods>(), groupName);
 		public static bool HasMod(Mods mods, string groupName) => IsValid(mods) &&

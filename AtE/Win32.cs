@@ -7,12 +7,55 @@ using System.Windows.Forms;
 namespace AtE {
 	public static class Win32 {
 
+		[DllImport("kernel32.dll", SetLastError = true)] public static extern int VirtualQueryEx(IntPtr hProcess, IntPtr lpAddress, out MEMORY_BASIC_INFORMATION_64 lpBuffer, uint dwLength);
+		[DllImport("kernel32.dll")] public static extern void GetSystemInfo(out SYSTEM_INFO lpSystemInfo);
+		[DllImport("kernel32.dll")] public static extern int GetLastError();
+
+		public struct MEMORY_BASIC_INFORMATION_32 {
+			public int BaseAddress;
+			public int AllocationBase;
+			public int AllocationProtect;
+			public int RegionSize;
+			public int State;
+			public int Protect;
+			public int Type;
+		}
+
+		public const int MEM_COMMIT = 0x00001000;
+		public const int PAGE_READWRITE = 0x04;
+
+		public struct MEMORY_BASIC_INFORMATION_64 {
+			public IntPtr BaseAddress;
+			public IntPtr AllocationBase;
+			public int AllocationProtect;
+			public int __alignment1;
+			public long RegionSize;
+			public int State;
+			public int Protect;
+			public int Type;
+			public int __alignment2;
+		};
+
+		public struct SYSTEM_INFO {
+			public ushort processorArchitecture;
+			ushort reserved;
+			public uint pageSize;
+			public IntPtr minimumApplicationAddress;
+			public IntPtr maximumApplicationAddress;
+			public IntPtr activeProcessorMask;
+			public uint numberOfProcessors;
+			public uint processorType;
+			public uint allocationGranularity;
+			public ushort processorLevel;
+			public ushort processorRevision;
+		}
 		[DllImport("user32.dll", SetLastError = true)] public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 		[DllImport("user32.dll", SetLastError = true)] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
 		[DllImport("user32.dll")] public static extern short GetAsyncKeyState(Keys key);
 		[DllImport("user32.dll")] public static extern bool GetCursorPos(out Point lpPoint);
-		[StructLayout(LayoutKind.Sequential)] public struct Margins {
+		[StructLayout(LayoutKind.Sequential)]
+		public struct Margins {
 			public int Left, Right, Top, Bottom;
 		}
 		[DllImport("dwmapi.dll")] public static extern IntPtr DwmExtendFrameIntoClientArea(IntPtr hWnd, ref Margins pMarInset);
@@ -24,12 +67,13 @@ namespace AtE {
 		public const int WS_EX_TRANSPARENT = 0x20;
 		public const int WS_EX_TOPMOST = 0x00000008;
 		public const int WS_VISIBLE = 0x10000000;
-	
+
 
 		[DllImport("user32.dll", SetLastError = true)] public static extern UInt32 SendInput(UInt32 numberOfInputs, INPUT[] inputs, Int32 sizeOfInputStructure);
 		[DllImport("user32.dll")] public static extern UInt32 MapVirtualKey(UInt32 uCode, UInt32 uMapType);
 
-		[StructLayout(LayoutKind.Explicit)] public struct MOUSEKBHW_UNION {
+		[StructLayout(LayoutKind.Explicit)]
+		public struct MOUSEKBHW_UNION {
 			[FieldOffset(0)] public MOUSEINPUT Mouse;
 			[FieldOffset(0)] public KEYBDINPUT Keyboard;
 			[FieldOffset(0)] public HARDWAREINPUT HW;
@@ -42,7 +86,8 @@ namespace AtE {
 			public UInt32 Time;
 			public IntPtr ExtraInfo;
 		}
-		[Flags] public enum MouseFlag : UInt32 {
+		[Flags]
+		public enum MouseFlag : UInt32 {
 			Move = 0x0001,
 			LeftDown = 0x0002,
 			LeftUp = 0x0004,
@@ -64,7 +109,8 @@ namespace AtE {
 			public UInt32 Time;
 			public IntPtr ExtraInfo;
 		}
-		[Flags] public enum KeyboardFlag : UInt32 {
+		[Flags]
+		public enum KeyboardFlag : UInt32 {
 			ExtendedKey = 0x0001,
 			KeyUp = 0x0002,
 			Unicode = 0x0004,

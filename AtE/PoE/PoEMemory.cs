@@ -9,6 +9,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using static AtE.Globals;
+using static AtE.Win32;
 using static ProcessMemoryUtilities.Managed.NativeWrapper;
 
 namespace AtE {
@@ -19,6 +20,9 @@ namespace AtE {
 		public static bool IsValid<T>(ArrayHandle<T> handle, int maxEntries = 10000) where T : unmanaged =>
 			Offsets.IsValid(handle.Handle, Marshal.SizeOf<T>(), maxEntries);
 
+		public static string Describe<T>(ArrayHandle<T> array) where T : unmanaged {
+			return $"Head: {Describe(array.Handle.Head)} Tail: {Describe(array.Handle.Tail)} Len:{array.Length}";
+		}
 	}
 
 	/// <summary>
@@ -196,7 +200,7 @@ namespace AtE {
 				size = Target.MainModule.ModuleMemorySize;
 				exeImage = new byte[size];
 				ReadProcessMemoryArray(Handle, baseAddress, exeImage);
-				Log($"PoEMemory: Reading {size / (1024 * 1024)}M executable image (base={baseAddress:X},ms={Time.ElapsedMilliseconds - started}).");
+				Log($"PoEMemory: Reading {size / (1024 * 1024)}M executable image (base={Describe(baseAddress)},ms={Time.ElapsedMilliseconds - started}).");
 			} else {
 				size = exeImage.Length;
 			}
@@ -235,26 +239,38 @@ namespace AtE {
 						}
 						if ( thisMatchScore == pattern.Length ) {
 							result = new IntPtr(baseAddress.ToInt64() + offset);
-							Log($"PoEMemory: Found pattern at {Describe(result)}");
+							Log($"PoEMemory: Found pattern at {Describe(result)} offset {offset:X} from base {Describe(baseAddress)}");
 							return true;
+							break; // break the inner loop, continue at the next offset with a whole new match
 						}
 					} else {
 						break;
 					}
 				}
 			}
-			Log($"PoEMemory: Pattern not found.");
-			return false;
-
-		}
-
-		public static void SpiderSearch(IntPtr startPtr, uint pageSize, int maxDepth, string mask, params byte[] pattern) {
-			if( maxDepth < 1 ) {
-				return;
+			if( result == IntPtr.Zero ) {
+				Log($"PoEMemory: Pattern not found.");
+				return false;
+			} else {
+				Log($"PoEMemory: Found pattern at {Describe(result)} offset {result.ToInt64() - baseAddress.ToInt64():X}");
+				return true;
 			}
 
 		}
 		
+		internal static IEnumerable<IntPtr> TryFindAllPatternsInExe(IntPtr startAddress, IntPtr endAddress, string mask, params byte[] pattern) {
+			if( endAddress == IntPtr.Zero && IsValid(Target) ) {
+				endAddress = new IntPtr(Target.MainModule.BaseAddress.ToInt64() + Target.MainModule.ModuleMemorySize);
+			}
+			while( startAddress.ToInt64() < endAddress.ToInt64() ) {
+				if( TryFindPatternInExe(out IntPtr nextMatch, startAddress, endAddress, mask, pattern) ) {
+					yield return nextMatch;
+					startAddress = new IntPtr(nextMatch.ToInt64() + 1);
+				} else {
+					yield break;
+				}
+			}
+		}
 		public static bool TargetHasFocus = false; // assigned once each frame in OnTick
 
 		/// <summary>
@@ -349,6 +365,41 @@ namespace AtE {
 			OnDetach?.Invoke(null, null);
 		}
 
+		private static List<IntPtr> debugScanResults = new List<IntPtr>();
+		private static Dictionary<IntPtr, List<IntPtr>> debugSecondScanResults = new Dictionary<IntPtr, List<IntPtr>>();
+
+
+		private static IEnumerable<MEMORY_BASIC_INFORMATION_64> EnumerateAllocatedRanges(IntPtr pHandle) {
+			SYSTEM_INFO sys_info = new SYSTEM_INFO();
+			GetSystemInfo(out sys_info);
+
+			Log($"System Info: {Describe(sys_info.minimumApplicationAddress)} - {Describe(sys_info.maximumApplicationAddress)}");
+
+			// this will store any information we get from VirtualQueryEx()
+			MEMORY_BASIC_INFORMATION_64 info = new MEMORY_BASIC_INFORMATION_64();
+			IntPtr startAddress = sys_info.minimumApplicationAddress; // IntPtr.Zero; // Target.MainModule.BaseAddress;
+			IntPtr endAddress = sys_info.maximumApplicationAddress; // Target.MainModule.BaseAddress + Target.MainModule.ModuleMemorySize;
+
+			while ( startAddress.ToInt64() < endAddress.ToInt64() ) {
+				// Log($"Query {Describe(Handle)} at {Describe(startAddress)}");
+				if( 0 == VirtualQueryEx(Handle, startAddress, out info, (uint)Marshal.SizeOf(typeof(MEMORY_BASIC_INFORMATION_64))) ) {
+					Log($"Query failed (return 0) GetLastError: {GetLastError()}");
+					break;
+				}
+				if ( info.Protect == PAGE_READWRITE && info.State == MEM_COMMIT ) {
+					long lBase = info.BaseAddress.ToInt64();
+					Log($"{Describe(new IntPtr(lBase))} - {Describe(new IntPtr(lBase + info.RegionSize))} protect {info.Protect} state {info.State}");
+					yield return info;
+				}
+				startAddress = new IntPtr(startAddress.ToInt64() + info.RegionSize);
+				if ( info.RegionSize == 0 ) {
+					break;
+				}
+			}
+		}
+
+
+
 		private static void TryAttach(Process target, IntPtr hWnd) {
 			if ( !IsValid(target) ) {
 				Log($"TryAttach: Invalid target.");
@@ -362,7 +413,7 @@ namespace AtE {
 
 			Target = target;
 			try {
-				Handle = OpenProcess(ProcessAccessFlags.VirtualMemoryRead, Target.Id);
+				Handle = OpenProcess(ProcessAccessFlags.VirtualMemoryRead | ProcessAccessFlags.QueryInformation, false, Target.Id);
 				if ( Handle == IntPtr.Zero ) {
 					Log($"PoEMemory: OpenProcess failed.");
 					Detach();
@@ -409,15 +460,72 @@ namespace AtE {
 			OnAttach?.Invoke(null, null);
 
 			FileRoots = new Dictionary<string, IntPtr>();
+			if ( false ) Run(State.NewState((self, dt) => {
+				ImGui.Begin("Debug Files Root");
+				foreach(var obj in Target.Modules) {
+					ProcessModule module = (ProcessModule)obj;
+					if( module.FileName.StartsWith("C:\\Windows\\") ) {
+						continue;
+					}
+					ImGui.Text($"Module: {module.ModuleName} {module.FileName} {Describe(module.BaseAddress)} - {Describe(module.BaseAddress + module.ModuleMemorySize)}");
+				}
+				if ( ImGui.Button("Scan") && IsValid(Target) ) {
+					int scanStride = 8;
+					debugScanResults.Clear();
+					foreach ( var mem_page in EnumerateAllocatedRanges(Target.Handle) ) {
+						IntPtr startAddress = mem_page.BaseAddress;
+						IntPtr endAddress = new IntPtr(startAddress.ToInt64() + mem_page.RegionSize);
+						while ( startAddress.ToInt64() < endAddress.ToInt64() ) {
+							// if ( TryRead(startAddress, out IntPtr strPtr) ) { // find a ptr to "Data/"
+							if ( TryReadString(startAddress, Encoding.Unicode, out string name) && name.Contains("Data/") ) {
+								debugScanResults.Add(startAddress);
+							}
+							// }
+							startAddress += scanStride;
+						}
+					}
+				}
+				ImGui.Text($"Results: {debugScanResults.Count}");
+				foreach(IntPtr ptr in debugScanResults) {
+					if( TryReadString(ptr, Encoding.Unicode, out string name) ) {
+						ImGui_Address(ptr, name, "NameAndIndexStruct");
+						ImGui.SameLine();
+						if( ImGui.Button($"Scan##ptr{Describe(ptr)}") ) {
+							IntPtr startAddress = Target.MainModule.BaseAddress;
+							IntPtr endAddress = startAddress + Target.MainModule.ModuleMemorySize;
+							List<IntPtr> matches = new List<IntPtr>();
+							while ( startAddress.ToInt64() < endAddress.ToInt64() ) {
+								if ( TryRead<IntPtr>(startAddress, out IntPtr ptrToPtr) && Math.Abs(ptrToPtr.ToInt64() - ptr.ToInt64()) <= 16 ) {
+									matches.Add(ptrToPtr);
+								}
+								startAddress += 1;
+							}
+							debugSecondScanResults[ptr] = matches;
+						}
+						if( debugSecondScanResults.TryGetValue(ptr, out List<IntPtr> refs) ) {
+							ImGui.Indent();
+							ImGui.Text($"References: {refs.Count}");
+							foreach(IntPtr ptrToPtr in refs) {
+								ImGui_Address(ptrToPtr, "");
+							}
+							ImGui.Unindent();
+						}
+					}
+				}
+				ImGui.End();
+				return self;
+			}));
+
+			/*
 			OnAreaChange += (_, area) => {
 				if( IsValid(fileRootMatch) ) {
 					return;
 				}
 				Log($"PoEMemory: Searching for Files root address...");
-				if ( TryFindPatternInExe(out fileRootMatch, IntPtr.Zero, IntPtr.Zero, Offsets.FileRoot_SearchMask, Offsets.FileRoot_SearchPattern) ) {
+				foreach(IntPtr fileRootMatch in TryFindAllPatternsInExe(IntPtr.Zero, IntPtr.Zero, Offsets.FileRoot_SearchMask, Offsets.FileRoot_SearchPattern) ) {
 					if( ! IsValid(fileRootMatch) ) {
 						Log($"PoEMemory: No match for Files root address...");
-						return;
+						continue;
 					}
 					long fileParseStarted = Time.ElapsedMilliseconds;
 					long claimedCount = 0;
@@ -425,63 +533,71 @@ namespace AtE {
 					// so we read an int from (match + 6)
 					if ( ! TryRead(fileRootMatch + 0x6, out int localFileRootOffset) ) {
 						Log($"PoEMemory: Failed to read a local offset from match + 6");
-						return;
+						continue;
 					}
-					Log($"PoEMemory: localFileRootOffset = {localFileRootOffset}");
+					Log($"PoEMemory: localFileRootOffset = {localFileRootOffset} (0x{localFileRootOffset:X})");
 					// at this local offset (from the match address) is a structure,
 					// that structure contains an array of exactly 16 elements, starting at offset 0xA
 					// (the structure is the top node in a hierarchical hash table, probably boost's flat_map)
-					IntPtr rootBlockArrayStart = fileRootMatch + localFileRootOffset + 0xA;
+					IntPtr rootBlockArrayStart = fileRootMatch + 0x3 // add 3 for the size of the prior instruction (before the relative offset)
+						+ localFileRootOffset +  0x8; // add 8 more after applying the relative offset, TODO: use offset of FileRoot_Ref.ptrToFileRootPtr here
 					Offsets.File_RootHeader[] fileRoots = new Offsets.File_RootHeader[16];
 					// read all 16 rootBlock array elements at once
 					if ( TryRead(rootBlockArrayStart, fileRoots) <= 0 ) {
 						Log($"PoEMemory: Failed to read rootBlockArrayStructure from {Describe(rootBlockArrayStart)}");
-						return;
+						continue;
 					}
 					int scanCount = 0;
 					FileRoots.Clear();
+					FileRoots["Address"] = fileRootMatch + localFileRootOffset + 0xA;
 					for ( int rootIndex = 0; rootIndex < 16; rootIndex++ ) {
 						var fileRoot = fileRoots[rootIndex];
 						// Log($"PoEMemory: Parsing file root block # {rootIndex}");
-						if ( fileRoot.Capacity > 0 && fileRoot.Capacity < 9999 ) {
-							claimedCount += fileRoot.Count;
-							// each fileRoot block contains up to Capacity buckets
-							// its sparse, and each bucket is either full or empty
-							// Log($"PoEMemory: File parsing progress: {scanCount} / {16 * 8 * (fileRoot.Capacity + 1) / 8}");
-							for ( int bucketIndex = 0; bucketIndex < (fileRoot.Capacity + 1) / 8; bucketIndex++ ) {
-								// this is the base ptr of one bucket in the hash table, each bucket holds 8 entries with 1-byte sub keys
-								var basePtr = fileRoot.ptrFileNode + (bucketIndex * 0xc8);
-								byte[] hashValues = new byte[8];
-								if ( TryRead(basePtr, hashValues) > 0 ) {
-									for ( int hashIndex = 0; hashIndex < 8; hashIndex++ ) {
-										// each subkey has a value, but 0xFF is a special value that means an empty slot
-										bool empty = hashValues[hashIndex] == 0xFF;
-										scanCount += 1;
-										if ( !empty ) {
-											// read the fileInfoPtr from the array of data in the slot
-											if ( TryRead(basePtr + 8 + (hashIndex * 0x18) + 8, out IntPtr fileInfoPtr) ) {
-												// read the File_InfoBlock struct from that ptr
-												if ( TryRead(fileInfoPtr, out Offsets.File_InfoBlock fileInfo) ) {
-													string name = fileInfo.strName.Value;
-													if ( IsValid(name, 1) ) {
-														// Log($"PoEMemory: data file {name} at {Describe(fileInfoPtr)}");
-														FileRoots[name] = fileInfoPtr;
-													}
-												}
+						if ( fileRoot.Capacity <= 0 || fileRoot.Capacity > 9999 ) {
+							Log($"PoEMemory: Invalid fileRoot Capacity: {fileRoot.Capacity}");
+							break;
+						}
+						claimedCount += fileRoot.Count;
+						// each fileRoot block contains up to Capacity buckets
+						// its sparse, and each bucket is either full or empty
+						// Log($"PoEMemory: File parsing progress: {scanCount} / {16 * 8 * (fileRoot.Capacity + 1) / 8}");
+						for ( int bucketIndex = 0; bucketIndex < (fileRoot.Capacity + 1) / 8; bucketIndex++ ) {
+							// this is the base ptr of one bucket in the hash table, each bucket holds 8 entries with 1-byte sub keys
+							var basePtr = fileRoot.ptrFileNode + (bucketIndex * 0xc8);
+							byte[] hashValues = new byte[8];
+							if ( (!IsValid(basePtr)) || TryRead(basePtr, hashValues) <= 0 ) {
+								Log($"PoEMemory: Failed to read hashValues from basePtr ({Describe(basePtr)})");
+								break;
+							}
+							for ( int hashIndex = 0; hashIndex < 8; hashIndex++ ) {
+								// each subkey has a value, but 0xFF is a special value that means an empty slot
+								bool empty = hashValues[hashIndex] == 0xFF;
+								scanCount += 1;
+								if ( !empty ) {
+									// read the fileInfoPtr from the array of data in the slot
+									if ( ! TryRead(basePtr + 8 + (hashIndex * 0x18) + 8, out IntPtr fileInfoPtr) ) {
+										// read the File_InfoBlock struct from that ptr
+										if ( TryRead(fileInfoPtr, out Offsets.File_InfoBlock fileInfo) ) {
+											string name = fileInfo.strName.Value;
+											if ( IsValid(name, 1) ) {
+												// Log($"PoEMemory: data file {name} at {Describe(fileInfoPtr)}");
+												FileRoots[name] = fileInfoPtr;
 											}
 										}
 									}
 								}
 							}
+
 						}
 					}
 					Log($"PoEMemory: parsing ended after {Time.ElapsedMilliseconds - fileParseStarted} ms, found {FileRoots?.Count ?? 0} files of {claimedCount} claimed.");
+					if ( FileRoots.Count >= 3 ) break;
 				}
-				else {
-					Log($"PoEMemory: Cannot find files root.");
+				if( FileRoots.Count < 3 ) {
+					Log($"PoEMemory: Did not find the real files root.");
 				}
 			};
-		
+			*/
 		}
 
 	}
