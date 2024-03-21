@@ -64,6 +64,7 @@ namespace AtE {
 		// maps the Type (of a Component) to the Address of that Component instance for this Entity
 		private Dictionary<string, IntPtr> ComponentPtrs; // we have to parse this all at once
 		private Dictionary<string, MemoryObject> ComponentCache; // these are filled in as requested, then re-used if requested a second time
+		private long LastParseTime;
 
 		public Entity() : base() {
 			Details = CachedStruct<Offsets.EntityDetails>(() => Cache.ptrDetails);
@@ -86,6 +87,7 @@ namespace AtE {
 				path = null;
 				ComponentPtrs = null;
 				ComponentCache = null;
+				LastParseTime = 0;
 
 			}
 		}
@@ -129,7 +131,7 @@ namespace AtE {
 			if ( Thread.CurrentThread.ManagedThreadId != 1 ) {
 				Log($"Warning: GetComponent<{typeof(T).Name}> called from background thread!");
 			}
-			if ( ComponentPtrs == null ) {
+			if ( ComponentPtrs == null || (Time.ElapsedMilliseconds - LastParseTime) > 1337 ) {
 				ParseComponents();
 			}
 			if ( ComponentPtrs == null ) {
@@ -178,12 +180,6 @@ namespace AtE {
 			return ComponentPtrs;
 		}
 
-		private void UpdateParsedIndex(string name, IntPtr addr) {
-			if ( IsValid(addr) ) {
-				ComponentPtrs.Add(name, addr);
-			}
-		}
-
 		public void ClearComponents() {
 			ComponentPtrs = null;
 			ComponentCache?.Clear();
@@ -198,7 +194,7 @@ namespace AtE {
 			} else {
 				ImGui.Text($"ComponentLookup Capacity: {lookup.Counter} of {lookup.Capacity}");
 			}
-			var namesArray = new Offsets.ComponentNameAndIndexStruct[lookup.Counter];
+			var namesArray = new Offsets.NameAndIndexStruct[lookup.Counter];
 			if ( 0 == PoEMemory.TryRead(lookup.ComponentMap, namesArray) ) {
 				ImGui.Text($"ComponentMap: Read 0 bytes, aborting.");
 				return;
@@ -209,53 +205,65 @@ namespace AtE {
 			}
 
 		}
+
+		private const int COMPONENT_MAX = 64; // max number of components on one entity
+
+		private const int COMPONENT_MAX_NAME = 128; // max length of a component name
+
 		private void ParseComponents() {
 
 			using ( Perf.Section("ParseComponents") ) {
 				ComponentPtrs = new Dictionary<string, IntPtr>();
+				LastParseTime = Time.ElapsedMilliseconds;
 				// the Entity has a list of ptr to Component, managed by an ArrayHandle
 				// (these are the .Values of the underlying map)
-				var basePtrs = new ArrayHandle<IntPtr>(Cache.ComponentBasePtrs).ToArray(limit: 32);
-				if ( basePtrs.Length == 0 || basePtrs.Length > 32 ) {
+				var basePtrsHandle = new ArrayHandle<IntPtr>(Cache.ComponentBasePtrs);
+				if ( basePtrsHandle.Length == 0 || basePtrsHandle.Length > COMPONENT_MAX ) {
+					Log($"ParseComponents[{Id}]: invalid length of basePtrs array: {Describe(basePtrsHandle)}");
 					ClearComponents();
 					return;
 				}
 
-				// stored separately, is the control structure of the ComponentMap, called a ComponentLookup
-				if ( !PoEMemory.TryRead(Details.Value.ptrComponentLookup, out Offsets.ComponentLookup lookup) ) {
-					ClearComponents();
+				// read out all the pointers at once, so that later accesses dont read each ptr individually
+				var basePtrs = basePtrsHandle.ToArray(limit: COMPONENT_MAX);
+				
+				// the old map structure (a boost map) is replaced with an ArrayHandle (an stl vector)
+				IntPtr ComponentMap_Offset = Details.Value.ptrComponentLookup + GetOffset<Offsets.ComponentLookup>("ComponentMap");
+				if ( !PoEMemory.TryRead(ComponentMap_Offset, out Offsets.ArrayHandle handle) ) {
+					Log($"ParseComponents[{Id}]: failed to read ComponentMap handle from {Describe(ComponentMap_Offset)}");
 					return;
 				}
-
-				// sanity checks on the lookup structure and what it claims to hold
-				if ( lookup.Capacity < 1 || lookup.Capacity > 1024 ) {
-					ClearComponents();
-					return;
-				}
-
-				if ( lookup.Counter < 1 || lookup.Counter > 32 ) {
-					ClearComponents();
-					return;
-				}
-
-				// in the control structure is the list of names, used as keys to index the basePtrs
-				var namesArray = new Offsets.ComponentNameAndIndexStruct[lookup.Counter];
-				if ( 0 == PoEMemory.TryRead(lookup.ComponentMap, namesArray) ) {
-					ClearComponents();
-					return;
-				}
+				var namesArray = new ArrayHandle<Offsets.NameAndIndexStruct>(handle);
 				foreach ( var entry in namesArray ) {
-					if( entry.Index >= 0 && entry.Index < basePtrs.Length ) {
-						if( PoEMemory.TryReadString(entry.ptrName, Encoding.ASCII, out string name) && name.Length > 2 && name.Length < 128 ) {
-							ComponentPtrs[name] = basePtrs[entry.Index];
-						}
+					if ( entry.Index < 0 || entry.Index >= basePtrs.Length ) {
+						Log($"ParseComponents[{Id}]: invalid entry index: {entry.Index} should be in [0..{basePtrs.Length}]");
+						continue;
 					}
+					if ( !IsValid(entry.ptrName) ) {
+						Log($"ParseComponents[{Id}]: invalid entry name ptr {Describe(entry.ptrName)}");
+						continue;
+					}
+					if ( !IsValid(basePtrs[entry.Index]) ) {
+						Log($"ParseComponents[{Id}]: invalid basePtr {Describe(basePtrs[entry.Index])} at index {entry.Index}");
+						continue;
+					}
+					if ( !PoEMemory.TryReadString(entry.ptrName, Encoding.ASCII, out string name) ) {
+						Log($"ParseComponents[{Id}]: failed to read component name from ptr {Describe(entry.ptrName)}");
+						continue;
+					}
+					if ( name.Length < 3 || name.Length > COMPONENT_MAX_NAME ) {
+						Log($"ParseComponents[{Id}]: invalid component name \"{name}\"");
+						continue;
+					}
+					// if ( Id == 400 ) { Log($"ParseComponents[{Id}]: valid component \"{name}\" => index {entry.Index}"); }
+					ComponentPtrs[name] = basePtrs[entry.Index];
 				}
+
 				// Log($"Entity[{Id}] Parsed {ComponentPtrs.Count} components");
 				return;
 			}
 		}
-	
+
 		public struct Icon {
 			// Size == 1f with Sprite == None means the ent has been determined to have no icon
 			// Size == 0f with Sprite == None means the ent has not checked yet to see what icon it should use
