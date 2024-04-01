@@ -45,8 +45,8 @@ namespace AtE {
 
 		public float CurManaRegen => Cache.ManaRegen;
 		public float CurHPRegen => Cache.CurHPRegen;
-		public int TotalReservedHP => Cache.ReservedFlatHP + (int)(0.5f + (Cache.MaxHP * (Cache.ReservedPercentHP / 10000d)));
-		public int TotalReservedMana => Cache.ReservedFlatMana + (int)(0.7f + (Cache.MaxMana * (Cache.ReservedPercentMana / 10000d)));
+		public int TotalReservedHP => Cache.ReservedFlatHP + (int)Math.Round(0.5f + (Cache.MaxHP * (Cache.ReservedPercentHP / 10000d)));
+		public int TotalReservedMana => Cache.ReservedFlatMana + (int)Math.Round(0.5f + (Cache.MaxMana * (Cache.ReservedPercentMana / 10000d)));
 
 	}
 	public static partial class Globals {
@@ -804,7 +804,7 @@ namespace AtE {
 				stats = new Dictionary<Offsets.GameStat, int>();
 				lastStatsTime = elapsed;
 				foreach ( var entry in Entries ) {
-					if ( entry.Key <= 0 || entry.Key > Offsets.GameStat.DisplayVoodooPoleLife) {
+					if ( entry.Key <= 0 || entry.Key > Offsets.GameStat.MtxHideEnduranceCharges ) {
 						Log($"Invalid Stats key {entry.Key} value {entry.Value}");
 						break; // invalid data in the Entries
 					}
