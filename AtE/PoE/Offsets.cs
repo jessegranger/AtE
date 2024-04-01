@@ -413,9 +413,10 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaRef {
 			// 3.23: 40 new bytes here?
-			[FieldOffset(0xb0)] public readonly IntPtr ptrToWorldAreaDetails;
-			[FieldOffset(0xb8)] public readonly IntPtr ptrUnk90;
-			[FieldOffset(0x114)] public readonly uint areaHash;
+			// 3.24: 8 fewer bytes here
+			[FieldOffset(0xa8)] public readonly IntPtr ptrToWorldAreaDetails;
+			[FieldOffset(0xb0)] public readonly IntPtr ptrUnk90;
+			[FieldOffset(0x10c)] public readonly uint areaHash;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaDetails {
@@ -1154,17 +1155,18 @@ namespace AtE {
 			// 3.22.1c: 24 new bytes here
 			[FieldOffset(0x210)] public readonly IntPtr ModStats;
 			// Crucible: some new 32 bytes added in here
-			[FieldOffset(0x240)] public readonly uint ItemLevel;
-			[FieldOffset(0x244)] public readonly uint RequiredLevel;
+			// 3.24: 8 new bytes here
+			[FieldOffset(0x248)] public readonly uint ItemLevel;
+			[FieldOffset(0x24c)] public readonly uint RequiredLevel;
 			// 3.22.1c: 8 new bytes here
-			[FieldOffset(0x250)] public readonly IntPtr ptrIncubator; // ptr to IncubatorEntry
-			[FieldOffset(0x260)] public readonly short IncubatorKillCount;
+			[FieldOffset(0x258)] public readonly IntPtr ptrIncubator; // ptr to IncubatorEntry
+			[FieldOffset(0x268)] public readonly short IncubatorKillCount;
 			// 3.22.1c: 1 new bytes here
-			[FieldOffset(0x266)] public readonly byte IsMirrored;
-			[FieldOffset(0x267)] public readonly byte IsSplit;
-			[FieldOffset(0x268)] public readonly byte IsUsable;
+			[FieldOffset(0x26e)] public readonly byte IsMirrored;
+			[FieldOffset(0x26f)] public readonly byte IsSplit;
+			[FieldOffset(0x270)] public readonly byte IsUsable;
 			// 3.22.1c: 1 new bytes here
-			[FieldOffset(0x26b)] public readonly byte IsSynthesised;
+			[FieldOffset(0x273)] public readonly byte IsSynthesised;
 
 			// public const int ItemModRecordSize = 0x38;
 			// public const int NameOffset = 0x04;
