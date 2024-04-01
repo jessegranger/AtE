@@ -140,10 +140,10 @@ namespace AtE {
 
 		public Entity Entity => IsValid(Address) && EntityCache.TryGetEntity(Details.Value.entItem, out Entity ent) ? ent : null;
 
-		public virtual int X => (int)(Position.X / ((Parent?.Size.X ?? 0) / 12));
-		public virtual int Y => (int)(Position.Y / ((Parent?.Size.Y ?? 0) / 5));
-		public virtual int Width => (int)(Size.X / Math.Min(Size.X, Size.Y)); // Details.Value.Width;
-		public virtual int Height => (int)(Size.Y / Math.Min(Size.X, Size.Y)); // Details.Value.Height;
+		public virtual int X => (int)(Position.X / ((Parent?.Size.X ?? 1) / 12));
+		public virtual int Y => (int)(Position.Y / ((Parent?.Size.Y ?? 1) / 5));
+		public virtual int Width => (int)(Size.X / ((Parent?.Size.X ?? 1) / 12)); // Math.Min(Size.X, Size.Y)); // Details.Value.Width;
+		public virtual int Height => (int)(Size.Y / ((Parent?.Size.Y ?? 1) / 5)); // Math.Min(Size.X, Size.Y)); // Details.Value.Height;
 
 	}
 
