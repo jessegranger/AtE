@@ -36,7 +36,23 @@ namespace AtE {
 		/// Enumerate the "world" entities (things like monsters, players, objects).
 		/// This doesn't include non-world entities like the items in your backpack.
 		/// </summary>
-		public static IEnumerable<Entity> GetEntities() => EntitiesById.Values.Where(IsValid);
+		public static IEnumerable<Entity> GetEntities() {
+			foreach(var entry in EntitiesById) {
+				if( IsValid(entry.Value) ) {
+					yield return entry.Value;
+				} else {
+					entsToBeRemoved.Enqueue(entry.Key);
+				}
+			}
+		}
+		private static ConcurrentQueue<uint> entsToBeRemoved = new ConcurrentQueue<uint>();
+		private static void removeAllPending() {
+			while( entsToBeRemoved.TryDequeue(out uint id) ) {
+				if( EntitiesById.TryRemove(id, out Entity ent) ) {
+					EntitiesByAddress.TryRemove(ent.Address, out _);
+				}
+			}
+		}
 
 		public static EventHandler<Entity> EntityAdded;
 		public static EventHandler<uint> EntityRemoved;
@@ -56,7 +72,7 @@ namespace AtE {
 			// incomingIds is the set of entity ids that we found on the most recent full walk of the tree
 			HashSet<uint> incomingIds = new HashSet<uint>();
 			// the frontier stack is used to explore the tree, it should start and end empty with each walk of the tree
-			Stack<Offsets.EntityListNode> frontier = new Stack<Offsets.EntityListNode>();
+			Queue<Offsets.EntityListNode> frontier = new Queue<Offsets.EntityListNode>();
 
 			while( true ) {
 
@@ -84,13 +100,14 @@ namespace AtE {
 					deduper.Clear();
 					incomingIds.Clear();
 					frontier.Clear();
+					removeAllPending();
 
 					Offsets.EntityListNode head = PoEMemory.GameRoot.InGameState.EntityListHead;
-					frontier.Push(head);
+					frontier.Enqueue(head);
 					// we are going to skip reading the Ent from the first (head) node
 					bool skippedOne = false;
 					while ( frontier.Count > 0 && deduper.Count < 2000 ) {
-						var node = frontier.Pop();
+						var node = frontier.Dequeue();
 						IntPtr entPtr = node.Entity;
 						if ( ! deduper.Add(entPtr) ) {
 							continue;
@@ -118,13 +135,13 @@ namespace AtE {
 						}
 
 						if ( PoEMemory.TryRead(node.First, out Offsets.EntityListNode first) ) {
-							frontier.Push(first);
+							frontier.Enqueue(first);
 						}
 						if ( PoEMemory.TryRead(node.Second, out Offsets.EntityListNode second) ) {
-							frontier.Push(second);
+							frontier.Enqueue(second);
 						}
 						if ( PoEMemory.TryRead(node.Third, out Offsets.EntityListNode third) ) {
-							frontier.Push(third);
+							frontier.Enqueue(third);
 						}
 					}
 					// now, frontier is empty, and incomingIds is full
