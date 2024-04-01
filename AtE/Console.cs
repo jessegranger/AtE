@@ -28,7 +28,7 @@ namespace AtE {
 				Show = !Show;
 				if ( !Show ) { PluginBase.SaveIniFile(); }
 			}
-			if ( Show && ImGui.Begin("Console", ref Show, ImGuiWindowFlags.AlwaysAutoResize) ) {
+			if ( Show && ImGui.Begin("Assistant to the Exile", ref Show, ImGuiWindowFlags.AlwaysAutoResize) ) {
 				try {
 					if ( ImGui.Button("Save##iniSettings") ) {
 						PluginBase.SaveIniFile();
