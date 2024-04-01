@@ -111,17 +111,17 @@ namespace AtE {
 		public Element BuffsPanel => IsValid(Address) ? getElement(Cache.BuffsPanel) : null;
 		public Element DelveDarkness => IsValid(Address) ? getElement(Cache.DelveDarkness) : null; // Debuffs Panel
 		public Element AreaInstanceUi => IsValid(Address) ? getElement(Cache.AreaInstanceUi) : null;
-		public Element InteractButtonWrapper => IsValid(Address) ? getElement(Cache.InteractButtonWrapper) : null;
-		public Element SkipAheadButton => IsValid(Address) ? getElement(Cache.SkipAheadButton) : null;
-		public Element SyndicateHelpButton => IsValid(Address) ? getElement(Cache.SyndicateHelpButton) : null;
-		public Element SyndicateReleasePanel => IsValid(Address) ? getElement(Cache.SyndicateReleasePanel) : null;
-		public Element LeagueInteractPanel => IsValid(Address) ? getElement(Cache.LeagueInteractPanel) : null;
-		public Element MetamorphInteractPanel => IsValid(Address) ? getElement(Cache.MetamorphInteractPanel) : null;
-		public Element RitualInteractPanel => IsValid(Address) ? getElement(Cache.RitualInteractPanel) : null;
-		public Element ExpeditionInteractPanel => IsValid(Address) ? getElement(Cache.ExpeditionInteractPanel) : null;
-		public Element InvitesPanel => IsValid(Address) ? getElement(Cache.InvitesPanel) : null;
+		// public Element InteractButtonWrapper => IsValid(Address) ? getElement(Cache.InteractButtonWrapper) : null;
+		// public Element SkipAheadButton => IsValid(Address) ? getElement(Cache.SkipAheadButton) : null;
+		// public Element SyndicateHelpButton => IsValid(Address) ? getElement(Cache.SyndicateHelpButton) : null;
+		// public Element SyndicateReleasePanel => IsValid(Address) ? getElement(Cache.SyndicateReleasePanel) : null;
+		// public Element LeagueInteractPanel => IsValid(Address) ? getElement(Cache.LeagueInteractPanel) : null;
+		// public Element MetamorphInteractPanel => IsValid(Address) ? getElement(Cache.MetamorphInteractPanel) : null;
+		// public Element RitualInteractPanel => IsValid(Address) ? getElement(Cache.RitualInteractPanel) : null;
+		// public Element ExpeditionInteractPanel => IsValid(Address) ? getElement(Cache.ExpeditionInteractPanel) : null;
+		// public Element InvitesPanel => IsValid(Address) ? getElement(Cache.InvitesPanel) : null;
 		public Element GemLvlUpPanel => IsValid(Address) ? getElement(Cache.GemLvlUpPanel) : null;
-		public Element SkillBarNotifyPanel1 => IsValid(Address) ? getElement(Cache.SkillBarNotifyPanel1) : null;
+		// public Element SkillBarNotifyPanel1 => IsValid(Address) ? getElement(Cache.SkillBarNotifyPanel1) : null;
 		public Element ItemOnGroundTooltip => IsValid(Address) ? getElement(Cache.ItemOnGroundTooltip) : null;
 	}
 
