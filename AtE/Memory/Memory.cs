@@ -17,12 +17,13 @@ namespace AtE {
 
 		public static void ImGui_Address(IntPtr a, string label, string typeLabels = null) {
 			ImGui.AlignTextToFramePadding();
-			ImGui.Text(label); ImGui.SameLine(0f, 2f);
 			var str = Describe(a);
+			ImGui.Text(label);
+			ImGui.SameLine(0f, 2f);
 			ImGui.Text(str);
 			ImGui.SameLine();
 			if( ImGui.Button($"M##{str}") ) {
-				Log($"{a} launching debugger...");
+				Log($"{str} launching debugger (labels: {typeLabels})...");
 				var debugger = new Debugger(a).WithKnownAddress(label, a);
 				if( typeLabels != null ) {
 					debugger.usingStructLabelsFrom(typeLabels);

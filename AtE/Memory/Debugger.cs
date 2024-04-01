@@ -23,7 +23,7 @@ namespace AtE {
 			BaseAddress = addr;
 			InputAddress = $"{(long)addr:X16}";
 			Id = $"Debugger@{Describe(addr)}";
-			Log($"Debugger: created to view {ViewAddress}");
+			Log($"Debugger: created to view {Describe(ViewAddress)}");
 		}
 
 		private static Dictionary<IntPtr, string> globalKnownOffsets = new Dictionary<IntPtr, string>();

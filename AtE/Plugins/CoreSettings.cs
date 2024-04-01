@@ -39,8 +39,8 @@ namespace AtE {
 		public override string Name => "Core Settings";
 
 		public override void Render() {
-			ImGui_HotKeyButton("Console Key", ref ConsoleKey);
-			ImGui_HotKeyButton("Pause/Resume Key", ref PauseKey);
+			ImGui_HotKeyButton("Toggle Console", ref ConsoleKey);
+			ImGui_HotKeyButton("Toggle Pause", ref PauseKey);
 			ImGui.Checkbox("Only Render when PoE is focused", ref OnlyRenderWhenFocused);
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text($"Overlay FPS: {Overlay.FPS:F0}fps");
