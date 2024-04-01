@@ -19,7 +19,7 @@ namespace AtE {
 			}
 			long vtablePtr = ent.vtablePtr.ToInt64();
 			// shortcut: only valid in 3.24, in later updates look up the new values
-			if( vtablePtr == 0x7FF751da4fa8 ) {
+			if( vtablePtr == 0x7FF751da4fa8 || vtablePtr == 0x7FF751f094b8 ) {
 				return true;
 			}
 			if ( ent.Path?.StartsWith("Meta") ?? false ) {
