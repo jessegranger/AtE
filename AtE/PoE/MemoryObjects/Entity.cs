@@ -12,11 +12,24 @@ using static AtE.Globals;
 
 namespace AtE {
 	public static partial class Globals {
-		
-		public static bool IsValid(Entity ent) => ent != null
-			&& IsValid(ent.Address)
-			// && ent.ServerId > 0 && ent.ServerId < int.MaxValue
-			&& (ent.Path?.StartsWith("Meta") ?? false);
+
+		public static bool IsValid(Entity ent) {
+			if( ent == null || !IsValid(ent.Address) ) {
+				return false;
+			}
+			long vtablePtr = ent.vtablePtr.ToInt64();
+			// shortcut: only valid in 3.24, in later updates look up the new values
+			if( vtablePtr == 0x7FF751da4fa8 ) {
+				return true;
+			}
+			if ( ent.Path?.StartsWith("Meta") ?? false ) {
+				Log($"Entity: valid Entity path found with unknown Entity vtable ptr {Describe(ent.vtablePtr)}");
+				return true;
+			}
+			return false;
+		}
+			// && ent.vtablePtr.ToInt64() == 0x7FF6EE0717F0; // only valid in 3.23.2c
+		  // to find the new value, use the (more expensive) StartsWith code below to find valid entities
 
 		public static Entity GetEntityById(uint id) => EntityCache.TryGetEntity(id, out Entity ret) ? ret : null;
 
@@ -96,7 +109,9 @@ namespace AtE {
 		///  The remote id used by the PoE server to sync the ent.
 		///  Client-only effects do have Entity structure, but dont have Id.
 		/// </summary>
-		public uint Id => Address == IntPtr.Zero ? 0 : Cache.Id;
+		public uint Id => IsValid(Address) ? Cache.Id : 0;
+
+		public IntPtr vtablePtr => IsValid(Address) ? Cache.vtable : IntPtr.Zero;
 
 		private string path;
 		private IntPtr pathOrigin = IntPtr.Zero;
