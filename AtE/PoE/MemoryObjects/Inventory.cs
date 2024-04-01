@@ -55,11 +55,11 @@ namespace AtE {
 		/// </summary>
 		public IEnumerable<T> VisibleItems {
 			get {
-				// get the constructor that accepts an IntPtr address
+				// get the constructor of <T> that accepts an IntPtr address
 				var ctor = typeof(T).GetConstructor(new Type[] { typeof(IntPtr) });
 				return AllVisibleChildren(this, new HashSet<int>())
 					.Where(e => Globals.IsValid(e))
-					.Select(e => (T)ctor.Invoke(new object[] { e.Address })) //  new InventoryItem() { Address = e.Address })
+					.Select(e => (T)ctor.Invoke(new object[] { e.Address })) //  eg, new InventoryItem() { Address = e.Address })
 					.Where(e => Globals.IsValid(e) && e.IsVisible);
 			}
 		}
@@ -129,8 +129,8 @@ namespace AtE {
 				var details = Details.Value;
 				return base.IsValid
 					&& IsValid(details.entItem)
-					&& details.Width > 0
-					&& details.Height > 0
+					// && details.Width > 0
+					// && details.Height > 0
 					// && details.InventPosition.X >= 0
 					// && details.InventPosition.Y >= 0
 					&& EntityCache.TryGetEntity(details.entItem, out _) //  IsValid(new Entity() { Address = details.entItem })
@@ -142,8 +142,8 @@ namespace AtE {
 
 		public virtual int X => (int)(Position.X / ((Parent?.Size.X ?? 0) / 12));
 		public virtual int Y => (int)(Position.Y / ((Parent?.Size.Y ?? 0) / 5));
-		public virtual int Width => Details.Value.Width;
-		public virtual int Height => Details.Value.Height;
+		public virtual int Width => (int)(Size.X / Math.Min(Size.X, Size.Y)); // Details.Value.Width;
+		public virtual int Height => (int)(Size.Y / Math.Min(Size.X, Size.Y)); // Details.Value.Height;
 
 	}
 
