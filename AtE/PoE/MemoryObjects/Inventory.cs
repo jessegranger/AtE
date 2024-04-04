@@ -152,7 +152,8 @@ namespace AtE {
 		public override int X => 0;
 		public override int Y => 0;
 		// with a StashItem, the Parent is in the real Position
-		public override RectangleF GetClientRect() => Parent.GetClientRect();
+		// 3.24: no longer true
+		// public override RectangleF GetClientRect() => Parent.GetClientRect();
 		// and the item count is held in a Child element
 		public int Count => int.Parse(GetChild(0)?.Text ?? "1");
 	}
