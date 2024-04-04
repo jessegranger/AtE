@@ -18,12 +18,14 @@ namespace AtE {
 				return false;
 			}
 			long vtablePtr = ent.vtablePtr.ToInt64();
-			// shortcut: only valid in 3.24, in later updates look up the new values
-			if( vtablePtr == 0x7FF751da4fa8 || vtablePtr == 0x7FF751f094b8 ) {
+			// shortcut: only valid in 3.24.0b, in later updates look up the new values
+			if( vtablePtr == 0x7FF627192030 || vtablePtr == 0x7FF6272F65A8 ) {
 				return true;
 			}
 			if ( ent.Path?.StartsWith("Meta") ?? false ) {
+#if DEBUG
 				Log($"Entity: valid Entity path found with unknown Entity vtable ptr {Describe(ent.vtablePtr)}");
+#endif
 				return true;
 			}
 			return false;
