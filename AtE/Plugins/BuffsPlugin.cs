@@ -214,11 +214,19 @@ namespace AtE.Plugins {
 			public BannerSkill(string displayName, string skillName, string auraBuffName, string stageBuffName):base(displayName, skillName, auraBuffName) {
 				StageBuffName = stageBuffName;
 			}
-			public override bool Predicate(PlayerEntity p) =>
-				base.Predicate(p) && 
-				(TryGetBuffValue(p, StageBuffName, out int stage) && stage >= 50
-					&& NearbyEnemies(100, Offsets.MonsterRarity.Rare).Any(IsAlive)
-				);
+			public override bool Predicate(PlayerEntity p) {
+				if ( !Enabled ) return false;
+				// if player doesn't have the main banner buff, cast the banner
+				if ( !HasBuff(p, BuffName) ) return true;
+				// if player has enough stages and...
+				if( TryGetBuffValue(p, StageBuffName, out int stage) && stage >= 50) {
+					// ...and there is a nearby rare
+					if( NearbyEnemies(100, Offsets.MonsterRarity.Rare).Any(IsAlive) ) {
+						return true;
+					}
+				};
+				return false;
+			}
 		}
 
 		public class DefianceBanner : BannerSkill { public DefianceBanner() : base("Defiance Banner", "banner_armour_evasion", "armour_evasion_banner_buff_aura", "armour_evasion_banner_stage") { } }
@@ -338,15 +346,26 @@ namespace AtE.Plugins {
 				buff.Configure();
 			}
 			ImGui.EndTable();
-			/*
+#if DEBUG
 			var player = GetPlayer();
-			var life = player.GetComponent<Life>();
-			ImGui.Text($"MaxLife: {MaxLife(player)}");
-			ImGui.Text($"MaxEHP: {MaxEHP(life, HasBuff(player, "petrified_blood"))}");
-			ImGui.Text($"CurEHP: {CurrentEHP(life)}");
-			ImGui.Text($"IsMissingEHP(.01f): {IsMissingEHP(player, .01f, HasBuff(player, "petrified_blood"))}");
-			ImGui.Text($"IsMissingEHP(.1f): {IsMissingEHP(player, .1f, HasBuff(player, "petrified_blood"))}");
-			*/
+			var buffs = player.GetComponent<Buffs>();
+			ImGui.Text($"Defiance Banner: {HasBuff(buffs, "armour_evasion_banner_buff_aura")}");
+			if ( buffs.TryGetBuffValue("armour_evasion_banner_stage", out int stage) ) {
+				ImGui.Text($"Stages: {stage}");
+			} else {
+				ImGui.Text($"Stages: 0");
+			}
+			var enemies = NearbyEnemies(100, Offsets.MonsterRarity.Rare).Where(IsAlive).Count();
+			ImGui.Text($"Rare within 10m: {enemies}");
+
+			// ImGui.Text()
+			// var life = player.GetComponent<Life>();
+			// ImGui.Text($"MaxLife: {MaxLife(player)}");
+			// ImGui.Text($"MaxEHP: {MaxEHP(life, HasBuff(player, "petrified_blood"))}");
+			// ImGui.Text($"CurEHP: {CurrentEHP(life)}");
+			// ImGui.Text($"IsMissingEHP(.01f): {IsMissingEHP(player, .01f, HasBuff(player, "petrified_blood"))}");
+			// ImGui.Text($"IsMissingEHP(.1f): {IsMissingEHP(player, .1f, HasBuff(player, "petrified_blood"))}");
+#endif
 		}
 
 		/// <summary>
