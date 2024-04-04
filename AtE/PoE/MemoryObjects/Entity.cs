@@ -18,14 +18,22 @@ namespace AtE {
 				return false;
 			}
 			long vtablePtr = ent.vtablePtr.ToInt64();
-			// shortcut: only valid in 3.24.0b, in later updates look up the new values
-			if( vtablePtr == 0x7FF627192030 || vtablePtr == 0x7FF6272F65A8 ) {
+			
+			if( (Entity.cachedVtablePtr1 != 0) && (vtablePtr == Entity.cachedVtablePtr1) ) {
+				return true;
+			}
+			if( (Entity.cachedVtablePtr2 != 0) && (vtablePtr == Entity.cachedVtablePtr2) ) {
 				return true;
 			}
 			if ( ent.Path?.StartsWith("Meta") ?? false ) {
 #if DEBUG
-				Log($"Entity: valid Entity path found with unknown Entity vtable ptr {Describe(ent.vtablePtr)}");
+				Log($"Entity: Valid Entity path found with unknown Entity vtable ptr {Describe(ent.vtablePtr)}");
 #endif
+				if( Entity.cachedVtablePtr1 == 0 ) {
+					Entity.cachedVtablePtr1 = vtablePtr;
+				} else if ( Entity.cachedVtablePtr2 == 0 ) {
+					Entity.cachedVtablePtr2 = vtablePtr;
+				}
 				return true;
 			}
 			return false;
@@ -80,6 +88,9 @@ namespace AtE {
 		private Dictionary<string, IntPtr> ComponentPtrs; // we have to parse this all at once
 		private Dictionary<string, MemoryObject> ComponentCache; // these are filled in as requested, then re-used if requested a second time
 		private long LastParseTime;
+
+		internal static long cachedVtablePtr1;
+		internal static long cachedVtablePtr2;
 
 		public Entity() : base() {
 			Details = CachedStruct<Offsets.EntityDetails>(() => Cache.ptrDetails);
