@@ -299,6 +299,9 @@ namespace AtE.Plugins {
 				} else if ( path.Contains("Abyss/AbyssFinal") ) {
 					icon = SpriteIcon.RewardAbyss;
 					iconSize = 1.75f;
+				} else if ( path.Contains("Chests/AbyssChest") ) {
+					icon = SpriteIcon.RewardAbyss;
+					iconSize = 1.25f;
 				} else if ( path.StartsWith("Metadata/Chests/LeaguesExpedition/") ) {
 					icon = SpriteIcon.BlueFlag;
 					iconSize = 1.1f;
