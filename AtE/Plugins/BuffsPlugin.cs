@@ -276,6 +276,39 @@ namespace AtE.Plugins {
 			}
 		}
 
+		public class VaalGrace : SkillData {
+			public int UseAtPercentEHP = 50;
+			public VaalGrace() : base("Vaal Grace", "vaal_grace", "vaal_aura_dodge") { }
+			public override bool Predicate(PlayerEntity p) {
+				if( !Enabled ) {
+					return false;
+				}
+				var skill = p.Actor.Skills.Where((s) => s.InternalName.Equals("vaal_grace")).FirstOrDefault();
+				if( !IsValid(skill) ) {
+					DrawBottomLeftText("Vaal Grace: no skill found", Color.OrangeRed);
+					return false;
+				}
+				if ( skill.CurVaalSouls < skill.SoulsPerUse ) {
+					DrawBottomLeftText("Vaal Grace: not enough souls", Color.OrangeRed);
+					return false;
+				}
+				var life = p.GetComponent<Life>();
+				if( !IsValid(life) ) {
+					DrawBottomLeftText("Vaal Grace: invalid life component", Color.Orange);
+					return false;
+				}
+				var maxEHP = MaxEHP(life, HasBuff(p, "petrified_blood"));
+				var curEHP = CurrentEHP(life);
+				uint pct = (100 * curEHP) / maxEHP;
+				DrawBottomLeftText($"Vaal Grace: {pct}% ehp", Color.AliceBlue);
+				return pct <= UseAtPercentEHP;
+
+			}
+			public override void Configure() {
+				base.Configure();
+				ImGui.SliderInt("Use at % EHP##VaalGraceUseAtEHP", ref UseAtPercentEHP, 1, 99);
+			}
+		}
 		public class VaalDiscipline : SkillData {
 			public int UseAtPercentES = 50;
 			public VaalDiscipline() : base("Vaal Discipline", "vaal_discipline", "vaal_aura_energy_shield") { }
@@ -333,6 +366,7 @@ namespace AtE.Plugins {
 			// { "Vaal Haste", new SkillData("Vaal Haste", "vaal_haste", "vaal_aura_speed", null, (p) => true) },
 			// { "Vaal Cold Snap", new SkillData("Vaal Cold Snap", "new_vaal_cold_snap", "vaal_cold_snap_degen", null, (p) => false) }, // HasNearbyRares( },
 			{ "Vaal Discipline", new VaalDiscipline() },
+			{ "Vaal Grace", new VaalGrace() },
 		};
 
 		/// <summary>
