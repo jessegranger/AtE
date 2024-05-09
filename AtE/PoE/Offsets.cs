@@ -1767,6 +1767,8 @@ namespace AtE {
 		public const string PATH_SCOUR = "Metadata/Items/Currency/CurrencyConvertToNormal";
 		public const string PATH_FUSING = "Metadata/Items/Currency/CurrencyRerollSocketLinks";
 		public const string PATH_REMNANT_OF_CORRUPTION = "Metadata/Items/Currency/CurrencyCorruptMonolith";
+		public const string PATH_OMEN_OF_DEATH_DANCING = "Metadata/Items/Currency/AncestralOmenOnCriticalLifeAvoidDamage";
+		public const string PATH_OMEN_OF_RETURN = "Metadata/Items/Currency/AncestralOmenOnDeathCreatePortal";
 		public const string PATH_CLUSTER_SMALL = "Metadata/Items/Jewels/JewelPassiveTreeExpansionSmall";
 		public const string PATH_CLUSTER_MEDIUM = "Metadata/Items/Jewels/JewelPassiveTreeExpansionMedium";
 		public const string PATH_CLUSTER_LARGE = "Metadata/Items/Jewels/JewelPassiveTreeExpansionLarge";
