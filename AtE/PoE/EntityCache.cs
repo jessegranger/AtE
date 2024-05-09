@@ -102,8 +102,12 @@ namespace AtE {
 					frontier.Clear();
 					removeAllPending();
 
-					Offsets.EntityListNode head = PoEMemory.GameRoot.InGameState.EntityListHead;
-					frontier.Enqueue(head);
+					try {
+						Offsets.EntityListNode head = PoEMemory.GameRoot.InGameState.EntityListHead;
+						frontier.Enqueue(head);
+					} catch ( NullReferenceException ) {
+						continue;
+					}
 					// we are going to skip reading the Ent from the first (head) node
 					bool skippedOne = false;
 					while ( frontier.Count > 0 && deduper.Count < 2000 ) {
