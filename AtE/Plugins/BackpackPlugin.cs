@@ -19,12 +19,24 @@ namespace AtE.Plugins {
 		public bool OpenStashedDecks = false;
 		public bool ApplyIncubators = false;
 
+		public bool ShouldIdentify = true;
+		public bool ShouldIdentifyMaps = true;
+		public bool ShouldIdentifyCorrupt = false;
+		public bool ShouldIdentifyUnique = false;
+
 		public override void Render() {
 			base.Render();
 
 			ImGui_HotKeyButton("Deposit All Loot", ref DumpKey);
 			ImGui.Checkbox("Open Stashed Decks", ref OpenStashedDecks);
 			ImGui.Checkbox("Apply Incubators", ref ApplyIncubators);
+			ImGui.Separator();
+			ImGui.Checkbox("Use Scroll of Wisdom to Identify", ref ShouldIdentify);
+			ImGui.Indent();
+			ImGui.Checkbox("Identify Maps", ref ShouldIdentifyMaps);
+			ImGui.Checkbox("Identify Corrupt", ref ShouldIdentifyCorrupt);
+			ImGui.Checkbox("Idenfity Unique", ref ShouldIdentifyUnique);
+			ImGui.Unindent();
 			ImGui.Separator();
 			ImGui.Checkbox("Show Debug Markers", ref ShowDebugMarkers);
 		}
@@ -47,15 +59,25 @@ namespace AtE.Plugins {
 		private IState OnlyIfBackpackIsOpen(IState ifOpen, IState ifClosed = null) => NewState("CheckBackpackIsOpen", (self, dt) => BackpackIsOpen() ? ifOpen : ifClosed, next: ifOpen);
 
 		private IEnumerable<InventoryItem> ItemsToIdentify() => BackpackItems().Where(e => {
+			if( ! ShouldIdentify ) {
+				return false;
+			}
 			var mods = e?.Entity?.GetComponent<Mods>();
 			if ( !IsValid(mods) ) {
+				return false;
+			}
+			if( mods.Rarity == Offsets.ItemRarity.Unique && ! ShouldIdentifyUnique) {
+				return false;
+			}
+			bool isCorrupted = IsCorrupted(e);
+			if( isCorrupted && ! ShouldIdentifyCorrupt ) {
 				return false;
 			}
 			var level = GetItemLevel(mods);
 			if ( mods.Rarity == Offsets.ItemRarity.Rare && level >= 50 && level <= 74 ) {
 				return false; // dont identify the chaos recipe range
 			}
-			if ( IsIdentified(mods) || IsCorrupted(e) ) {
+			if ( IsIdentified(mods) ) {
 				return false;
 			}
 			return true;
@@ -101,7 +123,9 @@ namespace AtE.Plugins {
 		private Dictionary<string, int> restockNeeds = new Dictionary<string, int>() {
 			{ Offsets.PATH_SCROLL_WISDOM, 40 },
 			{ Offsets.PATH_SCROLL_PORTAL, 40 },
-			{ Offsets.PATH_REMNANT_OF_CORRUPTION, 9 }
+			{ Offsets.PATH_REMNANT_OF_CORRUPTION, 9 },
+			{ Offsets.PATH_OMEN_OF_RETURN, 1 },
+			{ Offsets.PATH_OMEN_OF_DEATH_DANCING, 1 }
 		};
 
 		private IState PlanStashAll(IState next = null) {
@@ -431,7 +455,7 @@ namespace AtE.Plugins {
 					var equipped = new Stack<InventoryItem>(EquippedItems()
 						.Where(FilterIncubatableEquipmentItem));
 					ImGui.Begin("Debug EquippedItems");
-					ImGui.Text($"Items Equipped: {equipped.Count}");
+					ImGui.Text($"(Incubatable) Items Equipped: {equipped.Count}");
 					foreach ( var item in equipped ) {
 						var ent = item.Entity;
 						ImGui.Text($"Item #{ent.Id} [ {ent.Path} ]");
