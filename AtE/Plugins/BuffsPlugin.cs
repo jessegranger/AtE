@@ -285,22 +285,18 @@ namespace AtE.Plugins {
 				}
 				var skill = p.Actor.Skills.Where((s) => s.InternalName.Equals("vaal_grace")).FirstOrDefault();
 				if( !IsValid(skill) ) {
-					DrawBottomLeftText("Vaal Grace: no skill found", Color.OrangeRed);
 					return false;
 				}
 				if ( skill.CurVaalSouls < skill.SoulsPerUse ) {
-					DrawBottomLeftText("Vaal Grace: not enough souls", Color.OrangeRed);
 					return false;
 				}
 				var life = p.GetComponent<Life>();
 				if( !IsValid(life) ) {
-					DrawBottomLeftText("Vaal Grace: invalid life component", Color.Orange);
 					return false;
 				}
 				var maxEHP = MaxEHP(life, HasBuff(p, "petrified_blood"));
 				var curEHP = CurrentEHP(life);
 				uint pct = (100 * curEHP) / maxEHP;
-				DrawBottomLeftText($"Vaal Grace: {pct}% ehp", Color.AliceBlue);
 				return pct <= UseAtPercentEHP;
 
 			}
