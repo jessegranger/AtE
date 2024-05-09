@@ -102,8 +102,8 @@ namespace AtE {
 
 			FlaskIndex = flaskIndex;
 			float qualityFactor = (100 + (ent.GetComponent<Quality>()?.ItemQuality ?? 0)) / 100f;
-			string path = ent.Path.Split('/').Last();
-			if( FlaskData.Records.TryGetValue(path, out BaseData) ) {
+			string path = ent.Path?.Split('/').Last();
+			if( path != null && FlaskData.Records.TryGetValue(path, out BaseData) ) {
 				Duration = (int)(BaseData.Duration * qualityFactor);
 				LifeHealAmount = (int)(BaseData.HealAmount * qualityFactor);
 				ManaHealAmount = (int)(BaseData.ManaAmount * qualityFactor);
