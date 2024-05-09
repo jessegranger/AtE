@@ -17,22 +17,31 @@ namespace AtE {
 			if( ent == null || !IsValid(ent.Address) ) {
 				return false;
 			}
+			// Optimization: use the vtable ptr to quickly classify an Entity as valid
+			// this avoids reading the whole Path as a unicode string instead
 			long vtablePtr = ent.vtablePtr.ToInt64();
 			
+			// If we've already memo-ized the current pointers, check them:
 			if( (Entity.cachedVtablePtr1 != 0) && (vtablePtr == Entity.cachedVtablePtr1) ) {
 				return true;
 			}
 			if( (Entity.cachedVtablePtr2 != 0) && (vtablePtr == Entity.cachedVtablePtr2) ) {
 				return true;
 			}
+			if( (Entity.cachedVtablePtr3 != 0) && (vtablePtr == Entity.cachedVtablePtr3) ) {
+				return true;
+			}
 			if ( ent.Path?.StartsWith("Meta") ?? false ) {
 #if DEBUG
 				Log($"Entity: Valid Entity path found with unknown Entity vtable ptr {Describe(ent.vtablePtr)}");
 #endif
+				// Memo-ize the valid Entity pointers the first time we see them
 				if( Entity.cachedVtablePtr1 == 0 ) {
 					Entity.cachedVtablePtr1 = vtablePtr;
 				} else if ( Entity.cachedVtablePtr2 == 0 ) {
 					Entity.cachedVtablePtr2 = vtablePtr;
+				} else if ( Entity.cachedVtablePtr3 == 0 ) {
+					Entity.cachedVtablePtr3 = vtablePtr;
 				}
 				return true;
 			}
@@ -91,6 +100,15 @@ namespace AtE {
 
 		internal static long cachedVtablePtr1;
 		internal static long cachedVtablePtr2;
+		internal static long cachedVtablePtr3;
+		static Entity() {
+			OnAreaChange += (obj, areaName) => {
+				// clear the Entity vtable pointer cache entries on zone change
+				cachedVtablePtr1 = 0;
+				cachedVtablePtr2 = 0;
+				cachedVtablePtr3 = 0;
+			};
+		}
 
 		public Entity() : base() {
 			Details = CachedStruct<Offsets.EntityDetails>(() => Cache.ptrDetails);
@@ -273,7 +291,7 @@ namespace AtE {
 					}
 					if ( !IsValid(basePtrs[entry.Index]) ) {
 						Log($"ParseComponents[{Id}]: invalid basePtr {Describe(basePtrs[entry.Index])} at index {entry.Index}");
-						continue;
+						break;
 					}
 					if ( !PoEMemory.TryReadString(entry.ptrName, Encoding.ASCII, out string name) ) {
 						Log($"ParseComponents[{Id}]: failed to read component name from ptr {Describe(entry.ptrName)}");
