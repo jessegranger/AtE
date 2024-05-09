@@ -19,7 +19,7 @@ namespace AtE {
 		}
 
 		public bool DismissStoryText = false;
-		public uint ClickDelayMilliseconds = 550;
+		public int ClickDelayMilliseconds = 1050;
 
 		public bool ShowMinionStats = false;
 		public bool ShowSpectreSpells = false;
@@ -84,6 +84,11 @@ namespace AtE {
 			ImGui.Checkbox("Dismiss Story Text", ref DismissStoryText);
 			ImGui.SameLine();
 			ImGui_HelpMarker("When NPCs show long text with a 'Continue' button, this will click 'Continue' immediately.");
+			ImGui.Indent();
+			ImGui.Text("Click Delay (ms)");
+			ImGui.SameLine();
+			ImGui.SliderInt("##DismissDelay", ref ClickDelayMilliseconds, 10, 1000);
+			ImGui.Unindent();
 
 			ImGui.Checkbox("Show Minion Summary", ref ShowMinionStats);
 			if( ShowMinionStats ) {
@@ -308,7 +313,7 @@ namespace AtE {
 						&& continueOption.IsVisibleLocal
 						&& ((text = continueOption.Text)?.Equals("Continue") ?? false) ) {
 						ClickElement(continueOption);
-						return new Delay(ClickDelayMilliseconds, this);
+						return new Delay((uint)ClickDelayMilliseconds, this);
 					}
 				}
 				dialog = ui.NpcDialog;
@@ -319,7 +324,7 @@ namespace AtE {
 							var textChild = child?.GetChild(0);
 							if ( textChild?.Text?.Equals("Continue") ?? false ) {
 								ClickElement(textChild);
-								return new Delay(ClickDelayMilliseconds, this);
+								return new Delay((uint)ClickDelayMilliseconds, this);
 							}
 						}
 					}
