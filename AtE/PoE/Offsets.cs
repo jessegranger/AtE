@@ -1624,9 +1624,10 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_SubMap {
 			// 3.23: 24 new bytes here
 			// 3.24: 8 new bytes here
-			[FieldOffset(0x288)] public readonly Vector2 Shift;
-			[FieldOffset(0x290)] public readonly Vector2 DefaultShift; // historically, always < 0, -20 >
-			[FieldOffset(0x2c8)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
+			// 3.24.3: 8 new bytes here
+			[FieldOffset(0x290)] public readonly Vector2 Shift;
+			[FieldOffset(0x298)] public readonly Vector2 DefaultShift; // historically, always < 0, -20 >
+			[FieldOffset(0x2d0)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_RootHeader {
