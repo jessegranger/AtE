@@ -66,9 +66,11 @@ namespace AtE {
 	
 		private static IEnumerable<Element> AllVisibleChildren(Element cursor, HashSet<int> seen) {
 			int index = 0;
+			int hashCode = 0;
 			foreach ( Element child in cursor.Children ) {
-				if ( IsValid(child) && !seen.Contains(child.GetHashCode()) ) {
-					seen.Add(child.GetHashCode());
+				hashCode = child.GetHashCode();
+				if ( IsValid(child) && !seen.Contains(hashCode) ) {
+					seen.Add(hashCode);
 					if ( IsValid(child) && child.IsVisibleLocal ) {
 						yield return child;
 						foreach ( var grandchild in AllVisibleChildren(child, seen) ) {

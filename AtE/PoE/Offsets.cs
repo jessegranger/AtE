@@ -311,7 +311,8 @@ namespace AtE {
 			[FieldOffset(0x594)] public readonly int MousePosY;
 			[FieldOffset(0x5a0)] public readonly Vector2 UIHoverOffset; // mouse position offset in hovered UI element
 			[FieldOffset(0x5a4)] public readonly Vector2 MousePos;
-			[FieldOffset(0x7e8)] public readonly IntPtr ptrUIElements; // ptr to InGameState_UIElements
+			// 3.24.3: 8 new bytes here
+			[FieldOffset(0x7f0)] public readonly IntPtr ptrUIElements; // ptr to InGameState_UIElements
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct PreGameState {
 			[FieldOffset(0x130)] public readonly IntPtr UIRoot;
@@ -328,7 +329,8 @@ namespace AtE {
 			[FieldOffset(0x348)] public readonly long IsLoading;
 			[FieldOffset(0x380)] public readonly IntPtr elemRoot;
 			// 3.22: 24 new bytes here
-			[FieldOffset(0x640)] public readonly IntPtr strAreaName;
+			// 3.24.3: 8 new bytes here
+			[FieldOffset(0x648)] public readonly IntPtr strAreaName;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LoginGameState {
 			[FieldOffset(0x0D0)] public readonly IntPtr elemRoot;
@@ -345,14 +347,16 @@ namespace AtE {
 
 			// 3.23: 32 fewer bytes here
 			// 3.23.1: 128 more bytes here
-			[FieldOffset(0x110)] public readonly float Scale;
-			[FieldOffset(0x140)] public readonly IntPtr elemParent; // ptr to Element
+			// 3.24.3: 12 fewer bytes here
+			[FieldOffset(0x104)] public readonly float Scale;
+			// 3.24.3: 8 new bytes here
+			[FieldOffset(0x148)] public readonly IntPtr elemParent; // ptr to Element
 
 			[FieldOffset(0xC0)] public readonly Vector2 Position;
 			[FieldOffset(0xC0)] public readonly float X;
 			[FieldOffset(0xC4)] public readonly float Y;
 			// 3.23: 32 fewer bytes here again
-			[FieldOffset(0x149)] public readonly byte IsVisibleByte;
+			[FieldOffset(0x151)] public readonly byte IsVisibleByte;
 			public bool IsVisibleLocal => (IsVisibleByte & 8) == 8;
 
 			// [FieldOffset(0x160)] public readonly uint ElementBorderColor;
@@ -360,9 +364,9 @@ namespace AtE {
 			// [FieldOffset(0x168)] public readonly uint ElementOverlayColor;
 
 			// 3.23: 16 new bytes (+ the 64 prior) added here
-			[FieldOffset(0x190)] public readonly Vector2 Size;
-			[FieldOffset(0x190)] public readonly float Width;
-			[FieldOffset(0x194)] public readonly float Height;
+			[FieldOffset(0x198)] public readonly Vector2 Size;
+			[FieldOffset(0x198)] public readonly float Width;
+			[FieldOffset(0x19c)] public readonly float Height;
 
 			// everything below here is wrong I think
 			// [FieldOffset(0x190)] public readonly uint TextBoxBorderColor;
@@ -404,7 +408,7 @@ namespace AtE {
 			[FieldOffset(0xA0)] public readonly IntPtr ptrToWorldAreaRef;
 			// 3.12.2b: some new bytes here
 			// 3.32.2: 16 fewer bytes here?
-			[FieldOffset(0x1A8)] public readonly Camera Camera;
+			[FieldOffset(0x2A8)] public readonly Camera Camera;
 			// Note to self: when trying to find the right Camera offset,
 			// use the fact (seen below in Camera struct) that the Width and Height
 			// are integers that are easy to spot in memory, and come after the end
@@ -441,9 +445,9 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Camera {
 			[FieldOffset(0x0)] public readonly Matrix4x4 Matrix;
 			//  4x4 floats = 16 floats 64 (0x40) bytes
-			[FieldOffset(0x158)] public readonly Vector2i Size;
-			[FieldOffset(0x158)] public readonly int Width;
-			[FieldOffset(0x15c)] public readonly int Height;
+			[FieldOffset(0x70)] public readonly Vector2i Size;
+			[FieldOffset(0x70)] public readonly int Width;
+			[FieldOffset(0x74)] public readonly int Height;
 			// [FieldOffset(0x2a0)] public readonly float ZFar;
 
 			[FieldOffset(0x268)] public readonly Vector3 Position;
@@ -498,56 +502,57 @@ namespace AtE {
 			// 3.24: 32 bytes added here
 			[FieldOffset(0x250)] public readonly IntPtr GetQuests;
 			// 3.23: 16 bytes added here
-			[FieldOffset(0x298)] public readonly IntPtr GameUI;
-			[FieldOffset(0x2b0)] public readonly IntPtr LifeBubble;
-			[FieldOffset(0x2b8)] public readonly IntPtr ManaBubble;
-			[FieldOffset(0x2d8)] public readonly IntPtr Flasks;
-			[FieldOffset(0x2e0)] public readonly IntPtr ExperienceBar;
-			[FieldOffset(0x2f8)] public readonly IntPtr OpenMenuPopoutButton ;
-			[FieldOffset(0x310)] public readonly IntPtr CurrentTime;
+			// 3.24.3: 8 new bytes here
+			[FieldOffset(0x2a0)] public readonly IntPtr GameUI;
+			[FieldOffset(0x2b8)] public readonly IntPtr LifeBubble;
+			[FieldOffset(0x2c0)] public readonly IntPtr ManaBubble;
+			[FieldOffset(0x2e0)] public readonly IntPtr Flasks;
+			[FieldOffset(0x2e8)] public readonly IntPtr ExperienceBar;
+			[FieldOffset(0x300)] public readonly IntPtr OpenMenuPopoutButton ;
+			[FieldOffset(0x318)] public readonly IntPtr CurrentTime;
 			// 3.23.2: 8 fewer bytes here
-			[FieldOffset(0x3a0)] public readonly IntPtr GreenShopButton;
-			[FieldOffset(0x3a8)] public readonly IntPtr HelpPanelButton;
-			[FieldOffset(0x3e0)] public readonly IntPtr Mouse;
-			[FieldOffset(0x3e8)] public readonly IntPtr SkillBar;
-			[FieldOffset(0x3f0)] public readonly IntPtr HiddenSkillBar;
+			[FieldOffset(0x3a8)] public readonly IntPtr GreenShopButton;
+			[FieldOffset(0x3b0)] public readonly IntPtr HelpPanelButton;
+			[FieldOffset(0x3e8)] public readonly IntPtr Mouse;
+			[FieldOffset(0x3f0)] public readonly IntPtr SkillBar;
+			[FieldOffset(0x3f8)] public readonly IntPtr HiddenSkillBar;
 			// Crucible: 8 new bytes here
-			[FieldOffset(0x490)] public readonly IntPtr ChatBoxRoot;
+			[FieldOffset(0x498)] public readonly IntPtr ChatBoxRoot;
 
-			[FieldOffset(0x4c0)] public readonly IntPtr QuestTracker;
-			[FieldOffset(0x548)] public readonly IntPtr OpenLeftPanel;
-			[FieldOffset(0x550)] public readonly IntPtr OpenRightPanel;
-			[FieldOffset(0x578)] public readonly IntPtr InventoryPanel;
-			[FieldOffset(0x580)] public readonly IntPtr StashElement;
-			[FieldOffset(0x588)] public readonly IntPtr GuildStashElement;
-			[FieldOffset(0x5a0)] public readonly IntPtr SocialPanel;
+			[FieldOffset(0x4c8)] public readonly IntPtr QuestTracker;
+			[FieldOffset(0x550)] public readonly IntPtr OpenLeftPanel;
+			[FieldOffset(0x558)] public readonly IntPtr OpenRightPanel;
+			[FieldOffset(0x580)] public readonly IntPtr InventoryPanel;
+			[FieldOffset(0x588)] public readonly IntPtr StashElement;
+			[FieldOffset(0x590)] public readonly IntPtr GuildStashElement;
+			[FieldOffset(0x5a8)] public readonly IntPtr SocialPanel;
 			// [FieldOffset(0x618)] public readonly IntPtr AtlasPanel;
 			// [FieldOffset(0x620)] public readonly IntPtr AtlasSkillPanel;
 			// [FieldOffset(0x650)] public readonly IntPtr WorldMap;
-			[FieldOffset(0x5c8)] public readonly IntPtr CharacterPanel;
-			[FieldOffset(0x5d0)] public readonly IntPtr OptionsPanel;
-			[FieldOffset(0x5d8)] public readonly IntPtr ChallengesPanel;
-			[FieldOffset(0x5e0)] public readonly IntPtr PantheonPanel;
-			[FieldOffset(0x5e8)] public readonly IntPtr PvPPanel;
-			[FieldOffset(0x5f0)] public readonly IntPtr AreaInstanceUi;
+			[FieldOffset(0x5d0)] public readonly IntPtr CharacterPanel;
+			[FieldOffset(0x5d8)] public readonly IntPtr OptionsPanel;
+			[FieldOffset(0x5e0)] public readonly IntPtr ChallengesPanel;
+			[FieldOffset(0x5e8)] public readonly IntPtr PantheonPanel;
+			[FieldOffset(0x5f0)] public readonly IntPtr PvPPanel;
+			[FieldOffset(0x5f8)] public readonly IntPtr AreaInstanceUi;
 
-			[FieldOffset(0x638)] public readonly IntPtr Map;
-			[FieldOffset(0x640)] public readonly IntPtr ItemsOnGroundLabelElement;
-			//[FieldOffset(0x620)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
-			[FieldOffset(0x6c0)] public readonly IntPtr RootBuffPanel;
-			[FieldOffset(0x6c8)] public readonly IntPtr NpcDialog;
-			[FieldOffset(0x6d0)] public readonly IntPtr NpcOptions;
-			// [FieldOffset(0x720)] public readonly IntPtr LeagueInteractButtonPanel;
+			[FieldOffset(0x640)] public readonly IntPtr Map;
+			[FieldOffset(0x648)] public readonly IntPtr ItemsOnGroundLabelElement;
+			//[FieldOffset(0x628)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
+			[FieldOffset(0x6c8)] public readonly IntPtr RootBuffPanel;
+			[FieldOffset(0x6d0)] public readonly IntPtr NpcDialog;
+			[FieldOffset(0x6d8)] public readonly IntPtr NpcOptions;
+			// [FieldOffset(0x728)] public readonly IntPtr LeagueInteractButtonPanel;
 			// [FieldOffset(0x728)] public readonly IntPtr QuestRewardWindow;
 			// [FieldOffset(0x730)] public readonly IntPtr Unknown730;
-			[FieldOffset(0x6f0)] public readonly IntPtr PurchaseWindow;
+			[FieldOffset(0x6f8)] public readonly IntPtr PurchaseWindow;
 			// [FieldOffset(0x740)] public readonly IntPtr Unknown740; // LeagueSellPanel
-			[FieldOffset(0x700)] public readonly IntPtr SellWindow;
-			[FieldOffset(0x708)] public readonly IntPtr TradeWindow;
+			[FieldOffset(0x708)] public readonly IntPtr SellWindow;
+			[FieldOffset(0x710)] public readonly IntPtr TradeWindow;
 			// [FieldOffset(0x758)] public readonly IntPtr Unknown758;
 			// [FieldOffset(0x758)] public readonly IntPtr LabyrinthDivineFontPanel;
 			// [FieldOffset(0x768)] public readonly IntPtr Unknown768;
-			[FieldOffset(0x730)] public readonly IntPtr MapDeviceWindow;
+			[FieldOffset(0x738)] public readonly IntPtr MapDeviceWindow;
 			// [FieldOffset(0x778)] public readonly IntPtr Unknown778;
 			// [FieldOffset(0x780)] public readonly IntPtr Unknown780;
 			// [FieldOffset(0x788)] public readonly IntPtr Unknown788;
@@ -557,7 +562,7 @@ namespace AtE {
 			// [FieldOffset(0x7a8)] public readonly IntPtr Unknown7a8;
 			// [FieldOffset(0x7b0)] public readonly IntPtr Unknown7b0;
 			// [FieldOffset(0x7b8)] public readonly IntPtr Unknown7b8;
-			[FieldOffset(0x778)] public readonly IntPtr CardTradePanel;
+			[FieldOffset(0x780)] public readonly IntPtr CardTradePanel;
 			// [FieldOffset(0x7C8)] public readonly IntPtr Unknown7C8;
 			// [FieldOffset(0x7c8)] public readonly IntPtr IncursionAltarOfSacrificePanel;
 			// [FieldOffset(0x7D0)] public readonly IntPtr IncursionLapidaryLensPanel;
@@ -567,8 +572,8 @@ namespace AtE {
 			// [FieldOffset(0x800)] public readonly IntPtr Unknown800; // KiracMissionPanel
 			// [FieldOffset(0x800)] public readonly IntPtr BetrayalWindow;
 			// [FieldOffset(0x810)] public readonly IntPtr Unknown810;
-			[FieldOffset(0x7d0)] public readonly IntPtr CraftBench;
-			[FieldOffset(0x7d8)] public readonly IntPtr UnveilWindow;
+			[FieldOffset(0x7d8)] public readonly IntPtr CraftBench;
+			[FieldOffset(0x7e0)] public readonly IntPtr UnveilWindow;
 			// [FieldOffset(0x828)] public readonly IntPtr Unknown828;
 			// [FieldOffset(0x830)] public readonly IntPtr Unknown830;
 			// [FieldOffset(0x838)] public readonly IntPtr Unknown838;
@@ -593,8 +598,8 @@ namespace AtE {
 			// [FieldOffset(0x8D0)] public readonly IntPtr Unknown8D0;
 			// [FieldOffset(0x8D8)] public readonly IntPtr Unknown8D8;
 			// [FieldOffset(0x8E0)] public readonly IntPtr Unknown8E0;
-			[FieldOffset(0x8f8)] public readonly IntPtr BuffsPanel;
-			[FieldOffset(0x910)] public readonly IntPtr DelveDarkness; // Debuffs Panel
+			[FieldOffset(0x900)] public readonly IntPtr BuffsPanel;
+			[FieldOffset(0x918)] public readonly IntPtr DelveDarkness; // Debuffs Panel
 			// [FieldOffset(0x8F8)] public readonly IntPtr Unknown8F8;
 			// [FieldOffset(0x900)] public readonly IntPtr Unknown900;
 			// [FieldOffset(0x908)] public readonly IntPtr Unknown908;
@@ -628,9 +633,9 @@ namespace AtE {
 			// [FieldOffset(0x9E8)] public readonly IntPtr Unknown9E8;
 			// [FieldOffset(0x9F0)] public readonly IntPtr Unknown9F0;
 			// [FieldOffset(0x9f8)] public readonly IntPtr InvitesPanel;
-			[FieldOffset(0xA48)] public readonly IntPtr GemLvlUpPanel;
+			[FieldOffset(0xA50)] public readonly IntPtr GemLvlUpPanel;
 			// [FieldOffset(0xA58)] public readonly IntPtr SkillBarNotifyPanel1;
-			[FieldOffset(0xB18)] public readonly IntPtr ItemOnGroundTooltip;
+			[FieldOffset(0xB20)] public readonly IntPtr ItemOnGroundTooltip;
 
 		}
 
@@ -1497,7 +1502,8 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_InventoryRoot {
 			// 3.23: 32 new bytes here
 			// 3.24: 8 new bytes here
-			[FieldOffset(0x398)] public readonly InventoryArray InventoryList;
+			// 3.24.3: 8 new bytes here
+			[FieldOffset(0x3a0)] public readonly InventoryArray InventoryList;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InventoryArray {
@@ -1574,19 +1580,20 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_InventoryItem {
 			// [FieldOffset(0x3F0)] public readonly IntPtr incorrectTooltip;
 			// 3.23: 16 new bytes here
-			[FieldOffset(0x388)] public readonly IntPtr entItem;
+			// 3.24.3: 8 new bytes here
+			[FieldOffset(0x390)] public readonly IntPtr entItem;
 			// [FieldOffset(0x378)] public readonly IntPtr unkNearPtr0x378;
 			// [FieldOffset(0x380)] public readonly int unkInt0x380;
 			// [FieldOffset(0x384)] public readonly short unkShort0x384;
 			// [FieldOffset(0x386)] public readonly short unkShort0x386;
 			// [FieldOffset(0x388)] public readonly IntPtr unkFarPtr0x388;
-			[FieldOffset(0x3a8)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
+			[FieldOffset(0x3b0)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
 			// [FieldOffset(0x3D0)] public readonly int unkInt0x3D0;
 			// 3.21.2b: 72 new bytes here?
-			[FieldOffset(0x42c)] public readonly int Width;
-			[FieldOffset(0x430)] public readonly int Height;
+			[FieldOffset(0x434)] public readonly int Width;
+			[FieldOffset(0x438)] public readonly int Height;
 			// [FieldOffset(0x3E0)] public readonly int unkInt0x3E0;
-			[FieldOffset(0x404)] public readonly Vector2i InventPosition;
+			[FieldOffset(0x40c)] public readonly Vector2i InventPosition;
 			// [FieldOffset(0x3DC)] public readonly byte UnkByte3DC;
 			// [FieldOffset(0x3DD)] public readonly byte UnkByte3DD;
 			// [FieldOffset(0x3DE)] public readonly byte UnkByte3DE;
@@ -1607,8 +1614,9 @@ namespace AtE {
 			// 3.21.1: 8 new bytes added here
 			// 3.23: 16 new bytes here
 			// 3.24: 8 new bytes here
-			[FieldOffset(0x298)] public readonly IntPtr ptrToSubMap_Full;
-			[FieldOffset(0x2a0)] public readonly IntPtr ptrToSubMap_Mini;
+			// 3.24.3: 8 new bytes here
+			[FieldOffset(0x2a0)] public readonly IntPtr ptrToSubMap_Full;
+			[FieldOffset(0x2a8)] public readonly IntPtr ptrToSubMap_Mini;
 			// [FieldOffset(0x268)] public readonly IntPtr ptrToElement_OrangeWords;
 			// [FieldOffset(0x2C0)] public readonly IntPtr ptrToElement_BlueWords;
 		}
