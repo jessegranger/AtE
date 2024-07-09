@@ -291,7 +291,7 @@ namespace AtE {
 		}
 
 		// GameState members:
-		public readonly static int GameState_Kind = 0x0B;
+		public readonly static int GameState_Kind = 0x209;
 		// members of InGameState
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InGameState {
 			// 3.23.2: 510 new bytes here
@@ -315,10 +315,9 @@ namespace AtE {
 			[FieldOffset(0x7f0)] public readonly IntPtr ptrUIElements; // ptr to InGameState_UIElements
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct PreGameState {
-			[FieldOffset(0x130)] public readonly IntPtr UIRoot;
+			[FieldOffset(0x130)] public readonly IntPtr elemRoot;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct EscapeGameState {
-			[FieldOffset(0x0B)] public readonly GameStateType Kind;
 			[FieldOffset(0x100)] public readonly IntPtr elemRoot;
 		}
 
@@ -408,7 +407,7 @@ namespace AtE {
 			[FieldOffset(0xA0)] public readonly IntPtr ptrToWorldAreaRef;
 			// 3.12.2b: some new bytes here
 			// 3.32.2: 16 fewer bytes here?
-			[FieldOffset(0x2A8)] public readonly Camera Camera;
+			[FieldOffset(0x1A8)] public readonly Camera Camera;
 			// Note to self: when trying to find the right Camera offset,
 			// use the fact (seen below in Camera struct) that the Width and Height
 			// are integers that are easy to spot in memory, and come after the end
@@ -445,12 +444,12 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Camera {
 			[FieldOffset(0x0)] public readonly Matrix4x4 Matrix;
 			//  4x4 floats = 16 floats 64 (0x40) bytes
-			[FieldOffset(0x70)] public readonly Vector2i Size;
-			[FieldOffset(0x70)] public readonly int Width;
-			[FieldOffset(0x74)] public readonly int Height;
+			[FieldOffset(0x170)] public readonly Vector2i Size;
+			[FieldOffset(0x170)] public readonly int Width;
+			[FieldOffset(0x174)] public readonly int Height;
 			// [FieldOffset(0x2a0)] public readonly float ZFar;
 
-			[FieldOffset(0x268)] public readonly Vector3 Position;
+			[FieldOffset(0x270)] public readonly Vector3 Position;
 
 			public unsafe Vector2 WorldToScreen(Vector3 pos) {
 				Vector2 result; // put a struct on the stack
@@ -895,14 +894,15 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ActiveSkill {
 			[FieldOffset(0x00)] public readonly SkillNames Names;
-			[FieldOffset(0x28)] public readonly int CastTypeCount;
-			[FieldOffset(0x30)] public readonly IntPtr CastTypes; // ptr to int array
-			[FieldOffset(0x38)] public readonly int SkillTagCount;
-			[FieldOffset(0x40)] public readonly IntPtr SkillTags; // ptr to array of SkillTagEntry
-			[FieldOffset(0x50)] public readonly IntPtr LongDescription; // ptr to string unicode
-			[FieldOffset(0x58)] public readonly ArrayHandle UnknownArray;
-			[FieldOffset(0x60)] public readonly byte UnknownByte;
-			[FieldOffset(0x61)] public readonly IntPtr UnknownArrayPtr;
+			// 3.24.3: 8 new bytes here
+			[FieldOffset(0x30)] public readonly int CastTypeCount;
+			[FieldOffset(0x38)] public readonly IntPtr CastTypes; // ptr to int array
+			[FieldOffset(0x40)] public readonly int SkillTagCount;
+			[FieldOffset(0x48)] public readonly IntPtr SkillTags; // ptr to array of SkillTagEntry
+			[FieldOffset(0x58)] public readonly IntPtr LongDescription; // ptr to string unicode
+			[FieldOffset(0x60)] public readonly ArrayHandle UnknownArray;
+			[FieldOffset(0x68)] public readonly byte UnknownByte;
+			[FieldOffset(0x69)] public readonly IntPtr UnknownArrayPtr;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct SkillTagEntry {
