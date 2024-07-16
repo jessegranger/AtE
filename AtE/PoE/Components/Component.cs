@@ -356,6 +356,7 @@ namespace AtE {
 		public byte Charges => Cache.Charges;
 		public float Timer => Cache.Timer;
 		public float MaxTime => Cache.MaxTime;
+
 	}
 
 	public class Buffs : MemoryObject {
@@ -378,7 +379,7 @@ namespace AtE {
 		// also refresh them every 1 second, in case the buffs change but the array pointers dont
 		public long lastRefresh;
 
-		// if HasBuff() is called once, we memoize all the strings here for future calls
+		// if HasBuff() is called once, we cache all the strings here for future calls
 		private HashSet<string> buffCache;
 
 		public Buffs():base() {
@@ -447,7 +448,7 @@ namespace AtE {
 			}
 			// check if the buff array size changed, and if so, re-parse it
 			UpdateBuffPtrs();
-			if( buffCache == null ) {
+			if( buffCache == null ) { // if the cache is empty, fill it
 				// collect all the buff names and store them for quicker access
 				buffCache = new HashSet<string>(buffPtrs.Select(ptr => IsValid(ptr) ? new Buff() { Address = ptr }.Name : "invalid"));
 			}

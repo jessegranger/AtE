@@ -67,9 +67,6 @@ namespace AtE {
 			new HotKey(Keys.Tab).OnRelease += (sender, args) => UpdateMiniMapRect();
 			/*
 			Run("MapElement", (self, dt) => {
-				if( tabKey.IsReleased) {
-					UpdateMiniMapRect();
-				}
 				ImGui.Begin("Minimap debug");
 				var player = GetPlayer();
 				if ( !IsValid(player) ) return self;
@@ -89,13 +86,13 @@ namespace AtE {
 				var ui = GetUI();
 				if ( !IsValid(ui) ) return self;
 				var orig = ui.Map.WorldToMap(ent);
-				DrawSprite(SpriteIcon.GreenDot, orig, 10f, 10f);
+				DrawSprite(SpriteIcon.SmallGreenCircle, orig, 10f, 10f);
 				var pos = ui.Map.WorldToMinimap(entGrid, entPos, playerGrid, playerPos);
 				ImGui.Text($"Minimap Pos: {pos}");
-				DrawSprite(SpriteIcon.BlueDot, pos, 8f, 8f);
+				DrawSprite(SpriteIcon.SmallBlueCircle, pos, 8f, 8f);
 				var pos2 = ui.Map.WorldToLargeMap(entGrid, entPos, playerGrid, playerPos);
 				ImGui.Text($"Largemap Pos: {pos2}");
-				DrawSprite(SpriteIcon.RedDot, pos2, 8f, 8f);
+				DrawSprite(SpriteIcon.SmallRedCircle, pos2, 8f, 8f);
 				ImGui.End();
 				return self;
 			});

@@ -378,15 +378,19 @@ namespace AtE.Plugins {
 			ImGui.EndTable();
 #if DEBUG
 			var player = GetPlayer();
-			var buffs = player.GetComponent<Buffs>();
-			ImGui.Text($"Defiance Banner: {HasBuff(buffs, "armour_evasion_banner_buff_aura")}");
-			if ( buffs.TryGetBuffValue("armour_evasion_banner_stage", out int stage) ) {
-				ImGui.Text($"Stages: {stage}");
-			} else {
-				ImGui.Text($"Stages: 0");
+			if ( IsValid(player) ) {
+				var buffs = player.GetComponent<Buffs>();
+				if ( IsValid(buffs) ) {
+					ImGui.Text($"Defiance Banner: {HasBuff(buffs, "armour_evasion_banner_buff_aura")}");
+					if ( buffs.TryGetBuffValue("armour_evasion_banner_stage", out int stage) ) {
+						ImGui.Text($"Stages: {stage}");
+					} else {
+						ImGui.Text($"Stages: 0");
+					}
+					var enemies = NearbyEnemies(100, Offsets.MonsterRarity.Rare).Where(IsAlive).Count();
+					ImGui.Text($"Rare within 10m: {enemies}");
+				}
 			}
-			var enemies = NearbyEnemies(100, Offsets.MonsterRarity.Rare).Where(IsAlive).Count();
-			ImGui.Text($"Rare within 10m: {enemies}");
 
 			// ImGui.Text()
 			// var life = player.GetComponent<Life>();

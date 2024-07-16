@@ -279,10 +279,11 @@ namespace AtE.Plugins {
 							float dist = DistanceSq(loc, playerPos);
 							if ( dist < 250000 && maxLife > maxCorpseLife ) {
 								maxCorpseLife = maxLife;
-								maxCorpseLocation = Position(ent);
+								maxCorpseLocation = loc;
 							}
 						}
 					}
+
 					if ( ShowHighestCorpseLife && maxCorpseLocation != Vector3.Zero ) {
 						DrawTextAt(maxCorpseLocation, $"hp:{maxCorpseLife}", Color.White);
 					}

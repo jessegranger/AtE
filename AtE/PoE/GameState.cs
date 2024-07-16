@@ -199,6 +199,43 @@ namespace AtE {
 			*/
 
 			/*
+			ImGui.Begin("Debug Buff");
+			var p = GetPlayer();
+			if( IsValid(p) ) {
+				var ignite = p.Buffs.GetBuffs().FirstOrDefault((b) => b?.Name?.Equals("ignited") ?? false);
+				if( IsValid(ignite) ) {
+					ImGui.Text("Ignited.");
+					ImGui_Object("ignite_buff", "ignite_buff", ignite, new HashSet<int>());
+					// Log($"ignite status: {ignite.Cache}");
+				} else {
+					ImGui.Text("Not ignited.");
+				}
+			}
+			ImGui.End();
+			*/
+
+			/*
+			ImGui.Begin("Debug Camera");
+			var c = GetCamera();
+			ImGui.Text($"Camera:");
+			ImGui.Indent();
+			ImGui.Text($"Position: {c.Position}");
+			ImGui.Text($"Size: {c.Size}");
+			ImGui.Text($"Matrix: {c.Matrix.M11} {c.Matrix.M12} {c.Matrix.M13} {c.Matrix.M14}");
+			ImGui.Text($"Matrix: {c.Matrix.M21} {c.Matrix.M22} {c.Matrix.M23} {c.Matrix.M24}");
+			ImGui.Text($"Matrix: {c.Matrix.M31} {c.Matrix.M32} {c.Matrix.M33} {c.Matrix.M34}");
+			ImGui.Text($"Matrix: {c.Matrix.M41} {c.Matrix.M42} {c.Matrix.M43} {c.Matrix.M44}");
+			ImGui.Unindent();
+			PlayerEntity p = GetPlayer();
+			if( IsValid(p) ) {
+				Vector3 pos = Position(p);
+				ImGui.Text($"Player Position: {pos}");
+				ImGui.Text($"WorldToScreen: {WorldToScreen(pos)}");
+			}
+			ImGui.End();
+			*/
+
+			/*
 			if ( false ) {
 				ImGui.Begin("Entities");
 				try {
@@ -287,7 +324,7 @@ namespace AtE {
 
 	public class PreGameState : GameState<Offsets.PreGameState> {
 		public Element UIRoot => Address == IntPtr.Zero ? null :
-			new Element() { Address = Cache.UIRoot };
+			new Element() { Address = Cache.elemRoot };
 	}
 
 	public class WorldData : MemoryObject<Offsets.WorldData> {

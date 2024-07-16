@@ -61,6 +61,10 @@ namespace AtE {
 				uX = uY = 0;
 				Id = id;
 			}
+
+			public override string ToString() {
+				return $"<{X}, {Y}>";
+			}
 		}
 
 		// the PoE engine sometimes stores a string in this format that is either
@@ -457,7 +461,7 @@ namespace AtE {
 				coord.W = 1;
 				coord = Vector4.Transform(coord, Matrix);
 				coord = Vector4.Divide(coord, coord.W);
-				result.X = (coord.X + 1.0f) * (Width / 2f);
+				result.X = (1.0f + coord.X) * (Width / 2f);
 				result.Y = (1.0f - coord.Y) * (Height / 2f);
 				return result;
 			}
@@ -1052,11 +1056,30 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Buff {
 			[FieldOffset(0x8)] public readonly IntPtr ptrName; // ptr to (ptr to?) string unicode
 			[FieldOffset(0x10)] public readonly IntPtr ptrData; // ptr to data file
-			[FieldOffset(0x18)] public readonly byte IsInvisible;
-			[FieldOffset(0x19)] public readonly byte IsRemovable;
-			[FieldOffset(0x42)] public readonly byte Charges;
+			// [FieldOffset(0x18)] public readonly byte IsInvisible;
+			// [FieldOffset(0x19)] public readonly byte IsRemovable;
 			[FieldOffset(0x18)] public readonly float MaxTime;
 			[FieldOffset(0x1C)] public readonly float Timer;
+			// [FieldOffset(0x20)] public readonly float UnkFloat20;
+			// [FieldOffset(0x24)] public readonly int UnkInt24;
+			// [FieldOffset(0x28)] public readonly int UnkInt28;
+			// [FieldOffset(0x2c)] public readonly int UnkInt2c;
+			// [FieldOffset(0x30)] public readonly int UnkInt30;
+			// [FieldOffset(0x34)] public readonly int UnkInt34;
+			// [FieldOffset(0x38)] public readonly uint UnkInt38;
+			// [FieldOffset(0x3c)] public readonly int UnkInt3c;
+			// [FieldOffset(0x40)] public readonly int UnkInt40;
+			[FieldOffset(0x42)] public readonly byte Charges;
+			// [FieldOffset(0x44)] public readonly int UnkInt44;
+			// [FieldOffset(0x48)] public readonly int UnkInt48;
+			// [FieldOffset(0x4c)] public readonly int UnkInt4c;
+			// [FieldOffset(0x50)] public readonly int UnkInt50;
+			// [FieldOffset(0x54)] public readonly int UnkInt54;
+			// [FieldOffset(0x58)] public readonly int UnkInt58;
+			// [FieldOffset(0x5c)] public readonly int UnkInt5c;
+			// [FieldOffset(0x60)] public readonly IntPtr ptrUnknown60; // ptr to unknown, something art related?
+			// [FieldOffset(0x70)] public readonly IntPtr ptrOwner; // ptr to Entity
+
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Buffs {
