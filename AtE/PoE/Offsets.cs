@@ -421,8 +421,10 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaRef {
 			// 3.23: 40 new bytes here?
 			// 3.24: 8 fewer bytes here
-			[FieldOffset(0xa8)] public readonly IntPtr ptrToWorldAreaDetails;
-			[FieldOffset(0xb0)] public readonly IntPtr ptrUnk90;
+			// 3.24.3b: 8 bytes removed here
+			[FieldOffset(0xa0)] public readonly IntPtr ptrToWorldAreaDetails;
+			[FieldOffset(0xa8)] public readonly IntPtr ptrUnk90;
+			// 3.24.3b: 8 bytes added here
 			[FieldOffset(0x10c)] public readonly uint areaHash;
 		}
 
@@ -472,9 +474,10 @@ namespace AtE {
 			// 3.24: 8 fewer bytes here
 			[FieldOffset(0x0CC)] public readonly byte CurrentAreaLevel;
 
-			// 3.22.1b: 28 bytes removed here??
-			[FieldOffset(0x110)] public readonly uint CurrentAreaHash;
-			[FieldOffset(0x120)] public readonly IntPtr MapStats;
+			// 3.22.1b: 28 bytes removed here
+			// 3.24.3b: 8 bytes removed here
+			[FieldOffset(0x108)] public readonly uint CurrentAreaHash;
+			[FieldOffset(0x118)] public readonly IntPtr MapStats;
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
 
 			// Crucible: 8 new bytes here
@@ -482,10 +485,11 @@ namespace AtE {
 			// 3.22.1b: 128 new bytes here?
 			// 3.22.2: 8 bytes removed here
 			// 3.24: 128 new bytes here
-			[FieldOffset(0x8e8)] public readonly IntPtr ServerData;
-			[FieldOffset(0x8f0)] public readonly IntPtr entPlayer; // ptr Entity
-			[FieldOffset(0x9a0)] public readonly IntPtr EntityListHead; // ptr EntityListNode
-			[FieldOffset(0x9a8)] public readonly long EntitiesCount;
+			// 3.24.3b: 24 bytes removed here
+			[FieldOffset(0x8c8)] public readonly IntPtr ServerData;
+			[FieldOffset(0x8d0)] public readonly IntPtr entPlayer; // ptr Entity
+			[FieldOffset(0x980)] public readonly IntPtr EntityListHead; // ptr EntityListNode
+			[FieldOffset(0x988)] public readonly long EntitiesCount;
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 		}
 
@@ -649,8 +653,9 @@ namespace AtE {
 			[FieldOffset(0x10)] public readonly ArrayHandle ComponentBasePtrs; // of IntPtr (to base address of a Component)
 			// [FieldOffset(0x50)] public readonly Vector3 WorldPos; // possible
 			// 3.23: 48 new bytes here
-			// 3.24: 8 fewer bytes here
-			[FieldOffset(0x88)] public readonly uint Id;
+			// 3.24: 8 bytes removed here
+			// 3.24.3b: 8 bytes removed here
+			[FieldOffset(0x80)] public readonly uint Id;
 		}
 
 		public static bool IsValid(Entity ent) {
