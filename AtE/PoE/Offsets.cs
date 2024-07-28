@@ -268,6 +268,8 @@ namespace AtE {
 			[FieldOffset(0xe8)] public readonly GameStateArrayEntry DeleteCharacterState;
 			[FieldOffset(0xf8)] public readonly GameStateArrayEntry LoadingState;
 			[FieldOffset(0x108)] public readonly GameStateArrayEntry ProbeState; // not a real state, put here to probe for the game adding new kinds of states
+			// if you look up the ProbeState in the Game UI and find that it has a real GameStateArrayEntry (instead of a terminating 0x00)
+			// then a new GameState has been added to the game
 		}
 
 		// members of AllGameStates array:
@@ -304,7 +306,11 @@ namespace AtE {
 			[FieldOffset(0x218)] public readonly IntPtr ptrData; // ptr to InGameState_Data struct
 			[FieldOffset(0x220)] public readonly int TicksPerLastFrame; // 1000 ticks = 1 ms
 			[FieldOffset(0x278)] public readonly IntPtr ptrWorldData; // ptr to WorldData
-			[FieldOffset(0x298)] public readonly IntPtr ptrEntityLabelMap;
+			[FieldOffset(0x298)] public readonly IntPtr ptrUIElements; // ptr to InGameState_UIElements
+			// NOTE: ptrUIElement is also a ptr to Element,
+			//   and is accessible at UIRoot.Children[1] if this offset changes but UIRoot is known
+
+			// [FieldOffset(0x298)] public readonly IntPtr ptrEntityLabelMap;
 			// 3.21.2b: 8 new bytes added here
 			// 3.22: 248 new bytes here?
 			// 3.23: 128 new bytes here?
@@ -315,8 +321,6 @@ namespace AtE {
 			[FieldOffset(0x594)] public readonly int MousePosY;
 			[FieldOffset(0x5a0)] public readonly Vector2 UIHoverOffset; // mouse position offset in hovered UI element
 			[FieldOffset(0x5a4)] public readonly Vector2 MousePos;
-			// 3.24.3: 8 new bytes here
-			[FieldOffset(0x7f0)] public readonly IntPtr ptrUIElements; // ptr to InGameState_UIElements
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct PreGameState {
 			[FieldOffset(0x130)] public readonly IntPtr elemRoot;
@@ -333,10 +337,11 @@ namespace AtE {
 			[FieldOffset(0x380)] public readonly IntPtr elemRoot;
 			// 3.22: 24 new bytes here
 			// 3.24.3: 8 new bytes here
-			[FieldOffset(0x648)] public readonly IntPtr strAreaName;
+			// 3.25: 256 new bytes here
+			[FieldOffset(0x748)] public readonly IntPtr strAreaName;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LoginGameState {
-			[FieldOffset(0x0D0)] public readonly IntPtr elemRoot;
+			[FieldOffset(0x2D0)] public readonly IntPtr elemRoot;
 		}
 
 		// Element members:
@@ -401,7 +406,7 @@ namespace AtE {
 		/// <summary>
 		/// A StringHandle, offset from Element Address.
 		/// </summary>
-		public static readonly int Element_Text = 0x428;
+		public static readonly int Element_Text = 0x438;
 
 		[StructLayout(LayoutKind.Explicit)] public struct ChildrenArrayEntry {
 			[FieldOffset(0x0)] public readonly IntPtr ptrChild;
@@ -507,7 +512,7 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InGameState_UIElements {
 			// 3.22.2: 32 bytes removed here
 			// 3.24: 32 bytes added here
-			[FieldOffset(0x250)] public readonly IntPtr GetQuests;
+			// [FieldOffset(0x250)] public readonly IntPtr GetQuests;
 			// 3.23: 16 bytes added here
 			// 3.24.3: 8 new bytes here
 			[FieldOffset(0x2a0)] public readonly IntPtr GameUI;
