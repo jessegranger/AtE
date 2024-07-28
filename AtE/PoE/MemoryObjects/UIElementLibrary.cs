@@ -13,7 +13,7 @@ namespace AtE {
 
 		public IEnumerable<InventoryItem> BackpackItems => BackpackItems();
 
-		public Element GetQuests => IsValid(Address) ? getElement(Cache.GetQuests) : null;
+		// public Element GetQuests => IsValid(Address) ? getElement(Cache.GetQuests) : null;
 		public Element GameUI => IsValid(Address) ? getElement(Cache.GameUI) : null;
 		public Element LifeBubble => IsValid(Address) ? getElement(Cache.LifeBubble) : null;
 		public Element ManaBubble => IsValid(Address) ? getElement(Cache.ManaBubble) : null;
