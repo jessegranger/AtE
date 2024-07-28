@@ -805,7 +805,7 @@ namespace AtE {
 				stats = new Dictionary<Offsets.GameStat, int>();
 				lastStatsTime = elapsed;
 				foreach ( var entry in Entries ) {
-					if ( entry.Key <= 0 || entry.Key > Offsets.GameStat.MtxHideEnduranceCharges ) {
+					if ( entry.Key <= 0 || entry.Key > Offsets.GameStat.MaxStatValue ) {
 						Log($"Invalid Stats key {entry.Key} value {entry.Value}");
 						break; // invalid data in the Entries
 					}

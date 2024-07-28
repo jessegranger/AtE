@@ -20352,6 +20352,7 @@
             MtxHideFrenzyCharges = 20346,
             MtxHidePowerCharges = 20347,
             MtxHideEnduranceCharges = 20348,
+            MaxStatValue = 32768
         }
     }
 }
