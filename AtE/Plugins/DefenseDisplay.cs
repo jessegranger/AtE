@@ -235,19 +235,19 @@ namespace AtE.Plugins {
 									}
 								}
 								if( ShowEnemyPoisonStacks && poisonStacks > 0 ) {
-									buffstr += $"Po: {poisonStacks} ";
+									buffstr += $"Po {poisonStacks} ";
 								}
 								if( ShowEnemyImpaleStacks && impaleStacks > 0 ) {
-									buffstr += $"Im: {impaleStacks} ";
+									buffstr += $"Im {impaleStacks} ";
 								}
 								if( ShowEnemyWitherStacks && witherStacks > 0 ) {
-									buffstr += $"Wi: {witherStacks} ";
+									buffstr += $"Wi {witherStacks} ";
 								}
 								if( ShowEnemyGraspingVines ) {
-									buffstr += $"Vn: {graspingVines} ";
+									buffstr += $"Vn {graspingVines} ";
 								}
 								if( ShowEnemyEnergyStacks ) {
-									buffstr += $"En: {energyStacks}";
+									buffstr += $"En {energyStacks}";
 								}
 								if( buffstr.Length > 0 ) DrawTextAt(ent.Id, WorldToScreen(Position(ent)), buffstr, Color.White);
 							}
