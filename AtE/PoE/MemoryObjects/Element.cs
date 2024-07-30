@@ -32,7 +32,7 @@ namespace AtE {
 
 		public IEnumerable<Element> Children {
 			get {
-				if( lastKnownChildren == null || lastKnownChildrenUpdated < Time.ElapsedMilliseconds + lastKnownChildrenInterval ) {
+				if ( lastKnownChildren == null || lastKnownChildrenUpdated < Time.ElapsedMilliseconds + lastKnownChildrenInterval ) {
 					lastKnownChildren = new ArrayHandle<IntPtr>(Cache.Children);
 					lastKnownChildrenUpdated = Time.ElapsedMilliseconds;
 				}
@@ -92,11 +92,15 @@ namespace AtE {
 			}
 		}
 
+		public Cached<Vector2> WindowSize = new Cached<Vector2>(() =>
+			Win32.GetWindowRect(PoEMemory.Target.MainWindowHandle, out Win32.RECT rect) ?
+				new Vector2(rect.Width, rect.Height) : Vector2.Zero);
+
 		public virtual RectangleF GetClientRect() {
 			if ( Address == IntPtr.Zero ) return RectangleF.Empty;
-			Offsets.Vector2i size = PoEMemory.GameRoot.InGameState?.WorldData?.Camera.Size ?? default;
-			float width = size.X;
-			float height = size.Y;
+			// Offsets.Vector2i size = PoEMemory.GameRoot.InGameState?.WorldData?.Camera.Size ?? default;
+			float width = WindowSize.Value.X;
+			float height = WindowSize.Value.Y;
 			var rootScale = PoEMemory.GameRoot?.InGameState?.UIRoot?.Scale ?? .75f;
 			// the UI is developed against a virtual 2560x1600 screen, (a 1.6 aspect ratio)
 			// so all UI coordinates are scaled by rootScale,

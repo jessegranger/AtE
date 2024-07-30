@@ -122,11 +122,16 @@ namespace AtE {
 				return;
 			}
 
-			var camera = GetCamera();
-			largeMapCenter = new Vector2(camera.Width / 2, camera.Height / 2) + largeMap.Shift + largeMap.DefaultShift;
-			largeMapDiag = (float)Math.Sqrt((camera.Width * camera.Width) + (camera.Height * camera.Height));
-			float k = camera.Width < 1024f ? 1120f : 1024f;
-			float scale = k / camera.Height * camera.Width * 3f / 4f / largeMap.Zoom;
+			int width = 2560;
+			int height = 1600;
+			if ( Win32.GetWindowRect(PoEMemory.Target.MainWindowHandle, out var rect) ) {
+				width = rect.Width;
+				height = rect.Height;
+			}
+			largeMapCenter = new Vector2(width / 2, height / 2) + largeMap.Shift + largeMap.DefaultShift;
+			largeMapDiag = (float)Math.Sqrt((width * width) + (height * height));
+			float k = width < 1024f ? 1120f : 1024f;
+			float scale = k / height * width * 3f / 4f / largeMap.Zoom;
 			largeMapRotCos = largeMapDiag * COS_CAMERA_ANGLE / scale;
 			largeMapRotSin = largeMapDiag * SIN_CAMERA_ANGLE / scale;
 			Log($"Large map setting center and diag: {largeMapCenter} {largeMapDiag}");
