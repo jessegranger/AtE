@@ -369,7 +369,11 @@ namespace AtE {
 		private static Dictionary<IntPtr, List<IntPtr>> debugSecondScanResults = new Dictionary<IntPtr, List<IntPtr>>();
 
 
-		private static IEnumerable<MEMORY_BASIC_INFORMATION_64> EnumerateAllocatedRanges(IntPtr pHandle) {
+		public static IEnumerable<MEMORY_BASIC_INFORMATION_64> EnumerateAllocatedRanges() {
+			if( ! IsValid(Target) ) {
+				yield break;
+			}
+			IntPtr pHandle = Target.Handle;
 			SYSTEM_INFO sys_info = new SYSTEM_INFO();
 			GetSystemInfo(out sys_info);
 
@@ -472,7 +476,7 @@ namespace AtE {
 				if ( ImGui.Button("Scan") && IsValid(Target) ) {
 					int scanStride = 8;
 					debugScanResults.Clear();
-					foreach ( var mem_page in EnumerateAllocatedRanges(Target.Handle) ) {
+					foreach ( var mem_page in EnumerateAllocatedRanges() ) {
 						IntPtr startAddress = mem_page.BaseAddress;
 						IntPtr endAddress = new IntPtr(startAddress.ToInt64() + mem_page.RegionSize);
 						while ( startAddress.ToInt64() < endAddress.ToInt64() ) {
