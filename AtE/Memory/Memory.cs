@@ -90,6 +90,7 @@ namespace AtE {
 	}
 
 	public class Cached<T> : IDisposable {
+		public Cached(Func<T> producer) => Producer = producer;
 		private T val;
 		private long lastFrame = -1; // starts at -1 so the very first access is always due, even if created on frame 0
 		private Func<T> Producer;
@@ -104,7 +105,6 @@ namespace AtE {
 		}
 		public T UncachedValue => val = Producer != null ? Producer() : default;
 		public void Flush() => lastFrame = -1;
-		public Cached(Func<T> producer) => Producer = producer;
 		public void Dispose() {
 			Producer = null;
 			val = default;

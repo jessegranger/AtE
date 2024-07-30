@@ -16,6 +16,7 @@ namespace AtE {
 		public int LineCount = 30;
 
 		public string InputAddress = "0";
+		public string Highlight = "";
 		public IntPtr ViewAddress;
 		public IntPtr BaseAddress;
 		public Debugger(IntPtr addr, State next = null) : base(next) {
@@ -103,7 +104,6 @@ namespace AtE {
 					}
 				}
 				ImGui.AlignTextToFramePadding();
-				ImGui.Text("0x"); ImGui.SameLine();
 				if ( ImGui.IsWindowFocused() ) {
 					if ( ImGui.IsKeyPressed(ImGuiKey.UpArrow) || ImGui.GetIO().MouseWheel > 0 ) {
 						ViewAddress = new IntPtr(Convert.ToInt64(InputAddress, 16));
@@ -118,7 +118,12 @@ namespace AtE {
 						Resample();
 					}
 				}
-				if ( ImGui.InputText("Address", ref InputAddress, 32, ImGuiInputTextFlags.EnterReturnsTrue) || sample == null) {
+				bool resampleDue = (Time.ElapsedMilliseconds - lastSampleTime) > 200;
+				ImGui.Text("Address 0x");
+				ImGui.SameLine();
+				if ( ImGui.InputText("##Address", ref InputAddress, 32, ImGuiInputTextFlags.EnterReturnsTrue) 
+					|| sample == null
+					|| resampleDue ) {
 					try {
 						Resample();
 					} catch ( FormatException ) {
@@ -126,17 +131,27 @@ namespace AtE {
 						ImGui.Text("Invalid Address");
 					}
 				}
-				if( (Time.ElapsedMilliseconds - lastSampleTime) > 200 ) {
-					Resample();
-				}
 				ImGui.SameLine();
 				ImGui.Text("- preview as:");
 				ImGui.SameLine();
 				ImGui.RadioButton("int", ref showColumnTypeAsFloat, 0);
 				ImGui.SameLine();
 				ImGui.RadioButton("float", ref showColumnTypeAsFloat, 1);
-				if ( ImGui.BeginTable($"Table-{Id}", 24, ImGuiTableFlags.SizingFixedFit ) ) {
 
+				ImGui.AlignTextToFramePadding();
+				ImGui.Text("Highlight");
+				ImGui.SameLine();
+				ImGui.SetNextItemWidth(100);
+				ImGui.InputText("##Highlight", ref Highlight, 12);
+				ImGui.SameLine();
+				ImGui.Text(" - or - ");
+				ImGui.SameLine();
+				if( ImGui.Button("Search") ) {
+					Run(new MemorySearch());
+				}
+
+				// begin the main display table:
+				if ( ImGui.BeginTable($"Table-{Id}", 24, ImGuiTableFlags.SizingFixedFit ) ) {
 
 					int size = sample?.Length ?? 0;
 					// var frontLine = new StringBuilder();
@@ -165,7 +180,16 @@ namespace AtE {
 						// the 8 columns of hex bytes:
 						for ( int j = 0; j < 8; j++ ) {
 							ImGui.TableNextColumn();
-							ImGui.Text($"{sample[rowOffset + j]:X2}");
+							byte b = sample[rowOffset + j];
+							string s = $"{b:X2}";
+							bool highlight = Highlight.Contains(s);
+							if( highlight ) {
+								ImGui.PushStyleColor(ImGuiCol.Text, (uint)ToRGBA(Color.Yellow));
+							}
+							ImGui.Text($"{b:X2}");
+							if( highlight ) {
+								ImGui.PopStyleColor();
+							}
 						}
 
 						// then 8 columns of the bytes rendered as chars (as is tradition)
@@ -257,6 +281,7 @@ namespace AtE {
 					}
 					ImGui.EndTable();
 				}
+
 			} catch ( Exception e ) {
 				Log(e.Message);
 				Log(e.StackTrace);
@@ -273,5 +298,78 @@ namespace AtE {
 					addr + field.GetCustomAttribute<FieldOffsetAttribute>().Value);
 			}
 		}
+	}
+
+	class MemorySearch : State {
+		bool Open = true;
+		string SearchPattern = "00000000";
+		string SearchMask = "xxxxxxxx";
+		int SearchStride = 8;
+		int MatchLimit = 2;
+		private List<IntPtr> Matches = new List<IntPtr>();
+		public override IState OnTick(long dt) {
+			if( dt <= 0 ) {
+				return this;
+			}
+			if( !Open ) {
+				return Next;
+			}
+			ImGui.Begin("Memory Search", ref Open);
+			ImGui.Text("Welcome to Memory Search");
+
+			ImGui.AlignTextToFramePadding();
+			ImGui.Text("Stride:"); ImGui.SameLine();
+			ImGui.SetNextItemWidth(80);
+			ImGui.InputInt("##Stride", ref SearchStride);
+
+			ImGui.AlignTextToFramePadding();
+			ImGui.Text("Pattern:"); ImGui.SameLine();
+			ImGui.SetNextItemWidth(200);
+			ImGui.InputText("##Pattern", ref SearchPattern, 16);
+
+			IntPtr searchPtr = new IntPtr(0x299CF700020);
+			IntPtr searchPtrTwo = new IntPtr(0x299CF700420);
+			ImGui.Text($"(forcing ptr): {Describe(searchPtr)}");
+
+			// ImGui.AlignTextToFramePadding();
+			// ImGui.Text("Mask:"); ImGui.SameLine();
+			// ImGui.SetNextItemWidth(200);
+			// ImGui.InputText("##Mask", ref SearchMask, 16);
+
+			if ( SearchPattern.Length != SearchMask.Length ) {
+				ImGui.Text("Error: mask must be the same length as pattern");
+			} else if (ImGui.Button("Search") ) {
+				Matches.Clear();
+				ImGui.Text("Searching...");
+				foreach ( var page in PoEMemory.EnumerateAllocatedRanges() ) {
+					IntPtr startAddress = page.BaseAddress;
+					IntPtr endAddress = new IntPtr(startAddress.ToInt64() + page.RegionSize);
+					while ( startAddress.ToInt64() < endAddress.ToInt64() ) {
+						if( PoEMemory.TryRead(startAddress, out IntPtr result)
+							&& result.Equals(searchPtr) ) {
+							Log($"Partial Match at: {Describe(startAddress)}");
+							if( PoEMemory.TryRead(startAddress + 8, out IntPtr resultTwo)
+								&& resultTwo.Equals(searchPtrTwo) ) {
+								Log($"Full Match at: {Describe(startAddress)}");
+								Matches.Add(startAddress);
+							}
+						}
+						if( Matches.Count >= MatchLimit ) {
+							break;
+						}
+						startAddress += SearchStride;
+					}
+				}
+
+			} else if ( Matches.Count > 0 ) {
+				foreach( IntPtr match in Matches ) {
+					ImGui_Address(match, "Unknown Match");
+				}
+			}
+
+			ImGui.End();
+			return base.OnTick(dt);
+		}
+
 	}
 }
