@@ -787,8 +787,8 @@ namespace AtE {
 			[FieldOffset(0x6d8)] public readonly IntPtr entOwnerAgain;
 			[FieldOffset(0x6f0)] public readonly ArrayHandle ActorSkillsHandle; // of ActorSkillArrayEntry
 			[FieldOffset(0x708)] public readonly ArrayHandle ActorSkillUIStatesHandle; // of ActorSkillUIState
-			[FieldOffset(0x738)] public readonly ArrayHandle DeployedObjectsHandle; // of ptr to DeployedObjectsArrayEntry
 			[FieldOffset(0x720)] public readonly ArrayHandle ActorVaalSkillsHandle; // of ActorVaalSkillArrayEntry
+			[FieldOffset(0x740)] public readonly ArrayHandle DeployedObjectsHandle; // of ptr to DeployedObjectsArrayEntry
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ActorSkillArrayEntry {
