@@ -230,7 +230,38 @@ namespace AtE {
 			if( IsValid(p) ) {
 				Vector3 pos = Position(p);
 				ImGui.Text($"Player Position: {pos}");
-				ImGui.Text($"WorldToScreen: {WorldToScreen(pos)}");
+				ImGui.Text($"Player WorldToScreen: {WorldToScreen(pos)}");
+				var ui = GetUI();
+				if( IsValid(ui) ) {
+					Vector2 entGrid = p.GetComponent<Positioned>()?.GridPosF ?? Vector2.Zero;
+					Vector3 entPos = p.GetComponent<Render>()?.Position ?? Vector3.Zero;
+					var mapPos = ui.Map.WorldToLargeMap(entGrid, entPos, entGrid, entPos);
+					ImGui.Text($"Player WorldToLargeMap: {mapPos}");
+
+					DeployedObject minion = p.GetComponent<Actor>()?.DeployedObjects?.FirstOrDefault() ?? null;
+					if( minion != null ) {
+						var minionEnt = minion.GetEntity();
+						if( IsValid(minionEnt) ) {
+							var minionGrid = minionEnt.GetComponent<Positioned>()?.GridPosF ?? Vector2.Zero;
+							var minionPos = minionEnt.GetComponent<Render>()?.Position ?? Vector3.Zero;
+							mapPos = ui.Map.WorldToLargeMap(minionGrid, minionPos, entGrid, entPos);
+							ImGui.Text($"Minion WorldToLargeMap: {mapPos}");
+							mapPos = ui.Map.WorldToMinimap(minionGrid, minionPos, entGrid, entPos);
+							ImGui.Text($"Minion WorldToMiniMap: {mapPos}");
+						}
+					}
+				}
+			}
+			*/
+			/*
+			Vector2 cursorPos = new Vector2(0, 0);
+			int gridInterval = 100;
+			for ( int x = 0; x < c.Width; x += gridInterval ) {
+				for ( int y = 0; y < c.Height; y += gridInterval ) {
+					Vector2 xy = new Vector2(x, y);
+					DrawSprite(SpriteIcon.SmallCyanCircle, xy, 10, 10);
+					DrawTextAt(xy, $"{x},{y}", Color.White);
+				}
 			}
 			ImGui.End();
 			*/
@@ -371,7 +402,8 @@ namespace AtE {
 			ImGui.Text($"{camera.Matrix.M41}, {camera.Matrix.M42}, {camera.Matrix.M43}, {camera.Matrix.M44}");
 			ImGui.Text($"old WorldToScreen: {result}");
 			*/
-			return GetCamera().WorldToScreen(pos);
+			var rect = WindowSize.Value;
+			return GetCamera().WorldToScreen(pos, rect.X, rect.Y);
 		}
 		public static Vector2 GridToScreen(Offsets.Vector2i pos, float z = 0) => WorldToScreen(Offsets.GridToWorld(pos, z));
 		public static void DrawTextAt(Vector3 pos, string text, Color color) => DrawTextAt(WorldToScreen(pos), text, color);

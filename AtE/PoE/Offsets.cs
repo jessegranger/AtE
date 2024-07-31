@@ -462,14 +462,16 @@ namespace AtE {
 
 			[FieldOffset(0x270)] public readonly Vector3 Position;
 
-			public unsafe Vector2 WorldToScreen(Vector3 pos) {
+			public unsafe Vector2 WorldToScreen(Vector3 pos, float width, float height) {
 				Vector2 result; // put a struct on the stack
 				Vector4 coord = *(Vector4*)&pos;
 				coord.W = 1;
 				coord = Vector4.Transform(coord, Matrix);
 				coord = Vector4.Divide(coord, coord.W);
-				result.X = (1.0f + coord.X) * (Width / 2f);
-				result.Y = (1.0f - coord.Y) * (Height / 2f);
+				// TODO: The game is developed against a virtual 2560x1600 background
+				// for this reason, I think width and height should come from the window
+				result.X = (1.0f + coord.X) * (width / 2f);
+				result.Y = (1.0f - coord.Y) * (height / 2f);
 				return result;
 			}
 		}
@@ -825,11 +827,13 @@ namespace AtE {
 			[FieldOffset(0x18)] public readonly IntPtr ptrGemEffects;
 			[FieldOffset(0x80)] public readonly byte CanBeUsedWithWeapon;
 			[FieldOffset(0x82)] public readonly byte CanBeUsed;
-			[FieldOffset(0x54)] public readonly int TotalUses;
-			[FieldOffset(0x5C)] public readonly int CooldownMS;
-			[FieldOffset(0x6C)] public readonly int SoulsPerUse;
-			[FieldOffset(0x70)] public readonly int TotalVaalUses;
-			[FieldOffset(0xB0)] public readonly IntPtr ptrGameStats; // ptr to GameStatArray
+			// 3.25: 56 new bytes added here
+			[FieldOffset(0x8c)] public readonly int TotalUses;
+			[FieldOffset(0x90)] public readonly int CooldownMS;
+			[FieldOffset(0xA4)] public readonly int SoulsPerUse;
+			[FieldOffset(0xa8)] public readonly int TotalVaalUses;
+			// 3.25: 24 new bytes added here
+			[FieldOffset(0x100)] public readonly IntPtr ptrGameStats; // ptr to GameStatArray
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ActorSkillUIState {

@@ -186,5 +186,13 @@ namespace AtE {
 		public static uint GetItemLevel(Mods mods, uint _default = 1) => mods?.Level ?? _default;
 
 		public static string Slug(string raw) => Regex.Replace(raw, "[^A-Za-z0-9]", "");
+
+		public static Cached<Vector2> WindowSize = new Cached<Vector2>(() =>
+			PoEMemory.IsAttached
+			&& IsValid(PoEMemory.Target)
+			&& Win32.GetWindowRect(PoEMemory.Target.MainWindowHandle, out Win32.RECT rect)
+			? new Vector2(rect.Width, rect.Height)
+			: Vector2.Zero);
+
 	}
 }

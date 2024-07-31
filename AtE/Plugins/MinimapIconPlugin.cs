@@ -192,7 +192,9 @@ namespace AtE.Plugins {
 				}
 
 				if ( icon != SpriteIcon.None ) {
-					DrawSprite(icon, map.WorldToMap(ent), IconSize * iconSize, IconSize * iconSize);
+					var iconPos = map.WorldToMap(ent);
+					DrawSprite(icon, iconPos, IconSize * iconSize, IconSize * iconSize);
+					// DrawBottomLeftText($"Drawing Sprite {icon} at {iconPos}", Color.Yellow);
 				}
 			}
 
@@ -249,6 +251,8 @@ namespace AtE.Plugins {
 				iconSize = 1.4f;
 			} else if ( path.Contains("Azmeri/WoodsEntrance") || path.Contains("AzmeriLightBomb") ) {
 				icon = SpriteIcon.None;
+			} else if ( path.EndsWith("IntroTunnelPath") ) {
+				icon = SpriteIcon.GreenFlag;
 			} else if ( DebugUnknownResources ) {
 				DrawBottomLeftText($"Unknown Terrain: {ent.Path}", Color.Yellow);
 				DrawTextAt(ent, ent.Path, Color.White);
