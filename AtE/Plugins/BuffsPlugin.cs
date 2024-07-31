@@ -127,7 +127,7 @@ namespace AtE.Plugins {
 
 		public class ImmortalCallData : SkillData {
 			public int UseAtLifePercent = 90;
-			public ImmortalCallData() : base("Immortal Call", "mortal_call", "mortal_call") { }
+			public ImmortalCallData() : base("Immortal Call", "immortal_call", "mortal_call") { }
 			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood"));
 			public override void Configure() {
 				base.Configure();
@@ -151,13 +151,14 @@ namespace AtE.Plugins {
 
 		public class MoltenShellData : SkillData {
 			public int UseAtLifePercent = 90;
-			public MoltenShellData() : base("Molten Shell", "molten_shell_barrier", "molten_shell_shield") { }
+			public MoltenShellData() : base("Molten Shell", "molten_shell", "molten_shell_shield") { }
 			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && IsMissingEHP(p, 1.0f - (UseAtLifePercent / 100f), HasBuff(p, "petrified_blood")) && !HasBuff(p, "vaal_molten_shell");
 			public override void Configure() {
 				base.Configure();
 				ImGui.Text(" at ");
 				ImGui.SameLine();
 				ImGui.SliderInt("% eHP##Molten Shell", ref UseAtLifePercent, 2, 99);
+			
 			}
 		}
 
@@ -349,9 +350,10 @@ namespace AtE.Plugins {
 			{ "Immortal Call", new ImmortalCallData() },
 			{ "Bone Armour", new BoneArmourData() },
 			{ "Molten Shell", new MoltenShellData() },
-			{ "Defiance Banner", new DefianceBanner() },
-			{ "War Banner", new WarBanner() },
-			{ "Dread Banner", new DreadBanner() },
+			// 3.25: banners disabled temporarily until I can rework for the new banners with valour
+			// { "Defiance Banner", new DefianceBanner() },
+			// { "War Banner", new WarBanner() },
+			// { "Dread Banner", new DreadBanner() },
 			{ "Temporal Rift", new TemporalRift() },
 			{ "Berserk", new BerserkData() },
 			// { "Corrupting Fever", new CorruptingFeverData() },
@@ -391,7 +393,17 @@ namespace AtE.Plugins {
 					ImGui.Text($"Rare within 10m: {enemies}");
 				}
 			}
-
+			var p = GetPlayer();
+			if( IsValid(p) ) {
+				var life = p.GetComponent<Life>();
+				var actor = p.GetComponent<Actor>();
+				ImGui.Text($" - EHP: {CurrentEHP(life)} of {MaxEHP(life)}");
+				ImGui.Text($" - Petrified: {HasBuff(p, "petrified_blood")}");
+				ImGui.Text($" - Vaal active: {HasBuff(p, "vaal_molten_shell")}");
+				foreach ( ActorSkill s in actor.Skills.Where(IsValid) ) {
+					ImGui.Text($" - Skill InternalName: {s.InternalName}");
+				}
+			}
 			// ImGui.Text()
 			// var life = player.GetComponent<Life>();
 			// ImGui.Text($"MaxLife: {MaxLife(player)}");
