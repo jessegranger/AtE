@@ -798,6 +798,7 @@ namespace AtE {
 
 		private Dictionary<Offsets.GameStat, int> stats;
 		private long lastStatsTime;
+		private const int gameStatMaxValue = 32768;
 		public Dictionary<Offsets.GameStat, int> GetStats() {
 			// if there are no stats, or the stats entries array is newer than the stats dict
 			long elapsed = Time.ElapsedMilliseconds;
@@ -805,7 +806,7 @@ namespace AtE {
 				stats = new Dictionary<Offsets.GameStat, int>();
 				lastStatsTime = elapsed;
 				foreach ( var entry in Entries ) {
-					if ( entry.Key <= 0 || entry.Key > Offsets.GameStat.MaxStatValue ) {
+					if ( entry.Key <= 0 || (int)entry.Key > gameStatMaxValue ) {
 						Log($"Invalid Stats key {entry.Key} value {entry.Value}");
 						break; // invalid data in the Entries
 					}
