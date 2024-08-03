@@ -397,11 +397,13 @@ namespace AtE.Plugins {
 			if( IsValid(p) ) {
 				var life = p.GetComponent<Life>();
 				var actor = p.GetComponent<Actor>();
+				ImGui.Text("Player:");
 				ImGui.Text($" - EHP: {CurrentEHP(life)} of {MaxEHP(life)}");
 				ImGui.Text($" - Petrified: {HasBuff(p, "petrified_blood")}");
 				ImGui.Text($" - Vaal active: {HasBuff(p, "vaal_molten_shell")}");
+				ImGui.Text($"Detected Skills:");
 				foreach ( ActorSkill s in actor.Skills.Where(IsValid) ) {
-					ImGui.Text($" - Skill InternalName: {s.InternalName}");
+					ImGui.Text($" - InternalName: {s.InternalName}");
 				}
 			}
 			// ImGui.Text()
