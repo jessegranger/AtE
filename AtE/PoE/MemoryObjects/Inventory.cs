@@ -68,8 +68,11 @@ namespace AtE {
 			int index = 0;
 			int hashCode = 0;
 			foreach ( Element child in cursor.Children ) {
+				if( ! IsValid(child) ) {
+					continue;
+				}
 				hashCode = child.GetHashCode();
-				if ( IsValid(child) && !seen.Contains(hashCode) ) {
+				if ( !seen.Contains(hashCode) ) {
 					seen.Add(hashCode);
 					if ( IsValid(child) && child.IsVisibleLocal ) {
 						yield return child;
