@@ -185,7 +185,7 @@ namespace AtE {
 		/// A library of shortcuts into the UI tree, for the more useful elements,
 		/// and returns extra helper types.
 		/// </summary>
-		public UIElementLibrary UIElements => new UIElementLibrary() { Address = Cache.ptrUIElements };
+		public UIElementLibrary UIElements => IsValid(Cache.ptrUIElements) ? new UIElementLibrary() { Address = Cache.ptrUIElements } : null;
 
 		public override IState OnTick(long dt) {
 			if ( IsDisposed ) return null;
