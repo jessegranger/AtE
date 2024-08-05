@@ -83,6 +83,9 @@ namespace AtE {
 				Log($"Charges component appears corrupt, entOwner {charges.Cache.entOwner.ToInt64():X} != ent {ent.Address.ToInt64():X}, attempting repair...");
 				ent.ClearComponents(); // force the Components map to re-parse at next call to GetComponent
 				charges = ent.GetComponent<Charges>();
+				if( !IsValid(charges) ) {
+					return;
+				}
 				if( charges.Cache.entOwner != ent.Address ) {
 					if ( debugOnce ) {
 						Log($"Charges component appears corrupt, entOwner {charges.Cache.entOwner.ToInt64():X} != ent {ent.Address.ToInt64():X}");
