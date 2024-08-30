@@ -50,6 +50,31 @@ namespace AtE.Plugins {
 
 		private long lastFlare = 0;
 
+		private Vector2 Rotate(Vector2 v, double radians) {
+			double cosB = Math.Cos(radians);
+			double sinB = Math.Sin(radians);
+			return new Vector2(
+				 (float)((cosB * v.X) - (sinB * v.Y)),
+				 (float)((sinB * v.X) + (cosB * v.Y))
+			);
+		}
+
+		private void DrawLineAndLabel(Vector2 playerScreenPos, Entity ent, Color color, string label) {
+			Vector3 entPos = Position(ent);
+			Vector2 entScreenPos = WorldToScreen(entPos);
+			Vector2 dv = entScreenPos - playerScreenPos;
+			float mag = dv.Length();
+			dv = Vector2.Normalize(dv);
+			Vector2 textLabelPos = playerScreenPos + Vector2.Multiply(dv, Math.Min(mag, 200));
+			Vector2 lineEndPosA = playerScreenPos + Vector2.Multiply(dv, Math.Min(mag, 400));
+			Vector2 lineEndPosB = playerScreenPos + Rotate(Vector2.Multiply(dv, Math.Min(mag, 390)), .02);
+			Vector2 lineEndPosC = playerScreenPos + Rotate(Vector2.Multiply(dv, Math.Min(mag, 390)), -.02);
+			DrawLine(playerScreenPos, lineEndPosA, color);
+			DrawLine(lineEndPosA, lineEndPosB, color);
+			DrawLine(lineEndPosA, lineEndPosC, color);
+			DrawTextAt(textLabelPos, label, color);
+		}
+
 		public override IState OnTick(long dt) {
 			if( Enabled && !Paused && PoEMemory.IsAttached ) {
 
@@ -94,6 +119,11 @@ namespace AtE.Plugins {
 				float maxCorpseLife = 0;
 				Vector3 maxCorpseLocation = Vector3.Zero;
 
+				Vector2 playerScreenPos = WorldToScreen(playerPos);
+				if( playerScreenPos == Vector2.Zero ) {
+					return this;
+				}
+
 				foreach ( var ent in GetEntities() ) {
 					string path = ent.Path;
 					if ( path == null || path.Length < 16 ) {
@@ -119,35 +149,65 @@ namespace AtE.Plugins {
 						if ( isMonster || path.EndsWith("DelveLight") ) {
 							continue;
 						}
+						// debug:
 						// DrawTextAt(ent, ent.Path, Color.White);
 						if ( path.EndsWith("DelveWall") ) {
 							if ( IsTargetable(ent) ) {
 								// ImGui_Object("DelveWall", "DelveWall", ent, new HashSet<int>());
+								DrawLineAndLabel(playerScreenPos, ent, Color.Cyan, "Wall");
 								icon = SpriteIcon.DelveWall;
 								iconSize = 2f;
+							} else {
+								// DrawTextAt(ent, "NotTargetable", Color.White);
 							}
 						} else if ( path.StartsWith("Metadata/Chests/DelveChests") ) {
 							var chest = ent.GetComponent<Chest>();
+							if( !IsValid(chest) ) {
+								continue;
+							}
+							if( chest.IsOpened ) {
+								// DrawTextAt(ent, "IsOpened", Color.White);
+								continue;
+							}
+							if( chest.IsLocked ) {
+								// DrawTextAt(ent, "IsLocked", Color.White);
+								// ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
+								// string label = $"Chest{ent.Id}";
+								// ImGui.Begin(label);
+								// ImGui_Object(label, label, chest, new HashSet<int>());
+								// ImGui.End();
+								continue;
+							}
+							if( !IsTargetable(ent) ) {
+								// DrawTextAt(ent, "NotTargetable", Color.White);
+								continue;
+							}
 							if ( !IsValid(chest) || chest.IsOpened || chest.IsLocked || !IsTargetable(ent) ) {
 								continue;
 							}
 
 							if ( HighlightSupplies && path.Contains("SuppliesFlares") ) {
+								DrawLineAndLabel(playerScreenPos, ent, Color.Gold, "Flares");
 								icon = SpriteIcon.YellowX;
 								iconSize = 1f;
 							} else if ( HighlightSupplies && path.Contains("SuppliesDynamite") ) {
+								DrawLineAndLabel(playerScreenPos, ent, Color.Orange, "Dynamite");
 								icon = SpriteIcon.OrangeX;
 								iconSize = 1f;
 							} else if ( HighlightFossils && path.Contains("Fossil") ) {
+								DrawLineAndLabel(playerScreenPos, ent, Color.Yellow, "Fossil");
 								icon = SpriteIcon.MediumGreenStar;
 								iconSize = 2f;
 							} else if ( HighlightResonators && path.Contains("Resonator") ) {
+								DrawLineAndLabel(playerScreenPos, ent, Color.Yellow, "Resonator");
 								icon = SpriteIcon.MediumPurpleStar;
 								iconSize = 2f;
 							} else if ( HighlightCurrency && path.Contains("Currency") ) {
+								DrawLineAndLabel(playerScreenPos, ent, Color.Yellow, "Currency");
 								icon = SpriteIcon.MediumYellowStar;
 								iconSize = 2f;
 							} else if (  HighlightAzurite &&  path.Contains("AzuriteVein") ) {
+								DrawLineAndLabel(playerScreenPos, ent, Color.Cyan, "Azurite");
 								icon = SpriteIcon.MediumCyanStar;
 								iconSize = 2f;
 							}
