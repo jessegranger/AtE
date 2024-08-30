@@ -146,6 +146,10 @@ namespace AtE.Plugins {
 
 						stats.TryGetValue(GameStat.ChaosDamageResistancePct, out int chaosRes);
 						stats.TryGetValue(GameStat.UncappedChaosDamageResistancePct, out int uncappedChaosRes);
+						stats.TryGetValue(GameStat.ChaosDamageImmunity, out int chaosImmune);
+						if ( chaosImmune == 1 ) {
+							chaosRes = uncappedChaosRes = 100;
+						}
 						DrawTextAt(1, spot, $"Chaos:     {chaosRes}% ({uncappedChaosRes}%)", Color.Violet, size);
 
 						stats.TryGetValue(GameStat.PhysicalDamageReductionRating, out int armourRating);
@@ -158,7 +162,8 @@ namespace AtE.Plugins {
 
 						stats.TryGetValue(GameStat.AttackBlockPct, out int attackBlock);
 						stats.TryGetValue(GameStat.SpellBlockPct, out int spellBlock);
-						DrawTextAt(1, spot, $"Block:     {attackBlock}% {spellBlock}%", Color.Cornsilk, size);
+						stats.TryGetValue(GameStat.SpellSuppressionChancePct, out int spellSuppress);
+						DrawTextAt(1, spot, $"Blk: {attackBlock}% {spellBlock}% Sup: {spellSuppress}%", Color.Cornsilk, size);
 
 						ImGui.SetNextWindowPos(new Vector2(spot.X, spot.Y + ImGuiController.GetNextOffsetForTextAt(1)));
 						ImGui.Begin("Defense Global Checkbox", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoBackground );
@@ -201,6 +206,9 @@ namespace AtE.Plugins {
 						if ( (ShowEnemyBuffs || ShowEnemyPoisonStacks || ShowEnemyImpaleStacks || ShowEnemyWitherStacks || ShowEnemyGraspingVines) && isHostile && isAlive ) {
 							if( IsRareOrUnique(ent) ) {
 								var buffs = ent.GetComponent<Buffs>();
+								if( !IsValid(buffs) ) {
+									continue;
+								}
 								int poisonStacks = 0;
 								int graspingVines = 0;
 								int witherStacks = 0;
