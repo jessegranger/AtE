@@ -29,26 +29,26 @@ namespace AtE {
 
 		public bool EnableAlsoCastKey1 = false;
 		public HotKey AlsoCastKey1 = new HotKey(Keys.None);
-		public int AlsoCastKey1Throttle = 0;
+		public float AlsoCastKey1Throttle = 0;
 		public int AlsoCastKey1Mode = (int)KeyBindMode.Hold;
 		private long AlsoCastKey1LastPress = 0;
 		
 
 		public bool EnableAlsoCastKey2 = false;
 		public HotKey AlsoCastKey2 = new HotKey(Keys.None);
-		public int AlsoCastKey2Throttle = 0;
+		public float AlsoCastKey2Throttle = 0;
 		public int AlsoCastKey2Mode = (int)KeyBindMode.Hold;
 		private long AlsoCastKey2LastPress = 0;
 
 		public bool EnableAlsoCastKey3 = false;
 		public HotKey AlsoCastKey3 = new HotKey(Keys.None);
-		public int AlsoCastKey3Throttle = 0;
+		public float AlsoCastKey3Throttle = 0;
 		public int AlsoCastKey3Mode = (int)KeyBindMode.Hold;
 		private long AlsoCastKey3LastPress = 0;
 
 		public bool EnableAlsoCastKey4 = false;
 		public HotKey AlsoCastKey4 = new HotKey(Keys.None);
-		public int AlsoCastKey4Throttle = 0;
+		public float AlsoCastKey4Throttle = 0;
 		public int AlsoCastKey4Mode = (int)KeyBindMode.Hold;
 		private long AlsoCastKey4LastPress = 0;
 
@@ -57,6 +57,9 @@ namespace AtE {
 
 		public override void Render() {
 			base.Render();
+
+			const float numberInputWidth = 85f;
+			const float keyInputWidth = 60f;
 
 			ImGui.Text("Mouse:");
 			ImGui.Checkbox("Show Cursor Position", ref ShowMouseCoords);
@@ -78,7 +81,7 @@ namespace AtE {
 
 			ImGui.Checkbox("Also##AlsoCast1", ref EnableAlsoCastKey1);
 			ImGui.SameLine();
-			ImGui.SetNextItemWidth(60f);
+			ImGui.SetNextItemWidth(keyInputWidth);
 			ImGui.Combo("##AlsoCast1Mode", ref AlsoCastKey1Mode, "Hold\0Press");
 			ImGui.SameLine();
 			if ( AlsoCastKey1Mode == (int)KeyBindMode.Press ) {
@@ -92,15 +95,15 @@ namespace AtE {
 				ImGui.SameLine();
 				ImGui.Text("Every");
 				ImGui.SameLine();
-				ImGui.SetNextItemWidth(75f);
-				ImGui.InputInt("seconds##Key1", ref AlsoCastKey1Throttle, 1);
+				ImGui.SetNextItemWidth(numberInputWidth);
+				ImGui.InputFloat("seconds##Key1", ref AlsoCastKey1Throttle, 1);
 			} else {
 
 			}
 	
 			ImGui.Checkbox("Also##AlsoCast2", ref EnableAlsoCastKey2);
 			ImGui.SameLine();
-			ImGui.SetNextItemWidth(60f);
+			ImGui.SetNextItemWidth(keyInputWidth);
 			ImGui.Combo("##AlsoCast2Mode", ref AlsoCastKey2Mode, "Hold\0Press");
 			ImGui.SameLine();
 			if ( AlsoCastKey2Mode == (int)KeyBindMode.Press ) {
@@ -114,15 +117,15 @@ namespace AtE {
 				ImGui.SameLine();
 				ImGui.Text("Every");
 				ImGui.SameLine();
-				ImGui.SetNextItemWidth(75f);
-				ImGui.InputInt("seconds##Key2", ref AlsoCastKey2Throttle, 1);
+				ImGui.SetNextItemWidth(numberInputWidth);
+				ImGui.InputFloat("seconds##Key2", ref AlsoCastKey2Throttle, 1);
 			} else {
 
 			}
 	
 			ImGui.Checkbox("Also##AlsoCast3", ref EnableAlsoCastKey3);
 			ImGui.SameLine();
-			ImGui.SetNextItemWidth(60f);
+			ImGui.SetNextItemWidth(keyInputWidth);
 			ImGui.Combo("##AlsoCast3Mode", ref AlsoCastKey3Mode, "Hold\0Press");
 			ImGui.SameLine();
 			if ( AlsoCastKey3Mode == (int)KeyBindMode.Press ) {
@@ -136,15 +139,15 @@ namespace AtE {
 				ImGui.SameLine();
 				ImGui.Text("Every");
 				ImGui.SameLine();
-				ImGui.SetNextItemWidth(75f);
-				ImGui.InputInt("seconds##Key3", ref AlsoCastKey3Throttle, 1);
+				ImGui.SetNextItemWidth(numberInputWidth);
+				ImGui.InputFloat("seconds##Key3", ref AlsoCastKey3Throttle, 1);
 			} else {
 
 			}
 
 			ImGui.Checkbox("Also##AlsoCast4", ref EnableAlsoCastKey4);
 			ImGui.SameLine();
-			ImGui.SetNextItemWidth(60f);
+			ImGui.SetNextItemWidth(keyInputWidth);
 			ImGui.Combo("##AlsoCast4Mode", ref AlsoCastKey4Mode, "Hold\0Press");
 			ImGui.SameLine();
 			if ( AlsoCastKey4Mode == (int)KeyBindMode.Press ) {
@@ -158,8 +161,8 @@ namespace AtE {
 				ImGui.SameLine();
 				ImGui.Text("Every");
 				ImGui.SameLine();
-				ImGui.SetNextItemWidth(75f);
-				ImGui.InputInt("seconds##Key4", ref AlsoCastKey4Throttle, 1);
+				ImGui.SetNextItemWidth(numberInputWidth);
+				ImGui.InputFloat("seconds##Key4", ref AlsoCastKey4Throttle, 1);
 			} else {
 
 			}
@@ -222,7 +225,7 @@ namespace AtE {
 			return this;
 		}
 
-		private void doKeyDown(Keys key, ref long lastPress, int throttle) {
+		private void doKeyDown(Keys key, ref long lastPress, float throttle) {
 			long elapsed = Time.ElapsedMilliseconds - lastPress;
 			if( elapsed < throttle * 1000 ) {
 				return;
@@ -232,10 +235,13 @@ namespace AtE {
 		}
 
 		private long lastPressOfAnyAlsoCast = 0;
-		private bool doKeyPress(Keys key, ref long lastPress, int throttle) {
+		private bool doKeyPress(Keys key, ref long lastPress, float throttle) {
 			long now = Time.ElapsedMilliseconds;
-			if ( (now - lastPress) > throttle * 1000 ) {
-				if( (now - lastPressOfAnyAlsoCast) < 700 ) {
+			long throttleMS = Math.Max(100, (long)(throttle * 1000));
+			long sinceLastPress = now - lastPress;
+			long sinceAnyAlsoCast = now - lastPressOfAnyAlsoCast;
+			if ( sinceLastPress > throttleMS ) {
+				if( sinceAnyAlsoCast < 100 ) {
 					Log($"Defering key press {key}...");
 					return false; // skip injecting fresh inputs for a short while
 				}
