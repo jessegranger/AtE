@@ -971,7 +971,8 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Animated {
 			[FieldOffset(0x008)] public readonly IntPtr entOwner;
 			// 3.22.1c: 72 new bytes here?
-			[FieldOffset(0x230)] public readonly IntPtr ptrToAnimatedEntity;
+			// 3.25: 48 new bytes here?
+			[FieldOffset(0x260)] public readonly IntPtr ptrToAnimatedEntity;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_AreaTransition {
