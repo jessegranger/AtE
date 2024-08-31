@@ -206,16 +206,28 @@ namespace AtE {
 							if( MinionDescriptors.TryGetValue(path, out var desc) ) {
 								summary.DisplayName = desc.DisplayName;
 								summary.Color = desc.Color;
+								var minionSkill = minion.GetSkill();
 								int minionDuration = 0;
-								if ( minion.GetSkill()?.TryGetStat(Offsets.GameStat.MinionDuration, out minionDuration) ?? false ) {
-									float expectedTimeAlive = (minionDuration / 1000f);
-									float timeAlive = ent.GetComponent<Animated>()?.AnimatedObject?.GetComponent<ClientAnimationController>()?.TimeSpentAnimating ?? 0f;
-									float timeRemaining = expectedTimeAlive - timeAlive;
-									if( timeRemaining < summary.MinTimeLeft ) {
-										summary.MinTimeLeft = timeRemaining;
+								if ( IsValid(minionSkill) ) {
+									if ( minionSkill.TryGetStat(Offsets.GameStat.IsTotem, out int isTotem) && isTotem == 1 ) {
+										minionSkill.TryGetStat(Offsets.GameStat.TotemDuration, out minionDuration);
+									} else {
+										minionSkill.TryGetStat(Offsets.GameStat.MinionDuration, out minionDuration);
 									}
-									if( expectedTimeAlive > summary.MaxTimeLeft ) {
-										summary.MaxTimeLeft = expectedTimeAlive;
+									if ( minionDuration > 0 ) {
+										float expectedTimeAlive = (minionDuration / 1000f);
+										var animated = ent.GetComponent<Animated>();
+										// ImGui.Begin("Debug Animated");
+										// ImGui_Object("Animated", "Animated", animated, new HashSet<int>());
+										// ImGui.End();
+										float timeAlive = ent.GetComponent<Animated>()?.AnimatedObject?.GetComponent<ClientAnimationController>()?.TimeSpentAnimating ?? 0f;
+										float timeRemaining = expectedTimeAlive - timeAlive;
+										if ( timeRemaining < summary.MinTimeLeft ) {
+											summary.MinTimeLeft = timeRemaining;
+										}
+										if ( expectedTimeAlive > summary.MaxTimeLeft ) {
+											summary.MaxTimeLeft = expectedTimeAlive;
+										}
 									}
 								}
 							} else if( HasBuff(ent, "spectre_buff") ) {
@@ -311,7 +323,10 @@ namespace AtE {
 					string text;
 					if ( IsValid(continueOption)
 						&& continueOption.IsVisibleLocal
-						&& ((text = continueOption.Text)?.Equals("Continue") ?? false) ) {
+						&& (((text = continueOption.Text)?.Equals("Continue") ?? false) 
+							|| (text?.StartsWith("Sail to") ?? false))
+						) {
+
 						ClickElement(continueOption);
 						return new Delay((uint)ClickDelayMilliseconds, this);
 					}
@@ -322,7 +337,9 @@ namespace AtE {
 					if ( options != null ) {
 						foreach ( var child in options.Children ) {
 							var textChild = child?.GetChild(0);
-							if ( textChild?.Text?.Equals("Continue") ?? false ) {
+							string text = textChild?.Text;
+							if ( (text?.Equals("Continue") ?? false)
+								|| (text?.StartsWith("Sail to") ?? false) ) {
 								ClickElement(textChild);
 								return new Delay((uint)ClickDelayMilliseconds, this);
 							}
