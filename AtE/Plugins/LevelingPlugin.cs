@@ -43,6 +43,8 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/HolyLivingRelic", "Summoned Holy Relic", "summon_relic", Color.PaleGoldenrod);
 			AddMinionSkillDesc("Metadata/Monsters/SummonedSkull/SummonedSkull", "Raging Spirit", "summon_raging_spirit", Color.LightGoldenrodYellow);
 			AddMinionSkillDesc("Metadata/Monsters/SummonedSkull/SummonedRaven", "Summoned Raven", "summon_raging_spirit", Color.MediumPurple);
+			AddMinionSkillDesc("Metadata/Monsters/SummonedWolf/SummonedWolf", "Summoned Wolf", "summon_wolf", Color.Gray);
+			AddMinionSkillDesc("Metadata/Monsters/SummonedSpider/SummonedSpider", "Raised Spider", "raised_spider", Color.MediumPurple);
 			AddMinionSkillDesc("Metadata/Monsters/SummonedPhantasm/SummonedPhantasm", "Summoned Phantasm", "summon_phantasm", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/IcyRagingSpirit/IcyRagingSpirit", "Decree of the Grave", "decree_of_the_grave_on_kill", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/BoneGolem/BoneGolem", "Golem - Carrion", "summon_bone_golem", Color.LimeGreen);
@@ -92,7 +94,10 @@ namespace AtE {
 
 			ImGui.Checkbox("Show Minion Summary", ref ShowMinionStats);
 			if( ShowMinionStats ) {
-				ImGui.Indent(); ImGui.Checkbox("Show Spectre Spells", ref ShowSpectreSpells);
+				ImGui.Indent();
+				ImGui.Checkbox("Show Spectre Spells", ref ShowSpectreSpells);
+				ImGui.Checkbox("Debug Unknown Minions", ref DebugUnknownMinions);
+				ImGui.Unindent();
 			}
 		}
 
