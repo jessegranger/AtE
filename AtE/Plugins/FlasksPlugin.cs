@@ -128,7 +128,8 @@ namespace AtE {
 			bool sellIsOpen = (ui.SellWindow?.IsVisibleLocal ?? true);
 			bool buyIsOpen = (ui.PurchaseWindow?.IsVisibleLocal ?? true);
 			bool tradeIsOpen = (ui.TradeWindow?.IsVisibleLocal ?? true);
-			if ( buyIsOpen || sellIsOpen || tradeIsOpen ) {
+			bool chatIsOpen = (ui.ChatBoxRoot?.GetChild(0)?.IsVisibleLocal ?? true);
+			if ( buyIsOpen || sellIsOpen || tradeIsOpen || chatIsOpen ) {
 				DrawBottomLeftText($"Flasks are paused while trade windows are open.", Color.LightGray);
 				return this;
 			}
