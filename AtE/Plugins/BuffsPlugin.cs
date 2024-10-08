@@ -191,7 +191,7 @@ namespace AtE.Plugins {
 		}
 
 		public class PlagueBearerData : SkillData {
-			public PlagueBearerData() : base("Plague Bearer", "corrosive_shroud", "corrosive_shroud_accumulating_damage") { }
+			public PlagueBearerData() : base("Plague Bearer", "plague_bearer", "corrosive_shroud_accumulating_damage") { }
 			public override bool Predicate(PlayerEntity p) {
 				// TODO: this may not be quite right yet, PB uses three buffs and I haven't tested this logic yet
 				// once the simpler skills are working, I will look more into it
@@ -202,7 +202,7 @@ namespace AtE.Plugins {
 				bool atMax = HasBuff(buffs, "corrosive_shroud_at_max_damage");
 				bool hasBuff = HasBuff(buffs, "corrosive_shroud_buff");
 				// bool isCharging = HasBuff(buffs, "corrosive_shroud_accumulating_damage");
-				return (!hasBuff || atMax);
+				return (!hasBuff) || atMax;
 			}
 		}
 
