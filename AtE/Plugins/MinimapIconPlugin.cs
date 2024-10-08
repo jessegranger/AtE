@@ -132,7 +132,7 @@ namespace AtE.Plugins {
 
 				/* Debug:
 				if( path.StartsWith("Metadata/Monster") ) {
-					// ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
+					ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
 					ImGui.Begin($"ent:{ent.Id} {ent.Path}");
 					ImGui.Text($"IsAlive: {IsAlive(ent)}");
 					ImGui.Text($"IsHostile: {IsHostile(ent)}");
@@ -145,6 +145,7 @@ namespace AtE.Plugins {
 					ImGui_Object($"ObjectMagicProperties-{ent.Id}", "ObjectMagicProperties", ent.GetComponent<ObjectMagicProperties>(), new HashSet<int>());
 					ImGui.End();
 				}
+				/*
 				if ( path.StartsWith("Metadata/Chest") ) {
 			ImGui.Begin("Player Buffs");
 			ImGui_Object("Buffs", "Buffs", GetPlayer()?.GetComponent<Buffs>(), new HashSet<int>());
@@ -285,16 +286,26 @@ namespace AtE.Plugins {
 				return false;
 			}
 			// TODO: pre-compile and cache this expression
-			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|SilverChest|PrimevalChest|StatueMakers|.*Rack|Amphora|.*Pot|.*Boulder|Vase|MapChest|.*Cairn|Crate|Cannibal|TemplarChest|InfestationEgg|.*Barrel|.*Wounded|FungalBloom|GoldenChest|KaomChest|C[ao]coon|.*Bundle|PordWounded|Tutorial|TribalChest|.*BonePile|Sarcophagi|GoldPot|CopperChest|Labyrinth/Izaro|VaalBoneChest|Betrayal|Laboratory/|LegionChests)") ) { 
+			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|SilverChest|PrimevalChest|StatueMakers|.*Rack|Amphora|.*Pot|.*Boulder|Vase|MapChest|.*Cairn|Crate|Cannibal|TemplarChest|InfestationEgg|.*Barrel|.*Wounded|FungalBloom|GoldenChest|KaomChest|Cacoon|.*Bundle|PordWounded|Tutorial|TribalChest|.*BonePile|Sarcophagi|GoldPot|CopperChest|Labyrinth/Izaro|VaalBoneChest|Betrayal|Laboratory/|LegionChests)") ) { 
 				// set them to None, and never check them again
 				ent.MinimapIcon = new Entity.Icon() { Size = 1f, Sprite = SpriteIcon.None };
 				return false;
 			}
+			// DrawTextAt(WorldToScreen(Position(ent)), $"{ent.Path}", Color.White);
 			icon = SpriteIcon.None; // with size = 1f and Icon = None, we only fall through this path scanning once, then assign to ent.MinimapIcon
 			iconSize = 1f; // once that assigns 1f, the next frame will hit the branch above and return ent.MinimapIcon values
 			if ( path.StartsWith("Metadata/Chests") ) {
 				// DrawTextAt(WorldToScreen(Position(ent)), $"Unknown /Chest: {ent.Path}", Color.White);
-				if ( path.Contains("Breach/BreachChest") ) {
+				if ( path.StartsWith("Metadata/Chests/LeaguesExpedition/") ) {
+					icon = SpriteIcon.BlueFlag;
+					iconSize = 1.1f;
+				} else if ( path.StartsWith("Metadata/Chests/LeagueAzmeri/") ) {
+					icon = SpriteIcon.BlueFlag;
+					iconSize = 1.1f;
+				} else if ( path.StartsWith("Metadata/Chests/CocoonRot") ) {
+					icon = SpriteIcon.MediumGreenStar;
+					iconSize = 1.1f;
+				} else if ( path.Contains("Breach/BreachChest") ) {
 					icon = SpriteIcon.Breach;
 					iconSize = 1.5f;
 				} else if ( path.Contains("SideArea/SideAreaChest") ) {
@@ -306,12 +317,6 @@ namespace AtE.Plugins {
 				} else if ( path.Contains("Chests/AbyssChest") ) {
 					icon = SpriteIcon.RewardAbyss;
 					iconSize = 1.25f;
-				} else if ( path.StartsWith("Metadata/Chests/LeaguesExpedition/") ) {
-					icon = SpriteIcon.BlueFlag;
-					iconSize = 1.1f;
-				} else if ( path.StartsWith("Metadata/Chests/LeagueAzmeri/") ) {
-					icon = SpriteIcon.BlueFlag;
-					iconSize = 1.1f;
 				} else if ( path.EndsWith("/BootyChest") ) {
 					icon = SpriteIcon.YellowExclamation;
 					iconSize = 1.75f;
@@ -462,10 +467,14 @@ namespace AtE.Plugins {
 			}
 			// save the current icon for 300ms, then it will expire and check again for hidden status, etc
 			// ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 300);
-			if ( ShowRareOverhead && rarity >= Offsets.MonsterRarity.Rare ) {
+			bool isInvulnTotem = path.Contains("TotemAlliesCannotDie");
+			if ( ShowRareOverhead && (isInvulnTotem || rarity >= Offsets.MonsterRarity.Rare) ) {
 				var render = ent.GetComponent<Render>();
 				if ( IsValid(render) ) {
 					var overhead = WorldToScreen(render.Position + new Vector3(0, 0, -1.5f * render.Bounds.Z));
+					if( isInvulnTotem ) {
+						icon = SpriteIcon.RedFlag;
+					}
 					DrawSprite(icon, overhead, IconSize * 4, IconSize * 4);
 					/*
 					ImGui.Begin("debug_overhead");
