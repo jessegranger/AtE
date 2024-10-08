@@ -21,12 +21,12 @@ namespace AtE {
 		/// The current version of this file.
 		/// </summary>
 		public const int VersionMajor = 1;
-		public const int VersionMinor = 8;
+		public const int VersionMinor = 9;
 
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.24.0b";
+		public const string PoEVersion = "3.25.1b";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -109,8 +109,7 @@ namespace AtE {
 			[FieldOffset(0x08)] public IntPtr Tail;
 
 			/// <summary>
-			/// Usually something like, ItemCount(Marshal.SizeOf(typeof(T)))...
-			/// where T is the contained type.
+			/// Record Size is usually something like, Marshal.SizeOf(typeof(T)) where T is the contained type.
 			/// </summary>
 			public int ItemCount(int recordSize) => (int)((Tail.ToInt64() - Head.ToInt64()) / recordSize);
 
