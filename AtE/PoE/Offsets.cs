@@ -26,7 +26,7 @@ namespace AtE {
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.25.1b";
+		public const string PoEVersion = "3.25.3c";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -1402,9 +1402,10 @@ namespace AtE {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			// Crucible: 8 new bytes here
 			// 3.23: 8 new bytes here
-			[FieldOffset(0xa8)] public readonly Vector3 Pos;
-			[FieldOffset(0xb4)] public readonly Vector3 Bounds;
-			[FieldOffset(0xd0)] public readonly StringHandle Name; // of unicode bytes
+			// 3.25: 8 fewer bytes
+			[FieldOffset(0xa0)] public readonly Vector3 Pos;
+			[FieldOffset(0xac)] public readonly Vector3 Bounds;
+			[FieldOffset(0xc8)] public readonly StringHandle Name; // of unicode bytes
 			[FieldOffset(0xEC)] public readonly Vector3 Rotation;
 			[FieldOffset(0xf0)] public readonly float RotationRadians;
 		}
