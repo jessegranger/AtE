@@ -257,7 +257,10 @@ namespace AtE.Plugins {
 								if( ShowEnemyEnergyStacks ) {
 									buffstr += $"En {energyStacks}";
 								}
-								if( buffstr.Length > 0 ) DrawTextAt(ent.Id, WorldToScreen(Position(ent)), buffstr, Color.White);
+								if ( buffstr.Length > 0 ) {
+									DrawTextAt(ent.Id, WorldToScreen(Position(ent)), buffstr, Color.White);
+									// DrawBottomLeftText($"{ent.Id}: {Position(ent)} {WorldToScreen(Position(ent))} {buffstr}", Color.White);
+								}
 							}
 						}
 						if ( isAlive && isHostile ) {

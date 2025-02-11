@@ -12,7 +12,7 @@ namespace AtE.Plugins {
 	/// <summary>
 	/// This plugin helps to maintain some buffs on you, by casting them for you.
 	/// </summary>
-	public class BuffsPlugin : PluginBase {
+	public class SkillsPlugin : PluginBase {
 
 		public override string Name => "Use Skills";
 

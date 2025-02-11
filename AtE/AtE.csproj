@@ -107,7 +107,7 @@
     <Compile Include="Overlay\Perf.cs" />
     <Compile Include="Overlay\SpriteController.cs" />
     <Compile Include="Plugins\BreadcrumbsPlugin.cs" />
-    <Compile Include="Plugins\BuffsPlugin.cs" />
+    <Compile Include="Plugins\SkillsPlugin.cs" />
     <Compile Include="Plugins\ChaosRecipe.cs" />
     <Compile Include="Plugins\CoreSettings.cs" />
     <Compile Include="Plugins\DefenseDisplay.cs" />
