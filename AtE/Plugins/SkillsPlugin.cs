@@ -96,6 +96,31 @@ namespace AtE.Plugins {
 			}
 		}
 
+		private Dictionary<string, SkillData> KnownSkills = new Dictionary<string, SkillData>() {
+			{ "Blood Rage", new BloodRageData() },
+			/// many of those are not quite right yet, like they need their SkillBarName checked/corrected, eg
+			{ "Steelskin", new SteelskinData() },
+			{ "Immortal Call", new ImmortalCallData() },
+			{ "Bone Armour", new BoneArmourData() },
+			{ "Molten Shell", new MoltenShellData() },
+			// 3.25: banners disabled temporarily until I can rework for the new banners with valour
+			// { "Defiance Banner", new DefianceBanner() },
+			// { "War Banner", new WarBanner() },
+			// { "Dread Banner", new DreadBanner() },
+			{ "Temporal Rift", new TemporalRift() },
+			{ "Berserk", new BerserkData() },
+			// { "Corrupting Fever", new CorruptingFeverData() },
+			// { "Enduring Cry", new EnduringCryData() },
+			{ "Plague Bearer", new PlagueBearerData() },
+			// { "Withering Step", new WitheringStepData() },
+			// { "Vaal Grace", new SkillData("Vaal Grace", "vaal_grace", "vaal_aura_dodge", null, (p) => true) },
+			// { "Vaal Haste", new SkillData("Vaal Haste", "vaal_haste", "vaal_aura_speed", null, (p) => true) },
+			// { "Vaal Cold Snap", new SkillData("Vaal Cold Snap", "new_vaal_cold_snap", "vaal_cold_snap_degen", null, (p) => false) }, // HasNearbyRares( },
+			{ "Vaal Discipline", new VaalDiscipline() },
+			{ "Vaal Grace", new VaalGrace() },
+			{ "Vaal Haste", new VaalHaste() },
+		};
+
 		public class BloodRageData : SkillData {
 			public BloodRageData() : base("Blood Rage", "blood_rage", "blood_rage") { }
 			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && IsFullLife(p);
@@ -277,6 +302,27 @@ namespace AtE.Plugins {
 			}
 		}
 
+		public class VaalHaste : SkillData {
+			public VaalHaste() : base("Vaal Haste", "vaal_haste", "vaal_aura_speed") { }
+			public override bool Predicate(PlayerEntity p) {
+				if ( !Enabled ) {
+					return false;
+				}
+				var skill = p.Actor.Skills.Where((s) => s.InternalName.Equals("vaal_haste")).FirstOrDefault();
+				if ( !IsValid(skill) ) {
+					return false;
+				}
+				if ( skill.SoulsPerUse <= 0 || skill.SoulsPerUse >= 0xFF ) {
+					return false; // invalid vaal record
+				}
+				if ( skill.CurVaalSouls < skill.SoulsPerUse ) {
+					return false;
+				}
+				return true;
+			}
+
+		}
+
 		public class VaalGrace : SkillData {
 			public int UseAtPercentEHP = 50;
 			public VaalGrace() : base("Vaal Grace", "vaal_grace", "vaal_aura_dodge") { }
@@ -343,29 +389,6 @@ namespace AtE.Plugins {
 
 		}
 
-		private Dictionary<string, SkillData> KnownSkills = new Dictionary<string, SkillData>() {
-			{ "Blood Rage", new BloodRageData() },
-			/// many of those are not quite right yet, like they need their SkillBarName checked/corrected, eg
-			{ "Steelskin", new SteelskinData() },
-			{ "Immortal Call", new ImmortalCallData() },
-			{ "Bone Armour", new BoneArmourData() },
-			{ "Molten Shell", new MoltenShellData() },
-			// 3.25: banners disabled temporarily until I can rework for the new banners with valour
-			// { "Defiance Banner", new DefianceBanner() },
-			// { "War Banner", new WarBanner() },
-			// { "Dread Banner", new DreadBanner() },
-			{ "Temporal Rift", new TemporalRift() },
-			{ "Berserk", new BerserkData() },
-			// { "Corrupting Fever", new CorruptingFeverData() },
-			// { "Enduring Cry", new EnduringCryData() },
-			{ "Plague Bearer", new PlagueBearerData() },
-			// { "Withering Step", new WitheringStepData() },
-			// { "Vaal Grace", new SkillData("Vaal Grace", "vaal_grace", "vaal_aura_dodge", null, (p) => true) },
-			// { "Vaal Haste", new SkillData("Vaal Haste", "vaal_haste", "vaal_aura_speed", null, (p) => true) },
-			// { "Vaal Cold Snap", new SkillData("Vaal Cold Snap", "new_vaal_cold_snap", "vaal_cold_snap_degen", null, (p) => false) }, // HasNearbyRares( },
-			{ "Vaal Discipline", new VaalDiscipline() },
-			{ "Vaal Grace", new VaalGrace() },
-		};
 
 		/// <summary>
 		/// Uses ImGui to render controls for configurable fields.
@@ -405,6 +428,12 @@ namespace AtE.Plugins {
 				foreach ( ActorSkill s in actor.Skills.Where(IsValid) ) {
 					ImGui.Text($" - InternalName: {s.InternalName}");
 				}
+				ImGui.Text($"Current Buffs:");
+				var buffs = p.GetComponent<Buffs>();
+				foreach(var buff in buffs.GetBuffs()) {
+					ImGui.Text($" - Name: {buff.Name} {buff.Timer}");
+				}
+
 			}
 			// ImGui.Text()
 			// var life = player.GetComponent<Life>();
