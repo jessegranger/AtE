@@ -89,6 +89,9 @@ namespace AtE {
 
 	}
 
+	/* A Cached object holds a value for one frame.
+	 * The producer function is called at most once per frame to get a fresh value.
+	 */
 	public class Cached<T> : IDisposable {
 		public Cached(Func<T> producer) => Producer = producer;
 		private T val;
