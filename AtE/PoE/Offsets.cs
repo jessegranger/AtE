@@ -1152,7 +1152,7 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Inventories {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x18)] public readonly ArrayHandle UnknownArray;
+			[FieldOffset(0x20)] public readonly ArrayHandle UnknownArray;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InventoryVisual {
