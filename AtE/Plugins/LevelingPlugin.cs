@@ -75,6 +75,9 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/Totems/StrengthTotem", "Totem - Spell Totem", "spell_totem", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Totems/DexterityTotem", "Totem - Spell Totem", "spell_totem", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Totems/HolyFireSprayTotem", "Totem - Holy Flame", "spell_totem", Color.LightGoldenrodYellow);
+			AddMinionSkillDesc("Metadata/Monsters/Clone/RangerCloneImmobile", "Mirror Arrow", "mirror_arrow", Color.Teal);
+			AddMinionSkillDesc("Metadata/Monsters/TemplarJudge/AbsolutionTemplarJudge", "Absolution", "absolution", Color.Teal);
+			AddMinionSkillDesc("Metadata/Monsters/Axis/AxisEliteSoldierHeraldOfLight", "Herald of Purity", "herald_of_purity", Color.Goldenrod);
 			// traps? mines?
 			// skitterbot curse ring
 			AddMinionSkillDesc("Raised Spectre", "Raised Spectre", "raise_spectre", Color.White);
