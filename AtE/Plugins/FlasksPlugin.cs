@@ -216,6 +216,9 @@ namespace AtE {
 			// Feature: Cure Conditions
 			if ( CureConditions ) {
 				if ( IsValid(buffs) ) {
+					if ( HasBuff(buffs, "shocked") && TryGetUsableFlask(f => f.Cures_Shocked, out flaskToUse)) {
+						return UseFlask(flaskToUse, "player is shocked");
+					}
 					if ( HasBuff(buffs, "frozen") && TryGetUsableFlask(f => f.Cures_Frozen, out flaskToUse) ) {
 						return UseFlask(flaskToUse, "player is frozen");
 					}
