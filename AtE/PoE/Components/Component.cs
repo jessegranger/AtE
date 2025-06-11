@@ -613,10 +613,10 @@ namespace AtE {
 	}
 	public class ItemMod {
 		private Offsets.ItemModEntry Entry;
-		public Cached<Offsets.File_ModsDat_Entry> ModData;
+		public Cached<Offsets.File_ModsDat_Entry> ModsDatEntry;
 		public ItemMod(Offsets.ItemModEntry entry) {
 			Entry = entry;
-			ModData = CachedStruct<Offsets.File_ModsDat_Entry>(() => entry.ptrModsDatEntry);
+			ModsDatEntry = CachedStruct<Offsets.File_ModsDat_Entry>(() => entry.ptrModsDatEntry);
 			if( IsValid(entry.ptrModsDatFile) ) {
 				if( ! PoEMemory.FileRoots.ContainsKey("Data/Mods.dat") ) {
 					Log($"Component: recognizing Data/Mods.dat at {Describe(entry.ptrModsDatFile)}");
@@ -624,28 +624,32 @@ namespace AtE {
 				}
 			}
 		}
-		public string GroupName => PoEMemory.TryReadString(ModData.Value.strName, Encoding.Unicode, out string name) ? name : null;
-		public string DisplayName => PoEMemory.TryReadString(ModData.Value.displayName, Encoding.Unicode, out string name) ? name : null;
+		public string GroupName => PoEMemory.TryReadString(ModsDatEntry.Value.strName, Encoding.Unicode, out string name) ? name : null;
+		public string DisplayName => PoEMemory.TryReadString(ModsDatEntry.Value.displayName, Encoding.Unicode, out string name) ? name : null;
 		public IEnumerable<int> Values =>
 			Entry.Values.GetRecordPtrs(sizeof(int))
 				.Select(a => PoEMemory.TryRead(a, out int value) ? value : 0);
 
 		public IntPtr Address => Entry.ptrModsDatEntry;
 
-		public Offsets.AffixType AffixType => ModData.Value.AffixType;
+		public Offsets.AffixType AffixType => ModsDatEntry.Value.AffixType;
 
 		public string[] GetAllTags() {
-			var mod = ModData.Value;
-			var tagArray = new Offsets.File_ModsDat_TagArray_Entry[mod.TagCount];
-			PoEMemory.TryRead(mod.TagArray, tagArray);
-			return tagArray.Select(tagEntry =>
-				PoEMemory.TryRead(tagEntry.ptrEntry, out Offsets.File_TagsDat_Entry tagData)
-				&& PoEMemory.TryReadString(tagData.strName, Encoding.Unicode, out string tagName)
-				? tagName : null).ToArray();
+			var mod = ModsDatEntry.Value;
+			if ( mod.TagCount > 0 && mod.TagCount < 24 ) {
+				var tagArray = new Offsets.File_ModsDat_TagArray_Entry[mod.TagCount];
+				PoEMemory.TryRead(mod.TagArray, tagArray);
+				return tagArray.Select(tagEntry =>
+					PoEMemory.TryRead(tagEntry.ptrEntry, out Offsets.File_TagsDat_Entry tagData)
+					&& PoEMemory.TryReadString(tagData.strName, Encoding.Unicode, out string tagName)
+					? tagName : null).ToArray();
+			} else {
+				return Empty<string>().ToArray();
+			}
 		}
 
 		public string Debug() {
-			var data = ModData.Value;
+			var data = ModsDatEntry.Value;
 			string ret = "";
 			if ( IsValid(data.Stat0Entry) ) {
 				if ( PoEMemory.TryRead(Entry.Values.GetRecordPtr(0, 4), out int value) ) {
