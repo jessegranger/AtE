@@ -1711,40 +1711,40 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_ModsDat_Entry {
 			[FieldOffset(0x000)] public readonly IntPtr strName;
-			[FieldOffset(0x008)] public readonly uint Hash;
-			[FieldOffset(0x00C)] public readonly IntPtr ModTypeEntry; // ptr to File_ModTypeDat_Entry
-			[FieldOffset(0x014)] public readonly IntPtr ModTypeFile; // ptr to base of Data/ModTypes.dat
-			[FieldOffset(0x01C)] public readonly uint MinLevel;
-			[FieldOffset(0x020)] public readonly IntPtr Stat0Entry; // ptr to a File_StatsDat_Entry
-			[FieldOffset(0x028)] public readonly IntPtr Stat0File; // ptr to a file base
-			[FieldOffset(0x030)] public readonly IntPtr Stat1Entry; // ptr to a File_StatsDat_Entry
-			[FieldOffset(0x038)] public readonly IntPtr Stat1File;
-			[FieldOffset(0x040)] public readonly IntPtr Stat2Entry; // ptr to a File_StatsDat_Entry
-			[FieldOffset(0x048)] public readonly IntPtr Stat2File;
-			[FieldOffset(0x050)] public readonly IntPtr Stat3Entry; // ptr to a File_StatsDat_Entry
-			[FieldOffset(0x058)] public readonly IntPtr Stat3File;
-			[FieldOffset(0x060)] public readonly uint Domain;
-			[FieldOffset(0x064)] public readonly IntPtr displayName;
-			[FieldOffset(0x06C)] public readonly AffixType AffixType;
-			[FieldOffset(0x070)] public readonly long Group;
-			[FieldOffset(0x078)] public readonly IntPtr Family; // ptr to ptr to Unicode "Strength"
-			[FieldOffset(0x080)] public readonly int Stat0Min;
-			[FieldOffset(0x084)] public readonly int Stat0Max;
-			[FieldOffset(0x088)] public readonly int Stat1Min;
-			[FieldOffset(0x08C)] public readonly int Stat1Max;
-			[FieldOffset(0x090)] public readonly int Stat2Min;
-			[FieldOffset(0x094)] public readonly int Stat2Max;
-			[FieldOffset(0x098)] public readonly int Stat3Min;
-			[FieldOffset(0x09C)] public readonly int Stat3Max;
-			[FieldOffset(0x0A0)] public readonly long TagCount;
-			[FieldOffset(0x0A8)] public readonly IntPtr TagArray;
-			[FieldOffset(0x0B0)] public readonly int TagChanceCount;
-			[FieldOffset(0x0B8)] public readonly IntPtr TagChanceArray;
-			[FieldOffset(0x0C0)] public readonly int UnkTagsCount;
-			[FieldOffset(0x0C8)] public readonly IntPtr UnkTagsArray;
-			[FieldOffset(0x180)] public readonly byte IsEssence;
-			[FieldOffset(0x206)] public readonly IntPtr MainTag; // ?
-			[FieldOffset(0x287)] public readonly long Padding; // so that total size = 0x28F (655)
+			[FieldOffset(0x008)] public readonly short Hash;
+			[FieldOffset(0x00a)] public readonly IntPtr ModTypeEntry; // ptr to File_ModTypeDat_Entry
+			[FieldOffset(0x012)] public readonly IntPtr ModTypeFile; // ptr to base of Data/ModTypes.dat
+			[FieldOffset(0x01a)] public readonly uint MinLevel;
+			[FieldOffset(0x01e)] public readonly IntPtr Stat0Entry; // ptr to a File_StatsDat_Entry
+			[FieldOffset(0x026)] public readonly IntPtr Stat0File; // ptr to a file base
+			[FieldOffset(0x02e)] public readonly IntPtr Stat1Entry; // ptr to a File_StatsDat_Entry
+			[FieldOffset(0x036)] public readonly IntPtr Stat1File;
+			[FieldOffset(0x03e)] public readonly IntPtr Stat2Entry; // ptr to a File_StatsDat_Entry
+			[FieldOffset(0x046)] public readonly IntPtr Stat2File;
+			[FieldOffset(0x04e)] public readonly IntPtr Stat3Entry; // ptr to a File_StatsDat_Entry
+			[FieldOffset(0x056)] public readonly IntPtr Stat3File;
+			[FieldOffset(0x058)] public readonly uint Domain;
+			[FieldOffset(0x062)] public readonly IntPtr displayName;
+			[FieldOffset(0x06a)] public readonly AffixType AffixType;
+			[FieldOffset(0x06e)] public readonly long Group;
+			[FieldOffset(0x076)] public readonly IntPtr Family; // ptr to ptr to Unicode "Strength"
+			[FieldOffset(0x07e)] public readonly int Stat0Min;
+			[FieldOffset(0x082)] public readonly int Stat0Max;
+			[FieldOffset(0x086)] public readonly int Stat1Min;
+			[FieldOffset(0x08a)] public readonly int Stat1Max;
+			[FieldOffset(0x08e)] public readonly int Stat2Min;
+			[FieldOffset(0x092)] public readonly int Stat2Max;
+			[FieldOffset(0x096)] public readonly int Stat3Min;
+			[FieldOffset(0x09a)] public readonly int Stat3Max;
+			[FieldOffset(0x09e)] public readonly long TagCount;
+			[FieldOffset(0x0A6)] public readonly IntPtr TagArray;
+			[FieldOffset(0x0ae)] public readonly int TagChanceCount;
+			[FieldOffset(0x0B6)] public readonly IntPtr TagChanceArray;
+			[FieldOffset(0x0be)] public readonly int UnkTagsCount;
+			[FieldOffset(0x0C6)] public readonly IntPtr UnkTagsArray;
+			[FieldOffset(0x17e)] public readonly byte IsEssence;
+			[FieldOffset(0x204)] public readonly IntPtr MainTag; // ?
+			[FieldOffset(0x285)] public readonly long Padding; // so that total size = 0x28F (655)
 		}
 
 		public enum AffixType : uint {
