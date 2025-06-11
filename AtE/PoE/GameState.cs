@@ -83,11 +83,13 @@ namespace AtE {
 		}
 	}
 
+	// GameState is a part of the PoE engine, which has at it's top level an array of such.
 	public class GameState : GameState<Offsets.Empty> { }
 
+	// GameState<T> allows to specify T, a struct, that defines the layout of memory of the GameState in PoE's memory
 	public class GameState<T> : MemoryObject<T>, IState where T : unmanaged {
 
-		// this is the only property done as a direct read (without the Cached<>)
+		// this is the only property done as a direct read (without the MemoryObject creating Cached<> value)
 		// because of the complexity of the templated inheritance
 		// it's almost never called except from something like the Object Browser
 		public Offsets.GameStateType Kind =>

@@ -279,7 +279,6 @@ namespace AtE.Plugins {
 								if ( ShowEnemyResistLightning && s.TryGetValue(GameStat.LightningDamageResistancePct, out int lightning) ) {
 									str += $"L:{lightning} ";
 								}
-								// TODO: Wither and Poison (count the buffs)
 								if ( str.Length > 0 ) {
 									DrawTextAt(ent, str, Color.White);
 								}
