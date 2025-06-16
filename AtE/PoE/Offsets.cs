@@ -371,9 +371,10 @@ namespace AtE {
 			// [FieldOffset(0x168)] public readonly uint ElementOverlayColor;
 
 			// 3.23: 16 new bytes (+ the 64 prior) added here
-			[FieldOffset(0x198)] public readonly Vector2 Size;
-			[FieldOffset(0x198)] public readonly float Width;
-			[FieldOffset(0x19c)] public readonly float Height;
+			// 3.26: 56 new bytes here
+			[FieldOffset(0x1d0)] public readonly Vector2 Size;
+			[FieldOffset(0x1d0)] public readonly float Width;
+			[FieldOffset(0x1d4)] public readonly float Height;
 
 			// everything below here is wrong I think
 			// [FieldOffset(0x190)] public readonly uint TextBoxBorderColor;
@@ -516,20 +517,22 @@ namespace AtE {
 			// [FieldOffset(0x250)] public readonly IntPtr GetQuests;
 			// 3.23: 16 bytes added here
 			// 3.24.3: 8 new bytes here
-			[FieldOffset(0x2a0)] public readonly IntPtr GameUI;
-			[FieldOffset(0x2b8)] public readonly IntPtr LifeBubble;
-			[FieldOffset(0x2c0)] public readonly IntPtr ManaBubble;
-			[FieldOffset(0x2e0)] public readonly IntPtr Flasks;
-			[FieldOffset(0x2e8)] public readonly IntPtr ExperienceBar;
-			[FieldOffset(0x300)] public readonly IntPtr OpenMenuPopoutButton ;
-			[FieldOffset(0x318)] public readonly IntPtr CurrentTime;
+			// 3.26: 8 fewer bytes here
+			[FieldOffset(0x298)] public readonly IntPtr GameUI;
+			[FieldOffset(0x2b0)] public readonly IntPtr LifeBubble;
+			[FieldOffset(0x2b8)] public readonly IntPtr ManaBubble;
+			[FieldOffset(0x2d8)] public readonly IntPtr Flasks;
+			[FieldOffset(0x2e0)] public readonly IntPtr ExperienceBar;
+			[FieldOffset(0x2f8)] public readonly IntPtr OpenMenuPopoutButton ;
+			[FieldOffset(0x310)] public readonly IntPtr CurrentTime;
 			// 3.23.2: 8 fewer bytes here
-			[FieldOffset(0x3a8)] public readonly IntPtr GreenShopButton;
-			[FieldOffset(0x3b0)] public readonly IntPtr HelpPanelButton;
-			[FieldOffset(0x3e8)] public readonly IntPtr Mouse;
-			[FieldOffset(0x3f0)] public readonly IntPtr SkillBar;
-			[FieldOffset(0x3f8)] public readonly IntPtr HiddenSkillBar;
+			[FieldOffset(0x3a0)] public readonly IntPtr GreenShopButton;
+			[FieldOffset(0x3a8)] public readonly IntPtr HelpPanelButton;
+			[FieldOffset(0x3e0)] public readonly IntPtr Mouse;
+			[FieldOffset(0x3e8)] public readonly IntPtr SkillBar;
+			[FieldOffset(0x3f0)] public readonly IntPtr HiddenSkillBar;
 			// Crucible: 8 new bytes here
+			// 3.26: 8 new bytes here
 			[FieldOffset(0x498)] public readonly IntPtr ChatBoxRoot;
 
 			[FieldOffset(0x4c8)] public readonly IntPtr QuestTracker;
@@ -763,8 +766,9 @@ namespace AtE {
 			[FieldOffset(0x1F4)] public readonly int MaxMana;
 			[FieldOffset(0x1F8)] public readonly int CurMana;
 
-			[FieldOffset(0x22c)] public readonly int MaxES;
-			[FieldOffset(0x230)] public readonly int CurES;
+			// 3.26: 16 new bytes here
+			[FieldOffset(0x23c)] public readonly int MaxES;
+			[FieldOffset(0x240)] public readonly int CurES;
 
 			// 3.19 [FieldOffset(0x230)] public readonly float Regen;
 			// 3.19 [FieldOffset(0x234)] public readonly int MaxHP;
@@ -1541,7 +1545,8 @@ namespace AtE {
 			// 3.23: 32 new bytes here
 			// 3.24: 8 new bytes here
 			// 3.24.3: 8 new bytes here
-			[FieldOffset(0x3a0)] public readonly InventoryArray InventoryList;
+			// 3.26: 8 fewer bytes here
+			[FieldOffset(0x398)] public readonly InventoryArray InventoryList;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InventoryArray {
@@ -1619,13 +1624,14 @@ namespace AtE {
 			// [FieldOffset(0x3F0)] public readonly IntPtr incorrectTooltip;
 			// 3.23: 16 new bytes here
 			// 3.24.3: 8 new bytes here
-			[FieldOffset(0x390)] public readonly IntPtr entItem;
+			// 3.26: 8 fewer byte here
+			[FieldOffset(0x388)] public readonly IntPtr entItem;
 			// [FieldOffset(0x378)] public readonly IntPtr unkNearPtr0x378;
 			// [FieldOffset(0x380)] public readonly int unkInt0x380;
 			// [FieldOffset(0x384)] public readonly short unkShort0x384;
 			// [FieldOffset(0x386)] public readonly short unkShort0x386;
 			// [FieldOffset(0x388)] public readonly IntPtr unkFarPtr0x388;
-			[FieldOffset(0x3b0)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
+			[FieldOffset(0x3a8)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
 			// [FieldOffset(0x3D0)] public readonly int unkInt0x3D0;
 			// 3.21.2b: 72 new bytes here?
 			[FieldOffset(0x434)] public readonly int Width;
@@ -1653,8 +1659,9 @@ namespace AtE {
 			// 3.23: 16 new bytes here
 			// 3.24: 8 new bytes here
 			// 3.24.3: 8 new bytes here
-			[FieldOffset(0x2a0)] public readonly IntPtr ptrToSubMap_Full;
-			[FieldOffset(0x2a8)] public readonly IntPtr ptrToSubMap_Mini;
+			// 3.26: 8 fewer bytes here
+			[FieldOffset(0x298)] public readonly IntPtr ptrToSubMap_Full;
+			[FieldOffset(0x2a0)] public readonly IntPtr ptrToSubMap_Mini;
 			// [FieldOffset(0x268)] public readonly IntPtr ptrToElement_OrangeWords;
 			// [FieldOffset(0x2C0)] public readonly IntPtr ptrToElement_BlueWords;
 		}
@@ -1663,9 +1670,10 @@ namespace AtE {
 			// 3.23: 24 new bytes here
 			// 3.24: 8 new bytes here
 			// 3.24.3: 8 new bytes here
-			[FieldOffset(0x290)] public readonly Vector2 Shift;
-			[FieldOffset(0x298)] public readonly Vector2 DefaultShift; // historically, always < 0, -20 >
-			[FieldOffset(0x2d0)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
+			// 3.26: 8 fewer bytes here
+			[FieldOffset(0x288)] public readonly Vector2 Shift;
+			[FieldOffset(0x290)] public readonly Vector2 DefaultShift; // historically, always < 0, -20 >
+			[FieldOffset(0x2c8)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_RootHeader {
