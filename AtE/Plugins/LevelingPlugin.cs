@@ -81,6 +81,7 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/Axis/AxisEliteSoldierDominatingBlow", "Dominating Blow", "dominating_blow", Color.Goldenrod);
 			AddMinionSkillDesc("Metadata/Monsters/Axis/AxisEliteSoldierDominatingBlowVaal", "Dominating Blow - Vaal", "dominating_blow", Color.Goldenrod);
 			AddMinionSkillDesc("Metadata/Monsters/DoubleCryWarrior/DoubleCryWarriorMarauder", "General's Cry", "generals_cry", Color.Maroon);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryRanger2Allied", "Mercenary - Ranger", "none", Color.AliceBlue);
 			// traps? mines?
 			// skitterbot curse ring
 			AddMinionSkillDesc("Raised Spectre", "Raised Spectre", "raise_spectre", Color.White);
