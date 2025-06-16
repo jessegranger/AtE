@@ -216,7 +216,7 @@ namespace AtE {
 			}
 			var pos = WorldToScreen(render.Position);
 			var bounds = render.Bounds;
-			return new RectangleF(pos.X - bounds.X, pos.Y - bounds.Y, bounds.X, bounds.Y);
+			return new RectangleF(pos.X - bounds.X, pos.Y - bounds.Y, bounds.X, bounds.Z);
 		}
 
 		public Dictionary<string,IntPtr> GetComponents() {
