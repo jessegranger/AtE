@@ -81,7 +81,19 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/Axis/AxisEliteSoldierDominatingBlow", "Dominating Blow", "dominating_blow", Color.Goldenrod);
 			AddMinionSkillDesc("Metadata/Monsters/Axis/AxisEliteSoldierDominatingBlowVaal", "Dominating Blow - Vaal", "dominating_blow", Color.Goldenrod);
 			AddMinionSkillDesc("Metadata/Monsters/DoubleCryWarrior/DoubleCryWarriorMarauder", "General's Cry", "generals_cry", Color.Maroon);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryRanger1Allied", "Mercenary - Ranger", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryRanger2Allied", "Mercenary - Ranger", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryShadow1Allied", "Mercenary - Shadow", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryShadow2Allied", "Mercenary - Shadow", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryDuelist1Allied_", "Mercenary - Duelist", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryDuelist2Allied_", "Mercenary - Duelist", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryTemplar1Allied", "Mercenary - Templar", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryTemplar2Allied", "Mercenary - Templar", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryTemplar2Allied__", "Mercenary - Templar", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryWitch1Allied", "Mercenary - Witch", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryWitch2Allied", "Mercenary - Witch", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryMarauder1Allied", "Mercenary - Marauder", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryMarauder2Allied", "Mercenary - Marauder", "none", Color.AliceBlue);
 			// traps? mines?
 			// skitterbot curse ring
 			AddMinionSkillDesc("Raised Spectre", "Raised Spectre", "raise_spectre", Color.White);
