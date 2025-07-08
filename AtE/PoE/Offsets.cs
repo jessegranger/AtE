@@ -337,7 +337,7 @@ namespace AtE {
 			// 3.22: 24 new bytes here
 			// 3.24.3: 8 new bytes here
 			// 3.25: 256 new bytes here
-			[FieldOffset(0x748)] public readonly IntPtr strAreaName;
+			[FieldOffset(0x758)] public readonly IntPtr strAreaName;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LoginGameState {
 			[FieldOffset(0x2D0)] public readonly IntPtr elemRoot;
@@ -486,6 +486,18 @@ namespace AtE {
 			[FieldOffset(0x108)] public readonly uint CurrentAreaHash;
 			[FieldOffset(0x118)] public readonly IntPtr MapStats;
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
+
+			// IsPaused: this is not really the right way to do this
+			// at this location are three pointers:
+			//  0x8f8 = Running ptr
+			//  0x8a0 = Current ptr
+			//  0x8a8 = Paused ptr
+			// When Paused, the Current ptr is equal to the Paused ptr
+			// When Running, the Current ptr is equal to the Running ptr
+			// But, this is a quick and dirty hack for now that doesn't require reading
+			// and comparing all three pointers
+			[FieldOffset(0x8a0)] public readonly byte PauseByte;
+			public const byte PauseMask = 0x08; // IsPaused = (PauseByte & PauseMask) > 0
 
 			// Crucible: 8 new bytes here
 			// 3.22: 120 new bytes here
@@ -1838,10 +1850,11 @@ namespace AtE {
 		public const string HIDEOUT_SUFFIX = "Hideout";
 		public const string SYNDICATE_HIDEOUT = "Syndicate Hideout";
 		public const string ANCESTOR_TOWN = "The Halls of the Dead";
+		public const string KINGSMARCH = "Kingsmarch";
 		public static bool IsHideout(string areaName) {
 			return areaName == null
 					|| areaName.Equals(THE_ROGUE_HARBOUR)
-					// || areaName.Equals(ANCESTOR_TOWN)
+					|| areaName.Equals(KINGSMARCH)
 					|| (areaName.EndsWith(HIDEOUT_SUFFIX) && !areaName.Equals(SYNDICATE_HIDEOUT));
 		}
 
