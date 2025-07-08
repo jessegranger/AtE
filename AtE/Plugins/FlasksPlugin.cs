@@ -102,6 +102,11 @@ namespace AtE {
 				return this;
 			}
 
+			if ( PoEMemory.GameRoot?.InGameState.IsPaused ?? true ) {
+				DrawBottomLeftText("Flasks are paused when the game is paused", Color.LightGray);
+				return this;
+			}
+
 			if ( PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true ) {
 				DrawBottomLeftText("Flasks are paused on loading screens.", Color.LightGray);
 				return this;
@@ -119,7 +124,7 @@ namespace AtE {
 
 			string areaName = PoEMemory.GameRoot?.AreaLoadingState.AreaName ?? null;
 			if( Offsets.IsHideout(areaName) ) {
-				DrawBottomLeftText("Flasks are paused in towns and hideouts.", Color.LightGray);
+				DrawBottomLeftText("Flasks are paused in hideouts.", Color.LightGray);
 				return this;
 			}
 

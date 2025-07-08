@@ -453,20 +453,29 @@ namespace AtE.Plugins {
 		public override IState OnTick(long dt) {
 			if ( Enabled && !Paused && PoEMemory.TargetHasFocus ) {
 
+				if ( PoEMemory.GameRoot?.InGameState?.IsPaused ?? true ) {
+					DrawBottomLeftText("Skills are paused when the game is paused.", Color.LightGray);
+					return this;
+				}
+
 				if( PoEMemory.GameRoot?.InGameState?.WorldData?.IsTown ?? true ) {
+					DrawBottomLeftText("Skills are paused in towns.", Color.LightGray);
 					return this;
 				}
 
-				if( PoEMemory.GameRoot.InGameState.HasInputFocus ) {
+				if( PoEMemory.GameRoot?.InGameState?.HasInputFocus ?? true ) {
+					DrawBottomLeftText("Skills are paused during text input.", Color.LightGray);
 					return this;
 				}
 
-				if( PoEMemory.GameRoot.AreaLoadingState.IsLoading ) {
+				if( PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true) {
+					DrawBottomLeftText("Skills are paused on loading screens.", Color.LightGray);
 					return this;
 				}
 
 				string areaName = PoEMemory.GameRoot?.AreaLoadingState.AreaName ?? null;
 				if( Offsets.IsHideout(areaName) ) {
+					DrawBottomLeftText("Skills are paused in hideouts.", Color.LightGray);
 					return this;
 				}
 
@@ -480,6 +489,7 @@ namespace AtE.Plugins {
 					|| (ui.TradeWindow?.IsVisibleLocal ?? false);
 
 				if ( isTrading ) {
+					DrawBottomLeftText("Skills are paused while trading", Color.LightGray);
 					return this;
 				}
 
@@ -490,8 +500,11 @@ namespace AtE.Plugins {
 
 				var buffs = player.GetComponent<Buffs>();
 				if( buffs == default || HasBuff(buffs, "grace_period") ) {
+					DrawBottomLeftText("Skills are paused during grace period", Color.LightGray);
 					return this;
 				}
+
+				// TODO: paused while NPC dialog is open
 
 				/*
 				DrawTextAt(player, $"HasBuff(bloodstained_banner_buff_aura) = {HasBuff(player, "bloodstained_banner_buff_aura")}", Color.Orange);
