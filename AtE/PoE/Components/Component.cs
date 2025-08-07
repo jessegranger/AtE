@@ -144,6 +144,10 @@ namespace AtE {
 					return;
 				}
 
+				if( ! Globals.IsValid(value) ) {
+					return;
+				}
+
 				base.Address = value;
 
 				if ( value == IntPtr.Zero ) {
