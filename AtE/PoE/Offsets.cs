@@ -21,12 +21,12 @@ namespace AtE {
 		/// The current version of this file.
 		/// </summary>
 		public const int VersionMajor = 1;
-		public const int VersionMinor = 10;
+		public const int VersionMinor = 11;
 
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.26.0c";
+		public const string PoEVersion = "3.26.0f";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -487,17 +487,15 @@ namespace AtE {
 			[FieldOffset(0x118)] public readonly IntPtr MapStats;
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
 
-			// IsPaused: this is not really the right way to do this
-			// at this location are three pointers:
+			// IsPaused: there are three pointers:
 			//  0x8f8 = Running ptr
 			//  0x8a0 = Current ptr
 			//  0x8a8 = Paused ptr
 			// When Paused, the Current ptr is equal to the Paused ptr
 			// When Running, the Current ptr is equal to the Running ptr
-			// But, this is a quick and dirty hack for now that doesn't require reading
-			// and comparing all three pointers
-			[FieldOffset(0x8a0)] public readonly byte PauseByte;
-			public const byte PauseMask = 0x08; // IsPaused = (PauseByte & PauseMask) > 0
+			[FieldOffset(0x898)] public readonly IntPtr RunningPtr;
+			[FieldOffset(0x8a0)] public readonly IntPtr CurrentPtr;
+			[FieldOffset(0x8a8)] public readonly IntPtr PausedPtr;
 
 			// Crucible: 8 new bytes here
 			// 3.22: 120 new bytes here

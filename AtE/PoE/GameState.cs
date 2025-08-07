@@ -169,7 +169,7 @@ namespace AtE {
 			}
 		}
 
-		public bool IsPaused => (Data.Value.PauseByte & Offsets.InGameState_Data.PauseMask) != 0x00;
+		public bool IsPaused => (Data.Value.CurrentPtr == Data.Value.PausedPtr);
 
 		public Element Hovered => IsValid(Address) && ElementCache.TryGetElement(Cache.elemHover, out Element hover) ? hover : null;
 
