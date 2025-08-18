@@ -75,6 +75,7 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/Totems/StrengthTotem", "Totem - Spell Totem", "spell_totem", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Totems/DexterityTotem", "Totem - Spell Totem", "spell_totem", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Totems/HolyFireSprayTotem", "Totem - Holy Flame", "spell_totem", Color.LightGoldenrodYellow);
+			AddMinionSkillDesc("Metadata/Monsters/Totems/LifeRegenTotem", "Totem - Rejuvenation", "spell_totem", Color.LightGoldenrodYellow);
 			AddMinionSkillDesc("Metadata/Monsters/Clone/RangerCloneImmobile", "Mirror Arrow", "mirror_arrow", Color.Teal);
 			AddMinionSkillDesc("Metadata/Monsters/TemplarJudge/AbsolutionTemplarJudge", "Absolution", "absolution", Color.Teal);
 			AddMinionSkillDesc("Metadata/Monsters/Axis/AxisEliteSoldierHeraldOfLight", "Herald of Purity", "herald_of_purity", Color.Goldenrod);
@@ -87,6 +88,7 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryShadow2Allied", "Mercenary - Shadow", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryDuelist1Allied_", "Mercenary - Duelist", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryDuelist2Allied_", "Mercenary - Duelist", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryDuelist2Allied", "Mercenary - Duelist", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryTemplar1Allied", "Mercenary - Templar", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryTemplar2Allied", "Mercenary - Templar", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryTemplar2Allied__", "Mercenary - Templar", "none", Color.AliceBlue);
@@ -94,6 +96,9 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryWitch2Allied", "Mercenary - Witch", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryMarauder1Allied", "Mercenary - Marauder", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryMarauder2Allied", "Mercenary - Marauder", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryScion1Allied", "Mercenary - Scion", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryScion2Allied", "Mercenary - Scion", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/MiscellaneousObjects/RemoteMineFire", "Pyroclast Mine", "none", Color.OrangeRed);
 			// traps? mines?
 			// skitterbot curse ring
 			AddMinionSkillDesc("Raised Spectre", "Raised Spectre", "raise_spectre", Color.White);
