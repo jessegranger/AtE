@@ -487,15 +487,16 @@ namespace AtE {
 			[FieldOffset(0x118)] public readonly IntPtr MapStats;
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
 
+			// 16 new bytes here
 			// IsPaused: there are three pointers:
 			//  0x8f8 = Running ptr
 			//  0x8a0 = Current ptr
 			//  0x8a8 = Paused ptr
 			// When Paused, the Current ptr is equal to the Paused ptr
 			// When Running, the Current ptr is equal to the Running ptr
-			[FieldOffset(0x898)] public readonly IntPtr RunningPtr;
-			[FieldOffset(0x8a0)] public readonly IntPtr CurrentPtr;
-			[FieldOffset(0x8a8)] public readonly IntPtr PausedPtr;
+			[FieldOffset(0x8a8)] public readonly IntPtr RunningPtr;
+			[FieldOffset(0x8b0)] public readonly IntPtr CurrentPtr;
+			[FieldOffset(0x8b8)] public readonly IntPtr PausedPtr;
 
 			// Crucible: 8 new bytes here
 			// 3.22: 120 new bytes here
@@ -503,10 +504,10 @@ namespace AtE {
 			// 3.22.2: 8 bytes removed here
 			// 3.24: 128 new bytes here
 			// 3.24.3b: 24 bytes removed here
-			[FieldOffset(0x8c8)] public readonly IntPtr ServerData;
-			[FieldOffset(0x8d0)] public readonly IntPtr entPlayer; // ptr Entity
-			[FieldOffset(0x980)] public readonly IntPtr EntityListHead; // ptr EntityListNode
-			[FieldOffset(0x988)] public readonly long EntitiesCount;
+			[FieldOffset(0x8d8)] public readonly IntPtr ServerData;
+			[FieldOffset(0x8e0)] public readonly IntPtr entPlayer; // ptr Entity
+			[FieldOffset(0x990)] public readonly IntPtr EntityListHead; // ptr EntityListNode
+			[FieldOffset(0x998)] public readonly long EntitiesCount;
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 		}
 
@@ -1490,9 +1491,10 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Targetable {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x48)] public readonly bool IsTargetable;
-			[FieldOffset(0x49)] public readonly bool IsHighlightable;
-			[FieldOffset(0x4A)] public readonly bool IsTargeted;
+			// 8 new bytes here
+			[FieldOffset(0x50)] public readonly bool IsTargetable;
+			[FieldOffset(0x51)] public readonly bool IsHighlightable;
+			[FieldOffset(0x52)] public readonly bool IsTargeted;
 		}
 
 
