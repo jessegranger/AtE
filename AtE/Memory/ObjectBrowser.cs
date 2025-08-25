@@ -211,7 +211,12 @@ namespace AtE {
 
 			if ( type.Equals(typeof(Entity)) || type.IsSubclassOf(typeof(Entity)) ) {
 				var ent = (Entity)value;
-				return ImGui.TreeNode($"{prefix} {type.Name} {ent.Address} [{(IsValid(ent) ? "Valid" : "Invalid")}]");
+				bool ret = ImGui.TreeNode($"{prefix} {type.Name} {ent.Address} [{(IsValid(ent) ? "Valid" : "Invalid")}]");
+				if( IsValid(ent) && ImGui.IsItemHovered() ) {
+					var r = ent.GetClientRect();
+					DrawFrame(r, Color.Yellow, 3);
+				}
+				return ret;
 			}
 
 			if ( type.Equals(typeof(Vector2)) ) {
