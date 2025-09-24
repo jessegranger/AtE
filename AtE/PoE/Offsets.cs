@@ -1391,11 +1391,12 @@ namespace AtE {
 			[FieldOffset(0x1E0)] public readonly byte Reaction;
 			// [FieldOffset(0x1F1)] public readonly byte Reaction;
 			public bool IsHostile => (Reaction & 0x7F) != 1;
-			[FieldOffset(0x290)] public readonly Vector2i GridPos;
-			[FieldOffset(0x298)] public readonly float Rotation;
-			[FieldOffset(0x2a8)] public readonly float Scale;
-			[FieldOffset(0x2ac)] public readonly int Size;
-			[FieldOffset(0x2b4)] public readonly Vector2 WorldPos;
+			// 4 new bytes here?
+			[FieldOffset(0x294)] public readonly Vector2i GridPos;
+			[FieldOffset(0x29c)] public readonly float Rotation;
+			[FieldOffset(0x2ac)] public readonly float Scale;
+			[FieldOffset(0x2b0)] public readonly int Size;
+			[FieldOffset(0x2b8)] public readonly Vector2 WorldPos;
 		}
 
 		public static Vector3 GridToWorld(Vector2i gridPos, float z) {
