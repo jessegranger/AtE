@@ -231,7 +231,7 @@ namespace AtE.Plugins {
 										seenBuffs.Add(buff.Name);
 										if( name.Equals("poison") ) {
 											poisonStacks += 1;
-										} else if( name.Equals("wither") ) {
+										} else if( name.Equals("withered") ) {
 											witherStacks += 1;
 										} else if( name.Equals("grasping_vines_buff") ) {
 											graspingVines = buff.Charges;
