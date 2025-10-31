@@ -488,15 +488,16 @@ namespace AtE {
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
 
 			// 16 new bytes here
+			// 3.27: 8 new bytes here
 			// IsPaused: there are three pointers:
 			//  0x8f8 = Running ptr
 			//  0x8a0 = Current ptr
 			//  0x8a8 = Paused ptr
 			// When Paused, the Current ptr is equal to the Paused ptr
 			// When Running, the Current ptr is equal to the Running ptr
-			[FieldOffset(0x8a8)] public readonly IntPtr RunningPtr;
-			[FieldOffset(0x8b0)] public readonly IntPtr CurrentPtr;
-			[FieldOffset(0x8b8)] public readonly IntPtr PausedPtr;
+			[FieldOffset(0x8b0)] public readonly IntPtr RunningPtr;
+			[FieldOffset(0x8b8)] public readonly IntPtr CurrentPtr;
+			[FieldOffset(0x8c0)] public readonly IntPtr PausedPtr;
 
 			// Crucible: 8 new bytes here
 			// 3.22: 120 new bytes here
@@ -504,10 +505,12 @@ namespace AtE {
 			// 3.22.2: 8 bytes removed here
 			// 3.24: 128 new bytes here
 			// 3.24.3b: 24 bytes removed here
-			[FieldOffset(0x8d8)] public readonly IntPtr ServerData;
-			[FieldOffset(0x8e0)] public readonly IntPtr entPlayer; // ptr Entity
-			[FieldOffset(0x990)] public readonly IntPtr EntityListHead; // ptr EntityListNode
-			[FieldOffset(0x998)] public readonly long EntitiesCount;
+			// 3.27: 8 new bytes here
+			[FieldOffset(0x8e0)] public readonly IntPtr ServerData;
+			[FieldOffset(0x8e8)] public readonly IntPtr entPlayer; // ptr Entity
+			// 3.27: 16 new bytes here
+			[FieldOffset(0x9a0)] public readonly IntPtr EntityListHead; // ptr EntityListNode
+			[FieldOffset(0x9a8)] public readonly long EntitiesCount;
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 		}
 
@@ -537,38 +540,39 @@ namespace AtE {
 			[FieldOffset(0x2f8)] public readonly IntPtr OpenMenuPopoutButton ;
 			[FieldOffset(0x310)] public readonly IntPtr CurrentTime;
 			// 3.23.2: 8 fewer bytes here
-			[FieldOffset(0x3a0)] public readonly IntPtr GreenShopButton;
-			[FieldOffset(0x3a8)] public readonly IntPtr HelpPanelButton;
-			[FieldOffset(0x3e0)] public readonly IntPtr Mouse;
-			[FieldOffset(0x3e8)] public readonly IntPtr SkillBar;
-			[FieldOffset(0x3f0)] public readonly IntPtr HiddenSkillBar;
+			// 3.27: 8 new bytes here
+			[FieldOffset(0x3a8)] public readonly IntPtr GreenShopButton;
+			[FieldOffset(0x3b0)] public readonly IntPtr HelpPanelButton;
+			[FieldOffset(0x3e8)] public readonly IntPtr Mouse;
+			[FieldOffset(0x3f0)] public readonly IntPtr SkillBar;
+			[FieldOffset(0x3f8)] public readonly IntPtr HiddenSkillBar;
 			// Crucible: 8 new bytes here
 			// 3.26: 8 new bytes here
-			[FieldOffset(0x498)] public readonly IntPtr ChatBoxRoot;
+			[FieldOffset(0x4a0)] public readonly IntPtr ChatBoxRoot;
 
-			[FieldOffset(0x4c8)] public readonly IntPtr QuestTracker;
-			[FieldOffset(0x550)] public readonly IntPtr OpenLeftPanel;
-			[FieldOffset(0x558)] public readonly IntPtr OpenRightPanel;
-			[FieldOffset(0x580)] public readonly IntPtr InventoryPanel;
-			[FieldOffset(0x588)] public readonly IntPtr StashElement;
-			[FieldOffset(0x590)] public readonly IntPtr GuildStashElement;
-			[FieldOffset(0x5a8)] public readonly IntPtr SocialPanel;
+			[FieldOffset(0x4d0)] public readonly IntPtr QuestTracker;
+			[FieldOffset(0x558)] public readonly IntPtr OpenLeftPanel;
+			[FieldOffset(0x560)] public readonly IntPtr OpenRightPanel;
+			[FieldOffset(0x588)] public readonly IntPtr InventoryPanel;
+			[FieldOffset(0x590)] public readonly IntPtr StashElement;
+			[FieldOffset(0x598)] public readonly IntPtr GuildStashElement;
+			[FieldOffset(0x5b0)] public readonly IntPtr SocialPanel;
 			// [FieldOffset(0x618)] public readonly IntPtr AtlasPanel;
 			// [FieldOffset(0x620)] public readonly IntPtr AtlasSkillPanel;
 			// [FieldOffset(0x650)] public readonly IntPtr WorldMap;
-			[FieldOffset(0x5d0)] public readonly IntPtr CharacterPanel;
-			[FieldOffset(0x5d8)] public readonly IntPtr OptionsPanel;
-			[FieldOffset(0x5e0)] public readonly IntPtr ChallengesPanel;
-			[FieldOffset(0x5e8)] public readonly IntPtr PantheonPanel;
-			[FieldOffset(0x5f0)] public readonly IntPtr PvPPanel;
-			[FieldOffset(0x5f8)] public readonly IntPtr AreaInstanceUi;
+			[FieldOffset(0x5d8)] public readonly IntPtr CharacterPanel;
+			[FieldOffset(0x5e0)] public readonly IntPtr OptionsPanel;
+			[FieldOffset(0x5e8)] public readonly IntPtr ChallengesPanel;
+			[FieldOffset(0x5f0)] public readonly IntPtr PantheonPanel;
+			[FieldOffset(0x5f8)] public readonly IntPtr PvPPanel;
+			[FieldOffset(0x600)] public readonly IntPtr AreaInstanceUi;
 
 			[FieldOffset(0x640)] public readonly IntPtr Map;
 			[FieldOffset(0x648)] public readonly IntPtr ItemsOnGroundLabelElement;
 			//[FieldOffset(0x628)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
 			[FieldOffset(0x6c8)] public readonly IntPtr RootBuffPanel;
-			[FieldOffset(0x6d0)] public readonly IntPtr NpcDialog;
-			[FieldOffset(0x6d8)] public readonly IntPtr NpcOptions;
+			[FieldOffset(0x6e8)] public readonly IntPtr NpcDialog;
+			[FieldOffset(0x6f0)] public readonly IntPtr NpcOptions;
 			// [FieldOffset(0x728)] public readonly IntPtr LeagueInteractButtonPanel;
 			// [FieldOffset(0x728)] public readonly IntPtr QuestRewardWindow;
 			// [FieldOffset(0x730)] public readonly IntPtr Unknown730;
@@ -687,7 +691,8 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct EntityDetails {
 			[FieldOffset(0x08)] public readonly IntPtr ptrPath;
-			[FieldOffset(0x30)] public readonly IntPtr ptrComponentLookup; // used to find which Component is which in the ComponentsArray
+			// 3.27: 8 fewer bytes here
+			[FieldOffset(0x28)] public readonly IntPtr ptrComponentLookup; // used to find which Component is which in the ComponentsArray
 		}
 
 		/// <summary>
@@ -1673,8 +1678,9 @@ namespace AtE {
 			// 3.24: 8 new bytes here
 			// 3.24.3: 8 new bytes here
 			// 3.26: 8 fewer bytes here
-			[FieldOffset(0x298)] public readonly IntPtr ptrToSubMap_Full;
-			[FieldOffset(0x2a0)] public readonly IntPtr ptrToSubMap_Mini;
+			// 3.27: refer to the first two children
+			[FieldOffset(0x48)] public readonly IntPtr ptrToSubMap_Full;
+			[FieldOffset(0x50)] public readonly IntPtr ptrToSubMap_Mini;
 			// [FieldOffset(0x268)] public readonly IntPtr ptrToElement_OrangeWords;
 			// [FieldOffset(0x2C0)] public readonly IntPtr ptrToElement_BlueWords;
 		}
