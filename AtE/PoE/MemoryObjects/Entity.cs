@@ -22,26 +22,25 @@ namespace AtE {
 			long vtablePtr = ent.vtablePtr.ToInt64();
 			
 			// If we've already memo-ized the current pointers, check them:
-			if( (Entity.cachedVtablePtr1 != 0) && (vtablePtr == Entity.cachedVtablePtr1) ) {
-				return true;
+			for(int i = 0; i < Entity.cachedVtablePtr.Length; i++ ) {
+				long p = Entity.cachedVtablePtr[i];
+				if( (p != 0) && (vtablePtr == p) ) {
+					return true; // Entities are valid when they have a recognized vtablePtr
+				}
 			}
-			if( (Entity.cachedVtablePtr2 != 0) && (vtablePtr == Entity.cachedVtablePtr2) ) {
-				return true;
-			}
-			if( (Entity.cachedVtablePtr3 != 0) && (vtablePtr == Entity.cachedVtablePtr3) ) {
-				return true;
-			}
+			// recognize vtablePtrs that we haven't seen before, by reading their Path value
 			if ( ent.Path?.StartsWith("Meta") ?? false ) {
-#if DEBUG
-				Log($"Entity: Valid Entity path found with unknown Entity vtable ptr {Describe(ent.vtablePtr)}");
-#endif
 				// Memo-ize the valid Entity pointers the first time we see them
-				if( Entity.cachedVtablePtr1 == 0 ) {
-					Entity.cachedVtablePtr1 = vtablePtr;
-				} else if ( Entity.cachedVtablePtr2 == 0 ) {
-					Entity.cachedVtablePtr2 = vtablePtr;
-				} else if ( Entity.cachedVtablePtr3 == 0 ) {
-					Entity.cachedVtablePtr3 = vtablePtr;
+				bool full = true;
+				for(int i = 0; i < Entity.cachedVtablePtr.Length; i++ ) {
+					if( Entity.cachedVtablePtr[i] == 0 ) {
+						Entity.cachedVtablePtr[i] = vtablePtr;
+						full = false;
+						break;
+					}
+				}
+				if( full ) {
+					Log($"Entity: Valid Entity recognized at {Describe(ent.vtablePtr)}, but vtable ptr cache is full, increase it's size.");
 				}
 				return true;
 			}
@@ -98,15 +97,11 @@ namespace AtE {
 		private Dictionary<string, MemoryObject> ComponentCache; // these are filled in as requested, then re-used if requested a second time
 		private long LastParseTime;
 
-		internal static long cachedVtablePtr1;
-		internal static long cachedVtablePtr2;
-		internal static long cachedVtablePtr3;
+		internal static long[] cachedVtablePtr = new long[3];
 		static Entity() {
 			OnAreaChange += (obj, areaName) => {
 				// clear the Entity vtable pointer cache entries on zone change
-				cachedVtablePtr1 = 0;
-				cachedVtablePtr2 = 0;
-				cachedVtablePtr3 = 0;
+				Array.Clear(cachedVtablePtr, 0, cachedVtablePtr.Length);
 			};
 		}
 
