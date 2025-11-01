@@ -21,12 +21,12 @@ namespace AtE {
 		/// The current version of this file.
 		/// </summary>
 		public const int VersionMajor = 1;
-		public const int VersionMinor = 11;
+		public const int VersionMinor = 12;
 
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.26.0f";
+		public const string PoEVersion = "3.27.0";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -427,10 +427,11 @@ namespace AtE {
 			// 3.23: 40 new bytes here?
 			// 3.24: 8 fewer bytes here
 			// 3.24.3b: 8 bytes removed here
-			[FieldOffset(0xa0)] public readonly IntPtr ptrToWorldAreaDetails;
-			[FieldOffset(0xa8)] public readonly IntPtr ptrUnk90;
+			// 3.27: 8 new bytes here
+			[FieldOffset(0xa8)] public readonly IntPtr ptrToWorldAreaDetails;
+			[FieldOffset(0xb0)] public readonly IntPtr ptrUnk90;
 			// 3.24.3b: 8 bytes added here
-			[FieldOffset(0x10c)] public readonly uint areaHash;
+			[FieldOffset(0x114)] public readonly uint areaHash;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaDetails {
