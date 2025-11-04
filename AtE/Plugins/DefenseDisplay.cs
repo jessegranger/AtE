@@ -82,7 +82,7 @@ namespace AtE.Plugins {
 				}
 				if ( inputFilter.Length > 0 ) {
 					var entries = stats.Entries;
-					var filteredItems = entries.Where((kv) => kv.Key.ToString().Contains(inputFilter) || kv.Value.ToString().Contains(inputFilter)).ToArray();
+					var filteredItems = entries.Where((kv) => kv.Key.ToString().Contains(inputFilter) || kv.Value.ToString().Equals(inputFilter)).ToArray();
 					float maxWidth = 0;
 					if ( filteredItems.Length > 0 ) {
 						maxWidth = filteredItems.Select((kv) => ImGui.CalcTextSize(kv.Key.ToString()).X).Max();
