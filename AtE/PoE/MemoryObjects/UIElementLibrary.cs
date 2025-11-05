@@ -13,6 +13,9 @@ namespace AtE {
 
 		public IEnumerable<InventoryItem> BackpackItems => BackpackItems();
 
+		// even though this doesn't from from InGameState, put it here for convenience
+		public Element EscapeMenu => PoEMemory.GameRoot?.EscapeState?.Menu;
+
 		// public Element GetQuests => IsValid(Address) ? getElement(Cache.GetQuests) : null;
 		public Element GameUI => IsValid(Address) ? getElement(Cache.GameUI) : null;
 		public Element LifeBubble => IsValid(Address) ? getElement(Cache.LifeBubble) : null;
@@ -23,6 +26,7 @@ namespace AtE {
 		public Element CurrentTime => IsValid(Address) ? getElement(Cache.CurrentTime) : null;
 		public Element Mouse => IsValid(Address) ? getElement(Cache.Mouse) : null;
 		public Element SkillBar => IsValid(Address) ? getElement(Cache.SkillBar) : null;
+		public Element SkillTree => IsValid(Address) ? getElement(Cache.SkillTree) : null;
 		public Element HiddenSkillBar => IsValid(Address) ? getElement(Cache.HiddenSkillBar) : null;
 		public Element ChatBoxRoot => IsValid(Address) ? getElement(Cache.ChatBoxRoot) : null;
 		public Element QuestTracker => IsValid(Address) ? getElement(Cache.QuestTracker) : null;
