@@ -102,27 +102,38 @@ namespace AtE {
 				return this;
 			}
 
-			if ( PoEMemory.GameRoot?.InGameState.IsPaused ?? true ) {
-				DrawBottomLeftText("Flasks are paused when the game is paused", Color.LightGray);
+			var gameRoot = PoEMemory.GameRoot;
+			if( !IsValid(gameRoot) ) {
 				return this;
 			}
 
-			if ( PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true ) {
+			// as of now (3.27) this is unreliable
+			// if ( PoEMemory.GameRoot?.InGameState.IsPaused ?? true ) {
+			// DrawBottomLeftText("Flasks are paused when the game is paused", Color.LightGray);
+			// return this;
+			// }
+
+			if ( gameRoot.EscapeState?.Menu != null ) {
+				DrawBottomLeftText("Flasks are paused for Escape menu.", Color.LightGray);
+				return this;
+			}
+
+			if ( gameRoot.AreaLoadingState?.IsLoading ?? true ) {
 				DrawBottomLeftText("Flasks are paused on loading screens.", Color.LightGray);
 				return this;
 			}
 
-			if ( PoEMemory.GameRoot?.InGameState?.HasInputFocus ?? true ) {
+			if ( gameRoot.InGameState?.HasInputFocus ?? true ) {
 				DrawBottomLeftText("Flasks are paused during text input.", Color.LightGray);
 				return this;
 			}
 
-			if ( PoEMemory.GameRoot?.InGameState?.WorldData?.IsTown ?? true ) {
+			if ( gameRoot.InGameState?.WorldData?.IsTown ?? true ) {
 				DrawBottomLeftText("Flasks are paused in towns.", Color.LightGray);
 				return this;
 			}
 
-			string areaName = PoEMemory.GameRoot?.AreaLoadingState.AreaName ?? null;
+			string areaName = gameRoot.AreaLoadingState.AreaName ?? null;
 			if( Offsets.IsHideout(areaName) ) {
 				DrawBottomLeftText("Flasks are paused in hideouts.", Color.LightGray);
 				return this;
@@ -130,6 +141,12 @@ namespace AtE {
 
 			var ui = GetUI();
 			if ( !IsValid(ui) ) { return this; }
+
+			if( ui.SkillTree?.IsVisibleLocal ?? true) {
+				DrawBottomLeftText("Skills are paused for the skill tree.", Color.LightGray);
+				return this;
+			}
+
 			bool sellIsOpen = (ui.SellWindow?.IsVisibleLocal ?? true);
 			bool buyIsOpen = (ui.PurchaseWindow?.IsVisibleLocal ?? true);
 			bool tradeIsOpen = (ui.TradeWindow?.IsVisibleLocal ?? true);

@@ -451,29 +451,40 @@ namespace AtE.Plugins {
 		/// <param name="dt">duration of this frame, in ms</param>
 		/// <returns>This plugin, or another IState to replace it.</returns>
 		public override IState OnTick(long dt) {
+				// PoEMemory.GameRoot?.InGameState?.DebugIsPaused();
 			if ( Enabled && !Paused && PoEMemory.TargetHasFocus ) {
 
-				if ( PoEMemory.GameRoot?.InGameState?.IsPaused ?? true ) {
-					DrawBottomLeftText("Skills are paused when the game is paused.", Color.LightGray);
+				var gameRoot = PoEMemory.GameRoot;
+				if( !IsValid(gameRoot) ) {
 					return this;
 				}
 
-				if( PoEMemory.GameRoot?.InGameState?.WorldData?.IsTown ?? true ) {
+				// as of now (3.27) this is unreliable
+				// if ( gameRoot.InGameState?.IsPaused ?? true ) {
+					// DrawBottomLeftText("Skills are paused when the game is paused.", Color.LightGray);
+					// return this;
+				// }
+				if ( gameRoot.EscapeState?.Menu != null ) {
+					DrawBottomLeftText("Skills are paused for Escape menu.", Color.LightGray);
+					return this;
+				}
+
+				if( gameRoot.InGameState?.WorldData?.IsTown ?? true ) {
 					DrawBottomLeftText("Skills are paused in towns.", Color.LightGray);
 					return this;
 				}
 
-				if( PoEMemory.GameRoot?.InGameState?.HasInputFocus ?? true ) {
+				if( gameRoot.InGameState?.HasInputFocus ?? true ) {
 					DrawBottomLeftText("Skills are paused during text input.", Color.LightGray);
 					return this;
 				}
 
-				if( PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true) {
+				if( gameRoot.AreaLoadingState?.IsLoading ?? true) {
 					DrawBottomLeftText("Skills are paused on loading screens.", Color.LightGray);
 					return this;
 				}
 
-				string areaName = PoEMemory.GameRoot?.AreaLoadingState.AreaName ?? null;
+				string areaName = gameRoot.AreaLoadingState.AreaName ?? null;
 				if( Offsets.IsHideout(areaName) ) {
 					DrawBottomLeftText("Skills are paused in hideouts.", Color.LightGray);
 					return this;
@@ -481,6 +492,11 @@ namespace AtE.Plugins {
 
 				var ui = GetUI();
 				if ( !IsValid(ui) ) {
+					return this;
+				}
+
+				if( ui.SkillTree?.IsVisibleLocal ?? true) {
+					DrawBottomLeftText("Skills are paused for the skill tree.", Color.LightGray);
 					return this;
 				}
 
