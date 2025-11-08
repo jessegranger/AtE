@@ -1716,13 +1716,14 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_InfoBlock {
 			[FieldOffset(0x00)] public readonly IntPtr vtable;
 			[FieldOffset(0x08)] public readonly StringHandle strName;
-			[FieldOffset(0x30)] public readonly IntPtr Records;
+			[FieldOffset(0x28)] public readonly IntPtr Records;
 			
 			// 3.21 Crucible: 8 new bytes here?
+			// 3.27: 8 bytes removed here?
 
-			[FieldOffset(0x40)] public readonly int AreaCount; // the game increments this each time the area changes after the file is loaded
-			[FieldOffset(0x44)] public readonly int Capacity; // ? a guess for now
-			[FieldOffset(0x48)] public readonly int Count; // ? a guess for now, seems to count up forever as long as other players are around
+			[FieldOffset(0x38)] public readonly int AreaCount; // the game increments this each time the area changes after the file is loaded
+			[FieldOffset(0x3c)] public readonly int Capacity; // ? a guess for now
+			[FieldOffset(0x40)] public readonly int Count; // ? a guess for now, seems to count up forever as long as other players are around
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_RecordSet {
