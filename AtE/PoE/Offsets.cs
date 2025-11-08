@@ -407,7 +407,7 @@ namespace AtE {
 		/// <summary>
 		/// A StringHandle, offset from Element Address.
 		/// </summary>
-		public static readonly int Element_Text = 0x430;
+		public static readonly int Element_Text = 0x2f8;
 
 		[StructLayout(LayoutKind.Explicit)] public struct ChildrenArrayEntry {
 			[FieldOffset(0x0)] public readonly IntPtr ptrChild;
@@ -1716,10 +1716,10 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_InfoBlock {
 			[FieldOffset(0x00)] public readonly IntPtr vtable;
 			[FieldOffset(0x08)] public readonly StringHandle strName;
+			// 3.27: 8 bytes removed here?
 			[FieldOffset(0x28)] public readonly IntPtr Records;
 			
 			// 3.21 Crucible: 8 new bytes here?
-			// 3.27: 8 bytes removed here?
 
 			[FieldOffset(0x38)] public readonly int AreaCount; // the game increments this each time the area changes after the file is loaded
 			[FieldOffset(0x3c)] public readonly int Capacity; // ? a guess for now
