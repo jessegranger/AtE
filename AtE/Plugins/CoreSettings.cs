@@ -66,7 +66,6 @@ namespace AtE {
 				if ( ImGui.Button("B##GameRoot") ) {
 					Run_ObjectBrowser("GameRoot", root);
 				}
-				/*
 				ImGui.AlignTextToFramePadding();
 				ImGui.Text($"Files: {PoEMemory.FileRoots.Count}");
 				ImGui.SameLine();
@@ -74,6 +73,7 @@ namespace AtE {
 					// Run_ObjectBrowser("FileRoots", PoEMemory.FileRoots);
 					Run_FileBrowser();
 				}
+				/*
 				ImGui.SameLine();
 				if( ImGui.Button("R##FileRoot") ) {
 					OnAreaChange.Invoke(null, null);
