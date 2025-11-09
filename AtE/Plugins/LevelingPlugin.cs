@@ -246,18 +246,42 @@ namespace AtE {
 									if ( minionDuration > 0 ) {
 										float expectedTimeAlive = (minionDuration / 1000f);
 										var animated = ent.GetComponent<Animated>();
-										// ImGui.Begin("Debug Animated");
-										// ImGui_Object("Animated", "Animated", animated, new HashSet<int>());
+										if ( IsValid(animated) ) {
+											// ImGui.Begin("Debug Animated");
+											// ImGui_Object("Animated", "Animated", animated, new HashSet<int>());
+											// ImGui.End();
+											var animatedObject = animated.AnimatedObject;
+											if ( IsValid(animatedObject) ) {
+												var animationController = animatedObject.GetComponent<ClientAnimationController>();
+												if ( IsValid(animationController) ) {
+													float timeAlive = animationController.TimeSpentAnimating;
+													float timeRemaining = expectedTimeAlive - timeAlive;
+													if ( timeRemaining > 0 && timeRemaining < summary.MinTimeLeft ) {
+														summary.MinTimeLeft = timeRemaining;
+													}
+													if ( expectedTimeAlive < float.PositiveInfinity && expectedTimeAlive > summary.MaxTimeLeft ) {
+														summary.MaxTimeLeft = expectedTimeAlive;
+													}
+												} else {
+													// DrawBottomLeftText("AnimationController is invalid", Color.Orange);
+												}
+											} else {
+												// DrawBottomLeftText("AnimatedObject is invalid", Color.Orange);
+											}
+										} else {
+											// DrawBottomLeftText("Animated component is invalid", Color.Orange);
+										}
+									// } else {
+										// var rect = ent.GetClientRect();
+										// ImGui.SetNextWindowPos(new Vector2(rect.X, rect.Y));
+										// ImGui.Begin("Duration is 0");
 										// ImGui.End();
-										float timeAlive = ent.GetComponent<Animated>()?.AnimatedObject?.GetComponent<ClientAnimationController>()?.TimeSpentAnimating ?? 0f;
-										float timeRemaining = expectedTimeAlive - timeAlive;
-										if ( timeRemaining < summary.MinTimeLeft ) {
-											summary.MinTimeLeft = timeRemaining;
-										}
-										if ( expectedTimeAlive > summary.MaxTimeLeft ) {
-											summary.MaxTimeLeft = expectedTimeAlive;
-										}
 									}
+								// } else {
+									// var rect = ent.GetClientRect();
+									// ImGui.SetNextWindowPos(new Vector2(rect.X, rect.Y));
+									// ImGui.Begin("Invalid Minion Skill");
+									// ImGui.End();
 								}
 							} else if( HasBuff(ent, "spectre_buff") ) {
 								color = Color.CornflowerBlue;
@@ -285,7 +309,7 @@ namespace AtE {
 					}
 					
 					ImGui.SetNextWindowPos(spot);
-					ImGui.SetNextWindowSize(new Vector2(maxTextWidth + 20f, 0f));
+					ImGui.SetNextWindowSize(new Vector2(maxTextWidth + 120f, 0f));
 					ImGui.Begin("Minion Summary", 
 						ImGuiWindowFlags.None
 						| ImGuiWindowFlags.NoDecoration 
@@ -320,12 +344,15 @@ namespace AtE {
 							ImGui.ProgressBar(ratio, new Vector2(maxTextWidth + 10f, 0f), label);
 							ImGui.PopStyleColor(3);
 						} else {
-							ImGui.TextColored(new Vector4(color.R / 256f, color.G / 256f, color.B / 256f, color.A / 256f), label);
+							ImGui.TextColored(new Vector4(color.R / 256f, color.G / 256f, color.B / 256f, color.A / 256f), label + " [" + min + " .. " + max + "]");
+							// ImGui.TextColored(new Vector4(color.R / 256f, color.G / 256f, color.B / 256f, color.A / 256f), label);
 						}
 						// ImGui.Text(label);
 						// DrawTextAt(36, spot, label, color);
 					}
 					ImGui.End();
+				} else {
+					DrawBottomLeftText("Minion summary disabled while chatbox is invalid or open.", Color.Yellow);
 				}
 			}
 
@@ -333,7 +360,7 @@ namespace AtE {
 			if ( DismissStoryText ) {
 				var dialog = ui.NpcOptions;
 				/*
-				ImGui.Begin("Debug LeagueNpcDialog");
+				ImGui.Begin("Debug LeagueNpcOptions");
 				if( IsValid(dialog) ) {
 					DebugElement(ui.NpcOptions, "ui.NpcOptions");
 				} else {
@@ -361,6 +388,15 @@ namespace AtE {
 					}
 				}
 				dialog = ui.NpcDialog;
+				/*
+				ImGui.Begin("Debug LeagueNpcDialog");
+				if( IsValid(dialog) ) {
+					DebugElement(ui.NpcDialog, "ui.NpcDialog");
+				} else {
+					ImGui.Text("Not valid");
+				}
+				ImGui.End();
+				*/
 				if ( IsValid(dialog) && (dialog?.IsVisibleLocal ?? false) ) {
 					var options = dialog.GetChild(1)?.GetChild(2) ?? null;
 					if ( options != null ) {
