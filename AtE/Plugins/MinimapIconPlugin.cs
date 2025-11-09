@@ -121,7 +121,7 @@ namespace AtE.Plugins {
 				float iconSize = 1f;
 
 				var path = ent.Path;
-				if( path == null ) {
+				if ( path == null ) {
 					continue;
 				}
 				/* debug: unknown objects in the area
@@ -131,18 +131,26 @@ namespace AtE.Plugins {
 				*/
 
 				/* Debug:
-				if( path.StartsWith("Metadata/Monster") ) {
+				if ( false && path.StartsWith("Metadata/Monster")
+					&& IsHostile(ent)
+					&& IsTargetable(ent)
+					&& ent.HasComponent<MinimapIcon>()
+					) {
 					ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
 					ImGui.Begin($"ent:{ent.Id} {ent.Path}");
 					ImGui.Text($"IsAlive: {IsAlive(ent)}");
-					ImGui.Text($"IsHostile: {IsHostile(ent)}");
-					ImGui.Text($"IsTargetable: {IsTargetable(ent)}");
+					// ImGui.Text($"IsHostile: {IsHostile(ent)}");
+					// ImGui.Text($"IsTargetable: {IsTargetable(ent)}");
+					var minimapIcon = ent.GetComponent<MinimapIcon>();
+					ImGui.Text($"Icon IsVisible: {minimapIcon.IsVisible}");
+					ImGui.Text($"Icon IsHidden: {minimapIcon.IsHide}");
+					ImGui_Object($"MinimapIcon-{ent.Id}", $"MinimapIcon", minimapIcon, new HashSet<int>());
 					// ImGui.Text("Positioned");
 					// ImGui_Object($"Positioned-{ent.Id}", "Positioned", ent.GetComponent<Positioned>(), new HashSet<int>());
 					// ImGui.Text("Render");
 					// ImGui_Object($"Render-{ent.Id}", "Render", ent.GetComponent<Render>(), new HashSet<int>());
-					ImGui.Text("ObjectMagicProperties");
-					ImGui_Object($"ObjectMagicProperties-{ent.Id}", "ObjectMagicProperties", ent.GetComponent<ObjectMagicProperties>(), new HashSet<int>());
+					// ImGui.Text("ObjectMagicProperties");
+					// ImGui_Object($"ObjectMagicProperties-{ent.Id}", "ObjectMagicProperties", ent.GetComponent<ObjectMagicProperties>(), new HashSet<int>());
 					ImGui.End();
 				}
 				/*
@@ -436,7 +444,8 @@ namespace AtE.Plugins {
 		private bool TryGetEnemyIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
 			icon = SpriteIcon.None;
 			iconSize = 1f;
-			if ( ent.HasComponent<MinimapIcon>() ) {
+			var minimapIcon = ent.GetComponent<MinimapIcon>();
+			if ( IsValid(minimapIcon) && minimapIcon.IsVisible ) {
 				return false;
 			}
 			string path = ent.Path;
