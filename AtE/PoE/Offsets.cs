@@ -1106,13 +1106,16 @@ namespace AtE {
 			// [FieldOffset(0x38)] public readonly uint UnkInt38;
 			// [FieldOffset(0x3c)] public readonly int UnkInt3c;
 			// [FieldOffset(0x40)] public readonly int UnkInt40;
-			[FieldOffset(0x42)] public readonly byte Charges;
+			[FieldOffset(0x40)] public readonly byte Charges;
+			// [FieldOffset(0x4a)] public readonly int UnkInt4A;
 			// [FieldOffset(0x44)] public readonly int UnkInt44;
 			// [FieldOffset(0x48)] public readonly int UnkInt48;
 			// [FieldOffset(0x4c)] public readonly int UnkInt4c;
 			// [FieldOffset(0x50)] public readonly int UnkInt50;
 			// [FieldOffset(0x54)] public readonly int UnkInt54;
-			// [FieldOffset(0x58)] public readonly int UnkInt58;
+			[FieldOffset(0x58)] public readonly IntPtr entOwner;
+			[FieldOffset(0x68)] public readonly IntPtr entOwnerAgain;
+			[FieldOffset(0x80)] public readonly IntPtr ptrGameStatsHandleMaybe;
 			// [FieldOffset(0x5c)] public readonly int UnkInt5c;
 			// [FieldOffset(0x60)] public readonly IntPtr ptrUnknown60; // ptr to unknown, something art related?
 			// [FieldOffset(0x70)] public readonly IntPtr ptrOwner; // ptr to Entity
