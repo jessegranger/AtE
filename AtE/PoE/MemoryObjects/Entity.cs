@@ -97,7 +97,7 @@ namespace AtE {
 		private Dictionary<string, MemoryObject> ComponentCache; // these are filled in as requested, then re-used if requested a second time
 		private long LastParseTime;
 
-		internal static long[] cachedVtablePtr = new long[3];
+		internal static long[] cachedVtablePtr = new long[5];
 		static Entity() {
 			OnAreaChange += (obj, areaName) => {
 				// clear the Entity vtable pointer cache entries on zone change
