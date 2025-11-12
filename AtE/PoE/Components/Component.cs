@@ -162,6 +162,12 @@ namespace AtE {
 				VaalEntry = new Cached<Offsets.ActorVaalSkillArrayEntry>(() =>
 					Actor?.VaalSkills.Where(v => v.ptrActiveSkill == SkillGem.Value.ptrActiveSkill).FirstOrDefault() ?? default);
 
+				if( Globals.IsValid(this) ) {
+					if( PoEMemory.TryRead(Address, out IntPtr vtable) ) {
+						Debugger.RegisterVtable("ActorSkill", vtable);
+					}
+				}
+
 			}
 		}
 

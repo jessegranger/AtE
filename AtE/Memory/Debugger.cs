@@ -33,6 +33,16 @@ namespace AtE {
 		private byte[] sample;
 		private long lastSampleTime;
 
+		private static Dictionary<string, IntPtr> knownVtablePtrs = new Dictionary<string, IntPtr>();
+		private static Dictionary<IntPtr, string> knownVtableNames = new Dictionary<IntPtr, string>();
+		public static void RegisterVtable(string name, IntPtr ptr) {
+			if( ! knownVtablePtrs.TryGetValue(name, out IntPtr ignore) ) {
+				Log($"Debugger: recognizing vtable at {Describe(ptr)} for {name}");
+				knownVtablePtrs[name] = ptr;
+				knownVtableNames[ptr] = name;
+			}
+		}
+
 		private void Resample() {
 			ViewAddress = new IntPtr(Convert.ToInt64(InputAddress, 16));
 			sample = new byte[8 * LineCount];
@@ -237,7 +247,21 @@ namespace AtE {
 							ImGui.TableNextColumn();
 							IntPtr ptr = new IntPtr(longValue);
 							if ( IsValid(ptr) ) {
-								if ( ElementCache.TryGetElement(ptr, out Element elem) ) {
+								// Use knownVtablePtrs to see if this address is a known vtable value
+								if ( knownVtableNames.TryGetValue(ptr, out string ptrName) ) {
+									ImGui.AlignTextToFramePadding();
+									ImGui.Text(ptrName); ImGui.SameLine();
+								}
+								// Use knownVtablePtrs to find references to known classes
+								else if ( PoEMemory.TryRead(ptr, out IntPtr refValue) 
+									&& knownVtableNames.TryGetValue(refValue, out string refName) ) {
+									ImGui.AlignTextToFramePadding();
+									ImGui.Text($"ptr {refName}"); ImGui.SameLine();
+									if ( ImGui.Button($"M##{ptr}") ) {
+										Run(new Debugger(ptr).usingStructLabelsFrom(refName));
+									}
+								// Use the ElementCache to find ptrs to Elements
+								} else if ( ElementCache.TryGetElement(ptr, out Element elem) ) {
 									ImGui.AlignTextToFramePadding();
 									ImGui.Text("ptr Element"); ImGui.SameLine();
 									if ( ImGui.Button($"B##{longValue:X}") ) {
@@ -245,16 +269,14 @@ namespace AtE {
 									} else if ( ImGui.IsItemHovered() ) {
 										DrawFrame(elem.GetClientRect(), Color.Yellow, 2);
 									}
+								// Use the EntityCache to match ptrs to known Entities
 								} else if ( EntityCache.TryGetEntity(ptr, out Entity ent) ) {
 									ImGui.AlignTextToFramePadding();
 									ImGui.Text("ptr Entity"); ImGui.SameLine();
 									if ( ImGui.Button($"B##{longValue:X}") ) {
 										Run_ObjectBrowser($"Unknown Entity {longValue:X}", ent);
 									}
-								} else {
-									// if( PoEMemory.TryReadString(new Address(0, longValue), Encoding.Unicode, out string uni) ) {
-									// ImGui.Text($"u\"{Truncate(uni,10)}\"");
-									// }
+								} else { // and last, see if it's possible to read a string from the ptr
 									if ( PoEMemory.TryReadString(ptr, Encoding.ASCII, out string asc, 16) ) {
 										ImGui.Text($"s\"{Truncate(asc.Replace('\n', '?'), 16)}\"");
 									}
