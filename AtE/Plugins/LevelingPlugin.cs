@@ -210,6 +210,7 @@ namespace AtE {
 				return this;
 			}
 
+			// DebugElement(GetUI()?.RootBuffPanel?.GetChild(8));
 
 			if( ShowMinionStats ) {
 				var chatBox = ui.ChatBoxRoot?.GetChild(0);
@@ -344,8 +345,8 @@ namespace AtE {
 							ImGui.ProgressBar(ratio, new Vector2(maxTextWidth + 10f, 0f), label);
 							ImGui.PopStyleColor(3);
 						} else {
-							ImGui.TextColored(new Vector4(color.R / 256f, color.G / 256f, color.B / 256f, color.A / 256f), label + " [" + min + " .. " + max + "]");
-							// ImGui.TextColored(new Vector4(color.R / 256f, color.G / 256f, color.B / 256f, color.A / 256f), label);
+							// ImGui.TextColored(new Vector4(color.R / 256f, color.G / 256f, color.B / 256f, color.A / 256f), label + " [" + min + " .. " + max + "]");
+							ImGui.TextColored(new Vector4(color.R / 256f, color.G / 256f, color.B / 256f, color.A / 256f), label);
 						}
 						// ImGui.Text(label);
 						// DrawTextAt(36, spot, label, color);
