@@ -346,7 +346,7 @@ namespace AtE {
 										writer.WriteLine("\tpublic static partial class Offsets {");
 										writer.WriteLine("\t\t public enum GameStat : int {");
 										for(int i = 0; i < statsArray.Length; i++) {
-											var line = $"\t\t\t{Describe(statsArray[i])} = {i},";
+											var line = $"\t\t\t{Describe(statsArray[i])} = {i + 1},";
 											writer.WriteLine(line);
 											Log(line);
 										}
