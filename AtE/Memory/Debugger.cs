@@ -250,7 +250,7 @@ namespace AtE {
 								// Use knownVtablePtrs to see if this address is a known vtable value
 								if ( knownVtableNames.TryGetValue(ptr, out string ptrName) ) {
 									ImGui.AlignTextToFramePadding();
-									ImGui.Text(ptrName); ImGui.SameLine();
+									ImGui.Text("class " + ptrName); ImGui.SameLine();
 								}
 								// Use knownVtablePtrs to find references to known classes
 								else if ( PoEMemory.TryRead(ptr, out IntPtr refValue) 
