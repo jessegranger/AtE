@@ -2,8 +2,11 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Text;
 
 namespace AtE {
 
@@ -291,6 +294,29 @@ namespace AtE {
 			});
 		}
 
+		public static string Describe(Offsets.File_StatsDat_Entry entry) {
+			if( PoEMemory.TryReadString(entry.strName, Encoding.Unicode, out string name) ) {
+				// string longName = null;
+				// PoEMemory.TryReadString(entry.longName, Encoding.Unicode, out longName);
+				return ToCamelCase(name).Replace("+","Plus").Replace("%","Pct").Replace("-","Minus");
+			}
+			return "Invalid";
+		}
+		private static string ToCamelCase(string input) {
+			if ( string.IsNullOrEmpty(input) ) {
+				return input;
+			}
+			// Split on underscores
+			var parts = input.Split('_');
+			// Capitalize first letter of each part and concatenate
+			for ( int i = 0; i < parts.Length; i++ ) {
+				if ( parts[i].Length > 0 ) {
+					parts[i] = char.ToUpper(parts[i][0], CultureInfo.InvariantCulture) + parts[i].Substring(1).ToLowerInvariant();
+				}
+			}
+			return string.Join("", parts);
+		}
+
 		public static void Run_FileBrowser() {
 			bool open = true;
 			HashSet<string> openFiles = new HashSet<string>();
@@ -306,6 +332,31 @@ namespace AtE {
 					foreach( var file in PoEMemory.FileRoots ) {
 						if( filter == null || filter.Length == 0 || file.Key.Contains(filter) ) {
 							ImGui_Address(file.Value, file.Key, "File_InfoBlock");
+							if ( file.Key.Equals("Data/Stats.dat") ) {
+								var statsArray = PoEMemory.GetFileContents<Offsets.File_StatsDat_Entry>("Data/Stats.dat");
+								ImGui.Text($" - Items: {statsArray.Length}");
+								// var entry = statsArray[0];
+								// ImGui.Text($" - Item[0]: {Describe(entry)}");
+								// entry = statsArray[1];
+								// ImGui.Text($" - Item[1]: {Describe(entry)}");
+								if ( ImGui.Button("Save As Code##StatsDump") ) {
+									Log($"Writing StatsDump.txt");
+									using ( var writer = new StreamWriter("StatsDump.txt") ) {
+										writer.WriteLine("namespace AtE {");
+										writer.WriteLine("\tpublic static partial class Offsets {");
+										writer.WriteLine("\t\t public enum GameStat : int {");
+										for(int i = 0; i < statsArray.Length; i++) {
+											var line = $"\t\t\t{Describe(statsArray[i])} = {i},";
+											writer.WriteLine(line);
+											Log(line);
+										}
+										writer.WriteLine("\t\t}");
+										writer.WriteLine("\t}");
+										writer.WriteLine("}");
+									}
+									Log("Done.");
+								}
+							}
 						}
 
 					}
