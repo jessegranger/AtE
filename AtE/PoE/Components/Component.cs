@@ -631,6 +631,15 @@ namespace AtE {
 				if( ! PoEMemory.FileRoots.ContainsKey("Data/Mods.dat") ) {
 					Log($"Component: recognizing Data/Mods.dat at {Describe(entry.ptrModsDatFile)}");
 					PoEMemory.FileRoots["Data/Mods.dat"] = entry.ptrModsDatFile;
+					if( PoEMemory.TryRead(entry.ptrModsDatFile, out IntPtr vtable) ) {
+						Debugger.RegisterVtable("File_InfoBlock", vtable);
+					}
+				}
+				if( ! PoEMemory.FileRoots.ContainsKey("Data/Stats.dat") ) {
+					if( IsValid(ModsDatEntry.Value.Stat0File) ) {
+						Log($"Component: recognizing Data/Stats.dat at {Describe(ModsDatEntry.Value.Stat0File)}");
+						PoEMemory.FileRoots["Data/Stats.dat"] = ModsDatEntry.Value.Stat0File;
+					}
 				}
 			}
 		}
@@ -809,6 +818,24 @@ namespace AtE {
 		public Cached<Offsets.GameStatArray> GameStats;
 
 		public Stats() : base() => GameStats = CachedStruct<Offsets.GameStatArray>(() => Cache.GameStats);
+
+		public override IntPtr Address {
+			get => base.Address;
+			set {
+				if ( value == base.Address ) {
+					return;
+				}
+
+				if ( IsValid(value) ) {
+					base.Address = value;
+					if( PoEMemory.TryRead(base.Address, out IntPtr vtable) && IsValid(vtable) ) {
+						Debugger.RegisterVtable("Component_Stats", vtable);
+					}
+				} else {
+					base.Address = IntPtr.Zero;
+				}
+			}
+		}
 
 		private Dictionary<Offsets.GameStat, int> stats;
 		private long lastStatsTime;
