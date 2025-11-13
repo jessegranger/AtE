@@ -196,7 +196,7 @@ namespace AtE {
 		// then, ptr = Read<IntPtr>(match + localOffset) is address of a GameRoot_Ref struct
 		// so, the final game state base ptr is, Read<GameRoot_Ref>(ptr).ptrToGameStateBasePtr
 
-		public readonly static string FileRoot_SearchMask = "xxxxxx????";
+		public readonly static string FileRoot_SearchMask = "xxxxxx????xxx";
 		public readonly static byte[] FileRoot_SearchPattern = new byte[] {
 			  /* From the original ExileApi notes: FileRoot Pointer
         00007FF6C47EED01  | 48 8D 0D A8 23 7F 00               | lea rcx,qword ptr ds:[7FF6C4FE10B0]        | <--FileRootPtr
@@ -209,7 +209,7 @@ namespace AtE {
 			0x48, 0x8b, 0x08,
 			0x48, 0x8d, 0x05,
 			0x00, 0x00, 0x00, 0x00,
-			// 0x48, 0x39, 0x01
+			0x48, 0x89, 0x0a
 			/* How to use Ghidra to find this pattern, if it changes.
 			 * Project -> New Project
 			 * File -> Import File... PathOfExile.exe
@@ -414,6 +414,7 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldData {
+			[FieldOffset(0x00)] public readonly IntPtr vtable;
 			[FieldOffset(0xA0)] public readonly IntPtr ptrToWorldAreaRef;
 			// 3.12.2b: some new bytes here
 			// 3.32.2: 16 fewer bytes here?
@@ -1497,6 +1498,7 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Stats {
+			[FieldOffset(0x00)] public readonly IntPtr vtable;
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			[FieldOffset(0x20)] public readonly IntPtr GameStats; // ptr to GameStatArray
 		}
@@ -1741,7 +1743,7 @@ namespace AtE {
 			[FieldOffset(0x0A)] public readonly byte IsWeaponLocal;
 			[FieldOffset(0x0B)] public readonly int Type;
 			[FieldOffset(0x0F)] public readonly IntPtr longName;
-			[FieldOffset(0x69)] public readonly long Padding;
+			[FieldOffset(0x61)] public readonly long Padding;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_ModsDat_Entry {
