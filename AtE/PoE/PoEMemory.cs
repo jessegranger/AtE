@@ -392,7 +392,7 @@ namespace AtE {
 				}
 				if ( info.Protect == PAGE_READWRITE && info.State == MEM_COMMIT ) {
 					long lBase = info.BaseAddress.ToInt64();
-					Log($"{Describe(new IntPtr(lBase))} - {Describe(new IntPtr(lBase + info.RegionSize))} protect {info.Protect} state {info.State}");
+					Log($"{Describe(new IntPtr(lBase))} - {Describe(new IntPtr(lBase + info.RegionSize))} size {info.RegionSize} protect {info.Protect} state {info.State}");
 					yield return info;
 				}
 				startAddress = new IntPtr(startAddress.ToInt64() + info.RegionSize);
@@ -480,11 +480,12 @@ namespace AtE {
 						IntPtr startAddress = mem_page.BaseAddress;
 						IntPtr endAddress = new IntPtr(startAddress.ToInt64() + mem_page.RegionSize);
 						while ( startAddress.ToInt64() < endAddress.ToInt64() ) {
-							// if ( TryRead(startAddress, out IntPtr strPtr) ) { // find a ptr to "Data/"
-							if ( TryReadString(startAddress, Encoding.Unicode, out string name) && name.Contains("Data/") ) {
-								debugScanResults.Add(startAddress);
+							if ( TryRead(startAddress, out IntPtr strPtr) ) { // find a ptr to "Data/"
+								if ( TryReadString(strPtr, Encoding.Unicode, out string name) && name.StartsWith("Data/") ) {
+									debugScanResults.Add(startAddress);
+									Log($"Adding result: {Describe(startAddress)}");
+								}
 							}
-							// }
 							startAddress += scanStride;
 						}
 					}
@@ -520,8 +521,7 @@ namespace AtE {
 				return self;
 			}));
 
-			/*
-			OnAreaChange += (_, area) => {
+			if( false ) OnAreaChange += (_, area) => {
 				if( IsValid(fileRootMatch) ) {
 					return;
 				}
@@ -531,6 +531,7 @@ namespace AtE {
 						Log($"PoEMemory: No match for Files root address...");
 						continue;
 					}
+					Log($"PoEMemory: fileRootMatch = {Describe(fileRootMatch)}");
 					long fileParseStarted = Time.ElapsedMilliseconds;
 					long claimedCount = 0;
 					// the fileRootMatch pattern is xxxxxx????x and the ???? int is the local offset we want to read
@@ -546,10 +547,15 @@ namespace AtE {
 					IntPtr rootBlockArrayStart = fileRootMatch + 0x3 // add 3 for the size of the prior instruction (before the relative offset)
 						+ localFileRootOffset +  0x8; // add 8 more after applying the relative offset, TODO: use offset of FileRoot_Ref.ptrToFileRootPtr here
 					Offsets.File_RootHeader[] fileRoots = new Offsets.File_RootHeader[16];
+					Log($"PoEMemory: rootBlockArrayStart {Describe(rootBlockArrayStart)}");
 					// read all 16 rootBlock array elements at once
 					if ( TryRead(rootBlockArrayStart, fileRoots) <= 0 ) {
 						Log($"PoEMemory: Failed to read rootBlockArrayStructure from {Describe(rootBlockArrayStart)}");
 						continue;
+					}
+					if ( fileRoots[0].Capacity <= 0 || fileRoots[0].Capacity > 9999 ) {
+						Log($"PoEMemory: Invalid fileRoot Capacity: {fileRoots[0].Capacity}");
+						break;
 					}
 					int scanCount = 0;
 					FileRoots.Clear();
@@ -601,6 +607,7 @@ namespace AtE {
 					Log($"PoEMemory: Did not find the real files root.");
 				}
 			};
+			/*
 			*/
 		}
 
