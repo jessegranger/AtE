@@ -24,6 +24,7 @@ namespace AtE.Plugins {
 		public bool ShowEnemyResistCold = false;
 		public bool ShowEnemyResistLightning = false;
 		public bool ShowEnemyResistChaos = false;
+		public bool ShowEnemyCurses = false;
 		public bool ShowEnemyImpaleStacks = false;
 		public bool ShowEnemyPoisonStacks = false;
 		public bool ShowEnemyEnergyStacks = false;
@@ -47,6 +48,7 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("Show Enemy Fire", ref ShowEnemyResistFire);
 			ImGui.Checkbox("Show Enemy Cold", ref ShowEnemyResistCold);
 			ImGui.Checkbox("Show Enemy Lightning", ref ShowEnemyResistLightning);
+			ImGui.Checkbox("Show Curses on Enemies", ref ShowEnemyCurses);
 			ImGui.Checkbox("Show Highest Corpse Life", ref ShowHighestCorpseLife);
 			ImGui.Text("Debuffs:"); ImGui.SameLine();  ImGui_HelpMarker("shown on Rare and Unique");
 			ImGui.Separator();
@@ -174,7 +176,7 @@ namespace AtE.Plugins {
 					}
 				}
 
-				if ( ShowEnemyComponents || ShowEnemyBuffs || ShowEnemyResistChaos || ShowEnemyResistCold || ShowEnemyResistFire || ShowEnemyResistLightning || ShowEnemyWitherStacks || ShowEnemyPoisonStacks || ShowHighestCorpseLife || ShowEnemyImpaleStacks ) {
+				if ( ShowEnemyComponents || ShowEnemyBuffs || ShowEnemyResistChaos || ShowEnemyResistCold || ShowEnemyResistFire || ShowEnemyResistLightning || ShowEnemyWitherStacks || ShowEnemyPoisonStacks || ShowHighestCorpseLife || ShowEnemyImpaleStacks || ShowEnemyCurses ) {
 					float maxCorpseLife = 0;
 					Vector3 maxCorpseLocation = Vector3.Zero;
 					var player = GetPlayer();
@@ -203,7 +205,7 @@ namespace AtE.Plugins {
 								}
 							}
 						} 
-						if ( (ShowEnemyBuffs || ShowEnemyPoisonStacks || ShowEnemyImpaleStacks || ShowEnemyWitherStacks || ShowEnemyGraspingVines) && isHostile && isAlive ) {
+						if ( (ShowEnemyBuffs || ShowEnemyPoisonStacks || ShowEnemyImpaleStacks || ShowEnemyWitherStacks || ShowEnemyGraspingVines || ShowEnemyCurses) && isHostile && isAlive ) {
 							if( IsRareOrUnique(ent) ) {
 								var buffs = ent.GetComponent<Buffs>();
 								if( !IsValid(buffs) ) {
@@ -215,6 +217,7 @@ namespace AtE.Plugins {
 								int energyStacks = 0; // from penance brand of dissipation
 								int impaleStacks = 0;
 								string buffstr = "";
+								List<string> curses = new List<string>();
 								/*
 								var screenPos = WorldToScreen(Position(ent));
 								ImGui.SetNextWindowPos(screenPos);
@@ -239,6 +242,8 @@ namespace AtE.Plugins {
 											energyStacks = buff.Charges;
 										} else if( name.Equals("impaled_debuff") ) {
 											impaleStacks += Math.Max((int)buff.Charges, 1);
+										} else if( ShowEnemyCurses && name.StartsWith("curse") ) {
+											curses.Add(name);
 										}
 									}
 								}
@@ -260,6 +265,12 @@ namespace AtE.Plugins {
 								if ( buffstr.Length > 0 ) {
 									DrawTextAt(ent.Id, WorldToScreen(Position(ent)), buffstr, Color.White);
 									// DrawBottomLeftText($"{ent.Id}: {Position(ent)} {WorldToScreen(Position(ent))} {buffstr}", Color.White);
+								}
+								if( ShowEnemyCurses && curses.Count > 0 ) {
+									var entPos = WorldToScreen(Position(ent));
+									foreach(var curse in curses) {
+										DrawTextAt(ent.Id, entPos, curse, Color.White);
+									}
 								}
 							}
 						}
