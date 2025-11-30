@@ -1839,6 +1839,7 @@ namespace AtE {
 		public const string PATH_STACKED_DECK = "Metadata/Items/DivinationCards/DivinationCardDeck";
 		public const string PATH_SCROLL_WISDOM = "Metadata/Items/Currency/CurrencyIdentification";
 		public const string PATH_SCROLL_PORTAL = "Metadata/Items/Currency/CurrencyPortal";
+		public const string PATH_VAAL_ORB = "Metadata/Items/Currency/CurrencyCorrupt";
 		public const string PATH_CHAOS = "Metadata/Items/Currency/CurrencyRerollRare";
 		public const string PATH_CHISEL = "Metadata/Items/Currency/CurrencyMapQuality";
 		public const string PATH_ALCHEMY = "Metadata/Items/Currency/CurrencyUpgradeToRare";
