@@ -123,7 +123,7 @@ namespace AtE.Plugins {
 		private Dictionary<string, int> restockNeeds = new Dictionary<string, int>() {
 			{ Offsets.PATH_SCROLL_WISDOM, 40 },
 			{ Offsets.PATH_SCROLL_PORTAL, 40 },
-			{ Offsets.PATH_REMNANT_OF_CORRUPTION, 9 },
+			{ Offsets.PATH_VAAL_ORB, 20 },
 			{ Offsets.PATH_OMEN_OF_RETURN, 1 },
 			{ Offsets.PATH_OMEN_OF_DEATH_DANCING, 1 }
 		};
