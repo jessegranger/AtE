@@ -313,7 +313,7 @@ namespace AtE.Plugins {
 				} else if ( path.StartsWith("Metadata/Chests/CocoonRot") ) {
 					icon = SpriteIcon.MediumGreenStar;
 					iconSize = 1.1f;
-				} else if ( path.Contains("Breach/BreachChest") ) {
+				} else if ( path.Contains("Breach/BreachBoxChest") ) {
 					icon = SpriteIcon.Breach;
 					iconSize = 1.5f;
 				} else if ( path.Contains("SideArea/SideAreaChest") ) {
