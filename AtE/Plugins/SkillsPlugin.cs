@@ -112,7 +112,7 @@ namespace AtE.Plugins {
 			// { "Corrupting Fever", new CorruptingFeverData() },
 			// { "Enduring Cry", new EnduringCryData() },
 			{ "Plague Bearer", new PlagueBearerData() },
-			// { "Withering Step", new WitheringStepData() },
+			{ "Withering Step", new WitheringStepData() },
 			// { "Vaal Grace", new SkillData("Vaal Grace", "vaal_grace", "vaal_aura_dodge", null, (p) => true) },
 			// { "Vaal Haste", new SkillData("Vaal Haste", "vaal_haste", "vaal_aura_speed", null, (p) => true) },
 			// { "Vaal Cold Snap", new SkillData("Vaal Cold Snap", "new_vaal_cold_snap", "vaal_cold_snap_degen", null, (p) => false) }, // HasNearbyRares( },
@@ -211,8 +211,24 @@ namespace AtE.Plugins {
 		}
 
 		public class WitheringStepData : SkillData {
-			public WitheringStepData() : base("Withering Step", "Slither", "slither") { }
-			public override bool Predicate(PlayerEntity p) => base.Predicate(p) && false; // TODO: should check NearbyEnemies for rares with no wither stacks
+			public WitheringStepData() : base("Withering Step", "withering_step", "slither") { }
+			public override bool Predicate(PlayerEntity p) {
+				if( ! base.Predicate(p) ) {
+					return false; // not enabled, or already have "slither" buff
+				}
+				var nearby = NearbyEnemies(40, Offsets.MonsterRarity.Rare).Where(IsAlive).Where(IsHostile);
+				foreach(var enemy in nearby) {
+					var buffs = enemy.GetComponent<Buffs>();
+					if( !IsValid(buffs) ) {
+						continue;
+					}
+					bool hasBuff = buffs.HasBuff("withered");
+					if( ! hasBuff ) {
+						return true;
+					}
+				}
+				return false;
+			}
 		}
 
 		public class PlagueBearerData : SkillData {
@@ -377,7 +393,7 @@ namespace AtE.Plugins {
 					return false;
 				}
 				int pct = (100 * life.CurES) / life.MaxES;
-				DrawBottomLeftText($"Vaal Discipline: {pct}% es", Color.AliceBlue);
+				DrawBottomLeftText($"Vaal Discipline: {pct}% es", Color.Orange);
 				return pct <= UseAtPercentES;
 
 			}
@@ -452,7 +468,7 @@ namespace AtE.Plugins {
 		/// <returns>This plugin, or another IState to replace it.</returns>
 		public override IState OnTick(long dt) {
 				// PoEMemory.GameRoot?.InGameState?.DebugIsPaused();
-			if ( Enabled && !Paused && PoEMemory.TargetHasFocus ) {
+			if ( Enabled && !Paused ) { // && PoEMemory.TargetHasFocus ) {
 
 				var gameRoot = PoEMemory.GameRoot;
 				if( !IsValid(gameRoot) ) {
