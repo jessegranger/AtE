@@ -140,9 +140,11 @@ namespace AtE {
 					Charges_Per = (int)(Charges_Per * (100 + mod.Values.First()) / 100f);
 				} else if ( groupName.StartsWith("FlaskInstantRecoveryOnLowLife") ) {
 					IsInstantOnLowLife = true;
-					int lessRecovery = mod.Values.Skip(1).First(); // like -27
-					float recoveryFactor = (100 + lessRecovery) / 100f;
-					LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
+					try {
+						int lessRecovery = mod.Values.Skip(1).First(); // like -27
+						float recoveryFactor = (100 + lessRecovery) / 100f;
+						LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
+					} catch ( InvalidOperationException ) { }
 				} else if ( groupName.StartsWith("FlaskFullInstantRecovery") || groupName.StartsWith("FlaskPartialInstantRecovery") ) {
 					IsInstant = true;
 					int lessRecovery = mod.Values?.Skip(1).First() ?? 0; // like -27
