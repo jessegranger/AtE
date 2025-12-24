@@ -35,6 +35,7 @@ namespace AtE {
 				for(int i = 0; i < Entity.cachedVtablePtr.Length; i++ ) {
 					if( Entity.cachedVtablePtr[i] == 0 ) {
 						Entity.cachedVtablePtr[i] = vtablePtr;
+						Debugger.RegisterVtable($"Entity{i}", ent.vtablePtr);
 						full = false;
 						break;
 					}
@@ -97,7 +98,7 @@ namespace AtE {
 		private Dictionary<string, MemoryObject> ComponentCache; // these are filled in as requested, then re-used if requested a second time
 		private long LastParseTime;
 
-		internal static long[] cachedVtablePtr = new long[5];
+		internal static long[] cachedVtablePtr = new long[9];
 		static Entity() {
 			OnAreaChange += (obj, areaName) => {
 				// clear the Entity vtable pointer cache entries on zone change
