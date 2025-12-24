@@ -16,10 +16,12 @@ namespace AtE {
 		public bool IsUp => !IsDown;
 		public bool IsDown = false;
 		public bool IsReleased = false;
+		public bool WasJustPressed = false;
 		public override IState OnTick(long dt) {
 			if ( isDisposed ) return null;
 			if ( Key == Keys.None ) return this;
 			bool downNow = IsKeyDown(Key);
+			WasJustPressed = downNow && !IsDown;
 			IsReleased = IsDown && !downNow;
 			if ( IsReleased ) OnRelease?.Invoke(this, null);
 			IsDown = downNow;
