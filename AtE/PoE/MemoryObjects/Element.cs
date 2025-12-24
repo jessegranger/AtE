@@ -131,7 +131,7 @@ namespace AtE {
 			do {
 				if ( PoEMemory.TryRead(cursor, out Offsets.ItemsOnGroundLabelEntry entry) ) {
 					var label = new LabelOnGround(entry);
-					if ( IsValid(label.Label) ) {
+					if ( IsValid(label.Label) && label.Label.IsVisibleLocal ) {
 						yield return label;
 					}
 					cursor = entry.nextEntry;
