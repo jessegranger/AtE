@@ -137,19 +137,25 @@ namespace AtE {
 				} else if ( groupName.StartsWith("FlaskExtraCharges") ) {
 					Charges_Max += mod.Values.First();
 				} else if ( groupName.StartsWith("FlaskChargesUsed") ) { // value will be like -16 for "16% reduced charges used"
-					Charges_Per = (int)(Charges_Per * (100 + mod.Values.First()) / 100f);
+					if( mod.Values.Count() > 0 ) {
+						Charges_Per = (int)(Charges_Per * (100 + mod.Values.First()) / 100f);
+					}
 				} else if ( groupName.StartsWith("FlaskInstantRecoveryOnLowLife") ) {
 					IsInstantOnLowLife = true;
 					try {
-						int lessRecovery = mod.Values.Skip(1).First(); // like -27
-						float recoveryFactor = (100 + lessRecovery) / 100f;
-						LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
+						if ( mod.Values.Count() > 0 ) {
+							int lessRecovery = mod.Values.Skip(1).First(); // like -27
+							float recoveryFactor = (100 + lessRecovery) / 100f;
+							LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
+						}
 					} catch ( InvalidOperationException ) { }
 				} else if ( groupName.StartsWith("FlaskFullInstantRecovery") || groupName.StartsWith("FlaskPartialInstantRecovery") ) {
 					IsInstant = true;
-					int lessRecovery = mod.Values?.Skip(1).First() ?? 0; // like -27
-					float recoveryFactor = (100 + lessRecovery) / 100f;
-					LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
+					if( (mod.Values?.Count() ?? 0) > 0) {
+						int lessRecovery = mod.Values?.Skip(1)?.First() ?? 0; // like -27
+						float recoveryFactor = (100 + lessRecovery) / 100f;
+						LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
+					}
 				} else if ( groupName.StartsWith("FlaskPoisonImmunity") ) {
 					Cures_Poisoned = true;
 				} else if ( groupName.StartsWith("FlaskBleedCorruptingBloodImmunity") ) {
@@ -271,7 +277,7 @@ namespace AtE {
 			{  "FlaskHybrid3", new FlaskData("FlaskHybrid3", 0, 0, 5000, "flask_effect_mana") },
 			{  "FlaskHybrid4", new FlaskData("FlaskHybrid4", 0, 0, 5000, "flask_effect_mana") },
 			{  "FlaskHybrid5", new FlaskData("FlaskHybrid5", 0, 0, 5000, "flask_effect_mana") },
-			{  "FlaskHybrid6", new FlaskData("FlaskHybrid6", 0, 0, 5000, "flask_effect_mana") },
+			{  "FlaskHybrid6", new FlaskData("FlaskHybrid6", 500, 0, 5000, "flask_effect_life") },
 			{  "FlaskUtility1", new FlaskData("FlaskUtility1", 0, 0, 4000, "flask_utility_critical_strike_chance") },
 			{  "FlaskUtility2", new FlaskData("FlaskUtility2", 0, 0, 4000, "flask_utility_resist_fire") },
 			{  "FlaskUtility3", new FlaskData("FlaskUtility3", 0, 0, 4000, "flask_utility_resist_cold") },
