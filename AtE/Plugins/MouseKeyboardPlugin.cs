@@ -55,6 +55,10 @@ namespace AtE {
 		public bool ShowMouseCoords = false;
 		public HotKey ResetZoneSecretKey = new HotKey(Keys.None);
 
+		public bool LootFocusEnabled = false;
+		public HotKey LootFocusKey = new HotKey(Keys.ShiftKey);
+		private PointF LootFocusMouseSaved = new PointF(0, 0);
+
 		public override void Render() {
 			base.Render();
 
@@ -73,6 +77,10 @@ namespace AtE {
 			ImGui.Separator();
 
 			ImGui.Text("Keyboard:");
+			ImGui.Checkbox("Loot Assist Enabled", ref LootFocusEnabled);
+			ImGui.SameLine();
+
+			ImGui_HotKeyButton("Loot Focus Key", ref LootFocusKey);
 			ImGui.Checkbox("Enabled##UseAlsoCast", ref EnableAlsoCast);
 			ImGui.SameLine();
 			ImGui_HotKeyButton("Main Key", ref AlsoCastMainKey);
@@ -169,6 +177,7 @@ namespace AtE {
 
 		}
 
+
 		private bool downBefore = false;
 		private long downSince = 0;
 		private long lastRepeat = 0;
@@ -176,16 +185,67 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( Paused || !Enabled || !PoEMemory.IsAttached || !PoEMemory.TargetHasFocus ) return this;
 
+			var ui = GetUI();
+			if( ! IsValid(ui) ) {
+				return this;
+			}
+
+			string areaName = PoEMemory.GameRoot?.AreaLoadingState?.AreaName ?? null;
+			if( Offsets.IsHideout(areaName) ) {
+				return this;
+			}
+
 			if( ShowMouseCoords ) {
-				var ui = GetUI();
-				if ( IsValid(ui) ) {
-					var pos = Center(ui.Mouse?.GetClientRect() ?? RectangleF.Empty);
-					DrawBottomLeftText($"Mouse X: {pos.X} Y: {pos.Y}", Color.Yellow);
+				var pos = Center(ui.Mouse?.GetClientRect() ?? RectangleF.Empty);
+				DrawBottomLeftText($"Mouse X: {pos.X} Y: {pos.Y}", Color.Yellow);
+			}
+
+			if( LootFocusEnabled && LootFocusKey.IsReleased ) {
+				if( LootFocusMouseSaved.X > 0 && LootFocusMouseSaved.Y > 0 ) {
+					new MoveMouse(LootFocusMouseSaved.X, LootFocusMouseSaved.Y).OnTick(dt);
 				}
 			}
 
+			if( LootFocusEnabled && LootFocusKey.IsDown ) {
+				if( LootFocusKey.WasJustPressed ) {
+					LootFocusMouseSaved = ui.Mouse.GetClientRect().Location;
+				}
+				var labels = ui.LabelsOnGround.GetAllLabels();
+				var globalRect = ui.LabelsOnGround.GetClientRect();
+				var mouseLoc= ui.Mouse.GetClientRect().Location;
+				var mousePos = new Vector2(mouseLoc.X, mouseLoc.Y);
+				double nearest = double.MaxValue;
+				Vector2 nearestPos = Vector2.Zero;
+				foreach(var label in labels) {
+					var elem = label.Label;
+					if( ! elem.IsVisibleLocal ) {
+						continue;
+					}
+					var ent = label.Item;
+					if( !IsValid(ent) ) {
+						continue;
+					}
+					var path = ent.Path;
+					 if( ! path.Equals("Metadata/MiscellaneousObjects/WorldItem") ) {
+						continue;
+					}
+					var center = Center(elem.GetClientRect());
+					var distance = Vector2.DistanceSquared(mousePos, center);
+					if( distance < nearest ) {
+						nearest = distance;
+						nearestPos = center;
+					}
+					DrawFrame(elem.GetClientRect(), Color.Red);
+				}
+				if( nearestPos.X > 0 && nearestPos.Y > 0 && nearestPos.X < globalRect.Width && nearestPos.Y < globalRect.Height ) {
+					// now run a MoveMouse in this same frame
+					new MoveMouse(nearestPos).OnTick(dt);
+				}
+				return this;
+			}
+
 			if( ResetZoneSecretKey.IsReleased ) {
-				var label = GetUI().LabelsOnGround.GetAllLabels().FirstOrDefault(l => l.Label.Text?.Equals("Waypoint") ?? false);
+				var label = ui.LabelsOnGround.GetAllLabels().FirstOrDefault(l => l.Label.Text?.Equals("Waypoint") ?? false);
 				if( IsValid(label?.Label) ) {
 					Run(new LeftClickAt(label.Label.GetClientRect(), 30, 1
 						, new Delay(300
