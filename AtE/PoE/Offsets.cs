@@ -679,6 +679,7 @@ namespace AtE {
 			[FieldOffset(0x00)] public readonly IntPtr vtable;
 			[FieldOffset(0x08)] public readonly IntPtr ptrDetails;
 			[FieldOffset(0x10)] public readonly ArrayHandle ComponentBasePtrs; // of IntPtr (to base address of a Component)
+			[FieldOffset(0x38)] public readonly uint SeedMaybe;
 			// [FieldOffset(0x50)] public readonly Vector3 WorldPos; // possible
 			// 3.23: 48 new bytes here
 			// 3.24: 8 bytes removed here
@@ -1431,11 +1432,12 @@ namespace AtE {
 			// Crucible: 8 new bytes here
 			// 3.23: 8 new bytes here
 			// 3.25: 8 fewer bytes
-			[FieldOffset(0xa0)] public readonly Vector3 Pos;
-			[FieldOffset(0xac)] public readonly Vector3 Bounds;
-			[FieldOffset(0xc8)] public readonly StringHandle Name; // of unicode bytes
-			[FieldOffset(0xEC)] public readonly Vector3 Rotation;
-			[FieldOffset(0xf0)] public readonly float RotationRadians;
+			// 3.27: 128 new bytes here?
+			[FieldOffset(0x120)] public readonly Vector3 Pos;
+			[FieldOffset(0x12c)] public readonly Vector3 Bounds;
+			[FieldOffset(0x148)] public readonly StringHandle Name; // of unicode bytes
+			[FieldOffset(0x16C)] public readonly Vector3 Rotation;
+			[FieldOffset(0x170)] public readonly float RotationRadians;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_RenderItem {
@@ -1552,8 +1554,9 @@ namespace AtE {
 			[FieldOffset(0x378)] public readonly StringHandle textHandle;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_ItemsOnGroundLabelRoot {
-			[FieldOffset(0x2A0)] public readonly ItemsOnGroundLabelEntry hoverLabel; // 2 ptrs, one Element, one Entity
-			[FieldOffset(0x2B8)] public readonly IntPtr labelsOnGroundHead;
+			// 3.27: 432 bytes here
+			[FieldOffset(0x450)] public readonly ItemsOnGroundLabelEntry hoverLabel; // 2 ptrs, one Element, one Entity
+			[FieldOffset(0x468)] public readonly IntPtr labelsOnGroundHead;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemsOnGroundLabelEntry {
 			[FieldOffset(0x00)] public readonly IntPtr nextEntry;
@@ -1853,6 +1856,7 @@ namespace AtE {
 		public const string PATH_FUSING = "Metadata/Items/Currency/CurrencyRerollSocketLinks";
 		public const string PATH_REMNANT_OF_CORRUPTION = "Metadata/Items/Currency/CurrencyCorruptMonolith";
 		public const string PATH_OMEN_OF_DEATH_DANCING = "Metadata/Items/Currency/AncestralOmenOnCriticalLifeAvoidDamage";
+		public const string PATH_OMEN_OF_AMELIORATION = "Metadata/Items/Currency/AncestralOmenOnDeathPreventExpLoss";
 		public const string PATH_OMEN_OF_RETURN = "Metadata/Items/Currency/AncestralOmenOnDeathCreatePortal";
 		public const string PATH_CLUSTER_SMALL = "Metadata/Items/Jewels/JewelPassiveTreeExpansionSmall";
 		public const string PATH_CLUSTER_MEDIUM = "Metadata/Items/Jewels/JewelPassiveTreeExpansionMedium";
