@@ -199,6 +199,7 @@ namespace AtE {
 				Log($"Warn: MoveMouse to (0,0) attempted, skipped.");
 				return Next;
 			}
+			// Log($"MoveMouse to (#{X},#{Y})");
 			SendInput(INPUT_MouseMove(new Vector2(X, Y)));
 			return Next;
 		}
