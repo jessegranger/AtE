@@ -124,8 +124,9 @@ namespace AtE.Plugins {
 			{ Offsets.PATH_SCROLL_WISDOM, 40 },
 			{ Offsets.PATH_SCROLL_PORTAL, 40 },
 			{ Offsets.PATH_VAAL_ORB, 20 },
-			{ Offsets.PATH_OMEN_OF_RETURN, 1 },
-			{ Offsets.PATH_OMEN_OF_DEATH_DANCING, 1 }
+			// { Offsets.PATH_OMEN_OF_RETURN, 1 },
+			// { Offsets.PATH_OMEN_OF_DEATH_DANCING, 1 },
+			{ Offsets.PATH_OMEN_OF_AMELIORATION, 1 }
 		};
 
 		private IState PlanStashAll(IState next = null) {
