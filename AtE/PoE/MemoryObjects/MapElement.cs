@@ -131,7 +131,7 @@ namespace AtE {
 			largeMapCenter = new Vector2(width / 2, height / 2) + largeMap.Shift + largeMap.DefaultShift;
 			largeMapDiag = (float)Math.Sqrt((width * width) + (height * height));
 			float k = width < 1024f ? 1120f : 1024f;
-			float scale = k / height * width * 3f / 4f / largeMap.Zoom;
+			float scale = k / height * width * 3f / 3.8f / largeMap.Zoom;
 			largeMapRotCos = largeMapDiag * COS_CAMERA_ANGLE / scale;
 			largeMapRotSin = largeMapDiag * SIN_CAMERA_ANGLE / scale;
 			Log($"Large map setting center and diag: {largeMapCenter} {largeMapDiag}");
