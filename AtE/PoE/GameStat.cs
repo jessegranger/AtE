@@ -22107,6 +22107,15 @@
 			MinionEnergyShieldLeechFromElementalDamagePermyriad = 22104,
 			MapMagicMonsterNumAdditionalModifiers = 22105,
 			MapRareBeyondMonsterGivesModsToKillerChancePct = 22106,
+			MtxAfkEffect = 22107,
+			MtxIsFlying = 22108,
+			MtxTimeFreezeLevelUp = 22109,
+			MtxPrecursorArmourEffect = 22110,
+			MtxKalguuranSeafarer = 22111,
+			MtxBloodhowlLevelUp = 22112,
+			MtxVerminSwarmLevelUp = 22113,
+			MtxStormbornArmour = 22114,
 		}
 	}
 }
+
