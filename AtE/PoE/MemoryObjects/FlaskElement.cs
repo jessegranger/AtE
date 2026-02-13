@@ -133,26 +133,33 @@ namespace AtE {
 				}
 
 				if ( groupName.StartsWith("FlaskIncreasedDuration") ) {
-					Duration = (int)(Duration * ((100 + mod.Values.First()) / 100f));
+					var values = mod.Values(1);
+					Duration = (int)(Duration * ((100 + values.First()) / 100f));
 				} else if ( groupName.StartsWith("FlaskExtraCharges") ) {
-					Charges_Max += mod.Values.First();
+					var values = mod.Values(1);
+					if ( values.Count() > 0 ) {
+						Charges_Max += values.First();
+					}
 				} else if ( groupName.StartsWith("FlaskChargesUsed") ) { // value will be like -16 for "16% reduced charges used"
-					if( mod.Values.Count() > 0 ) {
-						Charges_Per = (int)(Charges_Per * (100 + mod.Values.First()) / 100f);
+					var values = mod.Values(1);
+					if( values.Count() > 0 ) {
+						Charges_Per = (int)(Charges_Per * (100 + values.First()) / 100f);
 					}
 				} else if ( groupName.StartsWith("FlaskInstantRecoveryOnLowLife") ) {
 					IsInstantOnLowLife = true;
 					try {
-						if ( mod.Values.Count() > 0 ) {
-							int lessRecovery = mod.Values.Skip(1).First(); // like -27
+						var values = mod.Values(2);
+						if ( values.Count() > 1 ) {
+							int lessRecovery = values.Skip(1).First(); // like -27
 							float recoveryFactor = (100 + lessRecovery) / 100f;
 							LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
 						}
 					} catch ( InvalidOperationException ) { }
 				} else if ( groupName.StartsWith("FlaskFullInstantRecovery") || groupName.StartsWith("FlaskPartialInstantRecovery") ) {
 					IsInstant = true;
-					if( (mod.Values?.Count() ?? 0) > 0) {
-						int lessRecovery = mod.Values?.Skip(1)?.First() ?? 0; // like -27
+					var values = mod.Values(2);
+					if ( values.Count() > 1 ) {
+						int lessRecovery = values.Skip(1).First(); // like -27
 						float recoveryFactor = (100 + lessRecovery) / 100f;
 						LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
 					}
