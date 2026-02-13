@@ -278,11 +278,11 @@ namespace AtE {
 									}
 								} else { // and last, see if it's possible to read a string from the ptr
 									if ( PoEMemory.TryReadString(ptr, Encoding.ASCII, out string asc, 16) ) {
-										ImGui.Text($"s\"{Truncate(asc.Replace('\n', '?'), 16)}\"");
+										ImGui.Text($"s\"{asc.Replace('\n', '?')}\"");
 									}
 									if ( PoEMemory.TryReadString(ptr, Encoding.Unicode, out string utf, 16) ) {
 										ImGui.SameLine();
-										ImGui.Text($"u\"{Truncate(utf.Replace('\n', '?'), 16)}\"");
+										ImGui.Text($"u\"{utf.Replace('\n', '?')}\"");
 									}
 								}
 							}
