@@ -627,16 +627,16 @@ namespace AtE {
 		public ItemMod(Offsets.ItemModEntry entry) {
 			Entry = entry;
 			ModsDatEntry = CachedStruct<Offsets.File_ModsDat_Entry>(() => entry.ptrModsDatEntry);
-			if( IsValid(entry.ptrModsDatFile) ) {
-				if( ! PoEMemory.FileRoots.ContainsKey("Data/Mods.dat") ) {
+			if ( IsValid(entry.ptrModsDatFile) ) {
+				if ( !PoEMemory.FileRoots.ContainsKey("Data/Mods.dat") ) {
 					Log($"Component: recognizing Data/Mods.dat at {Describe(entry.ptrModsDatFile)}");
 					PoEMemory.FileRoots["Data/Mods.dat"] = entry.ptrModsDatFile;
-					if( PoEMemory.TryRead(entry.ptrModsDatFile, out IntPtr vtable) ) {
+					if ( PoEMemory.TryRead(entry.ptrModsDatFile, out IntPtr vtable) ) {
 						Debugger.RegisterVtable("File_InfoBlock", vtable);
 					}
 				}
-				if( ! PoEMemory.FileRoots.ContainsKey("Data/Stats.dat") ) {
-					if( IsValid(ModsDatEntry.Value.Stat0File) ) {
+				if ( !PoEMemory.FileRoots.ContainsKey("Data/Stats.dat") ) {
+					if ( IsValid(ModsDatEntry.Value.Stat0File) ) {
 						Log($"Component: recognizing Data/Stats.dat at {Describe(ModsDatEntry.Value.Stat0File)}");
 						PoEMemory.FileRoots["Data/Stats.dat"] = ModsDatEntry.Value.Stat0File;
 					}
@@ -645,9 +645,10 @@ namespace AtE {
 		}
 		public string GroupName => PoEMemory.TryReadString(ModsDatEntry.Value.strName, Encoding.Unicode, out string name) ? name : null;
 		public string DisplayName => PoEMemory.TryReadString(ModsDatEntry.Value.displayName, Encoding.Unicode, out string name) ? name : null;
-		public IEnumerable<int> Values =>
-			Entry.Values.GetRecordPtrs(sizeof(int))
-				.Select(a => PoEMemory.TryRead(a, out int value) ? value : 0);
+		public IEnumerable<int> Values(int limit) {
+			var ptrs = Entry.Values.GetRecordPtrs(sizeof(int)).Take(limit);
+			return ptrs.Select(a => PoEMemory.TryRead(a, out int value) ? value : 0);
+		}
 
 		public IntPtr Address => Entry.ptrModsDatEntry;
 
