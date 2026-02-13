@@ -186,67 +186,71 @@ namespace AtE {
 			if ( Paused || !Enabled || !PoEMemory.IsAttached || !PoEMemory.TargetHasFocus ) return this;
 
 			var ui = GetUI();
-			if( ! IsValid(ui) ) {
+			if ( !IsValid(ui) ) {
 				return this;
+			}
+
+			if ( RepeatLeftClicks ) {
+				CheckKeyRepeat();
 			}
 
 			string areaName = PoEMemory.GameRoot?.AreaLoadingState?.AreaName ?? null;
-			if( Offsets.IsHideout(areaName) ) {
+			if ( Offsets.IsHideout(areaName) ) {
 				return this;
 			}
 
-			if( ShowMouseCoords ) {
+			if ( ShowMouseCoords ) {
 				var pos = Center(ui.Mouse?.GetClientRect() ?? RectangleF.Empty);
 				DrawBottomLeftText($"Mouse X: {pos.X} Y: {pos.Y}", Color.Yellow);
 			}
 
-			if( LootFocusEnabled && LootFocusKey.IsReleased ) {
-				if( LootFocusMouseSaved.X > 0 && LootFocusMouseSaved.Y > 0 ) {
+			if ( LootFocusEnabled && LootFocusKey.IsReleased ) {
+				if ( LootFocusMouseSaved.X > 0 && LootFocusMouseSaved.Y > 0 ) {
 					new MoveMouse(LootFocusMouseSaved.X, LootFocusMouseSaved.Y).OnTick(dt);
 				}
 			}
 
-			if( LootFocusEnabled && LootFocusKey.IsDown ) {
-				if( LootFocusKey.WasJustPressed ) {
+			if ( LootFocusEnabled && LootFocusKey.IsDown ) {
+				if ( LootFocusKey.WasJustPressed ) {
 					LootFocusMouseSaved = ui.Mouse.GetClientRect().Location;
 				}
 				var labels = ui.LabelsOnGround.GetAllLabels();
 				var globalRect = ui.LabelsOnGround.GetClientRect();
-				var mouseLoc= ui.Mouse.GetClientRect().Location;
+				var mouseLoc = ui.Mouse.GetClientRect().Location;
 				var mousePos = new Vector2(mouseLoc.X, mouseLoc.Y);
 				double nearest = double.MaxValue;
 				Vector2 nearestPos = Vector2.Zero;
-				foreach(var label in labels) {
+				foreach ( var label in labels ) {
 					var elem = label.Label;
-					if( ! elem.IsVisibleLocal ) {
+					if ( !elem.IsVisibleLocal ) {
 						continue;
 					}
 					var ent = label.Item;
-					if( !IsValid(ent) ) {
+					if ( !IsValid(ent) ) {
 						continue;
 					}
 					var path = ent.Path;
-					 if( ! path.Equals("Metadata/MiscellaneousObjects/WorldItem") ) {
+					if ( !path.Equals("Metadata/MiscellaneousObjects/WorldItem") ) {
 						continue;
 					}
 					var center = Center(elem.GetClientRect());
 					var distance = Vector2.DistanceSquared(mousePos, center);
-					if( distance < nearest ) {
+					if ( distance < nearest ) {
 						nearest = distance;
 						nearestPos = center;
 					}
 					DrawFrame(elem.GetClientRect(), Color.Red);
 				}
-				if( nearestPos.X > 0 && nearestPos.Y > 0 && nearestPos.X < globalRect.Width && nearestPos.Y < globalRect.Height ) {
+				if ( nearestPos.X > 0 && nearestPos.Y > 0 && nearestPos.X < globalRect.Width && nearestPos.Y < globalRect.Height ) {
 					// now run a MoveMouse in this same frame
 					new MoveMouse(nearestPos).OnTick(dt);
 				}
 				return this;
 			}
 
-			if( ResetZoneSecretKey.IsReleased ) {
+			if ( ResetZoneSecretKey.IsReleased ) {
 				var label = ui.LabelsOnGround.GetAllLabels().FirstOrDefault(l => l.Label.Text?.Equals("Waypoint") ?? false);
-				if( IsValid(label?.Label) ) {
+				if ( IsValid(label?.Label) ) {
 					Run(new LeftClickAt(label.Label.GetClientRect(), 30, 1
 						, new Delay(300
 						, new KeyDown(Keys.LControlKey
@@ -261,17 +265,22 @@ namespace AtE {
 				}
 			}
 
+			CheckAlsoCast();
+			return this;
+		}
+
+		private void CheckKeyRepeat() {
 			bool downNow = Win32.IsKeyDown(Keys.LButton);
 			bool shiftDownNow = Win32.IsKeyDown(Keys.LShiftKey);
 			bool controlDownNow = Win32.IsKeyDown(Keys.LControlKey);
 			bool shouldRun = (OnlyWhileHoldingShift && shiftDownNow) || (OnlyWhileHoldingControl && controlDownNow);
 			long now = Time.ElapsedMilliseconds;
-			if( downNow && shouldRun ) {
-				if( ! downBefore ) { // this is the first frame the button went down
+			if ( downNow && shouldRun ) {
+				if ( !downBefore ) { // this is the first frame the button went down
 					downSince = lastRepeat = now;
 				} else {
-					if( (now - downSince) > RepeatLeftClickWait ) {
-						if( (now - lastRepeat) > RepeatLeftClickInterval ) {
+					if ( (now - downSince) > RepeatLeftClickWait ) {
+						if ( (now - lastRepeat) > RepeatLeftClickInterval ) {
 							Win32.SendInput( // repeat the already-held left mouse, by releasing and pressing it again
 								Win32.INPUT_Mouse(Win32.MouseFlag.LeftUp),
 								Win32.INPUT_Mouse(Win32.MouseFlag.LeftDown));
@@ -281,8 +290,6 @@ namespace AtE {
 				}
 			}
 			downBefore = downNow;
-			CheckAlsoCast();
-			return this;
 		}
 
 		private void doKeyDown(Keys key, ref long lastPress, float throttle) {
