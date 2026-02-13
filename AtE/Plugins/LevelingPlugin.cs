@@ -241,6 +241,7 @@ namespace AtE {
 								if ( IsValid(minionSkill) ) {
 									if ( minionSkill.TryGetStat(Offsets.GameStat.IsTotem, out int isTotem) && isTotem == 1 ) {
 										minionSkill.TryGetStat(Offsets.GameStat.TotemDuration, out minionDuration);
+									} else if ( minionSkill.TryGetStat(Offsets.GameStat.SecondaryMinionDuration, out minionDuration) ) {
 									} else {
 										minionSkill.TryGetStat(Offsets.GameStat.MinionDuration, out minionDuration);
 									}
@@ -361,7 +362,7 @@ namespace AtE {
 			if ( DismissStoryText ) {
 				var dialog = ui.NpcOptions;
 				/*
-				ImGui.Begin("Debug LeagueNpcOptions");
+				ImGui.Begin("Debug NpcOptions");
 				if( IsValid(dialog) ) {
 					DebugElement(ui.NpcOptions, "ui.NpcOptions");
 				} else {
