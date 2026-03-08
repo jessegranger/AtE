@@ -82,7 +82,10 @@ namespace AtE.Plugins {
 									$"{FormatNumber(dps)}", Color.Cyan, .09f, 8000);
 							}
 							if( ShowDPSTextAsNotify ) {
-								Notify($"{ent.Path.Split('/').Last()} with {FormatNumber(value.FirstLife)} hp killed in {elapsed / 1000:F1}s : {FormatNumber(dps)}dps", Color.Cyan, 8000);
+								var path = ent.Path;
+								if ( IsValid(path) ) {
+									Notify($"{path.Split('/').Last()} with {FormatNumber(value.FirstLife)} hp killed in {elapsed / 1000:F1}s : {FormatNumber(dps)}dps", Color.Cyan, 8000);
+								}
 							}
 						}
 					}
