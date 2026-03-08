@@ -194,6 +194,7 @@ namespace AtE {
 				CheckKeyRepeat();
 			}
 
+
 			string areaName = PoEMemory.GameRoot?.AreaLoadingState?.AreaName ?? null;
 			if ( Offsets.IsHideout(areaName) ) {
 				return this;
@@ -203,14 +204,15 @@ namespace AtE {
 				var pos = Center(ui.Mouse?.GetClientRect() ?? RectangleF.Empty);
 				DrawBottomLeftText($"Mouse X: {pos.X} Y: {pos.Y}", Color.Yellow);
 			}
+			bool isTown = PoEMemory.GameRoot?.InGameState?.WorldData?.IsTown ?? true;
 
-			if ( LootFocusEnabled && LootFocusKey.IsReleased ) {
+			if ( (!isTown) && LootFocusEnabled && LootFocusKey.IsReleased ) {
 				if ( LootFocusMouseSaved.X > 0 && LootFocusMouseSaved.Y > 0 ) {
 					new MoveMouse(LootFocusMouseSaved.X, LootFocusMouseSaved.Y).OnTick(dt);
 				}
 			}
 
-			if ( LootFocusEnabled && LootFocusKey.IsDown ) {
+			if ( (!isTown) && LootFocusEnabled && LootFocusKey.IsDown ) {
 				if ( LootFocusKey.WasJustPressed ) {
 					LootFocusMouseSaved = ui.Mouse.GetClientRect().Location;
 				}
