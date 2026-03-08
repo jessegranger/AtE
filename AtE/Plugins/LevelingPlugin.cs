@@ -98,6 +98,10 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryMarauder2Allied", "Mercenary - Marauder", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryScion1Allied", "Mercenary - Scion", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/Mercenaries/MercenaryScion2Allied", "Mercenary - Scion", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/Axis/AxisEliteSoldierRadiance", "Sentinel - Radiance", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/ElementalLivingRelicFire", "Relic - Anger", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/ElementalLivingRelicCold", "Relic - Hatred", "none", Color.AliceBlue);
+			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/ElementalLivingRelicLightning", "Relic - Wrath", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/MiscellaneousObjects/RemoteMineFire", "Pyroclast Mine", "none", Color.OrangeRed);
 			// traps? mines?
 			// skitterbot curse ring
