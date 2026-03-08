@@ -319,6 +319,9 @@ namespace AtE.Plugins {
 				} else if ( path.Contains("SideArea/SideAreaChest") ) {
 					icon = SpriteIcon.VaalSideArea;
 					iconSize = 1.5f;
+				} else if ( path.Contains("Faridun/Minor") ) {
+					icon = SpriteIcon.RewardGenericItems;
+					iconSize = 1.5f;
 				} else if ( path.Contains("Abyss/AbyssFinal") ) {
 					icon = SpriteIcon.RewardAbyss;
 					iconSize = 1.75f;
