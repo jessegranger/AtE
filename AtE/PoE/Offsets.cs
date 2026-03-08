@@ -341,7 +341,8 @@ namespace AtE {
 			// 3.22: 24 new bytes here
 			// 3.24.3: 8 new bytes here
 			// 3.25: 256 new bytes here
-			[FieldOffset(0x758)] public readonly IntPtr strAreaName;
+			// 3.28: 8 fewer bytes here
+			[FieldOffset(0x750)] public readonly IntPtr strAreaName;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LoginGameState {
 			[FieldOffset(0x2D0)] public readonly IntPtr elemRoot;
@@ -856,17 +857,18 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ActorSkill {
 			[FieldOffset(0x08)] public readonly byte UseStage;
 			// [FieldOffset(0x0C)] public readonly byte KeyBindFlags; // unknown how this works but it changes when you change your skill key binds in the UI
-			[FieldOffset(0x10)] public readonly ushort Id;
-			[FieldOffset(0x18)] public readonly IntPtr ptrGemEffects;
-			[FieldOffset(0x80)] public readonly byte CanBeUsedWithWeapon;
-			[FieldOffset(0x82)] public readonly byte CanBeUsed;
+			[FieldOffset(0x48)] public readonly IntPtr ptrSelf;
+			[FieldOffset(0x50)] public readonly ushort Id;
+			[FieldOffset(0x58)] public readonly IntPtr ptrGemEffects;
+			[FieldOffset(0xc0)] public readonly byte CanBeUsedWithWeapon;
+			[FieldOffset(0xc2)] public readonly byte CanBeUsed;
 			// 3.25: 56 new bytes added here
-			[FieldOffset(0x8c)] public readonly int TotalUses;
-			[FieldOffset(0x90)] public readonly int CooldownMS;
-			[FieldOffset(0xA4)] public readonly int SoulsPerUse;
-			[FieldOffset(0xa8)] public readonly int TotalVaalUses;
+			[FieldOffset(0xcc)] public readonly int TotalUses;
+			[FieldOffset(0xd0)] public readonly int CooldownMS;
+			[FieldOffset(0xE4)] public readonly int SoulsPerUse;
+			[FieldOffset(0xe8)] public readonly int TotalVaalUses;
 			// 3.25: 24 new bytes added here
-			[FieldOffset(0x100)] public readonly IntPtr ptrGameStats; // ptr to GameStatArray
+			[FieldOffset(0x148)] public readonly IntPtr ptrGameStats; // ptr to GameStatArray
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ActorSkillUIState {
@@ -1584,7 +1586,8 @@ namespace AtE {
 			// 3.24: 8 new bytes here
 			// 3.24.3: 8 new bytes here
 			// 3.26: 8 fewer bytes here
-			[FieldOffset(0x398)] public readonly InventoryArray InventoryList;
+			// 3.28: 136 new bytes here (inherited from Element)
+			[FieldOffset(0x420)] public readonly InventoryArray InventoryList;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InventoryArray {
