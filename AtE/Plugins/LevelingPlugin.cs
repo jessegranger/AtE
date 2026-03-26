@@ -57,6 +57,7 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/RaisedSkeletons/RaisedSkeletonStandard", "Summoned Skeleton", "summon_skeletons", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/RaisedSkeletons/RaisedSkeletonRanged1Quality", "Summoned Skeleton", "summon_skeletons", Color.White);
 			AddMinionSkillDesc("Metadata/Monsters/RaisedSkeletons/RaisedSkeletonRanged2Quality", "Summoned Skeleton", "summon_skeletons", Color.White);
+			AddMinionSkillDesc("Metadata/Monsters/Skitterbot/SkitterbotFire", "Skitterbot - Scorch", "skitterbots", Color.Orange);
 			AddMinionSkillDesc("Metadata/Monsters/Skitterbot/SkitterbotCold", "Skitterbot - Chill", "skitterbots", Color.Cyan);
 			AddMinionSkillDesc("Metadata/Monsters/Skitterbot/SkitterbotLightning", "Skitterbot - Shock", "skitterbots", Color.Yellow);
 			AddMinionSkillDesc("Metadata/Monsters/Totems/TauntTotem", "Totem - Decoy", "totem_taunt", Color.Beige);
@@ -300,7 +301,9 @@ namespace AtE {
 								summary.DisplayName = label;
 								summary.Color = MinionDescriptors["Raised Spectre"].Color;
 							} else if ( DebugUnknownMinions ) {
-								ImGui.Text($"Unknown path {path}");
+								summary.DisplayName = path;
+								summary.Color = Color.White;
+								// ImGui.Text($"Unknown path {path}");
 							}
 							minionSummary[path] = summary;
 							float width = ImGui.CalcTextSize(summary.DisplayName).X + ((float)(1f + Math.Ceiling(Math.Log10(summary.Count))) * 14f);
@@ -323,15 +326,16 @@ namespace AtE {
 						| ImGuiWindowFlags.NoMove
 						| ImGuiWindowFlags.AlwaysAutoResize
 						| ImGuiWindowFlags.NoInputs );
-					foreach(var entry in minionSummary ) {
-						Color color = entry.Value.Color;
-						string label = entry.Value.DisplayName;
+					foreach(var item in minionSummary ) {
+						var entry = item.Value;
+						Color color = entry.Color;
+						string label = entry.DisplayName;
 						if ( label == null ) label = "null";
-						if( entry.Value.Count > 1 ) {
-							label += $" (x{entry.Value.Count})";
+						if( entry.Count > 1 ) {
+							label += $" (x{entry.Count})";
 						}
-						float min = entry.Value.MinTimeLeft;
-						float max = entry.Value.MaxTimeLeft;
+						float min = entry.MinTimeLeft;
+						float max = entry.MaxTimeLeft;
 						float ratio = (min / max);
 						if ( min > 0 && min < float.PositiveInfinity ) {
 							label += $" {min:f}s";
@@ -360,6 +364,7 @@ namespace AtE {
 				} else {
 					DrawBottomLeftText("Minion summary disabled while chatbox is invalid or open.", Color.Yellow);
 				}
+
 			}
 
 
