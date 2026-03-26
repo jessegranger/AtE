@@ -19,7 +19,8 @@ namespace AtE {
 
 		public static bool IsRareOrUnique(Entity ent) => IsValid(ent)
 			&& (ent.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White) >= Offsets.MonsterRarity.Rare;
-	}
+
+		}
 	public abstract class Component<T> : MemoryObject<T>, IDisposable where T : unmanaged {
 
 		public bool IsDisposed = false;
@@ -86,6 +87,32 @@ namespace AtE {
 	}
 
 	public class Actor : Component<Offsets.Component_Actor> {
+
+		public override IntPtr Address {
+			get => base.Address;
+			set {
+				if ( value == base.Address ) {
+					return;
+				}
+
+				if ( !Globals.IsValid(value) ) {
+					return;
+				}
+
+				base.Address = value;
+
+				if ( value == IntPtr.Zero ) {
+					return;
+				}
+
+				if ( Globals.IsValid(this) ) {
+					if ( PoEMemory.TryRead(Address, out IntPtr vtable) ) {
+						Debugger.RegisterVtable("Actor", vtable);
+					}
+				}
+
+			}
+		}
 
 		public Offsets.Component_ActionFlags ActionFlags => Cache.ActionFlags;
 
@@ -537,7 +564,11 @@ namespace AtE {
 	}
 
 	class DelveLight : Component<Offsets.Component_Empty> { }
-	class DiesAfterTime : Component<Offsets.Component_DiesAfterTime> { }
+	public class DiesAfterTime : Component<Offsets.Component_DiesAfterTime> {
+		public IntPtr vtable => Cache.vtable;
+		public Entity owner => EntityCache.TryGetEntity(Cache.entOwner, out Entity ent) ? ent : null;
+		public IntPtr unkPtr => Cache.ptrAt0x20;
+	}
 	class StateMachine : Component<Offsets.Component_Empty> { }
 	class Brackets : Component<Offsets.Component_Empty> { }
 	class Flask : Component<Offsets.Component_Empty> { }
