@@ -90,13 +90,17 @@ namespace AtE {
 			[FieldOffset(0x10)] public readonly long Length; // the current Length
 			[FieldOffset(0x18)] public readonly long Capacity; // the current Capacity
 
-			public string Value => Length > 0 && Capacity > 0 && Length <= Capacity && Capacity < 8
-				? Encoding.Unicode.GetString(new byte[] {
+			public string Value =>
+				// check for invalid sizes, return null
+				(Length <= 0 || Length >= 65535 || Capacity <= 0 || Capacity >= 65535 || Length > Capacity) ? null :
+				// if the string is small, read it directly from the bytes
+				Capacity < 8 ? Encoding.Unicode.GetString(new byte[] {
 					byte0, byte1, byte2, byte3,
 					byte4, byte5, byte6, byte7,
 					byte8, byte9, byte10, byte11,
 					byte12, byte13 }, 0, (int)(Length * 2))
-				: PoEMemory.TryReadString(strFullText, Encoding.Unicode, out string value) ? value : null;
+				// otherwise, read the full string
+				: PoEMemory.TryReadString(strFullText, Encoding.Unicode, out string value, (int)(Length * 2)) ? value : null;
 			// this is not ideal, this ref to PoEMemory is the only thing keeping
 			// this file from being directly portable to another project
 		}
@@ -809,7 +813,8 @@ namespace AtE {
 
 		// Actor members:
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Actor {
-			[FieldOffset(0x008)] public readonly IntPtr entOwner; // Entity
+			[FieldOffset(0x00)] public readonly IntPtr vtable;
+			[FieldOffset(0x08)] public readonly IntPtr entOwner; // Entity
 			// 3.22.1c: 8 new bytes here
 			// 3.24: 8 new bytes here
 			[FieldOffset(0x1B8)] public readonly IntPtr ptrAction; // ptr Component_Actor_Action
@@ -1000,6 +1005,7 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_DiesAfterTime {
+			[FieldOffset(0x00)] public readonly IntPtr vtable;
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			[FieldOffset(0x20)] public readonly IntPtr ptrAt0x20;
 		}
