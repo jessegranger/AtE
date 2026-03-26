@@ -199,7 +199,7 @@ namespace AtE.Plugins {
 								icon = SpriteIcon.MediumGreenStar;
 								iconSize = 2f;
 							} else if ( HighlightResonators && path.Contains("Resonator") ) {
-								DrawLineAndLabel(playerScreenPos, ent, Color.Yellow, "Resonator");
+								DrawLineAndLabel(playerScreenPos, ent, Color.Yellow, path.Split('/').Last());
 								icon = SpriteIcon.MediumPurpleStar;
 								iconSize = 2f;
 							} else if ( HighlightCurrency && path.Contains("Currency") ) {
