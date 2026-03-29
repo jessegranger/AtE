@@ -332,7 +332,19 @@ namespace AtE {
 					foreach( var file in PoEMemory.FileRoots ) {
 						if( filter == null || filter.Length == 0 || file.Key.Contains(filter) ) {
 							ImGui_Address(file.Value, file.Key, "File_InfoBlock");
-							if ( file.Key.Equals("Data/Stats.dat") ) {
+							if( file.Key.Equals("Data/Mods.dat") ) {
+								var modsArray = PoEMemory.GetFileContents<Offsets.File_ModsDat_Entry>("Data/Mods.dat");
+								ImGui.Text($" - Items: {modsArray.Length}");
+								for(int i = 0; i < 10 && i < modsArray.Length; i++ ) {
+									var item = modsArray[i];
+									string strName = "null";
+									string displayName = "null";
+									PoEMemory.TryReadString(item.strName, Encoding.Unicode, out strName);
+									PoEMemory.TryReadString(item.displayName, Encoding.Unicode, out displayName);
+									ImGui.Text($"[{i}] {strName} {displayName} {item.AffixType}");
+								}
+							}
+							else if ( file.Key.Equals("Data/Stats.dat") ) {
 								var statsArray = PoEMemory.GetFileContents<Offsets.File_StatsDat_Entry>("Data/Stats.dat");
 								ImGui.Text($" - Items: {statsArray.Length}");
 								// var entry = statsArray[0];
@@ -357,6 +369,7 @@ namespace AtE {
 									Log("Done.");
 								}
 							}
+							ImGui.Separator();
 						}
 
 					}
