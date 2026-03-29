@@ -1805,7 +1805,7 @@ namespace AtE {
 			[FieldOffset(0x0C6)] public readonly IntPtr UnkTagsArray;
 			[FieldOffset(0x17e)] public readonly byte IsEssence;
 			[FieldOffset(0x204)] public readonly IntPtr MainTag; // ?
-			[FieldOffset(0x285)] public readonly long Padding; // so that total size = 0x28F (655)
+			[FieldOffset(0x286)] public readonly long Padding; // so that total size = 0x290 (656)
 		}
 
 		public enum AffixType : uint {
