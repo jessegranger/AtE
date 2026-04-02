@@ -1874,6 +1874,7 @@ namespace AtE {
 		public const string PATH_AUGMENT = "Metadata/Items/Currency/CurrencyAddModToMagic";
 		public const string PATH_REGAL = "Metadata/Items/Currency/CurrencyUpgradeMagicToRare";
 		public const string PATH_SCOUR = "Metadata/Items/Currency/CurrencyConvertToNormal";
+		public const string PATH_EXALT = "Metadata/Items/Currency/CurrencyAddModToRare";
 		public const string PATH_FUSING = "Metadata/Items/Currency/CurrencyRerollSocketLinks";
 		public const string PATH_REMNANT_OF_CORRUPTION = "Metadata/Items/Currency/CurrencyCorruptMonolith";
 		public const string PATH_OMEN_OF_DEATH_DANCING = "Metadata/Items/Currency/AncestralOmenOnCriticalLifeAvoidDamage";
