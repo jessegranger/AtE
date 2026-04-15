@@ -88,7 +88,7 @@ namespace AtE {
 		*/
 		public Element TradeWindow => IsValid(Address) ? getElement(Cache.TradeWindow) : null;
 		// public Element LabyrinthDivineFontPanel => IsValid(Address) ? getElement(Cache.LabyrinthDivineFontPanel) : null;
-		public Element MapDeviceWindow => IsValid(Address) ? getElement(Cache.MapDeviceWindow) : null;
+		// public Element MapDeviceWindow => IsValid(Address) ? getElement(Cache.MapDeviceWindow) : null;
 		public Element CardTradePanel => IsValid(Address) ? getElement(Cache.CardTradePanel) : null;
 		// public Element IncursionAltarOfSacrificePanel => IsValid(Address) ? getElement(Cache.IncursionAltarOfSacrificePanel) : null;
 		// public Element IncursionLapidaryLensPanel => IsValid(Address) ? getElement(Cache.IncursionLapidaryLensPanel) : null;
