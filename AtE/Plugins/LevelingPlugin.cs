@@ -23,6 +23,7 @@ namespace AtE {
 
 		public bool ShowMinionStats = false;
 		public bool ShowSpectreSpells = false;
+		public bool ShowMinionHealth = false;
 		public bool DebugUnknownMinions = false;
 
 		private struct MinionSkillDesc {
@@ -104,6 +105,7 @@ namespace AtE {
 			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/ElementalLivingRelicCold", "Relic - Hatred", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/ElementalLivingRelicLightning", "Relic - Wrath", "none", Color.AliceBlue);
 			AddMinionSkillDesc("Metadata/MiscellaneousObjects/RemoteMineFire", "Pyroclast Mine", "none", Color.OrangeRed);
+			AddMinionSkillDesc("Metadata/Monsters/AnimatedItem/HolyStrikeAnimatedWeapon", "Holy Strike", "none", Color.OrangeRed);
 			// traps? mines?
 			// skitterbot curse ring
 			AddMinionSkillDesc("Raised Spectre", "Raised Spectre", "raise_spectre", Color.White);
@@ -125,6 +127,7 @@ namespace AtE {
 			if( ShowMinionStats ) {
 				ImGui.Indent();
 				ImGui.Checkbox("Show Spectre Spells", ref ShowSpectreSpells);
+				ImGui.Checkbox("Show Minion Health", ref ShowMinionHealth);
 				ImGui.Checkbox("Debug Unknown Minions", ref DebugUnknownMinions);
 				ImGui.Unindent();
 			}
@@ -300,6 +303,12 @@ namespace AtE {
 								}
 								summary.DisplayName = label;
 								summary.Color = MinionDescriptors["Raised Spectre"].Color;
+								if( ShowMinionHealth ) {
+									var life = ent.GetComponent<Life>();
+									if( IsValid(life) ) {
+										summary.DisplayName += $" ({FormatNumber((double)life.MaxHP)}hp)";
+									}
+								}
 							} else if ( DebugUnknownMinions ) {
 								summary.DisplayName = path;
 								summary.Color = Color.White;
@@ -370,6 +379,7 @@ namespace AtE {
 
 			if ( DismissStoryText ) {
 				var dialog = ui.NpcOptions;
+				
 				/*
 				ImGui.Begin("Debug NpcOptions");
 				if( IsValid(dialog) ) {
