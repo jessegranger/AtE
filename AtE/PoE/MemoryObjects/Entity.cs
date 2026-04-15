@@ -28,8 +28,8 @@ namespace AtE {
 					return true; // Entities are valid when they have a recognized vtablePtr
 				}
 			}
-			// recognize vtablePtrs that we haven't seen before, by reading their Path value
-			if ( ent.Path?.StartsWith("Meta") ?? false ) {
+			// otherwise, recognize vtablePtrs that we haven't seen before, by reading their Path value
+			if ( (ent.Path?.StartsWith("Meta") ?? false) && ent.HasComponent() ) {
 				// Memo-ize the valid Entity pointers the first time we see them
 				bool full = true;
 				for(int i = 0; i < Entity.cachedVtablePtr.Length; i++ ) {
@@ -98,7 +98,7 @@ namespace AtE {
 		private Dictionary<string, MemoryObject> ComponentCache; // these are filled in as requested, then re-used if requested a second time
 		private long LastParseTime;
 
-		internal static long[] cachedVtablePtr = new long[13];
+		internal static long[] cachedVtablePtr = new long[12];
 		static Entity() {
 			OnAreaChange += (obj, areaName) => {
 				// clear the Entity vtable pointer cache entries on zone change
@@ -164,7 +164,18 @@ namespace AtE {
 		}
 
 		public bool HasComponent<T>() where T : MemoryObject, new() => IsValid(Address) && GetComponent<T>() != null;
-		public bool HasComponent(string name) => ComponentPtrs?.ContainsKey(name) ?? false;
+		public bool HasComponent(string name) {
+			if ( ComponentPtrs == null || (Time.ElapsedMilliseconds - LastParseTime) > 1337 ) {
+				ParseComponents();
+			}
+			return ComponentPtrs?.ContainsKey(name) ?? false;
+		}
+		public bool HasComponent() {
+			if ( ComponentPtrs == null || (Time.ElapsedMilliseconds - LastParseTime) > 1337 ) {
+				ParseComponents();
+			}
+			return (ComponentPtrs?.Count ?? 0) > 0;
+		}
 
 		public T GetComponent<T>() where T : MemoryObject, new() {
 			if ( !IsValid(Address) ) {
@@ -283,23 +294,23 @@ namespace AtE {
 				foreach ( var entry in namesArray ) {
 					if ( entry.Index < 0 || entry.Index >= basePtrs.Length ) {
 						Log($"ParseComponents[{Id}]: invalid entry index: {entry.Index} should be in [0..{basePtrs.Length}]");
-						continue;
+						return;
 					}
 					if ( !IsValid(entry.ptrName) ) {
 						Log($"ParseComponents[{Id}]: invalid entry name ptr {Describe(entry.ptrName)}");
-						continue;
+						return;
 					}
 					if ( !IsValid(basePtrs[entry.Index]) ) {
 						Log($"ParseComponents[{Id}]: invalid basePtr {Describe(basePtrs[entry.Index])} at index {entry.Index}");
-						break;
+						return;
 					}
 					if ( !PoEMemory.TryReadString(entry.ptrName, Encoding.ASCII, out string name) ) {
 						Log($"ParseComponents[{Id}]: failed to read component name from ptr {Describe(entry.ptrName)}");
-						continue;
+						return;
 					}
 					if ( name.Length < 3 || name.Length > COMPONENT_MAX_NAME ) {
 						Log($"ParseComponents[{Id}]: invalid component name \"{name}\"");
-						continue;
+						return;
 					}
 					// if ( Id == 400 ) { Log($"ParseComponents[{Id}]: valid component \"{name}\" => index {entry.Index}"); }
 					ComponentPtrs[name] = basePtrs[entry.Index];
