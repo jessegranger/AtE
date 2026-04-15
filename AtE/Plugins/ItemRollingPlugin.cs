@@ -29,6 +29,7 @@ namespace AtE.Plugins {
 		private string[] RollingMethodNames = new string[] {
 			"Alteration Only",
 			"Alteration + Augment",
+			"Alteration + Augment + Regal + Exalt",
 			"Chaos"
 		};
 		public int CurrentRollingMethod = 0;
@@ -42,13 +43,41 @@ namespace AtE.Plugins {
 		private void RefreshModNames() {
 			Log("Parsing Mods.dat into ModNames...");
 			ModNames.Clear();
-			foreach ( var item in PoEMemory.GetFileContents<Offsets.File_ModsDat_Entry>("Data/Mods.dat") ) {
-				if ( IsValid(item.strName) && PoEMemory.TryReadString(item.strName, Encoding.Unicode, out string name) ) {
-					if ( IsValid(item.displayName) && PoEMemory.TryReadString(item.displayName, Encoding.Unicode, out string displayName) ) {
-						ModNames.Add($"{name} \"{displayName}\" ({item.AffixType})");
+			var contents = PoEMemory.GetFileContents<Offsets.File_ModsDat_Entry>("Data/Mods.dat");
+			Log($"Mods.dat: Found #{contents.Length} entries");
+			foreach ( var item in contents ) {
+				if ( !IsValid(item.strName) ) {
+					continue;
+				}
+				if ( !PoEMemory.TryReadString(item.strName, Encoding.Unicode, out string name) ) {
+					continue;
+				}
+				if ( ! IsValid(item.displayName) ) {
+					continue;
+				}
+				if ( !PoEMemory.TryReadString(item.displayName, Encoding.Unicode, out string displayName) ) {
+					continue;
+				}
+				ModNames.Add($"{name} \"{displayName}\" ({item.AffixType})");
+			}
+		}
+
+		private int CountExplicitMods(Mods mods, Regex[] patterns) {
+			int count = 0;
+			if ( IsValid(mods.Address) ) {
+				foreach ( var pattern in patterns ) {
+					if ( HasExplicitMod(mods, pattern) ) {
+						count += 1;
 					}
 				}
 			}
+			return count;
+		}
+		private int CountExplicitMods(InventoryItem item, Regex[] patterns) {
+			if( !IsValid(item) ) {
+				return 0;
+			}
+			return CountExplicitMods(item?.Entity?.GetComponent<Mods>(), patterns);
 		}
 
 		private bool HasExplicitMod(ItemMod mods, Regex pattern) {
@@ -93,7 +122,8 @@ namespace AtE.Plugins {
 				default:
 				case 0: return RollOnce_AlterationOnly(topLeft, next);
 				case 1: return RollOnce_AlterationAugment(topLeft, next);
-				case 2: return RollOnce_Chaos(topLeft, next);
+				case 2: return RollOnce_AlterationAugmentRegalExalt(topLeft, next);
+				case 3: return RollOnce_Chaos(topLeft, next);
 			}
 		}
 		
@@ -115,7 +145,6 @@ namespace AtE.Plugins {
 		}
 
 		private IState RollOnce_AlterationAugment(InventoryItem targetItem, IState next = null) {
-
 			if ( !IsValid(targetItem) ) {
 				Notify("RollOnce_AlterationOnly: targetItem is invalid!", Color.Red);
 				return null;
@@ -146,6 +175,102 @@ namespace AtE.Plugins {
 			return null;
 		}
 
+		private IState useItemOnTarget(InventoryItem targetItem, string pathToUse, IState next) {
+			var backpackPlugin = GetPlugin<BackpackPlugin>();
+			var coreSettings = GetPlugin<CoreSettings>();
+			return backpackPlugin.PlanUseItemFromBackpack(pathToUse,
+				next: new LeftClickAt(targetItem.GetClientRect(), (uint)coreSettings.InputLatency, 1, next));
+		}
+
+		private IState RollOnce_AlterationAugmentRegalExalt(InventoryItem targetItem, IState next = null) {
+			if ( !IsValid(targetItem) ) {
+				Notify("RollOnce_AlterationOnly: targetItem is invalid!", Color.Red);
+				return null;
+			}
+			var patterns = ModTarget.Split('|').Select((s) => new Regex(s, RegexOptions.IgnoreCase)).ToArray();
+			if( patterns.Length < 2 ) {
+				Notify("Cannot use this method with only a single target mod.", Color.Orange);
+				return null;
+			}
+			// var regex = new Regex(ModTarget, RegexOptions.IgnoreCase);
+			// if ( HasExplicitMod(targetItem, regex) ) {
+				// Notify("Success!", Color.Green);
+				// return null;
+			// }
+			var mods = targetItem?.Entity?.GetComponent<Mods>();
+			if ( IsValid(mods) ) {
+				int modCount = mods.ExplicitMods.Count();
+				int matchingMods = CountExplicitMods(targetItem, patterns);
+				if ( matchingMods >= 2 ) {
+					Notify($"Success! ({matchingMods} of {patterns.Length} found)", Color.Green);
+					return null;
+				}
+				switch ( mods.Rarity ) {
+					case Offsets.ItemRarity.Normal:
+						Notify("Normal item, using a Transmutation Orb.");
+						return useItemOnTarget(targetItem, Offsets.PATH_TRANSMUTATION, next);
+					case Offsets.ItemRarity.Magic:
+						switch ( modCount ) {
+							case 1:
+								Notify("Magic item with only one mod, using an Augment.");
+								return useItemOnTarget(targetItem, Offsets.PATH_AUGMENT, next);
+							case 2:
+								if( matchingMods == patterns.Length ) {
+									Notify($"Success! ({matchingMods} of {patterns.Length} found)", Color.Green);
+									return null;
+								} else switch ( matchingMods ) {
+									case 0:
+										Notify("Magic item has no matching mods, using an Alteration.");
+										return useItemOnTarget(targetItem, Offsets.PATH_ALTERATION, next);
+									case 1:
+									case 2:
+										Notify("Magic Item, upgrading to Rare, using a Regal Orb.");
+										return useItemOnTarget(targetItem, Offsets.PATH_REGAL, next);
+									default:
+										Notify($"Illegal number of matching mods ({matchingMods}) on magic item.");
+										return null;
+								}
+							default:
+								Notify($"Illegal number of mods on a magic item: {modCount}.");
+								return null;
+						}
+					case Offsets.ItemRarity.Rare:
+						switch ( modCount ) {
+							case 3:
+								switch ( matchingMods ) {
+									case 0: // nothing matches, cannot be saved, so scour
+										Notify("No matches on a rare, cannot be saved, using a Scouring Orb.");
+										return useItemOnTarget(targetItem, Offsets.PATH_SCOUR, next);
+									case 1: // one match, with room to spare, exalt
+										Notify("One match, with room to spare, using Exalted Orb.");
+										return useItemOnTarget(targetItem, Offsets.PATH_EXALT, next);
+									case 2:
+										Notify("Two matches, want more, have room, using Exalted Orb.");
+										return useItemOnTarget(targetItem, Offsets.PATH_EXALT, next);
+									default:
+										Notify($"Success! ({matchingMods} of {patterns.Length} found)", Color.Green);
+										return null;
+								}
+							case 4:
+								Notify("Rare item is full, using a Scour.");
+								return useItemOnTarget(targetItem, Offsets.PATH_SCOUR, next);
+							case 5:
+							case 6:
+								Notify("This method should only be used with clusters (max 4 mods)");
+								return null;
+							default:
+								Notify($"Illegal number of mods on a rare item: {modCount}.");
+								return null;
+						}
+						break;
+					default:
+						Notify($"Cannot use item with this rarity: {mods.Rarity}");
+						return null;
+				}
+			}
+			return null;
+		}
+
 		private IState RollOnce_Chaos(InventoryItem targetItem, IState next = null) {
 			Notify("TODO: Chaos spam support", Color.Red);
 			return next;
@@ -169,7 +294,7 @@ namespace AtE.Plugins {
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text("Method:");
 			ImGui.TableNextColumn();
-			ImGui.SetNextItemWidth(ImGui.CalcTextSize("Alteration + Augment").X + 26);
+			ImGui.SetNextItemWidth(ImGui.CalcTextSize("Alteration + Augment + Regal + Exalt").X + 26);
 			ImGui.Combo("##rolling_method_combo", ref CurrentRollingMethod, RollingMethodNames, RollingMethodNames.Length);
 
 			ImGui.TableNextRow();
@@ -178,8 +303,11 @@ namespace AtE.Plugins {
 			ImGui.Text("Step 1.");
 			ImGui.TableNextColumn();
 			switch( CurrentRollingMethod ) {
-				case 2:
+				case 3:
 					ImGui.Text("Put a rare item in the top left corner of your inventory.");
+					break;
+				case 2:
+					ImGui.Text("Put an item in the top left corner of your inventory.");
 					break;
 				case 1:
 				case 0:
@@ -216,6 +344,8 @@ namespace AtE.Plugins {
 			ImGui.TableNextColumn();
 			int alterationCount = 0;
 			int augmentCount = 0;
+			int regalCount = 0;
+			int exaltCount = 0;
 			int chaosCount = 0;
 			foreach(var item in BackpackItems() ) {
 				var ent = item?.Entity;
@@ -232,14 +362,24 @@ namespace AtE.Plugins {
 					augmentCount += ent.GetComponent<Stack>()?.CurSize ?? 1;
 				} else if( path.Equals(Offsets.PATH_CHAOS) ) {
 					chaosCount += ent.GetComponent<Stack>()?.CurSize ?? 1;
+				} else if( path.Equals(Offsets.PATH_REGAL) ) {
+					regalCount += ent.GetComponent<Stack>()?.CurSize ?? 1;
+				} else if( path.Equals(Offsets.PATH_EXALT) ) {
+					exaltCount += ent.GetComponent<Stack>()?.CurSize ?? 1;
 				}
 			}
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text("Put crafting currency in your backpack.");
 			ImGui.Indent();
 			switch ( CurrentRollingMethod ) {
-				case 2: // Chaos Spam
+				case 3: // Chaos Spam
 					ImGui.Text($"Chaos: {chaosCount}");
+					break;
+				case 2: // Alteration + Augment
+					ImGui.Text($"Augments: {augmentCount}");
+					ImGui.Text($"Alterations: {alterationCount}");
+					ImGui.Text($"Regals: {regalCount}");
+					ImGui.Text($"Exalts: {exaltCount}");
 					break;
 				case 1: // Alteration + Augment
 					ImGui.Text($"Augments: {augmentCount}");
