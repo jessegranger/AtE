@@ -1,16 +1,12 @@
 ﻿using ImGuiNET;
-using ProcessMemoryUtilities.Native;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using static AtE.Globals;
-using static AtE.Win32;
-using static ProcessMemoryUtilities.Managed.NativeWrapper;
 
 namespace AtE {
 	public static partial class Globals {
@@ -64,14 +60,24 @@ namespace AtE {
 	public static class PoEMemory {
 
 		/// <summary>
-		/// Once attached, this is the Target process we will read memory from.
+		/// The platform memory backend. All OS-level reads/attach go through this seam.
+		/// Defaults to the Windows implementation; a future IPlatform composition root
+		/// (PORTING.md step 6) will pick the backend at startup instead.
 		/// </summary>
-		public static Process Target;
+		internal static IProcessMemory Memory = new WindowsProcessMemory();
 
 		/// <summary>
-		/// A Handle with PROCESS_VM_READ permissions to the Target Process
+		/// Once attached, this is the Target process we will read memory from.
+		/// Transitional passthrough to the Windows backend for the window/foreground
+		/// callers (MainWindowHandle); moves behind IOverlayWindow/IInputSource later.
 		/// </summary>
-		public static IntPtr Handle;
+		public static Process Target => (Memory as WindowsProcessMemory)?.Target;
+
+		/// <summary>
+		/// A Handle with PROCESS_VM_READ permissions to the Target Process.
+		/// Transitional passthrough to the Windows backend (debug display only).
+		/// </summary>
+		public static IntPtr Handle => (Memory as WindowsProcessMemory)?.Handle ?? IntPtr.Zero;
 
 		/// <summary>
 		/// The GameStateBase structure, with the main GameState array pointers
@@ -116,11 +122,7 @@ namespace AtE {
 		/// <param name="address">A location in virtual memory of the attached process.</param>
 		/// <param name="buf">An array to read the data into</param>
 		/// <returns>The number of bytes read into buf</returns>
-		public static int TryRead<T>(IntPtr address, T[] buf) where T : unmanaged {
-			if ( !IsValid(address) ) return 0;
-			ReadProcessMemoryArray(Handle, address, buf, out IntPtr read);
-			return read.ToInt32();
-		}
+		public static int TryRead<T>(IntPtr address, T[] buf) where T : unmanaged => Memory.TryRead(address, buf);
 
 		/// <summary>
 		/// Try to read a single unmanaged value from the Target process.
@@ -129,52 +131,13 @@ namespace AtE {
 		/// <param name="loc">The address in virtual memory of the attached process.</param>
 		/// <param name="result">The resulting value</param>
 		/// <returns>true if successful</returns>
-		public static bool TryRead<T>(IntPtr loc, out T result) where T : unmanaged {
-			result = new T();
-			if( !IsValid(loc) ) {
-				return false;
-			}
-			if( ReadProcessMemory(Handle, loc, ref result) ) {
-				return true;
-			}
-			if( LastError != 6 ) Log($"TryRead: failed to read address {Describe(loc)} error: {LastError}");
-			return false;
-		}
+		public static bool TryRead<T>(IntPtr loc, out T result) where T : unmanaged => Memory.TryRead(loc, out result);
 
 		/// <summary>
 		/// Reads a byte[maxLen] buffer from loc, and tries to use Encoding to get a string from it.
 		/// </summary>
-		public static bool TryReadString(IntPtr loc, Encoding enc, out string result, int maxLen = 256) {
-			byte[] buf = new byte[maxLen];
-			if( 0 == TryRead(loc, buf) ) {
-				result = "";
-				return false;
-			}
-			result = enc.GetString(buf);
-			int end = result.IndexOf('\0');
-			if( end != -1 ) {
-				result = result.Substring(0, end);
-			}
-			result = result.TrimStart('?');
-			return !string.IsNullOrEmpty(result);
-		}
-
-		private static bool TryOpenWindow(out Process result, out IntPtr hWnd) {
-			result = null;
-			hWnd = Win32.FindWindow(Offsets.WindowClass, Offsets.WindowTitle);
-			Win32.GetWindowThreadProcessId(hWnd, out uint pid);
-			if ( pid > 0 ) {
-				var process = Process.GetProcessById((int)pid);
-				if ( process != null ) {
-					result = process;
-					return true;
-				}
-			}
-			return false;
-		}
-
-		// The exeImage portion of memory doesn't change after it's loaded, so we only capture it once
-		private static byte[] exeImage;
+		public static bool TryReadString(IntPtr loc, Encoding enc, out string result, int maxLen = 256)
+			=> Memory.TryReadString(loc, enc, out result, maxLen);
 
 		// TODO: might be helpful later to have a FindInHeap (that enumerates allocated pages and scans them)
 		// if we need to search many patterns, we can do them all in one pass over exeImage for better cache usage
@@ -188,22 +151,17 @@ namespace AtE {
 			}
 
 
-			if ( !IsValid(Target) ) {
+			if ( !Memory.IsAttached ) {
 				ImGui.Text($"PoEMemory: No target.");
 				return false;
 			}
 
-			long started = Time.ElapsedMilliseconds;
-			IntPtr baseAddress = Target.MainModule.BaseAddress;
-			long size;
-			if ( exeImage == null ) {
-				size = Target.MainModule.ModuleMemorySize;
-				exeImage = new byte[size];
-				ReadProcessMemoryArray(Handle, baseAddress, exeImage);
-				Log($"PoEMemory: Reading {size / (1024 * 1024)}M executable image (base={Describe(baseAddress)},ms={Time.ElapsedMilliseconds - started}).");
-			} else {
-				size = exeImage.Length;
+			IntPtr baseAddress = Memory.BaseAddress;
+			if ( !Memory.TryReadImage(out byte[] exeImage) || exeImage == null ) {
+				Log($"PoEMemory: Failed to read executable image.");
+				return false;
 			}
+			long size = exeImage.Length;
 
 			if ( pattern.Length > size ) {
 				return false;
@@ -259,8 +217,8 @@ namespace AtE {
 		}
 		
 		internal static IEnumerable<IntPtr> TryFindAllPatternsInExe(IntPtr startAddress, IntPtr endAddress, string mask, params byte[] pattern) {
-			if( endAddress == IntPtr.Zero && IsValid(Target) ) {
-				endAddress = new IntPtr(Target.MainModule.BaseAddress.ToInt64() + Target.MainModule.ModuleMemorySize);
+			if( endAddress == IntPtr.Zero && Memory.IsAttached && Memory.TryReadImage(out byte[] image) && image != null ) {
+				endAddress = new IntPtr(Memory.BaseAddress.ToInt64() + image.Length);
 			}
 			while( startAddress.ToInt64() < endAddress.ToInt64() ) {
 				if( TryFindPatternInExe(out IntPtr nextMatch, startAddress, endAddress, mask, pattern) ) {
@@ -277,9 +235,7 @@ namespace AtE {
 		/// True if a valid Process is open, we have an open Handle to it,
 		/// and we found a GameStateBase offset.
 		/// </summary>
-		public static bool IsAttached => IsValid(Target)
-			&& Handle != IntPtr.Zero
-			&& IsValid(GameRoot);
+		public static bool IsAttached => Memory.IsAttached && IsValid(GameRoot);
 		private static bool wasAttached = false;
 		private static bool wasFocused = false;
 
@@ -335,8 +291,8 @@ namespace AtE {
 				wasAttached = false;
 				// try to find a window to attach to
 				if ( Time.ElapsedMilliseconds > nextAttach ) {
-					if ( TryOpenWindow(out Target, out IntPtr hWnd) ) {
-						TryAttach(Target, hWnd);
+					if ( Memory.TryAttach(out int pid) ) {
+						AttachGameRoot(pid);
 					}
 					nextAttach = Time.ElapsedMilliseconds + 5000;
 				}
@@ -347,16 +303,7 @@ namespace AtE {
 
 		public static void Detach() {
 			OnAreaChange = null;
-			if ( Target != null ) {
-				Log($"PoEMemory: Detaching from process...");
-				Target.Dispose();
-				Target = null;
-			}
-			if ( Handle != IntPtr.Zero ) {
-				Log($"PoEMemory: Closing process handle...");
-				CloseHandle(Handle);
-				Handle = IntPtr.Zero;
-			}
+			Memory.Detach();
 			if ( GameRoot != null ) {
 				GameRoot.Address = IntPtr.Zero;
 				GameRoot.Dispose();
@@ -369,65 +316,35 @@ namespace AtE {
 		private static Dictionary<IntPtr, List<IntPtr>> debugSecondScanResults = new Dictionary<IntPtr, List<IntPtr>>();
 
 
-		public static IEnumerable<MEMORY_BASIC_INFORMATION_64> EnumerateAllocatedRanges() {
-			if( ! IsValid(Target) ) {
+		public static IEnumerable<MemoryRegion> EnumerateAllocatedRanges() {
+			if( ! Memory.IsAttached ) {
 				yield break;
 			}
-			IntPtr pHandle = Target.Handle;
-			SYSTEM_INFO sys_info = new SYSTEM_INFO();
-			GetSystemInfo(out sys_info);
-
-			Log($"System Info: {Describe(sys_info.minimumApplicationAddress)} - {Describe(sys_info.maximumApplicationAddress)}");
-
-			// this will store any information we get from VirtualQueryEx()
-			MEMORY_BASIC_INFORMATION_64 info = new MEMORY_BASIC_INFORMATION_64();
-			IntPtr startAddress = sys_info.minimumApplicationAddress; // IntPtr.Zero; // Target.MainModule.BaseAddress;
-			IntPtr endAddress = sys_info.maximumApplicationAddress; // Target.MainModule.BaseAddress + Target.MainModule.ModuleMemorySize;
+			// Walk the user-mode address space via the platform region query (VirtualQueryEx
+			// on Windows). Bounds match the IsValid(IntPtr) range used elsewhere.
+			IntPtr startAddress = new IntPtr(0x0000010000000000L);
+			IntPtr endAddress = new IntPtr(0x00007FFFFFFFFFFFL);
 
 			while ( startAddress.ToInt64() < endAddress.ToInt64() ) {
-				// Log($"Query {Describe(Handle)} at {Describe(startAddress)}");
-				if( 0 == VirtualQueryEx(Handle, startAddress, out info, (uint)Marshal.SizeOf(typeof(MEMORY_BASIC_INFORMATION_64))) ) {
-					Log($"Query failed (return 0) GetLastError: {GetLastError()}");
+				if( !Memory.TryQueryRegion(startAddress, out MemoryRegion info) ) {
 					break;
 				}
-				if ( info.Protect == PAGE_READWRITE && info.State == MEM_COMMIT ) {
-					long lBase = info.BaseAddress.ToInt64();
-					Log($"{Describe(new IntPtr(lBase))} - {Describe(new IntPtr(lBase + info.RegionSize))} size {info.RegionSize} protect {info.Protect} state {info.State}");
+				if ( info.Protect == MemoryRegion.PAGE_READWRITE && info.State == MemoryRegion.MEM_COMMIT ) {
 					yield return info;
 				}
-				startAddress = new IntPtr(startAddress.ToInt64() + info.RegionSize);
 				if ( info.RegionSize == 0 ) {
 					break;
 				}
+				startAddress = new IntPtr(startAddress.ToInt64() + info.RegionSize);
 			}
 		}
 
 
 
-		private static void TryAttach(Process target, IntPtr hWnd) {
-			if ( !IsValid(target) ) {
-				Log($"TryAttach: Invalid target.");
-				return;
-			}
-			Log($"PoEMemory: TryAttach(pid {target.Id})");
-
-			if ( IsAttached ) {
-				Detach();
-			}
-
-			Target = target;
-			try {
-				Handle = OpenProcess(ProcessAccessFlags.VirtualMemoryRead | ProcessAccessFlags.QueryInformation, false, Target.Id);
-				if ( Handle == IntPtr.Zero ) {
-					Log($"PoEMemory: OpenProcess failed.");
-					Detach();
-					return;
-				}
-			} catch ( Exception e ) {
-				Log($"PoEMemory: failed to attach to Process: {e.Message}");
-				Detach();
-				return;
-			}
+		// The process is already open (via IProcessMemory.TryAttach); locate the GameStateBase
+		// by scanning the module image, which is the platform-neutral half of attaching.
+		private static void AttachGameRoot(int pid) {
+			Log($"PoEMemory: AttachGameRoot(pid {pid})");
 
 			// Patterns are based from ExileApi Memory.cs
 			if ( !TryFindPatternInExe(out IntPtr matchAddress, IntPtr.Zero, IntPtr.Zero, Offsets.GameRoot_SearchMask, Offsets.GameRoot_SearchPattern) ) {
