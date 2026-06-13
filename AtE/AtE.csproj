@@ -1,210 +1,50 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{D7A2F613-2803-4525-824D-DBAB7CA63678}</ProjectGuid>
     <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>AtE</RootNamespace>
     <AssemblyName>AssistantToTheExile</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <Deterministic>true</Deterministic>
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
-    <IsWebBootstrapper>false</IsWebBootstrapper>
-    <PublishUrl>publish\</PublishUrl>
-    <Install>true</Install>
-    <InstallFrom>Disk</InstallFrom>
-    <UpdateEnabled>false</UpdateEnabled>
-    <UpdateMode>Foreground</UpdateMode>
-    <UpdateInterval>7</UpdateInterval>
-    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
-    <UpdatePeriodically>false</UpdatePeriodically>
-    <UpdateRequired>false</UpdateRequired>
-    <MapFileExtensions>true</MapFileExtensions>
-    <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
-    <UseApplicationTrust>false</UseApplicationTrust>
-    <BootstrapperEnabled>true</BootstrapperEnabled>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugType>none</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-  <PropertyGroup>
-    <ApplicationIcon>GreenFlask.ico</ApplicationIcon>
-  </PropertyGroup>
-  <PropertyGroup>
     <StartupObject>AtE.Program</StartupObject>
+    <ApplicationIcon>GreenFlask.ico</ApplicationIcon>
+
+    <!-- The PoE process is 64-bit; reading its memory requires a 64-bit host. -->
+    <Platforms>AnyCPU;x64</Platforms>
+
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- Keep behaviour close to the .NET Framework 4.8 source during the retarget. -->
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!-- AssemblyInfo.cs already declares the assembly attributes. -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+
+    <!-- NU1701: SharpDX/ProcessMemoryUtilities target older frameworks; consuming
+         them from net9.0-windows works but warns.
+         CA1416: Windows-only API usage (WinForms etc.) - guaranteed safe in a
+         Windows-only app. Silence both. -->
+    <NoWarn>$(NoWarn);NU1701;CA1416</NoWarn>
   </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="ImGui.NET, Version=1.87.3.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\ImGui.NET.1.87.3\lib\netstandard2.0\ImGui.NET.dll</HintPath>
-    </Reference>
-    <Reference Include="ProcessMemoryUtilities, Version=1.3.4.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\ProcessMemoryUtilities.Net.1.3.4\lib\net48\ProcessMemoryUtilities.dll</HintPath>
-    </Reference>
-    <Reference Include="SharpDX, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b4dcf0f35e5521f1, processorArchitecture=MSIL">
-      <HintPath>..\packages\SharpDX.4.2.0\lib\net45\SharpDX.dll</HintPath>
-    </Reference>
-    <Reference Include="SharpDX.D3DCompiler, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b4dcf0f35e5521f1, processorArchitecture=MSIL">
-      <HintPath>..\packages\SharpDX.D3DCompiler.4.2.0\lib\net45\SharpDX.D3DCompiler.dll</HintPath>
-    </Reference>
-    <Reference Include="SharpDX.Desktop, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b4dcf0f35e5521f1, processorArchitecture=MSIL">
-      <HintPath>..\packages\SharpDX.Desktop.4.2.0\lib\net45\SharpDX.Desktop.dll</HintPath>
-    </Reference>
-    <Reference Include="SharpDX.Direct2D1, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b4dcf0f35e5521f1, processorArchitecture=MSIL">
-      <HintPath>..\packages\SharpDX.Direct2D1.4.2.0\lib\net45\SharpDX.Direct2D1.dll</HintPath>
-    </Reference>
-    <Reference Include="SharpDX.Direct3D11, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b4dcf0f35e5521f1, processorArchitecture=MSIL">
-      <HintPath>..\packages\SharpDX.Direct3D11.4.2.0\lib\net45\SharpDX.Direct3D11.dll</HintPath>
-    </Reference>
-    <Reference Include="SharpDX.DXGI, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b4dcf0f35e5521f1, processorArchitecture=MSIL">
-      <HintPath>..\packages\SharpDX.DXGI.4.2.0\lib\net45\SharpDX.DXGI.dll</HintPath>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Buffers, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Buffers.4.5.1\lib\net461\System.Buffers.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Core" />
-    <Reference Include="System.Numerics" />
-    <Reference Include="System.Numerics.Vectors, Version=4.1.4.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Numerics.Vectors.4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.6.0.0\lib\net461\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Drawing" />
-    <Reference Include="System.Windows.Forms" />
+    <PackageReference Include="ImGui.NET" Version="1.87.3" />
+    <PackageReference Include="ProcessMemoryUtilities.Net" Version="1.3.4" />
+    <PackageReference Include="SharpDX" Version="4.2.0" />
+    <PackageReference Include="SharpDX.D3DCompiler" Version="4.2.0" />
+    <PackageReference Include="SharpDX.Desktop" Version="4.2.0" />
+    <PackageReference Include="SharpDX.Direct2D1" Version="4.2.0" />
+    <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
+    <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
   </ItemGroup>
+
+  <!-- Sprites.png is loaded at runtime from the relative path "Static\Sprites.png". -->
   <ItemGroup>
-    <Compile Include="Console.cs" />
-    <Compile Include="Memory\Debugger.cs" />
-    <Compile Include="Memory\Memory.cs" />
-    <Compile Include="Memory\ObjectBrowser.cs" />
-    <Compile Include="Overlay\Perf.cs" />
-    <Compile Include="Overlay\SpriteController.cs" />
-    <Compile Include="Plugins\BreadcrumbsPlugin.cs" />
-    <Compile Include="Plugins\SkillsPlugin.cs" />
-    <Compile Include="Plugins\ChaosRecipe.cs" />
-    <Compile Include="Plugins\CoreSettings.cs" />
-    <Compile Include="Plugins\DefenseDisplay.cs" />
-    <Compile Include="Plugins\DelvePlugin.cs" />
-    <Compile Include="Plugins\DPSPlugin.cs" />
-    <Compile Include="Plugins\ExamplePlugin.cs" />
-    <Compile Include="Plugins\FlasksPlugin.cs" />
-    <Compile Include="Plugins\ItemRollingPlugin.cs" />
-    <Compile Include="Plugins\LevelingPlugin.cs" />
-    <Compile Include="Plugins\MinimapIconPlugin.cs" />
-    <Compile Include="Plugins\MouseKeyboardPlugin.cs" />
-    <Compile Include="Plugins\PathfindingPlugin.cs" />
-    <Compile Include="Plugins\PluginBase.cs" />
-    <Compile Include="Plugins\BackpackPlugin.cs" />
-    <Compile Include="Plugins\XPPlugin.cs" />
-    <Compile Include="PoE\ElementCache.cs" />
-    <Compile Include="PoE\EntityCache.cs" />
-    <Compile Include="PoE\GameStat.cs" />
-    <Compile Include="PoE\MemoryObjects\FlaskElement.cs" />
-    <Compile Include="PoE\MemoryObjects\Inventory.cs" />
-    <Compile Include="PoE\MemoryObjects\MapElement.cs" />
-    <Compile Include="PoE\MemoryObjects\UIElementLibrary.cs" />
-    <Compile Include="PoE\Offsets.cs" />
-    <Compile Include="Overlay\Overlay.cs" />
-    <Compile Include="Overlay\OverlayForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Overlay\D3DController.cs" />
-    <Compile Include="Globals.cs" />
-    <Compile Include="Overlay\ImGuiController.cs" />
-    <Compile Include="Program.cs" />
-    <Compile Include="PoE\Components\Component.cs" />
-    <Compile Include="PoE\MemoryObjects\Element.cs" />
-    <Compile Include="PoE\MemoryObjects\Entity.cs" />
-    <Compile Include="PoE\GameState.cs" />
-    <Compile Include="PoE\PoEMemory.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="StateMachine\HotKey.cs" />
-    <Compile Include="StateMachine\Machine.cs" />
-    <Compile Include="StateMachine\Runner.cs" />
-    <Compile Include="StateMachine\State.cs" />
-    <Compile Include="Overlay\TextureCache.cs" />
-    <Compile Include="Win32.cs" />
-    <EmbeddedResource Include="Overlay\OverlayForm.resx">
-      <DependentUpon>OverlayForm.cs</DependentUpon>
-      <SubType>Designer</SubType>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Properties\Resources.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-      <SubType>Designer</SubType>
-    </EmbeddedResource>
-    <Compile Include="Properties\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Resources.resx</DependentUpon>
-      <DesignTime>True</DesignTime>
-    </Compile>
-    <None Include="packages.config" />
-    <None Include="Properties\Settings.settings">
-      <Generator>SettingsSingleFileGenerator</Generator>
-      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
-    </None>
-    <Compile Include="Properties\Settings.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Settings.settings</DependentUpon>
-      <DesignTimeSharedInput>True</DesignTimeSharedInput>
-    </Compile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="App.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <BootstrapperPackage Include=".NETFramework,Version=v4.8">
-      <Visible>False</Visible>
-      <ProductName>Microsoft .NET Framework 4.8 %28x86 and x64%29</ProductName>
-      <Install>true</Install>
-    </BootstrapperPackage>
-    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
-      <Visible>False</Visible>
-      <ProductName>.NET Framework 3.5 SP1</ProductName>
-      <Install>false</Install>
-    </BootstrapperPackage>
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="GreenFlask.ico" />
     <Content Include="Static\Sprites.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Static\GreenFlask.ico" />
   </ItemGroup>
-  <ItemGroup />
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\packages\ImGui.NET.1.87.3\build\net40\ImGui.NET.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\ImGui.NET.1.87.3\build\net40\ImGui.NET.targets'))" />
-  </Target>
-  <Import Project="..\packages\ImGui.NET.1.87.3\build\net40\ImGui.NET.targets" Condition="Exists('..\packages\ImGui.NET.1.87.3\build\net40\ImGui.NET.targets')" />
+
 </Project>

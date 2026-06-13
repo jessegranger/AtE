@@ -1,31 +1,48 @@
-﻿using SharpDX.Windows;
-using System;
+﻿using System;
 using System.Windows.Forms;
 using static AtE.Win32;
 
 namespace AtE {
 
-	public class OverlayForm : RenderForm {
-		private readonly ContextMenu contextMenu1 = new ContextMenu();
+	// NOTE: This used to inherit SharpDX.Windows.RenderForm, but that type's
+	// constructor loads its window icon from a BinaryFormatter-serialized embedded
+	// resource, and BinaryFormatter was removed in .NET 9 (throws at runtime). We
+	// only ever used RenderForm's UserResized event, so we inherit Form directly and
+	// reproduce that event plus the paint styles RenderForm set for D3D hosting.
+	public class OverlayForm : Form {
+		private readonly ContextMenuStrip contextMenu1 = new ContextMenuStrip();
 		private readonly NotifyIcon notifyIcon = new NotifyIcon();
+
+		/// <summary>Raised whenever the form is resized (replaces RenderForm.UserResized).</summary>
+		public event EventHandler UserResized;
+
 		public OverlayForm() {
+			// Host a Direct3D swap chain: let our renderer own all painting so WinForms
+			// never clears the surface underneath it. (These are the styles RenderForm set.)
+			SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.Opaque, true);
+			ResizeRedraw = true;
+
 			// let the Designer have it's auto properties, so the VS editor works
 			InitializeComponent();
 
-			var menuExit = new MenuItem() {
-				Index = 0,
+			var menuExit = new ToolStripMenuItem() {
 				Text = "Exit"
 			};
 			menuExit.Click += (sender, args) => Close();
-			contextMenu1.MenuItems.Add(menuExit);
+			contextMenu1.Items.Add(menuExit);
 
-			notifyIcon.ContextMenu = contextMenu1;
+			notifyIcon.ContextMenuStrip = contextMenu1;
 			notifyIcon.Icon = Icon;
 			notifyIcon.Text = "Assistant to the Exile";
 			notifyIcon.Visible = true;
 
 			BringToFront();
 
+		}
+
+		protected override void OnResize(EventArgs e) {
+			base.OnResize(e);
+			UserResized?.Invoke(this, EventArgs.Empty);
 		}
 
 		private bool trans = false;
