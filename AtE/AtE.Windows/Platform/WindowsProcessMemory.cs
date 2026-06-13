@@ -147,7 +147,7 @@ namespace AtE {
 			if ( Handle == IntPtr.Zero ) {
 				return false;
 			}
-			if ( 0 == VirtualQueryEx(Handle, addr, out Win32.MEMORY_BASIC_INFORMATION_64 info,
+			if ( 0 == Win32.VirtualQueryEx(Handle, addr, out Win32.MEMORY_BASIC_INFORMATION_64 info,
 					(uint)Marshal.SizeOf(typeof(Win32.MEMORY_BASIC_INFORMATION_64))) ) {
 				return false;
 			}

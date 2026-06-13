@@ -5,6 +5,7 @@
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>AtE</RootNamespace>
+    <!-- Keep the historical exe name so existing shortcuts/settings paths still work. -->
     <AssemblyName>AssistantToTheExile</AssemblyName>
     <StartupObject>AtE.Program</StartupObject>
     <ApplicationIcon>GreenFlask.ico</ApplicationIcon>
@@ -28,6 +29,11 @@
          Windows-only app. Silence both. -->
     <NoWarn>$(NoWarn);NU1701;CA1416</NoWarn>
   </PropertyGroup>
+
+  <!-- Platform-neutral seam interfaces live in AtE.Core. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AtE.Core\AtE.Core.csproj" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="ImGui.NET" Version="1.87.3" />

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Platform-neutral core: NO -windows suffix, no WinForms, no SharpDX.
+         This assembly must compile on Linux. It holds only the platform seam
+         interfaces (and, later, the portable entity/component model). -->
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RootNamespace>AtE</RootNamespace>
+    <AssemblyName>AtE.Core</AssemblyName>
+
+    <!-- The PoE process is 64-bit; the eventual reads happen in the 64-bit host. -->
+    <Platforms>AnyCPU;x64</Platforms>
+
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- Keep behaviour close to the original .NET Framework 4.8 source. -->
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+</Project>

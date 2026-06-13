@@ -190,8 +190,13 @@ Track these down during the cut — they're easy to miss because they're not P/I
 
 ## Suggested migration order
 
-1. **Retarget to .NET 8/9** and split into `AtE.Core` + `AtE.Windows`; get the existing
+1. ✅ **Done — Retarget to .NET 8/9** and split into `AtE.Core` + `AtE.Windows`; get the existing
    Windows build green on the new framework with all current code still in `AtE.Windows`.
+   - Solution `AtE.sln` now holds two projects. `AtE.Core` targets neutral `net9.0` (no
+     `-windows`, no WinForms/SharpDX) and currently contains only the seam interface
+     `Platform/IProcessMemory.cs` (+ `MemoryRegion`). `AtE.Windows` targets `net9.0-windows`
+     (`WinExe`, WinForms, SharpDX, `AssemblyName=AssistantToTheExile`), references `AtE.Core`,
+     and holds all remaining source. Verify the build on Windows (`dotnet build AtE.sln` or VS).
 2. **Introduce `IProcessMemory`** and move `PoEMemory`'s OS calls behind it; everything
    else keeps working. This is the lowest-risk, highest-value seam and proves the model
    reads correctly on the new framework.
