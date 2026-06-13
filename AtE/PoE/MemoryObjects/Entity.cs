@@ -181,7 +181,7 @@ namespace AtE {
 			if ( !IsValid(Address) ) {
 				return null;
 			}
-			if ( Thread.CurrentThread.ManagedThreadId != 1 ) {
+			if ( Environment.CurrentManagedThreadId != 2 ) {
 				Log($"Warning: GetComponent<{typeof(T).Name}> called from background thread!");
 			}
 			if ( ComponentPtrs == null || (Time.ElapsedMilliseconds - LastParseTime) > 1337 ) {
