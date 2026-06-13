@@ -142,7 +142,10 @@ namespace AtE {
 					}
 				}
 			} else if ( autoCreate ) {
-				File.Create(fileName);
+				// File.Create returns an open FileStream holding an exclusive handle;
+				// dispose it immediately so the file isn't left locked (otherwise a
+				// later File.Copy of Settings.ini fails with a sharing violation).
+				File.Create(fileName).Dispose();
 			}
 		}
 		internal static void LoadIniFiles() {
