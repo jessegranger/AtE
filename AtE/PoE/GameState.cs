@@ -294,39 +294,33 @@ namespace AtE {
 			ImGui.End();
 			*/
 
-			/*
 			if ( false ) {
-				ImGui.Begin("Entities");
 				try {
-					var pos = GridPosition(GetPlayer());
-					foreach ( var ent in GetEntities().Where((ent) => ent.HasComponent<Chest>()).OrderBy((ent) => DistanceSq(GridPosition(ent), pos)).Take(10) ) {
+					ImGui.Begin("Hostile Ents");
+					foreach ( var ent in GetEntities()
+						.Where((ent) => IsHostile(ent) && IsAlive(ent) && ent.HasComponent<Buffs>()).Take(10) ) {
 						ImGui.Text(ent.Path);
-						ImGui.Text(string.Join(" ", ent.GetComponentNames()));
 						//if ( ent.Path.Contains("LeaguesExpedition") ) {
-						var chest = ent.GetComponent<Chest>();
-						if ( IsValid(chest) ) {
-							if ( !chest.IsOpened ) {
-								ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
-								ImGui.Begin($"Chest Window##{ent.Id}");
-								ImGui.Text(ent.Path);
-								ImGui_Object($"Icon##{ent.Id}", "Icon", ent.MinimapIcon, new HashSet<int>());
-								ImGui.SameLine();
-								if( ImGui.Button("Reset Icon") ) {
-									ent.MinimapIcon.Size = 0f;
-								}
-								ImGui_Object($"MinimapIcon##{ent.Id}", "MinimapIcon", ent.GetComponent<MinimapIcon>(), new HashSet<int>());
-								ImGui.End();
-								// DrawLine(WorldToScreen(Position(GetPlayer())), WorldToScreen(Position(ent)), Color.Yellow);
+						var buffs = ent.GetComponent<Buffs>();
+						if ( IsValid(buffs) ) {
+							// ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
+							// ImGui.Begin($"Buffs Window##{ent.Id}");
+							ImGui.Text(ent.Path);
+							ImGui.Text(Describe(Position(ent)));
+							ImGui_Object("Render", "Render", ent.GetComponent<Render>(), new HashSet<int>());
+							foreach(var buff in buffs.GetBuffs()) {
+								ImGui.Text(buff.Name);
 							}
+							// ImGui.End();
+						} else {
+							ImGui.Text("Invalid buffs");
 						}
-						//}
 						ImGui.Separator();
 					}
 				} finally {
 					ImGui.End();
 				}
 			}
-			*/
 
 			/* How to debug UI Elements offsets:
 			ImGui.Begin("UI Elements");
