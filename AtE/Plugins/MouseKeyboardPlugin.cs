@@ -13,7 +13,7 @@ namespace AtE {
 		public override string Name => "Mouse & Keyboard";
 
 		public enum KeyBindMode : int {
-			Hold= 0,
+			Hold = 0,
 			Press = 1,
 		}
 
@@ -32,7 +32,7 @@ namespace AtE {
 		public float AlsoCastKey1Throttle = 0;
 		public int AlsoCastKey1Mode = (int)KeyBindMode.Hold;
 		private long AlsoCastKey1LastPress = 0;
-		
+
 
 		public bool EnableAlsoCastKey2 = false;
 		public HotKey AlsoCastKey2 = new HotKey(Keys.None);
@@ -99,7 +99,7 @@ namespace AtE {
 			}
 			ImGui.SameLine();
 			ImGui_HotKeyButton("Key #1", ref AlsoCastKey1);
-			if( AlsoCastKey1Mode == (int)KeyBindMode.Press ) {
+			if ( AlsoCastKey1Mode == (int)KeyBindMode.Press ) {
 				ImGui.SameLine();
 				ImGui.Text("Every");
 				ImGui.SameLine();
@@ -108,7 +108,7 @@ namespace AtE {
 			} else {
 
 			}
-	
+
 			ImGui.Checkbox("Also##AlsoCast2", ref EnableAlsoCastKey2);
 			ImGui.SameLine();
 			ImGui.SetNextItemWidth(keyInputWidth);
@@ -121,7 +121,7 @@ namespace AtE {
 			}
 			ImGui.SameLine();
 			ImGui_HotKeyButton("Key #2", ref AlsoCastKey2);
-			if( AlsoCastKey2Mode == (int)KeyBindMode.Press ) {
+			if ( AlsoCastKey2Mode == (int)KeyBindMode.Press ) {
 				ImGui.SameLine();
 				ImGui.Text("Every");
 				ImGui.SameLine();
@@ -130,7 +130,7 @@ namespace AtE {
 			} else {
 
 			}
-	
+
 			ImGui.Checkbox("Also##AlsoCast3", ref EnableAlsoCastKey3);
 			ImGui.SameLine();
 			ImGui.SetNextItemWidth(keyInputWidth);
@@ -143,7 +143,7 @@ namespace AtE {
 			}
 			ImGui.SameLine();
 			ImGui_HotKeyButton("Key #3", ref AlsoCastKey3);
-			if( AlsoCastKey3Mode == (int)KeyBindMode.Press ) {
+			if ( AlsoCastKey3Mode == (int)KeyBindMode.Press ) {
 				ImGui.SameLine();
 				ImGui.Text("Every");
 				ImGui.SameLine();
@@ -165,7 +165,7 @@ namespace AtE {
 			}
 			ImGui.SameLine();
 			ImGui_HotKeyButton("Key #4", ref AlsoCastKey4);
-			if( AlsoCastKey4Mode == (int)KeyBindMode.Press ) {
+			if ( AlsoCastKey4Mode == (int)KeyBindMode.Press ) {
 				ImGui.SameLine();
 				ImGui.Text("Every");
 				ImGui.SameLine();
@@ -183,7 +183,8 @@ namespace AtE {
 		private long lastRepeat = 0;
 
 		public override IState OnTick(long dt) {
-			if ( Paused || !Enabled || !PoEMemory.IsAttached || !PoEMemory.TargetHasFocus ) return this;
+			if ( Paused || !Enabled || !PoEMemory.IsAttached || !PoEMemory.TargetHasFocus )
+				return this;
 
 			var ui = GetUI();
 			if ( !IsValid(ui) ) {
@@ -296,7 +297,7 @@ namespace AtE {
 
 		private void doKeyDown(Keys key, ref long lastPress, float throttle) {
 			long elapsed = Time.ElapsedMilliseconds - lastPress;
-			if( elapsed < throttle * 1000 ) {
+			if ( elapsed < throttle * 1000 ) {
 				return;
 			}
 			lastPress = Time.ElapsedMilliseconds;
@@ -310,7 +311,7 @@ namespace AtE {
 			long sinceLastPress = now - lastPress;
 			long sinceAnyAlsoCast = now - lastPressOfAnyAlsoCast;
 			if ( sinceLastPress > throttleMS ) {
-				if( sinceAnyAlsoCast < 100 ) {
+				if ( sinceAnyAlsoCast < 100 ) {
 					Log($"Defering key press {key}...");
 					return false; // skip injecting fresh inputs for a short while
 				}
@@ -331,7 +332,7 @@ namespace AtE {
 		private long alsoCastMainKeyLastPress = 0;
 
 		private void CheckAlsoCast() {
-			if( EnableAlsoCast && ! PoEMemory.GameRoot.InGameState.HasInputFocus ) {
+			if ( EnableAlsoCast && !PoEMemory.GameRoot.InGameState.HasInputFocus ) {
 				bool downNow = Win32.IsKeyDown(AlsoCastMainKey.Key);
 				if ( downNow && !alsoCastMainKeyDownBefore ) {
 					// OnKeyDown: (of the main key)
@@ -348,10 +349,10 @@ namespace AtE {
 					|| (EnableAlsoCastKey4 && AlsoCastKey4Mode == (int)KeyBindMode.Press && doKeyPress(AlsoCastKey4.Key, ref AlsoCastKey4LastPress, AlsoCastKey4Throttle));
 				} else if ( alsoCastMainKeyDownBefore && !downNow ) {
 					// OnKeyUp: (of the main key)
-					if( EnableAlsoCastKey1  && AlsoCastKey1Mode == (int)KeyBindMode.Hold ) { doKeyUp(AlsoCastKey1.Key); }
-					if( EnableAlsoCastKey2  && AlsoCastKey2Mode == (int)KeyBindMode.Hold ) { doKeyUp(AlsoCastKey2.Key); }
-					if( EnableAlsoCastKey3  && AlsoCastKey3Mode == (int)KeyBindMode.Hold ) { doKeyUp(AlsoCastKey3.Key); }
-					if( EnableAlsoCastKey4  && AlsoCastKey4Mode == (int)KeyBindMode.Hold ) { doKeyUp(AlsoCastKey4.Key); }
+					if ( EnableAlsoCastKey1 && AlsoCastKey1Mode == (int)KeyBindMode.Hold ) { doKeyUp(AlsoCastKey1.Key); }
+					if ( EnableAlsoCastKey2 && AlsoCastKey2Mode == (int)KeyBindMode.Hold ) { doKeyUp(AlsoCastKey2.Key); }
+					if ( EnableAlsoCastKey3 && AlsoCastKey3Mode == (int)KeyBindMode.Hold ) { doKeyUp(AlsoCastKey3.Key); }
+					if ( EnableAlsoCastKey4 && AlsoCastKey4Mode == (int)KeyBindMode.Hold ) { doKeyUp(AlsoCastKey4.Key); }
 				}
 				alsoCastMainKeyDownBefore = downNow;
 			}
