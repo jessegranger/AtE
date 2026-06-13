@@ -108,10 +108,10 @@ namespace AtE {
 			// 
 			this.BackColor = System.Drawing.Color.Gray;
 			this.ClientSize = new System.Drawing.Size(800, 600);
-			this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+			this.FormBorderStyle = FormBorderStyle.None;
 			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.Name = "OverlayForm";
-			this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
+			this.StartPosition = FormStartPosition.Manual;
 			this.Text = "Assistant to the Exile";
 			this.TopMost = true;
 			this.ResumeLayout(false);

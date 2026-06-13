@@ -1,0 +1,21 @@
+This is **AtE ("Assistant to the Exile")**, a Path of Exile overlay tool written in C# (.NET Framework 4.8). It draws a transparent DirectX layer on top of the running game and reads the game's process memory to power gameplay assists. Here's how the pieces fit together.
+
+**Entry point (`Program.cs`).** `Main()` wires up the whole system and then runs a render loop forever. It initializes the overlay, starts the memory-reading tick, starts the plugin system and console, launches the entity-cache background thread, and finally enters `Overlay.RenderLoop()`.
+
+**The overlay (`Overlay/`).** It creates a borderless, full-screen, click-through transparent window (`OverlayForm` uses DWM's "sheet of glass" trick via `ExtendFrameIntoClientArea(-1,-1,-1,-1)`). Rendering uses SharpDX: `D3DController` (Direct3D 11/DXGI), `ImGuiController` (ImGui.NET for all the UI/drawing), `SpriteController` and `TextureCache` for images/icons. Everything plugins draw on screen goes through ImGui.
+
+**Memory reading (`Memory/` + `PoE/PoEMemory.cs`).** `PoEMemory` attaches to the PoE process via `OpenProcess` and `ReadProcessMemory` (the `ProcessMemoryUtilities.Net` package). It locates the game's root structure by scanning the executable image for a known byte pattern (`GameRoot_SearchPattern`) to resolve the `GameStateBase` pointer, then re-attaches every 5 seconds if the game isn't running. The core primitive is `TryRead<T>(addr, out T)`, which reads a native struct straight out of game memory.
+
+`MemoryObject<T>` is the central abstraction: a managed object that holds only an `Address` and reads its backing struct `T` lazily (cached once per frame). `ArrayHandle<T>` wraps PoE's native dynamic arrays (head/tail pointers) so they can be enumerated as .NET collections.
+
+**Game model (`PoE/`).** `Offsets.cs` defines the native struct layouts for the current game version (this is the file that breaks/needs updating on PoE patches). On top of it sits an entity-component model mirroring PoE's own: an `Entity` has `Component`s like `Life`, `Actor`, `Player`, `Mods`, `Positioned`, `Render`, `Sockets`, `Buffs`, etc. (~50 component types in `Components/Component.cs`). `EntityCache` runs on its own thread, maintaining thread-safe dictionaries of live entities by address and by id, pruning invalid ones each pass. `ElementCache`/`Element` model the in-game UI tree.
+
+**State machine (`StateMachine/`).** A lightweight cooperative scheduler. `Machine.DefaultMachine` holds a linked list of `IState` objects and ticks each one per frame; a state returns itself to continue, a different state to transition, or null to terminate. `Run`, `RunForever`, `RunFor`, and `Runner` (which wraps a lambda as a state) are the helpers in `Globals`. Both the memory tick and every plugin are just states on this machine.
+
+**Plugins (`Plugins/`).** `PluginBase : State` is where features live. The static side auto-discovers plugin types via reflection, instantiates them, and loads/saves their settings to an INI file (public fields persist automatically unless marked `[NoPersist]`; `HotKey`, `Keys`, numeric, bool, string types are handled). Each plugin's `OnTick` runs per frame to read entities and draw via ImGui, and renders its own settings UI. Shipped plugins include Flasks (auto-flask logic), DPS, DefenseDisplay, ChaosRecipe, Minimap icons, Pathfinding, Leveling, XP, Backpack, Delve, ItemRolling, and an ExamplePlugin template. `CoreSettings` holds global config.
+
+**Support pieces.** `Globals.cs` is a `static partial` class (extended across files) holding shared helpers like `IsValid`, `Log`, `Run`, and timing. `Win32.cs` wraps native interop. `Console.cs` is an in-overlay debug console, and `Memory/Debugger.cs` + `ObjectBrowser.cs` let you inspect arbitrary memory addresses live (the `M` button next to addresses in the UI).
+
+The overall flow each frame: read game memory → update the entity/element caches → tick every plugin state → plugins query that model and issue ImGui draw calls → D3D renders them onto the transparent window over the game.
+
+The main maintenance burden is `PoE/Offsets.cs`, since the memory layout changes whenever Path of Exile patches. Want me to dig into any specific part — a particular plugin, the offset-scanning attach logic, or the render pipeline?
