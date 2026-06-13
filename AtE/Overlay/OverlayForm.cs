@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Windows.Forms;
 using static AtE.Win32;
+using System.ComponentModel;
 
 namespace AtE {
 
@@ -58,6 +59,7 @@ namespace AtE {
 		/// 
 		/// When this value is true, ImGui windows cannot "capture" the keyboard and mouse.
 		/// </summary>
+		[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 		public bool IsTransparent {
 			get => trans;
 			set {
