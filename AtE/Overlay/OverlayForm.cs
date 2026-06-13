@@ -2,24 +2,24 @@
 using System;
 using System.Windows.Forms;
 using static AtE.Win32;
+using System.ComponentModel;
 
 namespace AtE {
 
 	public class OverlayForm : RenderForm {
-		private readonly ContextMenu contextMenu1 = new ContextMenu();
+		private readonly ContextMenuStrip contextMenu1 = new ContextMenuStrip();
 		private readonly NotifyIcon notifyIcon = new NotifyIcon();
 		public OverlayForm() {
 			// let the Designer have it's auto properties, so the VS editor works
 			InitializeComponent();
 
-			var menuExit = new MenuItem() {
-				Index = 0,
+			var menuExit = new ToolStripMenuItem() {
 				Text = "Exit"
 			};
 			menuExit.Click += (sender, args) => Close();
-			contextMenu1.MenuItems.Add(menuExit);
+			contextMenu1.Items.Add(menuExit);
 
-			notifyIcon.ContextMenu = contextMenu1;
+			notifyIcon.ContextMenuStrip = contextMenu1;
 			notifyIcon.Icon = Icon;
 			notifyIcon.Text = "Assistant to the Exile";
 			notifyIcon.Visible = true;
@@ -29,19 +29,20 @@ namespace AtE {
 		}
 
 		private bool trans = false;
-		/// <summary>
-		/// Toggles the WS_EX_TRANSPARENT flag on the window.
-		/// WS_EX_TRANSPARENT: The window should not be painted until 
-		/// siblings beneath the window(that were created by the same thread)
-		/// have been painted. The window appears transparent because the bits
-		/// of underlying sibling windows have already been painted.
-		/// 
-		/// The RenderForm itself will appear transparent regardless of this value,
-		/// due to ExtendFrameIntoClientArea.
-		/// 
-		/// When this value is true, ImGui windows cannot "capture" the keyboard and mouse.
-		/// </summary>
-		public bool IsTransparent {
+        /// <summary>
+        /// Toggles the WS_EX_TRANSPARENT flag on the window.
+        /// WS_EX_TRANSPARENT: The window should not be painted until 
+        /// siblings beneath the window(that were created by the same thread)
+        /// have been painted. The window appears transparent because the bits
+        /// of underlying sibling windows have already been painted.
+        /// 
+        /// The RenderForm itself will appear transparent regardless of this value,
+        /// due to ExtendFrameIntoClientArea.
+        /// 
+        /// When this value is true, ImGui windows cannot "capture" the keyboard and mouse.
+        /// </summary>
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool IsTransparent {
 			get => trans;
 			set {
 				if( value != trans ) {

@@ -159,7 +159,7 @@ namespace AtE {
 	}
 
 	class PressKey : KeyState {
-		private static Dictionary<Keys, long> lastPressTime = new Dictionary<Keys, long>();
+		private static Dictionary<Keys, long> lastPressTime = [];
 		private readonly long throttle = long.MaxValue;
 		public PressKey(Keys key, uint duration, IState next = null) : base(key,
 				new KeyDown(key, new Delay(duration, new KeyUp(key, next)))) { }
