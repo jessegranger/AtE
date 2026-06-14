@@ -31,15 +31,17 @@ namespace AtE {
 	/// (<see cref="D3DController"/>, <see cref="ImGuiController"/>, <see cref="SpriteController"/>,
 	/// <see cref="TextureCache"/>), which are kept verbatim as the first implementation.
 	///
-	/// Until the <c>IOverlayWindow</c> seam (PORTING.md step 5) exists, the per-layer
-	/// <c>Initialise</c> calls still need the concrete <see cref="OverlayForm"/> (for the WinForms
-	/// input wiring and device association), so this reaches <see cref="Overlay.RenderForm"/>
-	/// directly — the same transitional shortcut <see cref="WindowsInputSource"/> takes.
+	/// The per-layer <c>Initialise</c> calls still need the concrete <see cref="OverlayForm"/> (for
+	/// the WinForms input wiring and device association), so this sources it from the sibling
+	/// Windows window backend (<see cref="WindowsOverlayWindow.Form"/>) — a within-assembly
+	/// shortcut between two Windows-only backends, not a dependency on the portable core.
 	/// </summary>
 	public sealed class WindowsRenderer : IRenderer {
 
 		public void Initialise(IntPtr windowHandle, int width, int height) {
-			OverlayForm form = Overlay.RenderForm;
+			// The D3D/ImGui/sprite backends still wire WinForms events to the concrete form, so
+			// source it from the sibling Windows window backend (both are Windows-only types).
+			OverlayForm form = ((WindowsOverlayWindow)Windowing.Window).Form;
 
 			// D3D first (it creates the device the other two layers borrow), then the
 			// ImGui and sprite backends.

@@ -19,7 +19,7 @@ namespace AtE {
 		public bool IsTargetForeground() {
 			// The game (PoE) window, or our own overlay, being frontmost both count as
 			// "the target has focus" for input purposes.
-			if ( Overlay.HasFocus ) {
+			if ( Windowing.Window.HasFocus ) {
 				return true;
 			}
 			var target = PoEMemory.Target;

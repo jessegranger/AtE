@@ -237,9 +237,32 @@ Track these down during the cut — they're easy to miss because they're not P/I
      The portable ImGui *draw* helpers (`DrawText`/`DrawSprite`/…) are above this seam and
      unchanged — only the GPU upload/present backend moved behind it. Adopting Veldrid/Silk.NET
      to collapse this seam to one cross-platform backend remains the recommended follow-up.
-5. **Introduce `IOverlayWindow`** last — it's the riskiest on Linux and benefits from
+5. ✅ **Done — Introduce `IOverlayWindow`** last — it's the riskiest on Linux and benefits from
    everything else already working so you can iterate on transparency/click-through in
    isolation.
+   - `IOverlayWindow` lives in `AtE.Core/Platform` and stays free of WinForms/SharpDX/
+     `System.Drawing` (only `System` — `Action`/`IntPtr`/ints). `WindowsOverlayWindow` in
+     `AtE.Windows/Platform` owns the existing `OverlayForm` and reproduces the windowing
+     behaviour that was in `Overlay.Initialise`: the load-time DWM "sheet of glass"
+     (`ExtendFrameIntoClientArea(-1,-1,-1,-1)`), the `WS_EX_TRANSPARENT` click-through toggle
+     (`OverlayForm.IsTransparent`), and the `SharpDX.Windows.RenderLoop` message pump. A
+     transitional `Windowing.Window = new WindowsOverlayWindow()` mirrors `Input`/`Rendering`.
+     `Overlay` is now a Windows-side render-loop orchestrator/facade — it keeps `FrameCount`/
+     `FrameLock`/`FPS` and delegates create/bounds/focus/handle/loop/close to the seam; its
+     `static RenderForm` field and `SharpDX.Windows` dependency are gone. Callers rerouted:
+     `WindowsRenderer` sources the concrete form from `WindowsOverlayWindow.Form`,
+     `ImGuiController`'s click-through toggle and `WindowsInputSource.HasFocus` go through the
+     seam, `EntityCache` uses `Overlay.IsClosed` (now folding in window liveness), and
+     `MapElement` subscribes to `Windowing.Window.Resized`.
+   - Transitional deviations from the sketch above (mirroring step 4's): `TargetClientRect` was
+     dropped — nothing tracks the *game* window through this seam (`PoEMemory` repositions the
+     overlay via `SetBounds` using a rect it reads through `IProcessMemory`), and callers only
+     need the overlay's own geometry, exposed as ints to keep `System.Drawing.Rectangle` out of
+     the core. `PumpEvents` became `RunMessageLoop(Action onFrame)` because the existing pump is
+     blocking and invokes a per-frame callback. `HasFocus`/`IsOpen`/`Close` are surfaced on the
+     seam as pure window concerns. The renderer/ImGui WinForms-input wiring still binds to the
+     concrete `OverlayForm` (sourced from `WindowsOverlayWindow.Form`) — a within-assembly
+     shortcut between two Windows backends; a Linux renderer would bind to `Handle` only.
 6. **Add `AtE.Linux`** with stub implementations of all five interfaces, then fill them in
    in the same order (memory → input → render → window).
 

@@ -1,5 +1,4 @@
 ﻿using ImGuiNET;
-using SharpDX.Windows;
 using System;
 using System.Drawing;
 using System.Linq;

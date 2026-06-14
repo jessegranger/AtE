@@ -76,8 +76,8 @@ namespace AtE {
 
 			while( true ) {
 
-				// exit if the main form exits
-				if ( Overlay.IsClosed || (Overlay.RenderForm?.IsDisposed ?? true) ) {
+				// exit if the main form exits (Overlay.IsClosed now folds in the window's liveness)
+				if ( Overlay.IsClosed ) {
 					break;
 				}
 

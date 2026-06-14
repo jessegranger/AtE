@@ -1,78 +1,61 @@
-﻿using System;
-using System.Drawing;
+using System;
 using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE {
+
+	/// <summary>
+	/// The render-loop orchestrator. The transparent, click-through, topmost window itself now
+	/// lives behind <see cref="IOverlayWindow"/> (reached through <see cref="Windowing.Window"/>);
+	/// this class keeps the portable render-loop bookkeeping (frame counter, frame lock, FPS) and
+	/// exposes a thin facade over the window seam so existing callers (<c>HotKey</c>, the plugins,
+	/// <c>PoEMemory</c>, <c>EntityCache</c>) keep working unchanged.
+	/// </summary>
 	public static class Overlay {
 
-		public static OverlayForm RenderForm;
 		public static long FrameCount;
 		public static readonly AutoResetEvent FrameLock = new AutoResetEvent(false);
 
-		public static bool IsClosed { get; private set; } = false;
+		private static bool closed;
+
+		/// <summary>True once we've asked to close, or the window is gone.</summary>
+		public static bool IsClosed => closed || !Windowing.Window.IsOpen;
 
 		public static void Close() {
-			IsClosed = true;
-			RenderForm?.Close();
+			closed = true;
+			Windowing.Window.Close();
 		}
 
 		public static void Initialise() {
 
-			Log("Creating window...");
-			RenderForm = new OverlayForm {
-				Text = "Assistant to the Exile",
-				Width = 800,
-				Height = 600,
-				BackColor = Color.Black
-			};
-			RenderForm.ShowInTaskbar = false;
-			RenderForm.Load += (sender, args) => {
-				Log("RenderForm: OnLoad...");
-				// Set full transparency, where an undrawable (by windows) margin fills the whole form
-				RenderForm.ExtendFrameIntoClientArea(-1, -1, -1, -1);
-				// MSDN: Negative margins have special meaning to DwmExtendFrameIntoClientArea.
-				// Negative margins create the "sheet of glass" effect, where the client area
-				// is rendered as a solid surface with no window border.
-				RenderForm.IsTransparent = true;
-				var screen = Screen.FromHandle(RenderForm.Handle);
-				RenderForm.Size = new Size(screen.Bounds.Width, screen.Bounds.Height);
-			};
+			// Create the (still hidden) window; the seam arranges the load-time transparency.
+			Windowing.Window.Create("Assistant to the Exile", 800, 600);
 
-			Rendering.Renderer.Initialise(RenderForm.Handle, RenderForm.Width, RenderForm.Height);
+			// Bring up the GPU/ImGui backend against the native handle.
+			Rendering.Renderer.Initialise(Windowing.Window.Handle, Windowing.Window.Width, Windowing.Window.Height);
 
-			// Not used: D3DController.CreateRenderStates(RenderForm.Width, RenderForm.Height);
-
-			// Sets the initial window styles, with RenderForm on top at first.
-			// Later, OnLoad will toggle this, and put RenderForm "behind" the DirectX render surface.
-			RenderForm.IsTransparent = false;
+			// Initial styles: window on top of the render surface, click-through off, until OnLoad
+			// (inside the seam) flips it once the device exists.
+			Windowing.Window.SetClickThrough(false);
 
 			Log("Binding resize event...");
-			RenderForm.UserResized += (sender, args) => {
-				int x = RenderForm.Left;
-				int y = RenderForm.Top;
-				int w = RenderForm.Width;
-				int h = RenderForm.Height;
-				Log($"RenderForm: UserResized {RenderForm.ClientRectangle}");
+			Windowing.Window.Resized += (w, h) => {
+				int x = Windowing.Window.Left;
+				int y = Windowing.Window.Top;
+				Log($"RenderForm: UserResized {w}x{h}");
 				Rendering.Renderer.Resize(x, y, w, h);
-
 			};
-
 		}
 
-		public static bool HasFocus => Win32.GetForegroundWindow() == RenderForm.Handle; // !RenderForm.IsTransparent;
+		public static bool HasFocus => Windowing.Window.HasFocus;
 
-		public static int Height => RenderForm.Height;
-		public static int Width => RenderForm.Width;
-		public static int Top => RenderForm.Top;
-		public static int Left => RenderForm.Left;
+		public static int Height => Windowing.Window.Height;
+		public static int Width => Windowing.Window.Width;
+		public static int Top => Windowing.Window.Top;
+		public static int Left => Windowing.Window.Left;
+
 		public static void Resize(long left, long top, long right, long bottom) {
-			long width = right - left;
-			long height = bottom - top;
-			RenderForm.Size = new Size((int)width, (int)height);
-			RenderForm.Location = new Point((int)left, (int)top);
+			Windowing.Window.SetBounds((int)left, (int)top, (int)(right - left), (int)(bottom - top));
 		}
 
 		public static double FPS { get; private set; }
@@ -82,7 +65,7 @@ namespace AtE {
 			long lastRenderTime = Time.ElapsedMilliseconds - 16;
 			Perf.Clear();
 			try {
-				SharpDX.Windows.RenderLoop.Run(RenderForm, () => {
+				Windowing.Window.RunMessageLoop(() => {
 					FrameCount += 1;
 					long dt = Time.ElapsedMilliseconds - lastRenderTime;
 					var settings = PluginBase.GetPlugin<CoreSettings>();
@@ -102,10 +85,9 @@ namespace AtE {
 					// Render the accumulated draw lists to the GPU and present (VSync inside)
 					Rendering.Renderer.EndFrame();
 					FrameLock.Set();
-
-				}, true);
+				});
 			} finally {
-				IsClosed = true;
+				closed = true;
 			}
 		}
 	}

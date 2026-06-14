@@ -345,14 +345,11 @@ namespace AtE {
 			Win32.ScreenToClient(RenderForm.Handle, ref mousePoint);
 			IO.MousePos = new Vector2(mousePoint.X, mousePoint.Y);
 
-			// When the mouse interacts with an ImGui element, ImGui will set WantCaptureMouse = true
-			// This code then set IsTransparent = false, so that mouse events will flow and be captured.
-			// Once the mouse leaves the ImGui element area, the process is reversed.
-			if ( (IO.WantCaptureKeyboard || IO.WantCaptureMouse) && RenderForm.IsTransparent ) {
-				RenderForm.IsTransparent = false;
-			} else if ( !IO.WantCaptureKeyboard && !IO.WantCaptureMouse && !RenderForm.IsTransparent ) {
-				RenderForm.IsTransparent = true;
-			}
+			// When the mouse interacts with an ImGui element, ImGui sets WantCaptureMouse = true.
+			// We then turn click-through OFF so mouse/keyboard events flow into the overlay and get
+			// captured; once the pointer leaves the ImGui element, click-through goes back on. The
+			// seam's setter already no-ops when the state is unchanged.
+			Windowing.Window.SetClickThrough(!(IO.WantCaptureKeyboard || IO.WantCaptureMouse));
 
 
 			ImGui.NewFrame();

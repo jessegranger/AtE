@@ -97,7 +97,7 @@ namespace AtE {
 			});
 			*/
 
-			Overlay.RenderForm.UserResized += (sender, args) => UpdateMiniMapRect();
+			Windowing.Window.Resized += (w, h) => UpdateMiniMapRect();
 		}
 
 		private static Vector2 miniMapCenter;
