@@ -49,16 +49,12 @@ namespace AtE {
 			ImGui.SliderInt("Input Latency", ref InputLatency, 10, 100);
 			// ImGui.Text($"Overlay IsTransparent: {Overlay.RenderForm.IsTransparent}");
 			ImGui.Text($"Offsets: {Offsets.VersionMajor}.{Offsets.VersionMinor} for PoE {Offsets.PoEVersion}");
-			var target = PoEMemory.Target;
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text($"Attached: {PoEMemory.IsAttached}");
-			if ( IsValid(target) ) {
+			if ( PoEMemory.IsAttached ) {
 				ImGui.SameLine();
 				ImGui.AlignTextToFramePadding();
-				ImGui.Text($"PID: {target.Id}");
-				ImGui.SameLine();
-				ImGui.AlignTextToFramePadding();
-				ImGui.Text($"Handle: {PoEMemory.Handle}");
+				ImGui.Text($"PID: {PoEMemory.Memory.Pid}");
 				var root = PoEMemory.GameRoot;
 				ImGui_Address(root.Address, "Game Root:", "GameRoot");
 				ImGui.SameLine();
@@ -82,9 +78,9 @@ namespace AtE {
 					ImGui_Address(fileRootAddress, "", "File_RootHeader");
 				}
 				*/
-				if ( Win32.GetWindowRect(target.MainWindowHandle, out var rect) ) {
+				if ( PoEMemory.Memory.TryGetTargetWindowRect(out int wl, out int wt, out int ww, out int wh) ) {
 					ImGui.AlignTextToFramePadding();
-					ImGui.Text($"Window: {rect.Width}x{rect.Height} at {rect.Top},{rect.Left} ");
+					ImGui.Text($"Window: {ww}x{wh} at {wt},{wl} ");
 				}
 
 			}

@@ -349,7 +349,7 @@ namespace AtE {
 			// We then turn click-through OFF so mouse/keyboard events flow into the overlay and get
 			// captured; once the pointer leaves the ImGui element, click-through goes back on. The
 			// seam's setter already no-ops when the state is unchanged.
-			Windowing.Window.SetClickThrough(!(IO.WantCaptureKeyboard || IO.WantCaptureMouse));
+			Platform.Current.Window.SetClickThrough(!(IO.WantCaptureKeyboard || IO.WantCaptureMouse));
 
 
 			ImGui.NewFrame();

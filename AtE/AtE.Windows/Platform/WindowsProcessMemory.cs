@@ -32,6 +32,25 @@ namespace AtE {
 
 		public IntPtr BaseAddress => IsValid(Target) ? Target.MainModule.BaseAddress : IntPtr.Zero;
 
+		public int Pid => IsValid(Target) ? Target.Id : 0;
+
+		public long ModuleSize => IsValid(Target) ? Target.MainModule.ModuleMemorySize : 0;
+
+		public bool TryGetTargetWindowRect(out int left, out int top, out int width, out int height) {
+			left = top = width = height = 0;
+			if ( !IsValid(Target) ) {
+				return false;
+			}
+			if ( !Win32.GetWindowRect(Target.MainWindowHandle, out Win32.RECT rect) ) {
+				return false;
+			}
+			left = rect.Left;
+			top = rect.Top;
+			width = rect.Width;
+			height = rect.Height;
+			return true;
+		}
+
 		public bool TryAttach(out int pid) {
 			pid = 0;
 			if ( IsAttached ) {

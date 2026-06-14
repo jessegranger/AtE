@@ -18,7 +18,7 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( isDisposed ) return null;
 			if ( Key == VKey.None ) return this;
-			bool downNow = Input.Source.IsKeyDown(Key);
+			bool downNow = Platform.Current.Keys.IsKeyDown(Key);
 			WasJustPressed = downNow && !IsDown;
 			IsReleased = IsDown && !downNow;
 			if ( IsReleased ) OnRelease?.Invoke(this, null);
@@ -40,8 +40,8 @@ namespace AtE {
 		public bool PressImmediate() {
 			if ( PoEMemory.IsAttached && PoEMemory.TargetHasFocus && !PoEMemory.GameRoot.InGameState.HasInputFocus ) {
 				Log($"HotKey: PressImmediate {Key}");
-				Input.Sink.KeyDown(Key);
-				Input.Sink.KeyUp(Key);
+				Platform.Current.Input.KeyDown(Key);
+				Platform.Current.Input.KeyUp(Key);
 				return true;
 			}
 			return false;
@@ -77,7 +77,7 @@ namespace AtE {
 					var io = ImGui.GetIO();
 					for ( int i = 0; i < io.KeyMap.Count; i++ ) {
 						var key = io.KeyMap[i];
-						if ( key != 0 && Input.Source.IsKeyDown((VKey)key) ) {
+						if ( key != 0 && Platform.Current.Keys.IsKeyDown((VKey)key) ) {
 							Target.Key = (VKey)key;
 							return Next;
 						}

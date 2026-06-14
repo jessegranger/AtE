@@ -3,8 +3,8 @@ using System.Numerics;
 namespace AtE {
 
 	/// <summary>
-	/// The polling side of input: hotkey state, cursor position, and whether the target
-	/// (or our overlay) currently has the foreground. Wraps GetAsyncKeyState / GetCursorPos
+	/// The polling side of input: hotkey state, cursor position, and whether the target game
+	/// window currently has the foreground. Wraps GetAsyncKeyState / GetCursorPos
 	/// / GetForegroundWindow so <c>HotKey</c> and the key-polling plugins never touch the OS.
 	///
 	/// Windows impl: <c>WindowsInputSource</c>. Linux impl (TODO): X11
@@ -19,7 +19,11 @@ namespace AtE {
 		/// <summary>The cursor position in screen coordinates.</summary>
 		Vector2 GetCursorPos();
 
-		/// <summary>True when the game window (or our overlay) is the active/foreground window.</summary>
+		/// <summary>
+		/// True when the target game window itself is the active/foreground window. Overlay focus
+		/// is intentionally not folded in — callers that also care about the overlay being focused
+		/// combine it in explicitly (e.g. <c>IsTargetForeground() || Overlay.HasFocus</c>).
+		/// </summary>
 		bool IsTargetForeground();
 	}
 }

@@ -272,9 +272,9 @@ namespace AtE {
 		}
 
 		private void CheckKeyRepeat() {
-			bool downNow = Input.Source.IsKeyDown(VKey.LButton);
-			bool shiftDownNow = Input.Source.IsKeyDown(VKey.LShiftKey);
-			bool controlDownNow = Input.Source.IsKeyDown(VKey.LControlKey);
+			bool downNow = Platform.Current.Keys.IsKeyDown(VKey.LButton);
+			bool shiftDownNow = Platform.Current.Keys.IsKeyDown(VKey.LShiftKey);
+			bool controlDownNow = Platform.Current.Keys.IsKeyDown(VKey.LControlKey);
 			bool shouldRun = (OnlyWhileHoldingShift && shiftDownNow) || (OnlyWhileHoldingControl && controlDownNow);
 			long now = Time.ElapsedMilliseconds;
 			if ( downNow && shouldRun ) {
@@ -284,8 +284,8 @@ namespace AtE {
 					if ( (now - downSince) > RepeatLeftClickWait ) {
 						if ( (now - lastRepeat) > RepeatLeftClickInterval ) {
 							// repeat the already-held left mouse, by releasing and pressing it again
-							Input.Sink.MouseButton(MouseBtn.Left, false);
-							Input.Sink.MouseButton(MouseBtn.Left, true);
+							Platform.Current.Input.MouseButton(MouseBtn.Left, false);
+							Platform.Current.Input.MouseButton(MouseBtn.Left, true);
 							lastRepeat = now;
 						}
 					}
@@ -300,7 +300,7 @@ namespace AtE {
 				return;
 			}
 			lastPress = Time.ElapsedMilliseconds;
-			Input.Sink.KeyDown(key);
+			Platform.Current.Input.KeyDown(key);
 		}
 
 		private long lastPressOfAnyAlsoCast = 0;
@@ -324,7 +324,7 @@ namespace AtE {
 		}
 
 		private void doKeyUp(VKey key) {
-			Input.Sink.KeyUp(key);
+			Platform.Current.Input.KeyUp(key);
 		}
 
 		private bool alsoCastMainKeyDownBefore = false;
@@ -332,7 +332,7 @@ namespace AtE {
 
 		private void CheckAlsoCast() {
 			if ( EnableAlsoCast && !PoEMemory.GameRoot.InGameState.HasInputFocus ) {
-				bool downNow = Input.Source.IsKeyDown(AlsoCastMainKey.Key);
+				bool downNow = Platform.Current.Keys.IsKeyDown(AlsoCastMainKey.Key);
 				if ( downNow && !alsoCastMainKeyDownBefore ) {
 					// OnKeyDown: (of the main key)
 					alsoCastMainKeyLastPress = Time.ElapsedMilliseconds;

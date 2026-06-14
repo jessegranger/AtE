@@ -263,8 +263,60 @@ Track these down during the cut — they're easy to miss because they're not P/I
      seam as pure window concerns. The renderer/ImGui WinForms-input wiring still binds to the
      concrete `OverlayForm` (sourced from `WindowsOverlayWindow.Form`) — a within-assembly
      shortcut between two Windows backends; a Linux renderer would bind to `Handle` only.
-6. **Add `AtE.Linux`** with stub implementations of all five interfaces, then fill them in
-   in the same order (memory → input → render → window).
+6. ✅ **Done (stubs) — Add `AtE.Linux`** with stub implementations of all five interfaces, then
+   fill them in in the same order (memory → input → render → window).
+   - New `AtE.Linux` project (`net9.0`, neutral — like `AtE.Core`, no `-windows`/WinForms/SharpDX),
+     a `Library` referencing only `AtE.Core`, added to `AtE.sln`. It holds `LinuxProcessMemory`,
+     `LinuxInputSink`, `LinuxInputSource`, `LinuxRenderer` (+ `LinuxTextureHandle`) and
+     `LinuxOverlayWindow` under `Platform/`, mirroring `AtE.Windows/Platform`. Every interface
+     member is present; the bodies throw `NotImplementedException` (cleanup paths
+     `Detach`/`Close` and the `IsAttached`/`IsOpen` liveness flags return safe defaults), each
+     carrying a `// TODO` pointing at the Linux target from the cheat-sheet below
+     (`process_vm_readv` + `/proc/<pid>/maps`; `uinput`/XTEST; `XQueryKeymap`/`XQueryPointer`/
+     `_NET_ACTIVE_WINDOW`; Vulkan/OpenGL via Veldrid/Silk.NET; X11 override-redirect ARGB +
+     XShape input region).
+   - **`IPlatform` composition root + entry points scaffolded.** `IPlatform` (Memory/Input/Keys/
+     Window/Renderer, seam #6) and a `Platform` holder (`Platform.Current`, set once via
+     `Platform.Initialise`) live in `AtE.Core/Platform`. `WindowsPlatform` (in `AtE.Windows`)
+     constructs and owns one instance of each Windows backend; `Program.Main` calls
+     `Platform.Initialise(new WindowsPlatform())` at the top. `LinuxPlatform` (in `AtE.Linux`)
+     constructs and owns the five Linux stubs directly. `AtE.Linux` is now an `Exe` with a
+     scaffolded `LinuxProgram.Main` that selects the platform and lays out the intended startup
+     sequence (mirroring `AtE.Windows/Program.Main`) in comments, then stops with a clear
+     `NotImplementedException`.
+   - **✅ Transitional statics removed (reroute done).** The `Input`/`Rendering`/`Windowing` static
+     holders are deleted and `PoEMemory.Memory` is now a thin accessor onto `Platform.Current.Memory`.
+     All ~57 call sites go through `Platform.Current.{Memory,Input,Keys,Window,Renderer}`. (Owner of
+     the backends is now `WindowsPlatform`/`LinuxPlatform`, not the statics.)
+   - **✅ Seam-prep for the core extraction done (no files moved yet).** The residual Windows
+     couplings that sat inside otherwise-portable code were cut behind seams so the portable set can
+     compile without `Win32`/WinForms/`ImGuiController`/`Process`:
+       - `IProcessMemory` gained `Pid`, `ModuleSize`, and `TryGetTargetWindowRect(...)` (Windows: via
+         `Target` + `GetWindowRect`/`MainModule`; Linux: stubbed). The game-window rect callers
+         (`Globals.WindowSize`, `PoEMemory` overlay-resize, `MapElement` minimap, `CoreSettings`
+         debug) and the pattern-scan base/size now use these instead of `Win32`/`Process`.
+       - `IRenderer` gained `GetNextTextOffset(uint)` (Windows: `ImGuiController.GetNextOffsetForTextAt`;
+         Linux: returns 0). `Globals.Notify` and `DefenseDisplay` use it instead of reaching the
+         Windows `ImGuiController`.
+       - `IInputSource.IsTargetForeground` is now defined as **game-window-only** foreground (it was
+         unused before); `PoEMemory.TargetHasFocus` routes through it, preserving the original
+         game-only semantics (callers add `|| Overlay.HasFocus` themselves where wanted).
+       - `PoEMemory.Target`/`Handle` (which cast to `WindowsProcessMemory`) are removed; the Windows
+         `IsTargetForeground` sources the game window straight from `WindowsProcessMemory.Target`.
+       - Dropped a dead `using System.Windows.Forms;` from `Console.cs`.
+     After this, no portable-set file references `Win32`, `ImGuiController`, `Process.Target`, or
+     WinForms (verified by grep; two harmless commented-out references remain).
+   - Not yet built (next, gated on a confirmed clean Windows build): physically **moving** the
+     portable files (StateMachine, PoE model + `Memory/`, Plugins, `PluginBase`, `Globals`, `Console`,
+     `Overlay` orchestrator, `Perf`) into `AtE.Core` and adding the `ImGui.NET` PackageReference there
+     (the `System.Drawing` types used are the cross-platform `System.Drawing.Primitives`, already
+     in-box); then real seam implementations memory → input → render → window so `LinuxProgram.Main`
+     can drive the app.
+   - ⚠️ **Build caveats to check first.** (1) These changes were made without a compiler available in
+     the working environment — run `dotnet build AtE.sln` on Windows to confirm before the file move.
+     (2) Five source files (`Globals.cs`, `Overlay/Overlay.cs`, `Overlay/ImGuiController.cs`,
+     `PoE/PoEMemory.cs`, `PoE/MemoryObjects/MapElement.cs`) contain trailing NUL bytes that predate
+     this work; if the build flags them, stripping the trailing NULs should resolve it.
 
 ## Linux backend cheat-sheet (per seam, for later)
 

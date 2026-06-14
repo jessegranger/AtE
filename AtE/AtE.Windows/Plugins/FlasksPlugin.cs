@@ -77,8 +77,8 @@ namespace AtE {
 				mostRecentUse[flaskEnt.FlaskIndex] = now;
 				if ( PoEMemory.TargetHasFocus ) {
 					Notify($"Using flask {flaskEnt.Key} because {reason}");
-					Input.Sink.KeyDown(flaskEnt.Key);
-					Input.Sink.KeyUp(flaskEnt.Key);
+					Platform.Current.Input.KeyDown(flaskEnt.Key);
+					Platform.Current.Input.KeyUp(flaskEnt.Key);
 				}
 			}
 			return this;

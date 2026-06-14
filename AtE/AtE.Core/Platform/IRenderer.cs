@@ -64,5 +64,13 @@ namespace AtE {
 
 		/// <summary>Clear the render target to transparent (used to blank a stale frame).</summary>
 		void Clear();
+
+		/// <summary>
+		/// The vertical offset (in pixels) at which the next line of stacked bottom-left text with
+		/// the given id should be drawn, tracked by the ImGui backend across the frame. Portable
+		/// callers (the bottom-left text/notify helpers) use this to stack lines without knowing
+		/// the backend. Backends with no such state return 0.
+		/// </summary>
+		float GetNextTextOffset(uint id);
 	}
 }

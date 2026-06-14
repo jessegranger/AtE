@@ -41,7 +41,7 @@ namespace AtE {
 		public void Initialise(IntPtr windowHandle, int width, int height) {
 			// The D3D/ImGui/sprite backends still wire WinForms events to the concrete form, so
 			// source it from the sibling Windows window backend (both are Windows-only types).
-			OverlayForm form = ((WindowsOverlayWindow)Windowing.Window).Form;
+			OverlayForm form = ((WindowsOverlayWindow)Platform.Current.Window).Form;
 
 			// D3D first (it creates the device the other two layers borrow), then the
 			// ImGui and sprite backends.
@@ -123,5 +123,7 @@ namespace AtE {
 		}
 
 		public void Clear() => D3DController.Clear();
+
+		public float GetNextTextOffset(uint id) => ImGuiController.GetNextOffsetForTextAt(id);
 	}
 }

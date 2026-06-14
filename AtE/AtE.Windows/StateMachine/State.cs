@@ -135,7 +135,7 @@ namespace AtE {
 		public KeyDown(VKey key, IState next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
 			if( dt > 0 && (PoEMemory.TargetHasFocus || Overlay.HasFocus) ) {
-				Input.Sink.KeyDown(Key);
+				Platform.Current.Input.KeyDown(Key);
 				return Next;
 			}
 			return this;
@@ -148,7 +148,7 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
 			if( dt > 0 && (PoEMemory.TargetHasFocus || Overlay.HasFocus) ) {
-				Input.Sink.KeyUp(Key);
+				Platform.Current.Input.KeyUp(Key);
 				return Next;
 			}
 			return this;
@@ -198,7 +198,7 @@ namespace AtE {
 				return Next;
 			}
 			// Log($"MoveMouse to (#{X},#{Y})");
-			Input.Sink.MouseMove(new Vector2(X, Y));
+			Platform.Current.Input.MouseMove(new Vector2(X, Y));
 			return Next;
 		}
 	}
@@ -210,7 +210,7 @@ namespace AtE {
 				Log($"Warn: MouseDown attempted while not focused, skipped.");
 				return Next;
 			}
-			Input.Sink.MouseButton(MouseBtn.Left, true);
+			Platform.Current.Input.MouseButton(MouseBtn.Left, true);
 			return Next;
 		}
 	}
@@ -219,7 +219,7 @@ namespace AtE {
 		public LeftMouseUp(IState next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			Input.Sink.MouseButton(MouseBtn.Left, false);
+			Platform.Current.Input.MouseButton(MouseBtn.Left, false);
 			return Next;
 		}
 	}
@@ -246,7 +246,7 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
 			if ( !PoEMemory.TargetHasFocus ) return Next;
-			Input.Sink.MouseButton(MouseBtn.Right, true);
+			Platform.Current.Input.MouseButton(MouseBtn.Right, true);
 			return Next;
 		}
 	}
@@ -256,7 +256,7 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
 			if ( !PoEMemory.TargetHasFocus ) return Next;
-			Input.Sink.MouseButton(MouseBtn.Right, false);
+			Platform.Current.Input.MouseButton(MouseBtn.Right, false);
 			return Next;
 		}
 	}

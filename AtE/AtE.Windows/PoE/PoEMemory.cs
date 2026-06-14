@@ -61,23 +61,16 @@ namespace AtE {
 
 		/// <summary>
 		/// The platform memory backend. All OS-level reads/attach go through this seam.
-		/// Defaults to the Windows implementation; a future IPlatform composition root
-		/// (PORTING.md step 6) will pick the backend at startup instead.
+		/// A thin accessor onto the startup-selected backend (<see cref="Platform.Current"/>);
+		/// the backend itself is owned by the composition root, not constructed here.
 		/// </summary>
-		internal static IProcessMemory Memory = new WindowsProcessMemory();
+		internal static IProcessMemory Memory => Platform.Current.Memory;
 
-		/// <summary>
-		/// Once attached, this is the Target process we will read memory from.
-		/// Transitional passthrough to the Windows backend for the window/foreground
-		/// callers (MainWindowHandle); moves behind IOverlayWindow/IInputSource later.
-		/// </summary>
-		public static Process Target => (Memory as WindowsProcessMemory)?.Target;
-
-		/// <summary>
-		/// A Handle with PROCESS_VM_READ permissions to the Target Process.
-		/// Transitional passthrough to the Windows backend (debug display only).
-		/// </summary>
-		public static IntPtr Handle => (Memory as WindowsProcessMemory)?.Handle ?? IntPtr.Zero;
+		// The target Process / OS handle are intentionally NOT exposed here: they are
+		// Windows-only concepts (MainWindowHandle / MainModule). Everything the portable core
+		// needs is on IProcessMemory — Pid, BaseAddress, ModuleSize, TryGetTargetWindowRect —
+		// and game-window foreground is IInputSource.IsTargetForeground. The Windows backend
+		// keeps its own Process internally (WindowsProcessMemory.Target).
 
 		/// <summary>
 		/// The GameStateBase structure, with the main GameState array pointers
@@ -249,26 +242,26 @@ namespace AtE {
 
 			if ( IsAttached ) {
 				wasAttached = true;
-				TargetHasFocus = Target.MainWindowHandle == Win32.GetForegroundWindow();
+				TargetHasFocus = Platform.Current.Keys.IsTargetForeground();
 				bool hasFocus = Overlay.HasFocus || TargetHasFocus;
 				bool enabled = true;
 				if( !hasFocus ) {
 					enabled = !PluginBase.GetPlugin<CoreSettings>().OnlyRenderWhenFocused;
 				}
-				// DrawBottomLeftText($"TargetHasFocus:{TargetHasFocus} Overlay Focus: {Overlay.HasFocus} Enabled: {enabled} Foreground: {Describe(Win32.GetForegroundWindow())}", Color.Yellow);
-				Rendering.Renderer.ContentEnabled = enabled; // ImGui + sprite layers
-				Rendering.Renderer.PresentEnabled = wasFocused;
+				// DrawBottomLeftText($"TargetHasFocus:{TargetHasFocus} Overlay Focus: {Overlay.HasFocus} Enabled: {enabled}", Color.Yellow);
+				Platform.Current.Renderer.ContentEnabled = enabled; // ImGui + sprite layers
+				Platform.Current.Renderer.PresentEnabled = wasFocused;
 				if( wasFocused && !enabled ) {
-					Rendering.Renderer.Clear();
+					Platform.Current.Renderer.Clear();
 				}
 				wasFocused = hasFocus;
 
 				// check if we need to resize the overlay based on target window changing
 				if ( nextCheckResize < Time.ElapsedMilliseconds ) {
-					if ( Win32.GetWindowRect(Target.MainWindowHandle, out var rect) ) {
-						if ( rect.Width != Overlay.Width || rect.Height != Overlay.Height ) {
-							Log($"Need to resize overlay: {Target.MainWindowHandle} to {rect.Top} {rect.Left} {rect.Right} {rect.Bottom}");
-							Overlay.Resize(rect.Left, rect.Top, rect.Right, rect.Bottom);
+					if ( Memory.TryGetTargetWindowRect(out int left, out int top, out int width, out int height) ) {
+						if ( width != Overlay.Width || height != Overlay.Height ) {
+							Log($"Need to resize overlay: to {top} {left} {left + width} {top + height}");
+							Overlay.Resize(left, top, left + width, top + height);
 							nextCheckResize = Time.ElapsedMilliseconds + 300;
 						}
 					}
@@ -276,13 +269,13 @@ namespace AtE {
 
 			} else {
 				if ( TargetHasFocus ) {
-					Rendering.Renderer.Clear();
+					Platform.Current.Renderer.Clear();
 				}
 				// if we aren't attached to any process, nothing can be focused
-				Rendering.Renderer.PresentEnabled = TargetHasFocus; // draw one empty frame
+				Platform.Current.Renderer.PresentEnabled = TargetHasFocus; // draw one empty frame
 				TargetHasFocus = false;
 				// also, none of the layers should allow drawing/rendering
-				Rendering.Renderer.ContentEnabled = false;
+				Platform.Current.Renderer.ContentEnabled = false;
 				if( wasAttached ) {
 					Detach();
 				}
@@ -379,6 +372,7 @@ namespace AtE {
 			OnAttach?.Invoke(null, null);
 
 			FileRoots = new Dictionary<string, IntPtr>();
+			/*
 			if ( false ) Run(State.NewState((self, dt) => {
 				ImGui.Begin("Debug Files Root");
 				foreach(var obj in Target.Modules) {
@@ -411,8 +405,8 @@ namespace AtE {
 						ImGui_Address(ptr, name, "NameAndIndexStruct");
 						ImGui.SameLine();
 						if( ImGui.Button($"Scan##ptr{Describe(ptr)}") ) {
-							IntPtr startAddress = Target.MainModule.BaseAddress;
-							IntPtr endAddress = startAddress + Target.MainModule.ModuleMemorySize;
+							IntPtr startAddress = Memory.BaseAddress;
+							IntPtr endAddress = startAddress + (int)Memory.ModuleSize;
 							List<IntPtr> matches = new List<IntPtr>();
 							while ( startAddress.ToInt64() < endAddress.ToInt64() ) {
 								if ( TryRead<IntPtr>(startAddress, out IntPtr ptrToPtr) && Math.Abs(ptrToPtr.ToInt64() - ptr.ToInt64()) <= 16 ) {
@@ -435,7 +429,9 @@ namespace AtE {
 				ImGui.End();
 				return self;
 			}));
+			*/
 
+			/*
 			if( false ) OnAreaChange += (_, area) => {
 				if( IsValid(fileRootMatch) ) {
 					return;
@@ -522,7 +518,6 @@ namespace AtE {
 					Log($"PoEMemory: Did not find the real files root.");
 				}
 			};
-			/*
 			*/
 		}
 

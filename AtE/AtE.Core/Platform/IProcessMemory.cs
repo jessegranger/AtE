@@ -45,6 +45,20 @@ namespace AtE {
 		/// <summary>Base address of the target's main module, for pattern scanning.</summary>
 		IntPtr BaseAddress { get; }
 
+		/// <summary>The target process id (0 when not attached).</summary>
+		int Pid { get; }
+
+		/// <summary>Size in bytes of the target's main module image (0 when not attached).</summary>
+		long ModuleSize { get; }
+
+		/// <summary>
+		/// The target game window's rectangle in screen coordinates. Returns false when not
+		/// attached or the window can't be queried. Used to size/position the overlay over the
+		/// game and to scale the minimap. (Windows: GetWindowRect on the main window handle;
+		/// Linux TODO: query the window manager for the game window geometry.)
+		/// </summary>
+		bool TryGetTargetWindowRect(out int left, out int top, out int width, out int height);
+
 		/// <summary>The bytes of the target's main module image (cached after the first read).</summary>
 		bool TryReadImage(out byte[] image);
 

@@ -17,12 +17,12 @@ namespace AtE {
 			Win32.GetCursorPos(out Point p) ? new Vector2(p.X, p.Y) : Vector2.Zero;
 
 		public bool IsTargetForeground() {
-			// The game (PoE) window, or our own overlay, being frontmost both count as
-			// "the target has focus" for input purposes.
-			if ( Windowing.Window.HasFocus ) {
-				return true;
-			}
-			var target = PoEMemory.Target;
+			// True when the GAME (PoE) window itself is frontmost. Overlay focus is a separate
+			// concern that callers combine in explicitly (|| Overlay.HasFocus), so it is not
+			// folded in here. Source the game window handle straight from the Windows memory
+			// backend (a within-assembly shortcut between Windows-only backends); the portable
+			// core no longer exposes the target Process.
+			var target = (Platform.Current.Memory as WindowsProcessMemory)?.Target;
 			return IsValid(target) && target.MainWindowHandle == Win32.GetForegroundWindow();
 		}
 	}

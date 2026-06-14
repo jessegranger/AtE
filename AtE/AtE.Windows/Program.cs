@@ -14,6 +14,11 @@ namespace AtE {
 
 		static void Main() {
 
+			// Select the platform backend (seam #6 composition root). For now this exposes the
+			// same instances the transitional Input/Rendering/Windowing/PoEMemory.Memory statics
+			// hold; callers will be rerouted onto Platform.Current as a follow-up.
+			Platform.Initialise(new WindowsPlatform());
+
 			// Set up the transparent overly (with Direct3D and ImGui to draw on top of it)
 			Overlay.Initialise();
 

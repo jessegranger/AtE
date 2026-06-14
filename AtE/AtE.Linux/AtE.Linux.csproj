@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The Linux host. Like AtE.Core it targets the neutral net9.0 TFM (no -windows
+         suffix, no WinForms, no SharpDX) so it builds on Linux. It holds the Linux seam
+         backends (currently stubs: memory -> input -> render -> window), the LinuxPlatform
+         composition root, and a scaffolded entry point (Program.cs). The entry point wires
+         Platform.Current but cannot drive the app until the shared orchestration core is
+         extracted into AtE.Core (see PORTING.md step 6 follow-ups). -->
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AtE</RootNamespace>
+    <AssemblyName>AtE.Linux</AssemblyName>
+    <StartupObject>AtE.LinuxProgram</StartupObject>
+
+    <!-- The PoE process is 64-bit; cross-process reads happen in the 64-bit host. -->
+    <Platforms>AnyCPU;x64</Platforms>
+
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- Keep behaviour/conventions consistent with AtE.Core and AtE.Windows. -->
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <!-- The platform-neutral seam interfaces (IProcessMemory, IInputSink, IInputSource,
+       IRenderer, IOverlayWindow, VKey/MouseBtn/MemoryRegion) live in AtE.Core. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AtE.Core\AtE.Core.csproj" />
+  </ItemGroup>
+
+</Project>

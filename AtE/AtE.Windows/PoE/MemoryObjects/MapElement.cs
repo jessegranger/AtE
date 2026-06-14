@@ -97,7 +97,7 @@ namespace AtE {
 			});
 			*/
 
-			Windowing.Window.Resized += (w, h) => UpdateMiniMapRect();
+			Platform.Current.Window.Resized += (w, h) => UpdateMiniMapRect();
 		}
 
 		private static Vector2 miniMapCenter;
@@ -123,9 +123,9 @@ namespace AtE {
 
 			int width = 2560;
 			int height = 1600;
-			if ( Win32.GetWindowRect(PoEMemory.Target.MainWindowHandle, out var rect) ) {
-				width = rect.Width;
-				height = rect.Height;
+			if ( PoEMemory.Memory.TryGetTargetWindowRect(out _, out _, out int rw, out int rh) ) {
+				width = rw;
+				height = rh;
 			}
 			largeMapCenter = new Vector2(width / 2, height / 2) + largeMap.Shift + largeMap.DefaultShift;
 			largeMapDiag = (float)Math.Sqrt((width * width) + (height * height));

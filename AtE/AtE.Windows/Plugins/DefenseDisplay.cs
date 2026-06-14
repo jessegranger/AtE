@@ -167,7 +167,7 @@ namespace AtE.Plugins {
 						stats.TryGetValue(GameStat.SpellSuppressionChancePct, out int spellSuppress);
 						DrawTextAt(1, spot, $"Blk: {attackBlock}% {spellBlock}% Sup: {spellSuppress}%", Color.Cornsilk, size);
 
-						ImGui.SetNextWindowPos(new Vector2(spot.X, spot.Y + ImGuiController.GetNextOffsetForTextAt(1)));
+						ImGui.SetNextWindowPos(new Vector2(spot.X, spot.Y + Platform.Current.Renderer.GetNextTextOffset(1)));
 						ImGui.Begin("Defense Global Checkbox", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoBackground );
 						ImGui.Checkbox("Defenses", ref ShowPlayerDefenses);
 						ImGui.End();

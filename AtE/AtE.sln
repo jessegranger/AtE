@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AtE.Core", "AtE.Core\AtE.Co
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AtE.Windows", "AtE.Windows\AtE.Windows.csproj", "{7A031DD1-2DA9-4A69-9C23-05E4A4EB012D}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AtE.Linux", "AtE.Linux\AtE.Linux.csproj", "{79F00CF4-41E9-49F3-8EAB-A0F56229C8DF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,6 +33,14 @@ Global
 		{7A031DD1-2DA9-4A69-9C23-05E4A4EB012D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{7A031DD1-2DA9-4A69-9C23-05E4A4EB012D}.Release|x64.ActiveCfg = Release|x64
 		{7A031DD1-2DA9-4A69-9C23-05E4A4EB012D}.Release|x64.Build.0 = Release|x64
+		{79F00CF4-41E9-49F3-8EAB-A0F56229C8DF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{79F00CF4-41E9-49F3-8EAB-A0F56229C8DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{79F00CF4-41E9-49F3-8EAB-A0F56229C8DF}.Debug|x64.ActiveCfg = Debug|x64
+		{79F00CF4-41E9-49F3-8EAB-A0F56229C8DF}.Debug|x64.Build.0 = Debug|x64
+		{79F00CF4-41E9-49F3-8EAB-A0F56229C8DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{79F00CF4-41E9-49F3-8EAB-A0F56229C8DF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{79F00CF4-41E9-49F3-8EAB-A0F56229C8DF}.Release|x64.ActiveCfg = Release|x64
+		{79F00CF4-41E9-49F3-8EAB-A0F56229C8DF}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

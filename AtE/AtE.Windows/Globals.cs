@@ -114,7 +114,7 @@ namespace AtE {
 		public static void OnRelease(VKey key, Action act) {
 			bool downBefore = false;
 			Run($"KeyBind[{key}]", (self, dt) => {
-				bool downNow = Input.Source.IsKeyDown(key);
+				bool downNow = Platform.Current.Keys.IsKeyDown(key);
 				if ( downBefore && !downNow ) {
 					act();
 				}
@@ -145,7 +145,7 @@ namespace AtE {
 			var textPos = new Vector2(0, Overlay.Height 
 				- 10 // there is a 10px padding around the bottom of the window I just can't touch despite my best efforts
 				- fontSize // the first line always needs to sit one lineHeight above the bottom
-				- ImGuiController.GetNextOffsetForTextAt(0)); // id 0 is used by DrawBottomLeftText, we start at the top of that
+				- Platform.Current.Renderer.GetNextTextOffset(0)); // id 0 is used by DrawBottomLeftText, we start at the top of that
 			float travelled = (Time.ElapsedMilliseconds - lastNotifyTime) * speed;
 			lastNotifyTime = Time.ElapsedMilliseconds;
 			Log($"Notify: {text}");
@@ -188,9 +188,8 @@ namespace AtE {
 
 		public static Cached<Vector2> WindowSize = new Cached<Vector2>(() =>
 			PoEMemory.IsAttached
-			&& IsValid(PoEMemory.Target)
-			&& Win32.GetWindowRect(PoEMemory.Target.MainWindowHandle, out Win32.RECT rect)
-			? new Vector2(rect.Width, rect.Height)
+			&& PoEMemory.Memory.TryGetTargetWindowRect(out _, out _, out int w, out int h)
+			? new Vector2(w, h)
 			: Vector2.Zero);
 
 	}
