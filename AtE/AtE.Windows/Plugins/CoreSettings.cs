@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE {
@@ -26,8 +25,8 @@ namespace AtE {
 		public string SelectedProfile = "default";
 		public bool AutoProfile = false;
 
-		public HotKey ConsoleKey = new HotKey(Keys.F12);
-		public HotKey PauseKey = new HotKey(Keys.Pause);
+		public HotKey ConsoleKey = new HotKey(VKey.F12);
+		public HotKey PauseKey = new HotKey(VKey.Pause);
 
 		public Stopwatch TimeInZone = Stopwatch.StartNew();
 		public CoreSettings():base() {

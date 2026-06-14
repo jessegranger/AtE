@@ -197,14 +197,46 @@ Track these down during the cut — they're easy to miss because they're not P/I
      `Platform/IProcessMemory.cs` (+ `MemoryRegion`). `AtE.Windows` targets `net9.0-windows`
      (`WinExe`, WinForms, SharpDX, `AssemblyName=AssistantToTheExile`), references `AtE.Core`,
      and holds all remaining source. Verify the build on Windows (`dotnet build AtE.sln` or VS).
-2. **Introduce `IProcessMemory`** and move `PoEMemory`'s OS calls behind it; everything
+2. ✅ **Done — Introduce `IProcessMemory`** and move `PoEMemory`'s OS calls behind it; everything
    else keeps working. This is the lowest-risk, highest-value seam and proves the model
    reads correctly on the new framework.
-3. **Introduce `IInputSource`/`IInputSink`** and the `VKey` enum; reroute `HotKey` and
+   - `IProcessMemory` (+ `MemoryRegion`) lives in `AtE.Core/Platform`. `WindowsProcessMemory`
+     in `AtE.Windows/Platform` holds every OS call (`OpenProcess`/`ReadProcessMemory`/
+     `VirtualQueryEx` via `ProcessMemoryUtilities`, plus `FindWindow` discovery and the exe
+     image read). `PoEMemory` now keeps a transitional `static IProcessMemory Memory =
+     new WindowsProcessMemory()` and routes all `TryRead*`/attach/region calls through it;
+     the entity/component model, `ArrayHandle<T>`, and offset scanning were left untouched.
+3. ✅ **Done — Introduce `IInputSource`/`IInputSink`** and the `VKey` enum; reroute `HotKey` and
    the input-sending plugins. Purge `System.Windows.Forms.Keys` from the core.
-4. **Introduce `IRenderer`** — ideally by adopting a cross-platform GPU layer
+   - `IInputSink`, `IInputSource`, the core `VKey` enum (Windows VK values, `[Flags]`, so
+     INI hotkey names still round-trip) and `MouseBtn` live in `AtE.Core/Platform`.
+     `WindowsInputSink` (SendInput/INPUT/MapVirtualKey) and `WindowsInputSource`
+     (GetAsyncKeyState/GetCursorPos/GetForegroundWindow) live in `AtE.Windows/Platform`,
+     selected via a transitional `Input.Sink`/`Input.Source` composition point. `HotKey`,
+     `Console`, and the input-sending plugins now go through `Input.*`; `Win32`'s key APIs
+     take `VKey`. (`WindowsInputSource` still reaches `Overlay`/`PoEMemory.Target` directly
+     for the foreground check until the window seam lands.)
+4. ✅ **Done — Introduce `IRenderer`** — ideally by adopting a cross-platform GPU layer
    (Veldrid/Silk.NET) for the Windows build first, so the Linux build is "just another
    backend" rather than new code.
+   - `IRenderer` (+ `ITextureHandle`) lives in `AtE.Core/Platform` and stays free of SharpDX
+     and WinForms (only `IntPtr`/`int`/`string`). `WindowsRenderer` in `AtE.Windows/Platform`
+     wraps the existing SharpDX D3D11 + ImGui.NET backend — `D3DController`, `ImGuiController`,
+     `SpriteController`, `TextureCache` are kept verbatim as the first implementation and
+     simply delegated to. A transitional `Rendering.Renderer = new WindowsRenderer()` mirrors
+     `Input` (named `Rendering`, not `Render`, to avoid colliding with the `Render` entity
+     component). `Overlay` now drives the device through `Initialise`/`BeginFrame`/`EndFrame`/
+     `Resize`, and `PoEMemory`'s focus gating toggles `ContentEnabled`/`PresentEnabled`/
+     `Clear()` on the seam instead of the controller statics.
+   - Transitional deviations from the sketch above (resolved by later steps): `Initialise`
+     takes a native window handle + size rather than `IOverlayWindow` (step 5 not built yet —
+     `WindowsRenderer` reaches `Overlay.RenderForm` directly for the WinForms input wiring,
+     the same way `WindowsInputSource` reaches `Overlay`); `Resize` carries `left/top` because
+     the D3D swap-chain bounds need them; and `ContentEnabled`/`PresentEnabled`/`Clear` were
+     added to the surface so the focus-based render gating never names a concrete backend.
+     The portable ImGui *draw* helpers (`DrawText`/`DrawSprite`/…) are above this seam and
+     unchanged — only the GPU upload/present backend moved behind it. Adopting Veldrid/Silk.NET
+     to collapse this seam to one cross-platform backend remains the recommended follow-up.
 5. **Introduce `IOverlayWindow`** last — it's the riskiest on Linux and benefits from
    everything else already working so you can iterate on transparency/click-through in
    isolation.

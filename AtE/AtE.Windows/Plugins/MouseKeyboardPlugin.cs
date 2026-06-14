@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
-using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE {
@@ -25,38 +24,38 @@ namespace AtE {
 		public bool OnlyWhileHoldingControl = true;
 
 		public bool EnableAlsoCast = false;
-		public HotKey AlsoCastMainKey = new HotKey(Keys.None);
+		public HotKey AlsoCastMainKey = new HotKey(VKey.None);
 
 		public bool EnableAlsoCastKey1 = false;
-		public HotKey AlsoCastKey1 = new HotKey(Keys.None);
+		public HotKey AlsoCastKey1 = new HotKey(VKey.None);
 		public float AlsoCastKey1Throttle = 0;
 		public int AlsoCastKey1Mode = (int)KeyBindMode.Hold;
 		private long AlsoCastKey1LastPress = 0;
 
 
 		public bool EnableAlsoCastKey2 = false;
-		public HotKey AlsoCastKey2 = new HotKey(Keys.None);
+		public HotKey AlsoCastKey2 = new HotKey(VKey.None);
 		public float AlsoCastKey2Throttle = 0;
 		public int AlsoCastKey2Mode = (int)KeyBindMode.Hold;
 		private long AlsoCastKey2LastPress = 0;
 
 		public bool EnableAlsoCastKey3 = false;
-		public HotKey AlsoCastKey3 = new HotKey(Keys.None);
+		public HotKey AlsoCastKey3 = new HotKey(VKey.None);
 		public float AlsoCastKey3Throttle = 0;
 		public int AlsoCastKey3Mode = (int)KeyBindMode.Hold;
 		private long AlsoCastKey3LastPress = 0;
 
 		public bool EnableAlsoCastKey4 = false;
-		public HotKey AlsoCastKey4 = new HotKey(Keys.None);
+		public HotKey AlsoCastKey4 = new HotKey(VKey.None);
 		public float AlsoCastKey4Throttle = 0;
 		public int AlsoCastKey4Mode = (int)KeyBindMode.Hold;
 		private long AlsoCastKey4LastPress = 0;
 
 		public bool ShowMouseCoords = false;
-		public HotKey ResetZoneSecretKey = new HotKey(Keys.None);
+		public HotKey ResetZoneSecretKey = new HotKey(VKey.None);
 
 		public bool LootFocusEnabled = false;
-		public HotKey LootFocusKey = new HotKey(Keys.ShiftKey);
+		public HotKey LootFocusKey = new HotKey(VKey.ShiftKey);
 		private PointF LootFocusMouseSaved = new PointF(0, 0);
 
 		public override void Render() {
@@ -256,11 +255,11 @@ namespace AtE {
 				if ( IsValid(label?.Label) ) {
 					Run(new LeftClickAt(label.Label.GetClientRect(), 30, 1
 						, new Delay(300
-						, new KeyDown(Keys.LControlKey
+						, new KeyDown(VKey.LControlKey
 						, new LeftClickAt(new Vector2(520, 400), 30, 1
 						, new Delay(300
 						, new LeftClickAt(new Vector2(420, 370), 30, 1
-						, new KeyUp(Keys.LControlKey)
+						, new KeyUp(VKey.LControlKey)
 						))))))
 					);
 				} else {
@@ -273,9 +272,9 @@ namespace AtE {
 		}
 
 		private void CheckKeyRepeat() {
-			bool downNow = Win32.IsKeyDown(Keys.LButton);
-			bool shiftDownNow = Win32.IsKeyDown(Keys.LShiftKey);
-			bool controlDownNow = Win32.IsKeyDown(Keys.LControlKey);
+			bool downNow = Input.Source.IsKeyDown(VKey.LButton);
+			bool shiftDownNow = Input.Source.IsKeyDown(VKey.LShiftKey);
+			bool controlDownNow = Input.Source.IsKeyDown(VKey.LControlKey);
 			bool shouldRun = (OnlyWhileHoldingShift && shiftDownNow) || (OnlyWhileHoldingControl && controlDownNow);
 			long now = Time.ElapsedMilliseconds;
 			if ( downNow && shouldRun ) {
@@ -284,9 +283,9 @@ namespace AtE {
 				} else {
 					if ( (now - downSince) > RepeatLeftClickWait ) {
 						if ( (now - lastRepeat) > RepeatLeftClickInterval ) {
-							Win32.SendInput( // repeat the already-held left mouse, by releasing and pressing it again
-								Win32.INPUT_Mouse(Win32.MouseFlag.LeftUp),
-								Win32.INPUT_Mouse(Win32.MouseFlag.LeftDown));
+							// repeat the already-held left mouse, by releasing and pressing it again
+							Input.Sink.MouseButton(MouseBtn.Left, false);
+							Input.Sink.MouseButton(MouseBtn.Left, true);
 							lastRepeat = now;
 						}
 					}
@@ -295,17 +294,17 @@ namespace AtE {
 			downBefore = downNow;
 		}
 
-		private void doKeyDown(Keys key, ref long lastPress, float throttle) {
+		private void doKeyDown(VKey key, ref long lastPress, float throttle) {
 			long elapsed = Time.ElapsedMilliseconds - lastPress;
 			if ( elapsed < throttle * 1000 ) {
 				return;
 			}
 			lastPress = Time.ElapsedMilliseconds;
-			Win32.SendInput(Win32.INPUT_KeyDown(key));
+			Input.Sink.KeyDown(key);
 		}
 
 		private long lastPressOfAnyAlsoCast = 0;
-		private bool doKeyPress(Keys key, ref long lastPress, float throttle) {
+		private bool doKeyPress(VKey key, ref long lastPress, float throttle) {
 			long now = Time.ElapsedMilliseconds;
 			long throttleMS = Math.Max(100, (long)(throttle * 1000));
 			long sinceLastPress = now - lastPress;
@@ -324,8 +323,8 @@ namespace AtE {
 			return false;
 		}
 
-		private void doKeyUp(Keys key) {
-			Win32.SendInput(Win32.INPUT_KeyUp(key));
+		private void doKeyUp(VKey key) {
+			Input.Sink.KeyUp(key);
 		}
 
 		private bool alsoCastMainKeyDownBefore = false;
@@ -333,7 +332,7 @@ namespace AtE {
 
 		private void CheckAlsoCast() {
 			if ( EnableAlsoCast && !PoEMemory.GameRoot.InGameState.HasInputFocus ) {
-				bool downNow = Win32.IsKeyDown(AlsoCastMainKey.Key);
+				bool downNow = Input.Source.IsKeyDown(AlsoCastMainKey.Key);
 				if ( downNow && !alsoCastMainKeyDownBefore ) {
 					// OnKeyDown: (of the main key)
 					alsoCastMainKeyLastPress = Time.ElapsedMilliseconds;

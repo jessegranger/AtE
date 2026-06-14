@@ -11,7 +11,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace AtE {
 	public static partial class Globals {
@@ -95,27 +94,27 @@ namespace AtE {
 
 		public static EventHandler<string> OnAreaChange;
 
-		public static string Describe(Keys key) {
-			switch ( key & ~Keys.Modifiers ) {
-				case Keys.OemPipe:
+		public static string Describe(VKey key) {
+			switch ( key & ~VKey.Modifiers ) {
+				case VKey.OemPipe:
 					return "| (pipe)";
-				case Keys.OemPeriod:
+				case VKey.OemPeriod:
 					return ". (period)";
-				case Keys.OemOpenBrackets:
+				case VKey.OemOpenBrackets:
 					return "[";
-				case Keys.Oem6:
+				case VKey.Oem6:
 					return "]";
-				case Keys.Oemcomma:
+				case VKey.Oemcomma:
 					return ", (comma)";
 				default:
 					return key.ToString();
 			}
 		}
 
-		public static void OnRelease(Keys key, Action act) {
+		public static void OnRelease(VKey key, Action act) {
 			bool downBefore = false;
 			Run($"KeyBind[{key}]", (self, dt) => {
-				bool downNow = Win32.IsKeyDown(key);
+				bool downNow = Input.Source.IsKeyDown(key);
 				if ( downBefore && !downNow ) {
 					act();
 				}

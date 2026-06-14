@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE {
@@ -64,7 +63,7 @@ namespace AtE {
 		public Mods realMods;
 
 		public int FlaskIndex = -1;
-		public Keys Key => Valid && (FlaskIndex >= 0 && FlaskIndex < 5) ? (Keys.D1 + FlaskIndex) : Keys.None;
+		public VKey Key => Valid && (FlaskIndex >= 0 && FlaskIndex < 5) ? (VKey.D1 + FlaskIndex) : VKey.None;
 
 		private static bool debugOnce = true;
 

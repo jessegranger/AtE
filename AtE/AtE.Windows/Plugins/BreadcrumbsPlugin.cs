@@ -6,7 +6,6 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE.Plugins {
@@ -21,8 +20,8 @@ namespace AtE.Plugins {
 		public int MaxTotal = 500;
 		public bool ShowBreadcrumbsOnMap = false;
 
-		public HotKey ToggleHotKey = new HotKey(Keys.OemPeriod);
-		public HotKey ClearHotKey = new HotKey(Keys.Oemcomma);
+		public HotKey ToggleHotKey = new HotKey(VKey.OemPeriod);
+		public HotKey ClearHotKey = new HotKey(VKey.Oemcomma);
 
 		private const int UNITS_TO_METERS = 100; // poe docs lie about this and say its 10 but you can just look with your eye
 

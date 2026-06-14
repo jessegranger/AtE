@@ -6,7 +6,6 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE.Plugins {
@@ -14,7 +13,7 @@ namespace AtE.Plugins {
 
 		public override string Name => "Backpack";
 
-		public HotKey DumpKey = new HotKey(Keys.OemOpenBrackets);
+		public HotKey DumpKey = new HotKey(VKey.OemOpenBrackets);
 		public bool ShowDebugMarkers = false;
 		public bool OpenStashedDecks = false;
 		public bool ApplyIncubators = false;
@@ -97,14 +96,14 @@ namespace AtE.Plugins {
 				// keyup shift
 				IState head = PlanUseItemFromBackpack(Offsets.PATH_SCROLL_WISDOM,
 					new Delay(InputLatency,
-					new KeyDown(Keys.LShiftKey,
+					new KeyDown(VKey.LShiftKey,
 					new Delay(InputLatency,
 					null))));
 				if ( head == null ) {
 					return null;
 				}
 				IState tail = head.Tail();
-				IState keyUp = new KeyUp(Keys.LShiftKey, next);
+				IState keyUp = new KeyUp(VKey.LShiftKey, next);
 				foreach ( var item in itemsToIdentify ) {
 					tail.Next = OnlyIfBackpackIsOpen(
 						ifOpen: new LeftClickAt(item.GetClientRect(), InputLatency, 1,
@@ -138,7 +137,7 @@ namespace AtE.Plugins {
 			var needs = new Dictionary<string, int>(restockNeeds);
 			// then, construct a chain of steps for stashing each item
 			// first, hold Control
-			IState head = new KeyDown(Keys.LControlKey, null);
+			IState head = new KeyDown(VKey.LControlKey, null);
 			IState tail = head.Tail();
 			foreach ( var item in BackpackItems() ) {
 				var ent = item.Entity;
@@ -157,11 +156,11 @@ namespace AtE.Plugins {
 				}
 				tail.Next = OnlyIfStashIsOpen(
 					ifOpen: LeftClickItem(item, 1, null),
-					ifClosed: new KeyUp(Keys.LControlKey, null)
+					ifClosed: new KeyUp(VKey.LControlKey, null)
 				);
 				tail = tail.Tail();
 			}
-			tail.Next = new KeyUp(Keys.LControlKey, next);
+			tail.Next = new KeyUp(VKey.LControlKey, next);
 			head = OnlyIfStashIsOpen(head, ifClosed: NewState(() => Notify("Not open")));
 			/*
 			IState cursor = head;

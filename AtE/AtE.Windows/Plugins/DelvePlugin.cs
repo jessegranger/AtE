@@ -6,7 +6,6 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE.Plugins {
@@ -23,7 +22,7 @@ namespace AtE.Plugins {
 
 		public bool UseFlaresInDarkness = true;
 		public int UseFlaresAtDarkness = 12;
-		public HotKey FlareKey = new HotKey(Keys.D6);
+		public HotKey FlareKey = new HotKey(VKey.D6);
 
 		// public bool ShowHighestCorpseLife = true;
 

@@ -7,7 +7,6 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE {
@@ -67,8 +66,8 @@ namespace AtE {
 
 					if ( field.FieldType == typeof(HotKey) ) {
 						field.SetValue(plugin, HotKey.Parse(pair.Value));
-					} else if ( field.FieldType == typeof(Keys) ) {
-						if ( Enum.TryParse(pair.Value, out Keys key) ) {
+					} else if ( field.FieldType == typeof(VKey) ) {
+						if ( Enum.TryParse(pair.Value, out VKey key) ) {
 							field.SetValue(plugin, key);
 						}
 					} else if ( field.FieldType == typeof(float) ) {

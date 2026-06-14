@@ -6,7 +6,6 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE {
@@ -106,7 +105,7 @@ namespace AtE {
 										ImGui.SameLine();
 										if( recipeComplete && ImGui.Button($"Pickup##PickupOneSetOfChaosRecipeItems") ) {
 											uint inputDelay = (uint)GetPlugin<CoreSettings>().InputLatency;
-											Run(new KeyDown(Keys.LControlKey,
+											Run(new KeyDown(VKey.LControlKey,
 												new LeftClickAt(bestWeapon?.GetClientRect() ?? default, inputDelay, 1,
 												new LeftClickAt(bestOffhand?.GetClientRect() ?? default, inputDelay, 1,
 												new LeftClickAt(bestHelm.GetClientRect(), inputDelay, 1,
@@ -117,7 +116,7 @@ namespace AtE {
 												new LeftClickAt(bestLeftRing.GetClientRect(), inputDelay, 1,
 												new LeftClickAt(bestGlove.GetClientRect(), inputDelay, 1,
 												new LeftClickAt(bestBoot.GetClientRect(), inputDelay, 1,
-												new KeyUp(Keys.LControlKey)
+												new KeyUp(VKey.LControlKey)
 												))))))))))));
 										}
 									}

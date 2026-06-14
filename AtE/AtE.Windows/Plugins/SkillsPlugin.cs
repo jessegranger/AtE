@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
-using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE.Plugins {
@@ -41,7 +40,7 @@ namespace AtE.Plugins {
 			/// <summary>
 			/// The key binding that is bound to the skill
 			/// </summary>
-			public HotKey Key = new HotKey(Keys.None);
+			public HotKey Key = new HotKey(VKey.None);
 
 			public SkillData(string displayName, string skillName, string buffName) {
 				DisplayName = displayName;
@@ -572,7 +571,7 @@ namespace AtE.Plugins {
 		public override bool Load(string key, string value) {
 			if ( KnownSkills.TryGetValue(key, out SkillData buff) ) {
 				buff.Key = HotKey.Parse(value);
-				buff.Enabled = buff.Key.Key != Keys.None;
+				buff.Enabled = buff.Key.Key != VKey.None;
 				return true;
 			}
 			return false;

@@ -52,7 +52,7 @@ namespace AtE {
 		[DllImport("user32.dll", SetLastError = true)] public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 		[DllImport("user32.dll", SetLastError = true)] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
-		[DllImport("user32.dll")] public static extern short GetAsyncKeyState(Keys key);
+		[DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vKey);
 		[DllImport("user32.dll")] public static extern bool GetCursorPos(out Point lpPoint);
 		[StructLayout(LayoutKind.Sequential)]
 		public struct Margins {
@@ -143,8 +143,8 @@ namespace AtE {
 			return msg;
 		}
 
-		public static INPUT INPUT_KeyDown(Keys key) {
-			int vkey = (int)(key & Keys.KeyCode);
+		public static INPUT INPUT_KeyDown(VKey key) {
+			int vkey = (int)(key & VKey.KeyCode);
 			var msg = new INPUT { Type = InputType.Keyboard };
 			msg.Data.Keyboard.KeyCode = (UInt16)vkey;
 			msg.Data.Keyboard.ScanCode = (UInt16)(MapVirtualKey((UInt32)vkey, 0) & 0xFFU);
@@ -154,8 +154,8 @@ namespace AtE {
 			return msg;
 		}
 
-		public static INPUT INPUT_KeyUp(Keys key) {
-			int vkey = (int)(key & Keys.KeyCode);
+		public static INPUT INPUT_KeyUp(VKey key) {
+			int vkey = (int)(key & VKey.KeyCode);
 			var msg = new INPUT { Type = InputType.Keyboard };
 			msg.Data.Keyboard.KeyCode = (UInt16)vkey;
 			msg.Data.Keyboard.ScanCode = (UInt16)(MapVirtualKey((UInt32)vkey, 0) & 0xFFU);
@@ -189,8 +189,8 @@ namespace AtE {
 			return msg;
 		}
 
-		// public static bool IsKeyDown(Keys key) => (GetAsyncKeyState(key) & 0x8000) == 0x8000;
-		public static bool IsKeyDown(Keys key) => GetAsyncKeyState(key) < 0;
+		// public static bool IsKeyDown(VKey key) => (GetAsyncKeyState((int)key) & 0x8000) == 0x8000;
+		public static bool IsKeyDown(VKey key) => GetAsyncKeyState((int)key) < 0;
 		/*  "If the most significant bit is set, the key is down, and if the least significant bit is set, the key was pressed after the previous call to GetAsyncKeyState." */
 
 

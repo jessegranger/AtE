@@ -6,9 +6,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using static AtE.Globals;
-using static AtE.Win32;
 
 namespace AtE {
 
@@ -129,15 +127,15 @@ namespace AtE {
 	}
 
 	class KeyState : InputState {
-		public readonly Keys Key;
-		protected KeyState(Keys key, IState next = null) : base(next) => Key = key;
+		public readonly VKey Key;
+		protected KeyState(VKey key, IState next = null) : base(next) => Key = key;
 	}
 
 	class KeyDown : KeyState {
-		public KeyDown(Keys key, IState next = null) : base(key, next) { }
+		public KeyDown(VKey key, IState next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
 			if( dt > 0 && (PoEMemory.TargetHasFocus || Overlay.HasFocus) ) {
-				SendInput(INPUT_KeyDown(Key));
+				Input.Sink.KeyDown(Key);
 				return Next;
 			}
 			return this;
@@ -146,11 +144,11 @@ namespace AtE {
 	}
 
 	class KeyUp : KeyState {
-		public KeyUp(Keys key, IState next = null) : base(key, next) { }
+		public KeyUp(VKey key, IState next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
 			if( dt > 0 && (PoEMemory.TargetHasFocus || Overlay.HasFocus) ) {
-				SendInput(INPUT_KeyUp(Key));
+				Input.Sink.KeyUp(Key);
 				return Next;
 			}
 			return this;
@@ -159,11 +157,11 @@ namespace AtE {
 	}
 
 	class PressKey : KeyState {
-		private static Dictionary<Keys, long> lastPressTime = [];
+		private static Dictionary<VKey, long> lastPressTime = [];
 		private readonly long throttle = long.MaxValue;
-		public PressKey(Keys key, uint duration, IState next = null) : base(key,
+		public PressKey(VKey key, uint duration, IState next = null) : base(key,
 				new KeyDown(key, new Delay(duration, new KeyUp(key, next)))) { }
-		public PressKey(Keys key, uint duration, long throttle, IState next = null) : base(key,
+		public PressKey(VKey key, uint duration, long throttle, IState next = null) : base(key,
 				new KeyDown(key, new Delay(duration, new KeyUp(key, next)))) {
 			this.throttle = throttle;
 		}
@@ -200,7 +198,7 @@ namespace AtE {
 				return Next;
 			}
 			// Log($"MoveMouse to (#{X},#{Y})");
-			SendInput(INPUT_MouseMove(new Vector2(X, Y)));
+			Input.Sink.MouseMove(new Vector2(X, Y));
 			return Next;
 		}
 	}
@@ -212,7 +210,7 @@ namespace AtE {
 				Log($"Warn: MouseDown attempted while not focused, skipped.");
 				return Next;
 			}
-			SendInput(INPUT_Mouse(MouseFlag.LeftDown));
+			Input.Sink.MouseButton(MouseBtn.Left, true);
 			return Next;
 		}
 	}
@@ -221,7 +219,7 @@ namespace AtE {
 		public LeftMouseUp(IState next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			SendInput(INPUT_Mouse(MouseFlag.LeftUp));
+			Input.Sink.MouseButton(MouseBtn.Left, false);
 			return Next;
 		}
 	}
@@ -248,7 +246,7 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
 			if ( !PoEMemory.TargetHasFocus ) return Next;
-			SendInput(INPUT_Mouse(MouseFlag.RightDown));
+			Input.Sink.MouseButton(MouseBtn.Right, true);
 			return Next;
 		}
 	}
@@ -258,7 +256,7 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
 			if ( !PoEMemory.TargetHasFocus ) return Next;
-			SendInput(INPUT_Mouse(MouseFlag.RightUp));
+			Input.Sink.MouseButton(MouseBtn.Right, false);
 			return Next;
 		}
 	}
@@ -282,10 +280,10 @@ namespace AtE {
 		public CtrlRightClickAt(float x, float y, uint duration, IState next = null) : base(
 				(x == 0 && y == 0) ? next :
 				new MoveMouse(x, y, new Delay(duration, 
-					new KeyDown(Keys.LControlKey, new Delay(duration,
+					new KeyDown(VKey.LControlKey, new Delay(duration,
 						new RightMouseDown(new Delay(duration,
 							new RightMouseUp(new Delay(duration,
-								new KeyUp(Keys.LControlKey, next)))))))))) { }
+								new KeyUp(VKey.LControlKey, next)))))))))) { }
 	}
 	class CtrlLeftClickAt : InputState {
 		// public CtrlLeftClickAt(Element item, uint duration, IState next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
@@ -293,10 +291,10 @@ namespace AtE {
 		public CtrlLeftClickAt(float x, float y, uint duration, IState next = null) : base(
 				(x == 0 && y == 0) ? next :
 				new MoveMouse(x, y, new Delay(duration, 
-					new KeyDown(Keys.LControlKey, new Delay(duration,
+					new KeyDown(VKey.LControlKey, new Delay(duration,
 						new LeftMouseDown(new Delay(duration,
 							new LeftMouseUp(new Delay(duration,
-								new KeyUp(Keys.LControlKey, next)))))))))) { }
+								new KeyUp(VKey.LControlKey, next)))))))))) { }
 	}
 	class ShiftLeftClickAt : InputState {
 		// public ShiftLeftClickAt(Element item, uint duration, IState next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
@@ -304,10 +302,10 @@ namespace AtE {
 		public ShiftLeftClickAt(float x, float y, uint duration, IState next = null) : base(
 				(x == 0 && y == 0) ? next :
 				new MoveMouse(x, y, new Delay(duration, 
-					new KeyDown(Keys.LShiftKey, new Delay(duration,
+					new KeyDown(VKey.LShiftKey, new Delay(duration,
 						new LeftMouseDown(new Delay(duration,
 							new LeftMouseUp(new Delay(duration,
-								new KeyUp(Keys.LShiftKey, next)))))))))) { }
+								new KeyUp(VKey.LShiftKey, next)))))))))) { }
 
 	}
 

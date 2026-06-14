@@ -7,7 +7,6 @@ using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using static AtE.Globals;
 
 namespace AtE.Plugins {
@@ -21,7 +20,7 @@ namespace AtE.Plugins {
 		public override bool Hidden => true;
 #endif
 
-		public HotKey RollOnceKey = new HotKey(Keys.None);
+		public HotKey RollOnceKey = new HotKey(VKey.None);
 
 		private HashSet<string> ModNames = new HashSet<string>();
 		public string ModTarget = "";

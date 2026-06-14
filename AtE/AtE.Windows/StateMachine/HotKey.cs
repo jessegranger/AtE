@@ -1,15 +1,13 @@
 ﻿using ImGuiNET;
 using System;
 using System.Numerics;
-using System.Windows.Forms;
 using static AtE.Globals;
-using static AtE.Win32;
 
 namespace AtE {
 
 	public class HotKey : State, IDisposable {
-		public Keys Key;
-		public HotKey(Keys key) {
+		public VKey Key;
+		public HotKey(VKey key) {
 			Key = key;
 			Machine.DefaultMachine.Add(this);
 		}
@@ -19,8 +17,8 @@ namespace AtE {
 		public bool WasJustPressed = false;
 		public override IState OnTick(long dt) {
 			if ( isDisposed ) return null;
-			if ( Key == Keys.None ) return this;
-			bool downNow = IsKeyDown(Key);
+			if ( Key == VKey.None ) return this;
+			bool downNow = Input.Source.IsKeyDown(Key);
 			WasJustPressed = downNow && !IsDown;
 			IsReleased = IsDown && !downNow;
 			if ( IsReleased ) OnRelease?.Invoke(this, null);
@@ -42,13 +40,14 @@ namespace AtE {
 		public bool PressImmediate() {
 			if ( PoEMemory.IsAttached && PoEMemory.TargetHasFocus && !PoEMemory.GameRoot.InGameState.HasInputFocus ) {
 				Log($"HotKey: PressImmediate {Key}");
-				SendInput(INPUT_KeyDown(Key), INPUT_KeyUp(Key));
+				Input.Sink.KeyDown(Key);
+				Input.Sink.KeyUp(Key);
 				return true;
 			}
 			return false;
 		}
 		public override string ToString() => Key.ToString();
-		public static HotKey Parse(string str) => new HotKey(Enum.TryParse(str, out Keys key) ? key : Keys.None);
+		public static HotKey Parse(string str) => new HotKey(Enum.TryParse(str, out VKey key) ? key : VKey.None);
 	}
 
 
@@ -78,8 +77,8 @@ namespace AtE {
 					var io = ImGui.GetIO();
 					for ( int i = 0; i < io.KeyMap.Count; i++ ) {
 						var key = io.KeyMap[i];
-						if ( key != 0 && Win32.IsKeyDown((Keys)key) ) {
-							Target.Key = (Keys)key;
+						if ( key != 0 && Input.Source.IsKeyDown((VKey)key) ) {
+							Target.Key = (VKey)key;
 							return Next;
 						}
 						ImGui.End();

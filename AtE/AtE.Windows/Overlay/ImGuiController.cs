@@ -149,33 +149,33 @@ namespace AtE {
 			RenderForm.MouseWheel += (sender, args) => IO.MouseWheel = args.Delta / 100f;
 
 			// Map Windows key codes into the ImGuiKey codes
-			IO.KeyMap[(int)ImGuiKey._1] = (int)Keys.D1;
-			IO.KeyMap[(int)ImGuiKey._2] = (int)Keys.D2;
-			IO.KeyMap[(int)ImGuiKey._3] = (int)Keys.D3;
-			IO.KeyMap[(int)ImGuiKey._4] = (int)Keys.D4;
-			IO.KeyMap[(int)ImGuiKey._5] = (int)Keys.D5;
-			IO.KeyMap[(int)ImGuiKey._6] = (int)Keys.D6;
-			IO.KeyMap[(int)ImGuiKey._7] = (int)Keys.D7;
-			IO.KeyMap[(int)ImGuiKey._8] = (int)Keys.D8;
-			IO.KeyMap[(int)ImGuiKey._9] = (int)Keys.D9;
-			IO.KeyMap[(int)ImGuiKey._0] = (int)Keys.D0;
-			IO.KeyMap[(int)ImGuiKey.Backspace] = (int)Keys.Back;
-			IO.KeyMap[(int)ImGuiKey.LeftArrow] = (int)Keys.Left;
-			IO.KeyMap[(int)ImGuiKey.RightArrow] = (int)Keys.Right;
-			IO.KeyMap[(int)ImGuiKey.UpArrow] = (int)Keys.Up;
-			IO.KeyMap[(int)ImGuiKey.DownArrow] = (int)Keys.Down;
-			IO.KeyMap[(int)ImGuiKey.LeftBracket] = (int)Keys.OemOpenBrackets;
-			IO.KeyMap[(int)ImGuiKey.RightBracket] = (int)Keys.Oem6;
-			IO.KeyMap[(int)ImGuiKey.LeftCtrl] = (int)Keys.LControlKey;
-			IO.KeyMap[(int)ImGuiKey.RightCtrl] = (int)Keys.RControlKey;
-			IO.KeyMap[(int)ImGuiKey.LeftAlt] = (int)Keys.LMenu;
-			IO.KeyMap[(int)ImGuiKey.RightAlt] = (int)Keys.RMenu;
+			IO.KeyMap[(int)ImGuiKey._1] = (int)VKey.D1;
+			IO.KeyMap[(int)ImGuiKey._2] = (int)VKey.D2;
+			IO.KeyMap[(int)ImGuiKey._3] = (int)VKey.D3;
+			IO.KeyMap[(int)ImGuiKey._4] = (int)VKey.D4;
+			IO.KeyMap[(int)ImGuiKey._5] = (int)VKey.D5;
+			IO.KeyMap[(int)ImGuiKey._6] = (int)VKey.D6;
+			IO.KeyMap[(int)ImGuiKey._7] = (int)VKey.D7;
+			IO.KeyMap[(int)ImGuiKey._8] = (int)VKey.D8;
+			IO.KeyMap[(int)ImGuiKey._9] = (int)VKey.D9;
+			IO.KeyMap[(int)ImGuiKey._0] = (int)VKey.D0;
+			IO.KeyMap[(int)ImGuiKey.Backspace] = (int)VKey.Back;
+			IO.KeyMap[(int)ImGuiKey.LeftArrow] = (int)VKey.Left;
+			IO.KeyMap[(int)ImGuiKey.RightArrow] = (int)VKey.Right;
+			IO.KeyMap[(int)ImGuiKey.UpArrow] = (int)VKey.Up;
+			IO.KeyMap[(int)ImGuiKey.DownArrow] = (int)VKey.Down;
+			IO.KeyMap[(int)ImGuiKey.LeftBracket] = (int)VKey.OemOpenBrackets;
+			IO.KeyMap[(int)ImGuiKey.RightBracket] = (int)VKey.Oem6;
+			IO.KeyMap[(int)ImGuiKey.LeftCtrl] = (int)VKey.LControlKey;
+			IO.KeyMap[(int)ImGuiKey.RightCtrl] = (int)VKey.RControlKey;
+			IO.KeyMap[(int)ImGuiKey.LeftAlt] = (int)VKey.LMenu;
+			IO.KeyMap[(int)ImGuiKey.RightAlt] = (int)VKey.RMenu;
 
 			// Find any of the key names that are the same and map them all, A, B, etc
 			HashSet<string> imGuiKeyNames = new HashSet<string>(Enum.GetNames(typeof(ImGuiKey)));
-			foreach( string keyName in Enum.GetNames(typeof(Keys)) ) {
+			foreach( string keyName in Enum.GetNames(typeof(VKey)) ) {
 				if( imGuiKeyNames.Contains(keyName) ) {
-					IO.KeyMap[(int)Enum.Parse(typeof(ImGuiKey), keyName)] = (int)Enum.Parse(typeof(Keys), keyName);
+					IO.KeyMap[(int)Enum.Parse(typeof(ImGuiKey), keyName)] = (int)Enum.Parse(typeof(VKey), keyName);
 				}
 			}
 

@@ -2,7 +2,6 @@
 using System;
 using System.Drawing;
 using System.Numerics;
-using System.Windows.Forms;
 using System.Linq;
 using static AtE.Globals;
 using System.Collections.Generic;
@@ -64,7 +63,7 @@ namespace AtE {
 		private static readonly float SIN_CAMERA_ANGLE = (float)Math.Sin(38f * (float)Math.PI / 180f);
 
 		static MapElement() {
-			new HotKey(Keys.Tab).OnRelease += (sender, args) => UpdateMiniMapRect();
+			new HotKey(VKey.Tab).OnRelease += (sender, args) => UpdateMiniMapRect();
 			/*
 			Run("MapElement", (self, dt) => {
 				ImGui.Begin("Minimap debug");

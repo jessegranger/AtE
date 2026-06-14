@@ -256,11 +256,10 @@ namespace AtE {
 					enabled = !PluginBase.GetPlugin<CoreSettings>().OnlyRenderWhenFocused;
 				}
 				// DrawBottomLeftText($"TargetHasFocus:{TargetHasFocus} Overlay Focus: {Overlay.HasFocus} Enabled: {enabled} Foreground: {Describe(Win32.GetForegroundWindow())}", Color.Yellow);
-				SpriteController.Enabled =  // same as:
-				ImGuiController.Enabled = enabled;// same as:
-				D3DController.Enabled = wasFocused;
+				Rendering.Renderer.ContentEnabled = enabled; // ImGui + sprite layers
+				Rendering.Renderer.PresentEnabled = wasFocused;
 				if( wasFocused && !enabled ) {
-					D3DController.Clear();
+					Rendering.Renderer.Clear();
 				}
 				wasFocused = hasFocus;
 
@@ -277,14 +276,13 @@ namespace AtE {
 
 			} else {
 				if ( TargetHasFocus ) {
-					D3DController.Clear();
+					Rendering.Renderer.Clear();
 				}
 				// if we aren't attached to any process, nothing can be focused
-				D3DController.Enabled = TargetHasFocus; // draw one empty frame
+				Rendering.Renderer.PresentEnabled = TargetHasFocus; // draw one empty frame
 				TargetHasFocus = false;
 				// also, none of the layers should allow drawing/rendering
-				SpriteController.Enabled = false;
-				ImGuiController.Enabled = false;
+				Rendering.Renderer.ContentEnabled = false;
 				if( wasAttached ) {
 					Detach();
 				}

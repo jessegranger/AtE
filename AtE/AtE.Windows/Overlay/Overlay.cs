@@ -41,11 +41,7 @@ namespace AtE {
 				RenderForm.Size = new Size(screen.Bounds.Width, screen.Bounds.Height);
 			};
 
-			D3DController.Initialise(RenderForm);
-
-			ImGuiController.Initialise(RenderForm);
-
-			SpriteController.Initialise(RenderForm);
+			Rendering.Renderer.Initialise(RenderForm.Handle, RenderForm.Width, RenderForm.Height);
 
 			// Not used: D3DController.CreateRenderStates(RenderForm.Width, RenderForm.Height);
 
@@ -60,11 +56,7 @@ namespace AtE {
 				int w = RenderForm.Width;
 				int h = RenderForm.Height;
 				Log($"RenderForm: UserResized {RenderForm.ClientRectangle}");
-				D3DController.Resize(x, y, w, h);
-
-				ImGuiController.Resize(w, h);
-
-				SpriteController.Resize(w, h);
+				Rendering.Renderer.Resize(x, y, w, h);
 
 			};
 
@@ -97,25 +89,18 @@ namespace AtE {
 					FPS = dt == 0 ? 999d : 1000f / dt;
 					lastRenderTime += dt;
 
-					// Clear the prior frame and start a new frame
-					D3DController.NewFrame();
-					ImGuiController.NewFrame(dt);
-					SpriteController.NewFrame(dt);
+					// Clear the prior frame and start a new frame (ImGui + sprite draw lists)
+					Rendering.Renderer.BeginFrame(dt);
 
 					Perf.Render(ref settings.ShowPerformanceWindow); // data about prior frame
 
 					// Advance all the States by one frame
-					// in here they end up calling ImGuiController and SpriteController Draw functions
+					// in here they end up calling the ImGui/sprite Draw functions
 					// this adds up some draw lists
 					Machine.DefaultMachine.OnTick(dt);
 
-					// Render the draw lists to vertexes and Draw them to the GPU
-					SpriteController.Render(dt);
-					ImGuiController.Render(dt);
-					using ( Perf.Section("VSync") ) {
-						// Finalize the rendering to the screen by swapping the back buffer
-						D3DController.Render();
-					}
+					// Render the accumulated draw lists to the GPU and present (VSync inside)
+					Rendering.Renderer.EndFrame();
 					FrameLock.Set();
 
 				}, true);
