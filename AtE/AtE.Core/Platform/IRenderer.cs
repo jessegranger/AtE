@@ -1,4 +1,6 @@
 using System;
+using System.Drawing;
+using System.Numerics;
 
 namespace AtE {
 
@@ -19,9 +21,12 @@ namespace AtE {
 	/// <summary>
 	/// The GPU device + ImGui backend: the part of the overlay's rendering that uploads vertex
 	/// buffers and textures and presents to the screen. The plugin draw calls themselves are
-	/// ImGui (<c>ImGui.*</c>) and the small <c>DrawText</c>/<c>DrawSprite</c> helpers built on
-	/// top of them are portable, so they sit <em>above</em> this seam and are untouched — only
-	/// the backend that turns the resulting draw lists into GPU work lives here.
+	/// ImGui (<c>ImGui.*</c>); the small <c>DrawText</c>/<c>DrawSprite</c>/... helpers are exposed
+	/// to the portable core as the <c>Draw*</c> members below. They are thin — a backend's text/
+	/// line/frame draws are just ImGui draw-list calls — but they depend on the backend's per-frame
+	/// draw-list and text-offset state (and, for sprites, on real GPU work), so they route through
+	/// this seam rather than living in the portable <c>Globals</c>. The portable wrappers in
+	/// <c>Globals</c> (overloads, bottom-left stacking, <c>ToRGBA</c>) sit above this seam.
 	///
 	/// Windows impl: <c>WindowsRenderer</c>, wrapping the existing SharpDX D3D11 +
 	/// ImGui.NET backend (<c>D3DController</c> / <c>ImGuiController</c> / <c>SpriteController</c> /
@@ -72,5 +77,27 @@ namespace AtE {
 		/// the backend. Backends with no such state return 0.
 		/// </summary>
 		float GetNextTextOffset(uint id);
+
+		/// <summary>Draw a single line of <paramref name="text"/> at a screen position.</summary>
+		void DrawText(string text, Vector2 pos, Color color);
+
+		/// <summary>
+		/// Draw a line of <paramref name="text"/> at <paramref name="pos"/> for stack <paramref name="id"/>,
+		/// advancing that stack's running offset by <paramref name="lineHeight"/> (negative grows upward)
+		/// so successive calls with the same id stack. See <see cref="GetNextTextOffset"/>.
+		/// </summary>
+		void DrawTextAt(uint id, Vector2 pos, string text, Color color, float lineHeight);
+
+		/// <summary>Draw a circle outline.</summary>
+		void DrawCircle(Vector2 pos, float radius, Color color, int thickness);
+
+		/// <summary>Draw a rectangle outline between two corners.</summary>
+		void DrawFrame(Vector2 topLeft, Vector2 bottomRight, Color color, int thickness);
+
+		/// <summary>Draw a line segment.</summary>
+		void DrawLine(Vector2 start, Vector2 end, Color color, int thickness);
+
+		/// <summary>Draw a sprite from the atlas filling the given screen rectangle.</summary>
+		void DrawSprite(SpriteIcon icon, RectangleF rect);
 	}
 }

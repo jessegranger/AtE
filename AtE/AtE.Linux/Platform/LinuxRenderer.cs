@@ -1,4 +1,6 @@
 using System;
+using System.Drawing;
+using System.Numerics;
 
 namespace AtE {
 
@@ -62,5 +64,25 @@ namespace AtE {
 		// state yet, there is no stacked offset, so report 0 (same as the Windows backend when
 		// the id is unknown).
 		public float GetNextTextOffset(uint id) => 0f;
+
+		// Draw helpers — stubs. TODO: emit ImGui draw-list commands (text/line/frame/circle) and
+		// atlas sprite quads through the chosen GPU layer's ImGui backend.
+		public void DrawText(string text, Vector2 pos, Color color) =>
+			throw new NotImplementedException(NYI + " TODO: ImGui draw-list AddText.");
+
+		public void DrawTextAt(uint id, Vector2 pos, string text, Color color, float lineHeight) =>
+			throw new NotImplementedException(NYI + " TODO: stacked ImGui text with per-id offset tracking.");
+
+		public void DrawCircle(Vector2 pos, float radius, Color color, int thickness) =>
+			throw new NotImplementedException(NYI + " TODO: ImGui draw-list AddCircle.");
+
+		public void DrawFrame(Vector2 topLeft, Vector2 bottomRight, Color color, int thickness) =>
+			throw new NotImplementedException(NYI + " TODO: ImGui draw-list AddRect.");
+
+		public void DrawLine(Vector2 start, Vector2 end, Color color, int thickness) =>
+			throw new NotImplementedException(NYI + " TODO: ImGui draw-list AddLine.");
+
+		public void DrawSprite(SpriteIcon icon, RectangleF rect) =>
+			throw new NotImplementedException(NYI + " TODO: draw an atlas sprite quad from Sprites.png.");
 	}
 }

@@ -306,17 +306,56 @@ Track these down during the cut — they're easy to miss because they're not P/I
        - Dropped a dead `using System.Windows.Forms;` from `Console.cs`.
      After this, no portable-set file references `Win32`, `ImGuiController`, `Process.Target`, or
      WinForms (verified by grep; two harmless commented-out references remain).
-   - Not yet built (next, gated on a confirmed clean Windows build): physically **moving** the
-     portable files (StateMachine, PoE model + `Memory/`, Plugins, `PluginBase`, `Globals`, `Console`,
-     `Overlay` orchestrator, `Perf`) into `AtE.Core` and adding the `ImGui.NET` PackageReference there
-     (the `System.Drawing` types used are the cross-platform `System.Drawing.Primitives`, already
-     in-box); then real seam implementations memory → input → render → window so `LinuxProgram.Main`
-     can drive the app.
-   - ⚠️ **Build caveats to check first.** (1) These changes were made without a compiler available in
-     the working environment — run `dotnet build AtE.sln` on Windows to confirm before the file move.
-     (2) Five source files (`Globals.cs`, `Overlay/Overlay.cs`, `Overlay/ImGuiController.cs`,
-     `PoE/PoEMemory.cs`, `PoE/MemoryObjects/MapElement.cs`) contain trailing NUL bytes that predate
-     this work; if the build flags them, stripping the trailing NULs should resolve it.
+   - ✅ **Done — portable files moved into `AtE.Core`.** Following a confirmed clean Windows build,
+     the portable set was physically moved out of `AtE.Windows` into `AtE.Core`, preserving the
+     folder layout: `StateMachine/` (HotKey, Machine, Runner, State), the PoE model
+     (`PoE/Components/Component`, `ElementCache`, `EntityCache`, `GameStat`, `GameState`, `Offsets`,
+     `PoEMemory`, all of `PoE/MemoryObjects/`), `Memory/` (Debugger, Memory, ObjectBrowser), all of
+     `Plugins/` (incl. `PluginBase` and `CoreSettings`), `Globals`, `Console`, the `Overlay`
+     orchestrator (`Overlay/Overlay.cs`) and `Overlay/Perf.cs`. `AtE.Windows` now keeps only
+     `Win32`, the Overlay GPU backends (`D3DController`, `ImGuiController`, `OverlayForm`,
+     `SpriteController`, `TextureCache`), the `Platform/Windows*` seam impls, `Program.cs` and
+     `AssemblyInfo.cs`. Both projects use SDK-style default globbing, so no `<Compile>` edits were
+     needed. `AtE.Core.csproj` gained the `ImGui.NET` PackageReference (1.87.3, matching Windows;
+     the portable plugins/draw helpers call `ImGui.*`). The `System.Drawing` usage in the moved set
+     is confined to the in-box `System.Drawing.Primitives` types (`Point`/`Rectangle`/`Color`/`Size`)
+     — verified no `Bitmap`/`Graphics`/`Icon`/`Image` (the `Icon` identifiers are a project struct
+     and field names, not `System.Drawing.Icon`) — so no `System.Drawing.Common` reference is needed.
+   - ⚠️ **`InternalsVisibleTo` added.** A few portable types stay `internal` (`Machine`, `Runner`,
+     and `PluginBase.Machine`) and are reached from the host entry points (`Program.Main`'s
+     `Run(PluginBase.Machine)`, and the equivalent in the scaffolded `LinuxProgram.Main`). That was
+     legal while everything lived in one assembly; after the move it crosses the assembly boundary,
+     so `AtE.Core.csproj` declares `[InternalsVisibleTo]` for `AssistantToTheExile` (the `AtE.Windows`
+     assembly name) and `AtE.Linux`. Verified by grep that the dependency is one-directional — no
+     moved (core) file references a Windows-only concrete type (`Win32`/SharpDX/WinForms/
+     `ImGuiController`/`D3DController`/`OverlayForm`/`SpriteController`/`TextureCache`/`Process`); the
+     only such mention is one commented-out line in `DefenseDisplay.cs` — and no remaining Windows
+     class inherits a portable base, so internal-visibility is the complete cross-boundary fix.
+   - ⚠️ **`Globals` draw helpers pulled into the renderer seam (fallout of the move).** `Globals` is a
+     `partial class` and two fragments of it still lived in Windows files (`SpriteController.cs`'s
+     `DrawSprite` and `ImGuiController.cs`'s `DrawText`/`DrawTextAt`/`DrawCircle`/`DrawFrame`/`DrawLine`/
+     `DrawBottomLeftText`/`ToRGBA`). Partial classes don't span assemblies, so after the move there were
+     two distinct `Globals` types (one per assembly); the compiler bound `using static AtE.Globals` in
+     the Windows files to the local one, hiding the core members (`Log`, etc.). These draw helpers are
+     also called by the portable plugins and `Component.cs` needs `SpriteIcon`, so the fix was to make
+     `Globals` single-homed in the core: `IRenderer` gained `DrawText`/`DrawTextAt`/`DrawCircle`/
+     `DrawFrame`/`DrawLine`/`DrawSprite` (the existing `ImGuiController`/`SpriteController` impls are
+     delegated to verbatim by `WindowsRenderer`; `LinuxRenderer` stubs them); the portable wrappers
+     (overloads, bottom-left stacking, `ToRGBA`) now live in `AtE.Core/Overlay/Draw.cs` routing through
+     `Platform.Current.Renderer`; and the `SpriteIcon` enum moved to `AtE.Core/Overlay/SpriteIcon.cs`.
+     After this, no `partial class Globals` fragment remains in `AtE.Windows` (verified by grep). This
+     supersedes the step-4 note that the `Draw*` helpers sit *above* the renderer seam — the primitive
+     draws sit *on* it because they need the backend's per-frame draw-list/offset state.
+   - Not yet built (next): real seam implementations memory → input → render → window so
+     `LinuxProgram.Main` can drive the app.
+   - ⚠️ **Build caveats to check.** (1) The file move was made without a compiler in the working
+     environment — re-run `dotnet build AtE.sln` on Windows to confirm. As a bonus, `AtE.Core` is now
+     a neutral `net9.0` library and should compile on Linux on its own (`dotnet build AtE.Core`),
+     which is the cheapest way to catch any stray Windows coupling left in the moved set.
+     (2) Five source files contain trailing NUL bytes that predate this work — four are now in
+     `AtE.Core` (`Globals.cs`, `Overlay/Overlay.cs`, `PoE/PoEMemory.cs`, `PoE/MemoryObjects/MapElement.cs`)
+     and one stays in `AtE.Windows` (`Overlay/ImGuiController.cs`); if the build flags them, stripping
+     the trailing NULs should resolve it.
 
 ## Linux backend cheat-sheet (per seam, for later)
 

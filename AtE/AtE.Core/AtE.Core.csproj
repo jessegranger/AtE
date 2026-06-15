@@ -2,8 +2,11 @@
 
   <PropertyGroup>
     <!-- Platform-neutral core: NO -windows suffix, no WinForms, no SharpDX.
-         This assembly must compile on Linux. It holds only the platform seam
-         interfaces (and, later, the portable entity/component model). -->
+         This assembly must compile on Linux. It holds the platform seam
+         interfaces plus the portable core: the StateMachine, the PoE
+         entity/component model + Memory tooling, all Plugins, the Overlay
+         orchestrator, Perf, Globals and Console. Everything here reaches
+         platform services only through the seams in Platform/. -->
     <TargetFramework>net9.0</TargetFramework>
     <OutputType>Library</OutputType>
     <RootNamespace>AtE</RootNamespace>
@@ -19,5 +22,22 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
+
+  <!-- The portable plugins and ImGui draw helpers call ImGui.* directly; the
+       ImGui.NET managed bindings are platform-neutral. The GPU upload/present
+       backend that consumes the draw data stays behind IRenderer per platform. -->
+  <ItemGroup>
+    <PackageReference Include="ImGui.NET" Version="1.87.3" />
+  </ItemGroup>
+
+  <!-- The portable core keeps several types internal (Machine, Runner,
+       PluginBase.Machine, ...). The per-platform host assemblies need to reach
+       them from their entry points (Program.Main / LinuxProgram.Main), which
+       worked while everything lived in one assembly. Expose core internals to
+       both hosts so that access still compiles after the split. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="AssistantToTheExile" />
+    <InternalsVisibleTo Include="AtE.Linux" />
+  </ItemGroup>
 
 </Project>

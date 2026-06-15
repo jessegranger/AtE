@@ -125,5 +125,24 @@ namespace AtE {
 		public void Clear() => D3DController.Clear();
 
 		public float GetNextTextOffset(uint id) => ImGuiController.GetNextOffsetForTextAt(id);
+
+		// Draw helpers: delegate to the existing ImGui.NET / sprite backend verbatim.
+		public void DrawText(string text, System.Numerics.Vector2 pos, System.Drawing.Color color) =>
+			ImGuiController.DrawText(text, pos, color);
+
+		public void DrawTextAt(uint id, System.Numerics.Vector2 pos, string text, System.Drawing.Color color, float lineHeight) =>
+			ImGuiController.DrawTextAt(id, pos, text, color, lineHeight);
+
+		public void DrawCircle(System.Numerics.Vector2 pos, float radius, System.Drawing.Color color, int thickness) =>
+			ImGuiController.DrawCircle(pos, radius, color, thickness);
+
+		public void DrawFrame(System.Numerics.Vector2 topLeft, System.Numerics.Vector2 bottomRight, System.Drawing.Color color, int thickness) =>
+			ImGuiController.DrawFrame(topLeft, bottomRight, color, thickness);
+
+		public void DrawLine(System.Numerics.Vector2 start, System.Numerics.Vector2 end, System.Drawing.Color color, int thickness) =>
+			ImGuiController.DrawLine(start, end, color, thickness);
+
+		public void DrawSprite(SpriteIcon icon, System.Drawing.RectangleF rect) =>
+			SpriteController.DrawSprite(icon, rect);
 	}
 }

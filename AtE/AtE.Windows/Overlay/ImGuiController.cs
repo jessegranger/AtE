@@ -16,43 +16,6 @@ using Format = SharpDX.DXGI.Format;
 using MapFlags = SharpDX.Direct3D11.MapFlags;
 
 namespace AtE {
-	public static partial class Globals {
-
-		public static void DrawBottomLeftText(string text, Color color) => DrawBottomLeftText(text, color, ImGui.GetFontSize());
-		public static void DrawBottomLeftText(string text, Color color, float lineHeight) =>
-			// use a line id, and a negative line height, so each successive call moves up the screen
-			DrawTextAt(0, new Vector2(4, Overlay.Height - 10 - lineHeight), text, color, -lineHeight);
-
-		public static void DrawTextAt(uint id, Vector2 pos, string text, Color color, float lineHeight = 14f) => ImGuiController.DrawTextAt(id, pos, text, color, lineHeight);
-		public static void DrawTextAt(Vector2 pos, string text, Color color) => ImGuiController.DrawText(text, pos, color);
-
-		public static void DrawCircle(Vector2 pos, float radius, Color color) => ImGuiController.DrawCircle(pos, radius, color);
-
-		public static void DrawFrame(Vector2 topLeft, Vector2 bottomRight, Color color, int thickness = 1) => ImGuiController.DrawFrame(topLeft, bottomRight, color, thickness);
-		public static void DrawFrame(RectangleF rect, Color color, int thickness = 1) => ImGuiController.DrawFrame(
-			new Vector2(rect.X, rect.Y),
-			new Vector2(rect.X + rect.Width, rect.Y + rect.Height),
-			color, thickness);
-
-		public static void DrawLine(Vector2 start, Vector2 end, Color color) => ImGuiController.DrawLine(start, end, color);
-
-		public static int ToRGBA(Color color) => (color.A << 24) | (color.B << 16) | (color.G << 8) | color.R;
-
-		/* How to debug the draw coordinates
-		public static void DrawDebugGrid() {
-			var gridColor = Color.FromArgb(1, 55, 255, 255);
-			for(int x = 0; x < 1920; x += 100 ) {
-				DrawLine(new Vector2(x, 0), new Vector2(x, 1200), gridColor);
-				DrawTextAt(new Vector2(x+2, 1), $"{x}", gridColor);
-			}
-			for(int y = 0; y < 1200; y += 100 ) {
-				DrawLine(new Vector2(0, y), new Vector2(1920, y), gridColor);
-				DrawTextAt(new Vector2(2, y), $"{y}", gridColor);
-			}
-		}
-		*/
-
-	}
 
 	internal static class ImGuiController {
 
