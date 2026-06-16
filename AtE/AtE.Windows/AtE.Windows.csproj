@@ -8,7 +8,7 @@
     <!-- Keep the historical exe name so existing shortcuts/settings paths still work. -->
     <AssemblyName>AssistantToTheExile</AssemblyName>
     <StartupObject>AtE.Program</StartupObject>
-    <ApplicationIcon>GreenFlask.ico</ApplicationIcon>
+    <ApplicationIcon>..\AtE.Core\Static\GreenFlask.ico</ApplicationIcon>
 
     <!-- The PoE process is 64-bit; reading its memory requires a 64-bit host. -->
     <Platforms>AnyCPU;x64</Platforms>
@@ -46,9 +46,14 @@
     <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
   </ItemGroup>
 
-  <!-- Sprites.png is loaded at runtime from the relative path "Static\Sprites.png". -->
+  <!-- Runtime assets live in AtE.Core\Static (shared by both hosts) and are linked in here so they
+       copy to this project's output under "Static\". SpriteController loads Sprites.png from the
+       relative path "Static\Sprites.png"; GreenFlask.ico is also the ApplicationIcon above. -->
   <ItemGroup>
-    <Content Include="Static\Sprites.png">
+    <Content Include="..\AtE.Core\Static\Sprites.png" Link="Static\Sprites.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\AtE.Core\Static\GreenFlask.ico" Link="Static\GreenFlask.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

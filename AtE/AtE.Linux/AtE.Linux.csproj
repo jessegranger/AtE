@@ -30,12 +30,16 @@
     <ProjectReference Include="..\AtE.Core\AtE.Core.csproj" />
   </ItemGroup>
 
-  <!-- The sprite atlas. LinuxRenderer decodes it from the relative path "Static/Sprites.png"
-       (resolved against the process working directory), exactly as SpriteController does on
-       Windows. The asset itself lives under AtE.Windows\Static; link it in here so it copies to
-       this host's output too, rather than duplicating the binary. -->
+  <!-- Runtime assets live in AtE.Core\Static (shared by both hosts). Link them in here so they copy
+       to this host's output under "Static\", rather than duplicating the binaries. LinuxRenderer
+       decodes Sprites.png from the relative path "Static/Sprites.png" (resolved against the process
+       working directory), exactly as SpriteController does on Windows. GreenFlask.ico is carried for
+       a later use in the Linux backend (e.g. the overlay's window icon). -->
   <ItemGroup>
-    <Content Include="..\AtE.Windows\Static\Sprites.png" Link="Static\Sprites.png">
+    <Content Include="..\AtE.Core\Static\Sprites.png" Link="Static\Sprites.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\AtE.Core\Static\GreenFlask.ico" Link="Static\GreenFlask.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
