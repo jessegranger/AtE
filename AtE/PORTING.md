@@ -346,8 +346,23 @@ Track these down during the cut — they're easy to miss because they're not P/I
      After this, no `partial class Globals` fragment remains in `AtE.Windows` (verified by grep). This
      supersedes the step-4 note that the `Draw*` helpers sit *above* the renderer seam — the primitive
      draws sit *on* it because they need the backend's per-frame draw-list/offset state.
-   - Not yet built (next): real seam implementations memory → input → render → window so
-     `LinuxProgram.Main` can drive the app.
+   - ✅ **Done — all five Linux seam backends implemented** (memory → input → render → window),
+     each self-contained on raw P/Invoke with no new managed dependencies, matching the cheat-sheet:
+     `LinuxProcessMemory` (libc `process_vm_readv` + `/proc/<pid>/{maps,mem,comm,cmdline}`),
+     `LinuxInputSink` (libc `uinput` virtual device), `LinuxInputSource` (libX11 `XQueryKeymap` +
+     `XQueryPointer` for cursor/button mask + `_NET_ACTIVE_WINDOW`/`_NET_WM_PID`),
+     `LinuxOverlayWindow` (libX11/libXext: ARGB visual + compositor, `_NET_WM_STATE_ABOVE`,
+     XShape empty input region for click-through, an `XPending`/`XNextEvent` pump) and
+     `LinuxRenderer` (GLX + libGL). The renderer departs from the cheat-sheet's
+     "Veldrid/Silk.NET" suggestion in favour of a dependency-free, fixed-function GLX/OpenGL backend
+     modelled on Dear ImGui's legacy `imgui_impl_opengl2` (client vertex arrays + ortho projection,
+     using only GL 1.x/1.4 entry points libGL exports directly — no GL function-pointer loading);
+     it binds a `GLXFBConfig` matched to the overlay window's ARGB visual, uploads the ImGui font
+     atlas + sprite atlas as GL textures, submits ImGui draw data and atlas quads, and presents with
+     `glXSwapBuffers`. Because there is no `System.Drawing.Common`/WIC on Linux, it includes a small
+     built-in PNG reader (8-bit non-interlaced RGB/RGBA; zlib via `DeflateStream` + scanline
+     unfilter) used by `LoadTexture` and the sprite atlas. The remaining work is host wiring +
+     packaging + input/cleanup polish — see "## Remaining follow-ups" below.
    - ⚠️ **Build caveats to check.** (1) The file move was made without a compiler in the working
      environment — re-run `dotnet build AtE.sln` on Windows to confirm. As a bonus, `AtE.Core` is now
      a neutral `net9.0` library and should compile on Linux on its own (`dotnet build AtE.Core`),
@@ -356,6 +371,109 @@ Track these down during the cut — they're easy to miss because they're not P/I
      `AtE.Core` (`Globals.cs`, `Overlay/Overlay.cs`, `PoE/PoEMemory.cs`, `PoE/MemoryObjects/MapElement.cs`)
      and one stays in `AtE.Windows` (`Overlay/ImGuiController.cs`); if the build flags them, stripping
      the trailing NULs should resolve it.
+
+## Remaining follow-ups
+
+The five seams and the portable core are in place; what's left is wiring the Linux host together,
+shipping the runtime assets, and polishing the renderer/window seams. Roughly in the order you'd
+want to tackle them:
+
+### A. Build verification
+
+- ✅ **Build verified.** `AtE.sln` (Windows) and `AtE.Core`/`AtE.Linux` (Linux) compile with all five
+  seams implemented; the trailing-NUL files did not block the build. What's *not* yet exercised is
+  runtime behaviour — the seams compile but have not been run end-to-end against a live game (blocked
+  on the host wiring in B). Treat C–F as runtime-correctness work, not compile fixes.
+
+### B. Linux host entry point (`LinuxProgram.Main`)
+
+- **Un-stub `LinuxProgram.Main`.** It currently composes `Platform.Initialise(new LinuxPlatform())`
+  then throws. The orchestration it needs is now all portable in `AtE.Core` (`Overlay.Initialise`/
+  `RenderLoop`, `PoEMemory.OnTick`, `PluginBase.Machine`, `Console`, `EntityCache.MainThread`, and
+  the `Run`/`RunForever` helpers on `Machine`/`Globals`), so the commented-out startup sequence can
+  be enabled almost verbatim from `AtE.Windows/Program.Main`. Cross-check the two `Main`s for any
+  Windows-only setup (single-instance mutex, working-directory/`AppDomain` assumptions, exception
+  dialogs) that needs a Linux equivalent or to be dropped.
+- **Confirm `Console`/`EntityCache` actually moved to `AtE.Core`** (the move is documented but
+  unverified by build); `LinuxProgram` references them.
+
+### C. Runtime asset packaging
+
+- ✅ **Runtime assets consolidated into `AtE.Core\Static` and linked from both hosts.** `Sprites.png`
+  and `GreenFlask.ico` were physically moved out of `AtE.Windows` into the shared, platform-neutral
+  `AtE.Core\Static\` (the duplicate root-level `GreenFlask.ico` was removed; both copies were
+  identical). Each host links them as `Content` with `Link="Static\…"` +
+  `CopyToOutputDirectory=PreserveNewest`, so both builds get `<output>/Static/{Sprites.png,
+  GreenFlask.ico}` from a single source of truth. `LinuxRenderer` decodes `Static/Sprites.png` from
+  there; the Windows `ApplicationIcon` now points at `..\AtE.Core\Static\GreenFlask.ico`. The icon is
+  carried into the Linux output too for a planned later use in the Linux backend (e.g. setting the
+  overlay's window icon via `_NET_WM_ICON`).
+
+### D. Renderer polish (`LinuxRenderer`)
+
+- **Keyboard & text input to ImGui.** There is no WinForms event pump on Linux, so the renderer only
+  feeds ImGui the cursor position and the three mouse buttons (polled from `IInputSource`). ImGui
+  receives no key-down/up, no typed characters, and no modifier state, so text fields and keyboard
+  navigation in ImGui windows won't work. To fix, have `LinuxOverlayWindow` select
+  `KeyPress`/`KeyRelease`/`ButtonPress`/`ButtonRelease` events (it currently only selects
+  `StructureNotify`/`Exposure`) while its input region is active (i.e. when click-through is off),
+  forward them across the seam, and translate into `io.KeysDown`/`io.KeyMap`/`io.AddInputCharacter`
+  plus `KeyShift`/`KeyCtrl`/`KeyAlt` — the analogue of `ImGuiController`'s WinForms wiring. Note the
+  chicken-and-egg with click-through: the overlay only receives X input once the input region is
+  restored, which today happens based on `WantCapture*` from the *previous* frame.
+- **Mouse wheel.** `io.MouseWheel` is never set (Windows feeds it from the `MouseWheel` event); route
+  X button-4/5 (or XInput2 smooth-scroll) once event forwarding exists.
+- **Mouse buttons are read from the global pointer mask**, not from events delivered to the overlay,
+  so ImGui sees a button as "down" even when the click was meant for the game. Prefer real
+  `ButtonPress`/`ButtonRelease` events once D's event forwarding lands.
+- **GL resource cleanup / context teardown.** The renderer never calls `glXDestroyContext`,
+  `glXMakeCurrent(None)`, or `glDeleteTextures`, and exposes no `Dispose`/shutdown hook (the
+  `glDeleteTextures` import is declared but unused). Add a teardown path wired to `Overlay.Close`/
+  window close so the GLX context and the font/sprite/loaded textures are released. `LinuxInputSink`
+  already models the `IDisposable` + finalizer pattern to follow.
+- **Threading assumption.** The GLX context is made current once on the render-loop thread and all
+  GL (including `LoadTexture`) must run there. Confirm no plugin calls `Renderer.LoadTexture` off the
+  render thread; if any do, either marshal the upload onto the render thread or create a shared
+  context. (The Windows backend has no such constraint because D3D11 device contexts are free-threaded
+  for resource creation.)
+- **PNG decoder scope.** The built-in decoder handles only 8-bit, non-interlaced, colour-type 2 (RGB)
+  / 6 (RGBA). Palette (3), grayscale (0/4), 16-bit, and Adam7-interlaced PNGs are rejected. Fine for
+  the current `Sprites.png`, but if future assets need more, either extend the decoder or pull in a
+  small managed decoder. (`SkiaSharp`/`ImageSharp` would also remove the need for it entirely.)
+- **HiDPI.** `io.DisplayFramebufferScale` is hardcoded to `1.0` and the framebuffer size is assumed
+  equal to the window size in pixels. Wire real scale/`ConfigureNotify` framebuffer size if HiDPI/
+  fractional-scaling support is wanted.
+- **Optional renderer consolidation.** The cheat-sheet's original idea — adopt one cross-platform GPU
+  layer (Veldrid/Silk.NET) for *both* platforms and collapse the `IRenderer` seam to a single backend,
+  removing SharpDX — still stands as a larger refactor. The current two-backend split (SharpDX D3D11
+  on Windows, fixed-function GLX here) is the lower-risk path that's now in place.
+
+### E. Window seam (`LinuxOverlayWindow`) follow-ups
+
+- **Wayland.** Out of scope today; the overlay assumes an X11 session (XWayland works) and a
+  borderless-windowed game rather than exclusive fullscreen. Native Wayland needs the layer-shell
+  protocol and is compositor-dependent (and the GLX renderer would need an EGL path).
+- **Override-redirect fallback.** The window is WM-managed (`_NET_WM_WINDOW_TYPE_UTILITY` +
+  `_NET_WM_STATE_ABOVE`) so focus/topmost stay meaningful; some compositors may need the
+  override-redirect path instead (the `CWOverrideRedirect` attribute is present to flip). Validate
+  transparency + click-through + always-on-top across the common compositors (KWin, Mutter, Picom).
+- **`TryGetTargetWindowRect` is stubbed in `LinuxProcessMemory`.** Game-window geometry (for the
+  overlay-follows-game resize path, `Globals.WindowSize`, the minimap, the `CoreSettings` debug
+  readout) returns "unavailable" on Linux. Implement it against X11 (find the PoE window by
+  `_NET_WM_PID` → `XGetWindowAttributes`/`XTranslateCoordinates`, accounting for `_NET_FRAME_EXTENTS`).
+  This belongs with the window/X11 layer, not the memory backend, so consider moving the capability
+  onto `IOverlayWindow` or a shared X11 helper that both `LinuxInputSource` and `LinuxOverlayWindow`
+  already partially duplicate (each opens its own `Display`, interns `_NET_*` atoms, reads root
+  properties — ripe for a small shared `LinuxX11` utility).
+
+### F. Runtime permissions & environment (document for users, not code)
+
+- **Memory reads** need `CAP_SYS_PTRACE`, a matching uid, or a permissive
+  `/proc/sys/kernel/yama/ptrace_scope` (the cross-process `process_vm_readv` path).
+- **Synthetic input** needs `/dev/uinput` access — root or the `input` group plus a udev rule.
+- **Transparency** needs a running compositor and a 32-bit ARGB visual.
+- **ToS / anti-cheat.** Synthetic input automation carries the same risk on Linux as on Windows
+  (see "Biggest risks" below); independent of the port.
 
 ## Linux backend cheat-sheet (per seam, for later)
 
