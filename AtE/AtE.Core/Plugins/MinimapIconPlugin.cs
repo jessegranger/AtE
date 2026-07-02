@@ -304,7 +304,9 @@ namespace AtE.Plugins {
 			iconSize = 1f; // once that assigns 1f, the next frame will hit the branch above and return ent.MinimapIcon values
 			if ( path.StartsWith("Metadata/Chests") ) {
 				// DrawTextAt(WorldToScreen(Position(ent)), $"Unknown /Chest: {ent.Path}", Color.White);
-				if ( path.StartsWith("Metadata/Chests/LeaguesExpedition/") ) {
+				if ( path.StartsWith("Metadata/Chests/QuestChests") ) {
+					return false;
+				} else if ( path.StartsWith("Metadata/Chests/LeaguesExpedition/") ) {
 					icon = SpriteIcon.BlueFlag;
 					iconSize = 1.1f;
 				} else if ( path.StartsWith("Metadata/Chests/LeagueAzmeri/") ) {
