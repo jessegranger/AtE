@@ -1,8 +1,30 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using static AtE.Globals;
 
 namespace AtE {
+
+	/// <summary>The kind of input event forwarded from the overlay window to the renderer/ImGui.</summary>
+	internal enum LinuxOverlayInputKind { Key, Char, MouseButton, MouseWheel }
+
+	/// <summary>
+	/// A neutral, X11-free description of one input event, produced by <see cref="LinuxOverlayWindow"/>
+	/// from the X event queue and consumed by <see cref="LinuxRenderer"/> to drive ImGui's IO. There
+	/// is no WinForms event pump on Linux, so this is the analogue of the <c>RenderForm</c> mouse/key
+	/// event handlers the Windows <c>ImGuiController</c> subscribes to. The window resolves X
+	/// KeySyms/buttons here so the renderer stays free of X11 specifics (mirroring how the renderer
+	/// keeps X out of its GL code by reaching the window only for the <c>Display*</c>).
+	/// </summary>
+	internal struct LinuxOverlayInput {
+		public LinuxOverlayInputKind Kind;
+		public int VKeyCode;   // Key: the resolved (int)VKey for io.KeysDown; 0 if unmapped
+		public ushort Char;    // Char: a typed UTF-16 unit for io.AddInputCharacter
+		public int Button;     // MouseButton: the ImGui button index (0=left,1=right,2=middle,3=X1,4=X2)
+		public bool Down;      // Key / MouseButton: pressed (true) or released (false)
+		public float Wheel;    // MouseWheel: delta in ImGui units (+up / -down)
+		public bool Shift, Ctrl, Alt; // modifier state at the time of the event
+	}
 
 	/// <summary>
 	/// Linux implementation of <see cref="IOverlayWindow"/> (the transparent, click-through,
@@ -72,6 +94,8 @@ namespace AtE {
 		[DllImport(X11)] private static extern int XSendEvent(IntPtr display, IntPtr w, int propagate, IntPtr event_mask, ref XEvent event_send);
 		[DllImport(X11)] private static extern int XPending(IntPtr display);
 		[DllImport(X11)] private static extern int XNextEvent(IntPtr display, out XEvent event_return);
+		// Decode a KeyPress/KeyRelease into typed bytes + the KeySym. status is left NULL (no compose).
+		[DllImport(X11)] private static extern int XLookupString(ref XKeyEvent event_struct, byte[] buffer_return, int bytes_buffer, out IntPtr keysym_return, IntPtr status_in_out);
 		[DllImport(X11)] private static extern int XFlush(IntPtr display);
 		[DllImport(X11)] private static extern int XFree(IntPtr data);
 
@@ -90,6 +114,12 @@ namespace AtE {
 		private const int ClientMessage = 33;
 		private const int ConfigureNotify = 22;
 
+		// X event type codes (X.h).
+		private const int KeyPress = 2;
+		private const int KeyRelease = 3;
+		private const int ButtonPress = 4;
+		private const int ButtonRelease = 5;
+
 		// XSetWindowAttributes valuemask bits.
 		private const ulong CWBackPixel = 1UL << 1;
 		private const ulong CWBorderPixel = 1UL << 3;
@@ -98,10 +128,19 @@ namespace AtE {
 		private const ulong CWColormap = 1UL << 13;
 
 		// Event masks.
+		private const long KeyPressMask = 1L << 0;
+		private const long KeyReleaseMask = 1L << 1;
+		private const long ButtonPressMask = 1L << 2;
+		private const long ButtonReleaseMask = 1L << 3;
 		private const long ExposureMask = 1L << 15;
 		private const long StructureNotifyMask = 1L << 17;
 		private const long SubstructureNotifyMask = 1L << 19;
 		private const long SubstructureRedirectMask = 1L << 20;
+
+		// Keyboard/pointer modifier bits in an X event's `state` field (X.h).
+		private const uint ShiftMask = 1 << 0;
+		private const uint ControlMask = 1 << 2;
+		private const uint Mod1Mask = 1 << 3; // typically Alt
 
 		// Predefined atoms.
 		private static readonly IntPtr XA_ATOM = (IntPtr)4;
@@ -194,6 +233,43 @@ namespace AtE {
 			public IntPtr data0, data1, data2, data3, data4;
 		}
 
+		// XKeyEvent / XButtonEvent share an identical prefix layout on LP64 (the last field is
+		// `keycode` vs `button`); the int-after-pointer idiom matches XConfigureEvent above so the
+		// CLR's natural alignment reproduces the C struct offsets.
+		[StructLayout(LayoutKind.Sequential)]
+		private struct XKeyEvent {
+			public int type;
+			public IntPtr serial;
+			public int send_event;
+			public IntPtr display;
+			public IntPtr window;
+			public IntPtr root;
+			public IntPtr subwindow;
+			public IntPtr time;
+			public int x, y;
+			public int x_root, y_root;
+			public uint state;
+			public uint keycode;
+			public int same_screen;
+		}
+
+		[StructLayout(LayoutKind.Sequential)]
+		private struct XButtonEvent {
+			public int type;
+			public IntPtr serial;
+			public int send_event;
+			public IntPtr display;
+			public IntPtr window;
+			public IntPtr root;
+			public IntPtr subwindow;
+			public IntPtr time;
+			public int x, y;
+			public int x_root, y_root;
+			public uint state;
+			public uint button;
+			public int same_screen;
+		}
+
 		// The Xlib XEvent union. The concrete events we read overlay it at offset 0; the
 		// trailing pad forces the full 24-long (192-byte) union size so XNextEvent never
 		// writes past our buffer.
@@ -202,6 +278,8 @@ namespace AtE {
 			[FieldOffset(0)] public int type;
 			[FieldOffset(0)] public XConfigureEvent xconfigure;
 			[FieldOffset(0)] public XClientMessageEvent xclient;
+			[FieldOffset(0)] public XKeyEvent xkey;
+			[FieldOffset(0)] public XButtonEvent xbutton;
 #pragma warning disable CS0169 // pad only exists to force the full union size
 			[FieldOffset(184)] private long pad;
 #pragma warning restore CS0169
@@ -226,8 +304,16 @@ namespace AtE {
 		private bool topmost;
 		private bool transparent;
 		private bool mapped;
-		private bool closed;
+		private volatile bool closed;
+		private volatile bool loopRunning;
 		private bool hasArgb;
+
+		// Input events decoded from the X queue in Dispatch (on the render-loop thread) and drained
+		// by the renderer in BeginFrame (same thread). The lock is defensive — both ends run on the
+		// render-loop thread today — and keeps a reused scratch buffer for XLookupString allocation-free.
+		private readonly object inputGate = new object();
+		private readonly Queue<LinuxOverlayInput> inputQueue = new Queue<LinuxOverlayInput>();
+		private readonly byte[] lookupBuffer = new byte[16];
 
 		// Suppress the unused-event warning until the X11 resize handler raises it.
 #pragma warning disable CS0067
@@ -276,7 +362,12 @@ namespace AtE {
 				colormap = colormap,
 				border_pixel = UIntPtr.Zero,     // required when depth != parent depth (avoids BadMatch)
 				background_pixel = UIntPtr.Zero, // fully transparent on an ARGB visual
-				event_mask = (IntPtr)(StructureNotifyMask | ExposureMask),
+				// Also select keyboard/button events so ImGui can receive them. The XShape input
+				// region gates *delivery*: while click-through is on (empty input region) these never
+				// reach us and fall through to the game; once ImGui wants capture and click-through is
+				// turned off, the same selections start delivering — no need to re-select per toggle.
+				event_mask = (IntPtr)(StructureNotifyMask | ExposureMask |
+					KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask),
 				override_redirect = 0,           // WM-managed; flip to 1 for an override-redirect overlay
 			};
 			UIntPtr valuemask = (UIntPtr)(CWColormap | CWBorderPixel | CWBackPixel | CWEventMask);
@@ -412,6 +503,7 @@ namespace AtE {
 			// Show the window and (re)apply the styles now that it's mapped.
 			XMapWindow(display, window);
 			mapped = true;
+			loopRunning = true;
 			SetTopmost(topmost);
 			SetClickThrough(clickThrough);
 			SyncGeometry();
@@ -432,11 +524,38 @@ namespace AtE {
 				}
 			} finally {
 				closed = true;
+				// Release GPU resources on THIS (render-loop) thread, while the GLX drawable and
+				// Display* are still valid — GL/GLX calls must run on the thread the context is
+				// current on, so this cannot move into Close() (which may be called from elsewhere).
+				try {
+					(Platform.Current.Renderer as LinuxRenderer)?.Shutdown();
+				} catch ( Exception e ) {
+					Log($"LinuxOverlayWindow: renderer shutdown failed: {e.Message}");
+				}
+				DestroyWindow();
+				// Cleared only after the window is gone, so a concurrent Close() that observes
+				// loopRunning==false finds display already zeroed and its DestroyWindow no-ops
+				// (avoids a double XDestroyWindow / BadWindow).
+				loopRunning = false;
 			}
 		}
 
 		public void Close() {
+			// Just signal: the render loop notices `closed` on its next iteration (XPending is
+			// non-blocking and onFrame always returns), ends, and tears down the renderer + window
+			// on its own thread in RunMessageLoop's finally. Destroying X resources here would race
+			// the loop and the GL teardown, and Close() can be called from a non-render thread.
 			closed = true;
+			if ( !loopRunning ) {
+				// Abnormal path: window created but the loop never ran (Main always runs it). Free
+				// the X resources directly so they don't leak; there is no in-flight GL to tear down.
+				DestroyWindow();
+			}
+		}
+
+		// Destroy the X window and close the Display. Idempotent. Runs on the render-loop thread via
+		// RunMessageLoop's finally (the normal path).
+		private void DestroyWindow() {
 			if ( display != IntPtr.Zero ) {
 				if ( window != IntPtr.Zero ) {
 					XDestroyWindow(display, window);
@@ -470,6 +589,99 @@ namespace AtE {
 						closed = true;
 					}
 					break;
+				case KeyPress:
+					HandleKey(ref ev, down: true);
+					break;
+				case KeyRelease:
+					HandleKey(ref ev, down: false);
+					break;
+				case ButtonPress:
+					HandleButton(ref ev, down: true);
+					break;
+				case ButtonRelease:
+					HandleButton(ref ev, down: false);
+					break;
+			}
+		}
+
+		// Decode a key event into (a) a VKey down/up for io.KeysDown and (b), on press, any typed
+		// characters for io.AddInputCharacter — the X counterpart to OverlayForm's KeyDown/KeyUp/
+		// KeyPress handlers the Windows ImGuiController subscribes to.
+		private void HandleKey(ref XEvent ev, bool down) {
+			int n = XLookupString(ref ev.xkey, lookupBuffer, lookupBuffer.Length, out IntPtr keysym, IntPtr.Zero);
+			uint state = ev.xkey.state;
+			bool shift = (state & ShiftMask) != 0, ctrl = (state & ControlMask) != 0, alt = (state & Mod1Mask) != 0;
+
+			EnqueueInput(new LinuxOverlayInput {
+				Kind = LinuxOverlayInputKind.Key,
+				VKeyCode = (int)LinuxInputSource.KeysymToVKey(keysym),
+				Down = down,
+				Shift = shift, Ctrl = ctrl, Alt = alt,
+			});
+
+			if ( down ) {
+				for ( int i = 0; i < n; i++ ) {
+					byte b = lookupBuffer[i];
+					if ( b >= 0x20 && b != 0x7F ) { // printable Latin-1; skip control chars (Enter/Tab/etc.)
+						EnqueueInput(new LinuxOverlayInput { Kind = LinuxOverlayInputKind.Char, Char = b });
+					}
+				}
+			}
+		}
+
+		// Map an X button to an ImGui mouse button or a wheel notch. X numbers vertical wheel as
+		// buttons 4 (up) / 5 (down) and back/forward as 8 / 9.
+		private void HandleButton(ref XEvent ev, bool down) {
+			uint btn = ev.xbutton.button;
+			uint state = ev.xbutton.state;
+			bool shift = (state & ShiftMask) != 0, ctrl = (state & ControlMask) != 0, alt = (state & Mod1Mask) != 0;
+
+			if ( btn == 4 || btn == 5 ) {
+				if ( down ) { // wheel reports only a press per notch
+					EnqueueInput(new LinuxOverlayInput {
+						Kind = LinuxOverlayInputKind.MouseWheel,
+						Wheel = btn == 4 ? 1f : -1f,
+						Shift = shift, Ctrl = ctrl, Alt = alt,
+					});
+				}
+				return;
+			}
+
+			int imguiButton;
+			switch ( btn ) {
+				case 1: imguiButton = 0; break; // left
+				case 2: imguiButton = 2; break; // middle
+				case 3: imguiButton = 1; break; // right
+				case 8: imguiButton = 3; break; // X1 (back)
+				case 9: imguiButton = 4; break; // X2 (forward)
+				default: return;                // 6/7 horizontal wheel and others: ignored
+			}
+			EnqueueInput(new LinuxOverlayInput {
+				Kind = LinuxOverlayInputKind.MouseButton,
+				Button = imguiButton,
+				Down = down,
+				Shift = shift, Ctrl = ctrl, Alt = alt,
+			});
+		}
+
+		private void EnqueueInput(LinuxOverlayInput ev) {
+			lock ( inputGate ) {
+				inputQueue.Enqueue(ev);
+			}
+		}
+
+		/// <summary>
+		/// Move all input events decoded since the last call into <paramref name="into"/> (cleared
+		/// first). Called by the sibling <see cref="LinuxRenderer"/> each frame — the within-assembly
+		/// shortcut between two Linux backends, the analogue of the renderer reaching
+		/// <see cref="DisplayHandle"/>.
+		/// </summary>
+		internal void DrainInput(List<LinuxOverlayInput> into) {
+			into.Clear();
+			lock ( inputGate ) {
+				while ( inputQueue.Count > 0 ) {
+					into.Add(inputQueue.Dequeue());
+				}
 			}
 		}
 
