@@ -269,5 +269,80 @@ namespace AtE {
 				default: return IntPtr.Zero;
 			}
 		}
+
+		/// <summary>
+		/// The inverse of <see cref="VKeyToKeysym"/>: map an X11 KeySym back to the core
+		/// <see cref="VKey"/> for the same key, so X <c>KeyPress</c>/<c>KeyRelease</c> events forwarded
+		/// from <see cref="LinuxOverlayWindow"/> can be fed to ImGui's <c>io.KeysDown</c> (which the
+		/// backend indexes by VK code, exactly as the Windows <c>ImGuiController</c> does). Returns
+		/// <see cref="VKey.None"/> for KeySyms with no VK equivalent. Lives here, next to the forward
+		/// map, so all keysym knowledge stays in one place (the keysym tables are the X11-domain
+		/// counterpart to <c>LinuxInputSink</c>'s evdev table).
+		/// </summary>
+		internal static VKey KeysymToVKey(IntPtr keysym) {
+			long ks = keysym.ToInt64();
+
+			// Latin letters: lower-case (XK_a..XK_z) and upper-case (XK_A..XK_Z) both map to the
+			// VK letter code, which equals the ASCII upper-case value.
+			if ( ks >= 0x61 && ks <= 0x7A ) return (VKey)(ks - 0x20); // 'a'..'z' -> VK 0x41..0x5A
+			if ( ks >= 0x41 && ks <= 0x5A ) return (VKey)ks;          // 'A'..'Z'
+			if ( ks >= 0x30 && ks <= 0x39 ) return (VKey)ks;          // '0'..'9' -> VKey.D0..D9
+			if ( ks >= 0xFFB0 && ks <= 0xFFB9 ) return (VKey)((int)VKey.NumPad0 + (int)(ks - 0xFFB0));
+			if ( ks >= 0xFFBE && ks <= 0xFFD5 ) return (VKey)((int)VKey.F1 + (int)(ks - 0xFFBE)); // XK_F1..XK_F24
+
+			switch ( ks ) {
+				case 0xFF08: return VKey.Back;
+				case 0xFF09: return VKey.Tab;
+				case 0xFF0D: return VKey.Return;
+				case 0xFF1B: return VKey.Escape;
+				case 0x0020: return VKey.Space;
+				case 0xFF55: return VKey.Prior;
+				case 0xFF56: return VKey.Next;
+				case 0xFF57: return VKey.End;
+				case 0xFF50: return VKey.Home;
+				case 0xFF51: return VKey.Left;
+				case 0xFF52: return VKey.Up;
+				case 0xFF53: return VKey.Right;
+				case 0xFF54: return VKey.Down;
+				case 0xFF63: return VKey.Insert;
+				case 0xFFFF: return VKey.Delete;
+				case 0xFF13: return VKey.Pause;
+				case 0xFF61: return VKey.Snapshot;
+				case 0xFFE5: return VKey.Capital;
+				case 0xFF7F: return VKey.NumLock;
+				case 0xFF14: return VKey.Scroll;
+
+				case 0xFFE1: return VKey.LShiftKey;
+				case 0xFFE2: return VKey.RShiftKey;
+				case 0xFFE3: return VKey.LControlKey;
+				case 0xFFE4: return VKey.RControlKey;
+				case 0xFFE9: return VKey.LMenu;
+				case 0xFFEA: return VKey.RMenu;
+				case 0xFFEB: return VKey.LWin;
+				case 0xFFEC: return VKey.RWin;
+				case 0xFF67: return VKey.Apps;
+
+				case 0xFFAA: return VKey.Multiply;
+				case 0xFFAB: return VKey.Add;
+				case 0xFFAC: return VKey.Separator;
+				case 0xFFAD: return VKey.Subtract;
+				case 0xFFAE: return VKey.Decimal;
+				case 0xFFAF: return VKey.Divide;
+
+				case 0x3B: return VKey.Oem1;
+				case 0x3D: return VKey.Oemplus;
+				case 0x2C: return VKey.Oemcomma;
+				case 0x2D: return VKey.OemMinus;
+				case 0x2E: return VKey.OemPeriod;
+				case 0x2F: return VKey.Oem2;
+				case 0x60: return VKey.Oem3;
+				case 0x5B: return VKey.Oem4;
+				case 0x5C: return VKey.Oem5;
+				case 0x5D: return VKey.Oem6;
+				case 0x27: return VKey.Oem7;
+
+				default: return VKey.None;
+			}
+		}
 	}
 }
