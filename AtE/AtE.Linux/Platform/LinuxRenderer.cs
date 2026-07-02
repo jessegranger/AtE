@@ -59,7 +59,7 @@ namespace AtE {
 	/// (cursor + the three mouse buttons); full keyboard/text routing would need the overlay's input
 	/// region toggled and X key events forwarded, and is left as a follow-up.
 	/// </summary>
-	public sealed class LinuxRenderer : IRenderer {
+	public sealed class LinuxRenderer : IRenderer, IDisposable {
 
 		// ---- libGL / GLX interop ---------------------------------------------------------------
 		// GLX lives in libGL on a desktop GL stack; the core GL entry points used below are the
@@ -179,9 +179,20 @@ namespace AtE {
 		private IntPtr glContext;   // our GLX context
 		private bool initialised;
 
+		private LinuxOverlayWindow overlayWindow;  // sibling backend: source of forwarded input + Display*
+		private int renderThreadId;                // thread the GLX context is current on (all GL must run here)
+
 		private int width, height;  // framebuffer size, tracked across Resize
 		private bool contentEnabled = true;
 		private bool presentEnabled = true;
+
+		// Input fed to ImGui from the overlay window's X event queue (no WinForms pump on Linux).
+		private readonly List<LinuxOverlayInput> inputScratch = new List<LinuxOverlayInput>();
+		private readonly bool[] mouseDown = new bool[5]; // event-driven button state (L,R,M,X1,X2)
+
+		// Every GL texture name we create (font atlas, sprite atlas, LoadTexture results), so they
+		// can be released in Shutdown.
+		private readonly List<uint> glTextures = new List<uint>();
 
 		// ImGui state.
 		private IntPtr imguiContext;
@@ -226,6 +237,7 @@ namespace AtE {
 					"LinuxRenderer.Initialise: the active IOverlayWindow is not a LinuxOverlayWindow; " +
 					"the GLX backend needs the Xlib Display* it owns.");
 			}
+			overlayWindow = linuxWindow;
 			display = linuxWindow.DisplayHandle;
 			if ( display == IntPtr.Zero || window == IntPtr.Zero ) {
 				throw new InvalidOperationException(
@@ -233,6 +245,11 @@ namespace AtE {
 			}
 
 			CreateGlContext();
+
+			// The context is now current on this thread; record it so LoadTexture (and teardown) can
+			// assert they run here — a fixed-function GLX context is single-threaded, unlike the
+			// free-threaded D3D11 device on Windows.
+			renderThreadId = Thread.CurrentThread.ManagedThreadId;
 
 			Log("LinuxRenderer: configuring GL state and ImGui...");
 			// Try to enable vsync so the present paces the loop, the way the D3D present blocks on
@@ -314,6 +331,11 @@ namespace AtE {
 			io.DisplaySize = new Vector2(width, height);
 			io.DisplayFramebufferScale = Vector2.One;
 
+			// Map ImGuiKey codes onto VK values, exactly as the Windows ImGuiController does, so the
+			// VKey-indexed io.KeysDown writes from forwarded X key events drive ImGui's text editing
+			// and keyboard navigation.
+			SetupKeyMap();
+
 			// ImDrawVert layout for the fixed-function client arrays (computed, not assumed).
 			vtxStride = Marshal.SizeOf<ImDrawVert>();
 			posOffset = (int)Marshal.OffsetOf<ImDrawVert>(nameof(ImDrawVert.pos));
@@ -327,6 +349,40 @@ namespace AtE {
 				fontTexture = UploadTexture((IntPtr)pixels, fw, fh, clampToEdge: true);
 				io.Fonts.SetTexID((IntPtr)(long)fontTexture);
 				io.Fonts.ClearTexData();
+			}
+		}
+
+		// Mirror ImGuiController's KeyMap: ImGui's internal key ids -> VK codes. io.KeysDown is then
+		// indexed by VK code (the value forwarded from X key events), so the two stay consistent.
+		private void SetupKeyMap() {
+			io.KeyMap[(int)ImGuiKey._1] = (int)VKey.D1;
+			io.KeyMap[(int)ImGuiKey._2] = (int)VKey.D2;
+			io.KeyMap[(int)ImGuiKey._3] = (int)VKey.D3;
+			io.KeyMap[(int)ImGuiKey._4] = (int)VKey.D4;
+			io.KeyMap[(int)ImGuiKey._5] = (int)VKey.D5;
+			io.KeyMap[(int)ImGuiKey._6] = (int)VKey.D6;
+			io.KeyMap[(int)ImGuiKey._7] = (int)VKey.D7;
+			io.KeyMap[(int)ImGuiKey._8] = (int)VKey.D8;
+			io.KeyMap[(int)ImGuiKey._9] = (int)VKey.D9;
+			io.KeyMap[(int)ImGuiKey._0] = (int)VKey.D0;
+			io.KeyMap[(int)ImGuiKey.Backspace] = (int)VKey.Back;
+			io.KeyMap[(int)ImGuiKey.LeftArrow] = (int)VKey.Left;
+			io.KeyMap[(int)ImGuiKey.RightArrow] = (int)VKey.Right;
+			io.KeyMap[(int)ImGuiKey.UpArrow] = (int)VKey.Up;
+			io.KeyMap[(int)ImGuiKey.DownArrow] = (int)VKey.Down;
+			io.KeyMap[(int)ImGuiKey.LeftBracket] = (int)VKey.OemOpenBrackets;
+			io.KeyMap[(int)ImGuiKey.RightBracket] = (int)VKey.Oem6;
+			io.KeyMap[(int)ImGuiKey.LeftCtrl] = (int)VKey.LControlKey;
+			io.KeyMap[(int)ImGuiKey.RightCtrl] = (int)VKey.RControlKey;
+			io.KeyMap[(int)ImGuiKey.LeftAlt] = (int)VKey.LMenu;
+			io.KeyMap[(int)ImGuiKey.RightAlt] = (int)VKey.RMenu;
+
+			// Map every ImGuiKey/VKey pair that shares a name (A, B, ..., Enter, Tab, Escape, etc.).
+			HashSet<string> imGuiKeyNames = new HashSet<string>(Enum.GetNames(typeof(ImGuiKey)));
+			foreach ( string keyName in Enum.GetNames(typeof(VKey)) ) {
+				if ( imGuiKeyNames.Contains(keyName) ) {
+					io.KeyMap[(int)Enum.Parse(typeof(ImGuiKey), keyName)] = (int)Enum.Parse(typeof(VKey), keyName);
+				}
 			}
 		}
 
@@ -364,6 +420,7 @@ namespace AtE {
 			glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, (uint)GL_RGBA, GL_UNSIGNED_BYTE, rgbaPixels);
+			glTextures.Add(tex); // track for release in Shutdown
 			return tex;
 		}
 
@@ -385,19 +442,58 @@ namespace AtE {
 			// ImGui asserts DeltaTime > 0; clamp a 0ms frame to 1ms.
 			io.DeltaTime = (dt <= 0 ? 1 : dt) / 1000f;
 
-			// No WinForms events on Linux: feed mouse state from the polling input source. Cursor is
-			// screen-space; make it window-local. Buttons come from the global pointer state.
-			IInputSource keys = Platform.Current.Keys;
-			Vector2 cursor = keys.GetCursorPos();
+			// Cursor position is polled globally (the overlay's shaped-out input region means X does
+			// not deliver motion events to it). It is screen-space; make it window-local.
+			Vector2 cursor = Platform.Current.Keys.GetCursorPos();
 			io.MousePos = new Vector2(cursor.X - Platform.Current.Window.Left, cursor.Y - Platform.Current.Window.Top);
-			io.MouseDown[0] = keys.IsKeyDown(VKey.LButton);
-			io.MouseDown[1] = keys.IsKeyDown(VKey.RButton);
-			io.MouseDown[2] = keys.IsKeyDown(VKey.MButton);
+
+			// Apply the keyboard/text/button/wheel events forwarded from the overlay window since the
+			// last frame (the Linux analogue of OverlayForm's WinForms input handlers). Buttons and
+			// keys arrive only as real ButtonPress/KeyPress events delivered to the overlay — which X
+			// only does while click-through is off — so ImGui no longer treats a click meant for the
+			// game as its own (the fix for reading the global pointer mask).
+			io.MouseWheel = 0f;
+			if ( overlayWindow != null ) {
+				overlayWindow.DrainInput(inputScratch);
+				foreach ( LinuxOverlayInput ev in inputScratch ) {
+					switch ( ev.Kind ) {
+						case LinuxOverlayInputKind.Key:
+							io.KeyShift = ev.Shift;
+							io.KeyCtrl = ev.Ctrl;
+							io.KeyAlt = ev.Alt;
+							if ( ev.VKeyCode > 0 && ev.VKeyCode < io.KeysDown.Count ) {
+								io.KeysDown[ev.VKeyCode] = ev.Down;
+							}
+							break;
+						case LinuxOverlayInputKind.Char:
+							io.AddInputCharacter(ev.Char);
+							break;
+						case LinuxOverlayInputKind.MouseButton:
+							if ( ev.Button >= 0 && ev.Button < mouseDown.Length ) {
+								mouseDown[ev.Button] = ev.Down;
+							}
+							break;
+						case LinuxOverlayInputKind.MouseWheel:
+							io.MouseWheel += ev.Wheel;
+							break;
+					}
+				}
+			}
+			for ( int i = 0; i < mouseDown.Length; i++ ) {
+				io.MouseDown[i] = mouseDown[i];
+			}
 
 			// When the pointer is over an ImGui element, ImGui sets WantCapture* (from the prior
 			// frame). Turn click-through OFF so input lands on the overlay, ON otherwise — exactly
 			// the gating the Windows backend does in ImGuiController.NewFrame.
-			Platform.Current.Window.SetClickThrough(!(io.WantCaptureKeyboard || io.WantCaptureMouse));
+			bool wantInput = io.WantCaptureKeyboard || io.WantCaptureMouse;
+			Platform.Current.Window.SetClickThrough(!wantInput);
+
+			// While click-through is on, the overlay receives no button events, so a release can fall
+			// through to the game and leave a button stuck "down". Clear the held state in that case.
+			if ( !wantInput ) {
+				Array.Clear(mouseDown, 0, mouseDown.Length);
+			}
 
 			ImGui.NewFrame();
 			// The Draw* helpers paint onto the background draw list, beneath ImGui windows.
@@ -560,6 +656,16 @@ namespace AtE {
 			if ( !initialised ) {
 				throw new InvalidOperationException("LinuxRenderer.LoadTexture called before Initialise.");
 			}
+			// The GLX context is current only on the render-loop thread, so the glGenTextures/
+			// glTexImage2D upload below must run there too (unlike the free-threaded D3D11 device on
+			// Windows). No caller does this today — the only textures are the font + sprite atlases,
+			// uploaded during Initialise — so warn loudly rather than fail if that ever changes; the
+			// fix would be to marshal the upload onto the render thread or use a shared GL context.
+			if ( Thread.CurrentThread.ManagedThreadId != renderThreadId ) {
+				Log($"LinuxRenderer.LoadTexture: WARNING — called off the render thread " +
+					$"(got {Thread.CurrentThread.ManagedThreadId}, expected {renderThreadId}); the GL upload may fail. " +
+					"Marshal texture loads onto the render-loop thread.");
+			}
 			if ( !PngDecoder.TryDecode(path, out int w, out int h, out byte[] rgba) ) {
 				throw new InvalidOperationException($"LinuxRenderer.LoadTexture: could not decode '{path}' (expected an 8-bit PNG).");
 			}
@@ -587,6 +693,56 @@ namespace AtE {
 				ClearTarget();
 			}
 		}
+
+		// ---- teardown --------------------------------------------------------------------------
+
+		/// <summary>
+		/// Release the GL textures, the GLX context, and the ImGui context. Idempotent. Must run on
+		/// the render-loop thread (the only thread the GLX context is current on), so it is invoked
+		/// from <see cref="LinuxOverlayWindow.RunMessageLoop"/>'s finally — on that thread, while the
+		/// Display* and drawable are still valid — rather than from an arbitrary caller of
+		/// <c>Overlay.Close</c>.
+		/// </summary>
+		internal void Shutdown() {
+			if ( !initialised ) {
+				return;
+			}
+			initialised = false;
+
+			try {
+				for ( int i = 0; i < glTextures.Count; i++ ) {
+					uint tex = glTextures[i];
+					glDeleteTextures(1, ref tex);
+				}
+			} catch ( Exception e ) {
+				Log($"LinuxRenderer.Shutdown: glDeleteTextures failed: {e.Message}");
+			}
+			glTextures.Clear();
+			fontTexture = 0;
+			spriteTexture = 0;
+
+			if ( display != IntPtr.Zero ) {
+				// Detach the context from this thread, then destroy it. The Display* belongs to
+				// LinuxOverlayWindow, which closes it right after this returns — we only release ours.
+				glXMakeCurrent(display, IntPtr.Zero, IntPtr.Zero);
+				if ( glContext != IntPtr.Zero ) {
+					glXDestroyContext(display, glContext);
+					glContext = IntPtr.Zero;
+				}
+			}
+
+			if ( imguiContext != IntPtr.Zero ) {
+				ImGui.DestroyContext(imguiContext);
+				imguiContext = IntPtr.Zero;
+			}
+			Log("LinuxRenderer: shut down (GL textures + context + ImGui context released).");
+		}
+
+		// No finalizer: unlike LinuxInputSink (whose finalizer just close()s an fd), GL/GLX teardown
+		// is only valid on the thread the context is current on. A finalizer runs on the GC thread,
+		// where the context is not current, so calling GL there would be invalid — teardown must come
+		// through Shutdown() on the render-loop thread. Dispose is provided for explicit/symmetric use.
+		public void Dispose() => Shutdown();
 
 		// ---- draw helpers (ImGui background draw list, mirroring ImGuiController) ---------------
 
