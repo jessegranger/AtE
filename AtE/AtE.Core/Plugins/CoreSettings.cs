@@ -102,14 +102,17 @@ namespace AtE {
 			if ( !Paused ) {
 				// Automatically switch profiles based on the logged-in character
 				var player = GetPlayer();
-				if( player != null ) {
-					var name = player.GetComponent<Player>()?.Name ?? null;
-					if ( name != null ) {
-						if ( !SelectedProfile.Equals(name) ) {
-							Notify($"Profile changing to: {name}");
-							SelectedProfile = name;
-							CreateProfile(name); // does nothing if it exists already
-							LoadIniFiles();
+				if( IsValid(player) ) {
+					var playerComponent = player.GetComponent<Player>();
+					if ( IsValid(playerComponent) ) {
+						var name = playerComponent.Name;
+						if ( name != null ) {
+							if ( !SelectedProfile.Equals(name) ) {
+								Notify($"Profile changing to: {name}");
+								SelectedProfile = name;
+								CreateProfile(name); // does nothing if it exists already
+								LoadIniFiles();
+							}
 						}
 					}
 				}

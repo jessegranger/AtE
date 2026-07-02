@@ -126,7 +126,7 @@ namespace AtE {
 				return this;
 			}
 
-			if ( PoEMemory.GameRoot.AreaLoadingState.IsLoading ) {
+			if ( PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true) {
 				return this;
 			}
 

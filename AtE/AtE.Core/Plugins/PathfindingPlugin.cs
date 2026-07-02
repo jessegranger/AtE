@@ -120,7 +120,7 @@ namespace AtE {
 			base.Render();
 			var pc = GetPlayer()?.GetComponent<Pathfinding>() ?? null;
 			if ( pc != null ) {
-				if( PoEMemory.TryRead(PoEMemory.GameRoot.InGameState.WorldData.Cache.ptrToWorldAreaRef, out Offsets.WorldAreaRef ptr) ) {
+				if( PoEMemory.TryRead(PoEMemory.GameRoot?.InGameState?.WorldData?.Cache.ptrToWorldAreaRef ?? IntPtr.Zero, out Offsets.WorldAreaRef ptr) ) {
 					ImGui_Address(ptr.ptrToWorldAreaDetails, "Area Details", "WorldAreaDetails");
 				}
 				ImGui_Address(pc.Address, "Component", "Component_Pathfinding");
@@ -169,7 +169,11 @@ namespace AtE {
 					PlayerArea = playerArea;
 				}
 				var playerPos = Position(p);
-				var playerGrid = p.GetComponent<Positioned>().GridPos;
+				var posComponent = p.GetComponent<Positioned>();
+				if( !IsValid(posComponent) ) {
+					return this;
+				}
+				var playerGrid = posComponent.GridPos;
 				var newPlayerGrid = (GridHandle)playerGrid.Id;
 				if( PlayerGrid != newPlayerGrid ) {
 					// we just moved from one grid to the next

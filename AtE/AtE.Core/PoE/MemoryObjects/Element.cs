@@ -11,6 +11,9 @@ namespace AtE {
 		public static bool IsValid(Element e) => e != null && e.IsValid;
 
 		public static void DrawTextAt(Element e, string text, Color color) {
+			if( !IsValid(e)) {
+				return;
+			}
 			var rect = e.GetClientRect();
 			DrawTextAt(new Vector2(rect.X, rect.Y), text, color);
 		}
@@ -79,7 +82,7 @@ namespace AtE {
 
 		public Vector2 Size => Cache.Size;
 
-		private Vector2 GetAbsolutePosition() => GetAbsolutePosition(Vector2.Zero, PoEMemory.GameRoot.InGameState.UIRoot?.Scale ?? .75f);
+		private Vector2 GetAbsolutePosition() => GetAbsolutePosition(Vector2.Zero, PoEMemory.GameRoot?.InGameState?.UIRoot?.Scale ?? .75f);
 		private Vector2 GetAbsolutePosition(Vector2 pos, float rootScale) {
 			Vector2 pPos = Position;
 			float pScale = Scale / rootScale;

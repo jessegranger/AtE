@@ -116,7 +116,9 @@ namespace AtE {
 				}
 			}
 		}
-		public static IEnumerable<StashItem> StashItems() => new Inventory<StashItem>() { Address = GetUI()?.StashElement?.Address ?? IntPtr.Zero }.VisibleItems;
+		public static IEnumerable<StashItem> StashItems() => IsValid(GetUI()?.StashElement?.Address ?? IntPtr.Zero)
+			? new Inventory<StashItem>() { Address = GetUI().StashElement.Address }.VisibleItems
+			: Empty<StashItem>();
 
 		public static bool BackpackIsOpen() => GetUI()?.InventoryPanel?.IsVisibleLocal ?? false;
 		public static bool StashIsOpen() => GetUI()?.StashElement?.IsVisibleLocal ?? false;

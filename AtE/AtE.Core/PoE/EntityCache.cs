@@ -103,6 +103,9 @@ namespace AtE {
 					removeAllPending();
 
 					try {
+						if( ! IsValid(PoEMemory.GameRoot?.InGameState ?? null) ) {
+							continue;
+						}
 						Offsets.EntityListNode head = PoEMemory.GameRoot.InGameState.EntityListHead;
 						frontier.Enqueue(head);
 					} catch ( NullReferenceException ) {

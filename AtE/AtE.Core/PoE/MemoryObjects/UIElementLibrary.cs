@@ -20,7 +20,7 @@ namespace AtE {
 		public Element GameUI => IsValid(Address) ? getElement(Cache.GameUI) : null;
 		public Element LifeBubble => IsValid(Address) ? getElement(Cache.LifeBubble) : null;
 		public Element ManaBubble => IsValid(Address) ? getElement(Cache.ManaBubble) : null;
-		public FlaskPanel Flasks => new FlaskPanel() { Address = Cache.Flasks };
+		public FlaskPanel Flasks => IsValid(Cache.Flasks) ? new FlaskPanel() { Address = Cache.Flasks } : null;
 		public Element ExperienceBar => IsValid(Address) ? getElement(Cache.ExperienceBar) : null;
 		public Element OpenMenuPopoutButton => IsValid(Address) ? getElement(Cache.OpenMenuPopoutButton) : null;
 		public Element CurrentTime => IsValid(Address) ? getElement(Cache.CurrentTime) : null;

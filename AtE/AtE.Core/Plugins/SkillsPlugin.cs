@@ -323,6 +323,12 @@ namespace AtE.Plugins {
 				if ( !Enabled ) {
 					return false;
 				}
+				if ( !IsValid(p) ) {
+					return false;
+				}
+				if ( !IsValid(p.Actor) ) {
+					return false;
+				}
 				var skill = p.Actor.Skills.Where((s) => s.InternalName.Equals("vaal_haste")).FirstOrDefault();
 				if ( !IsValid(skill) ) {
 					return false;
@@ -343,6 +349,12 @@ namespace AtE.Plugins {
 			public VaalGrace() : base("Vaal Grace", "vaal_grace", "vaal_aura_dodge") { }
 			public override bool Predicate(PlayerEntity p) {
 				if( !Enabled ) {
+					return false;
+				}
+				if ( !IsValid(p) ) {
+					return false;
+				}
+				if ( !IsValid(p.Actor) ) {
 					return false;
 				}
 				var skill = p.Actor.Skills.Where((s) => s.InternalName.Equals("vaal_grace")).FirstOrDefault();
@@ -374,7 +386,12 @@ namespace AtE.Plugins {
 				if ( !Enabled ) {
 					return false;
 				}
-
+				if ( !IsValid(p) ) {
+					return false;
+				}
+				if ( !IsValid(p.Actor) ) {
+					return false;
+				}
 				var skill = p.Actor.Skills.Where((s) => s.InternalName.Equals("vaal_discipline")).FirstOrDefault();
 				if( !IsValid(skill) ) {
 					DrawBottomLeftText("Vaal Discipline: no skill found", Color.OrangeRed);
@@ -499,7 +516,7 @@ namespace AtE.Plugins {
 					return this;
 				}
 
-				string areaName = gameRoot.AreaLoadingState.AreaName ?? null;
+				string areaName = gameRoot.AreaLoadingState?.AreaName ?? null;
 				if( Offsets.IsHideout(areaName) ) {
 					DrawBottomLeftText("Skills are paused in hideouts.", Color.LightGray);
 					return this;

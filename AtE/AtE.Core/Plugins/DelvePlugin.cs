@@ -77,11 +77,11 @@ namespace AtE.Plugins {
 		public override IState OnTick(long dt) {
 			if( Enabled && !Paused && PoEMemory.IsAttached ) {
 
-				if ( PoEMemory.GameRoot.AreaLoadingState.IsLoading ) {
+				if ( PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true ) {
 					return this;
 				}
 
-				string areaName = PoEMemory.GameRoot.AreaLoadingState.AreaName;
+				string areaName = PoEMemory.GameRoot?.AreaLoadingState.AreaName;
 				if( ! (areaName?.Equals("Azurite Mine") ?? false) ) {
 					return this;
 				}

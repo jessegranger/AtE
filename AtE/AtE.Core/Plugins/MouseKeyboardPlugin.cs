@@ -331,7 +331,8 @@ namespace AtE {
 		private long alsoCastMainKeyLastPress = 0;
 
 		private void CheckAlsoCast() {
-			if ( EnableAlsoCast && !PoEMemory.GameRoot.InGameState.HasInputFocus ) {
+			bool hasInputFocus = PoEMemory.GameRoot?.InGameState?.HasInputFocus ?? true;
+			if ( EnableAlsoCast && !hasInputFocus ) {
 				bool downNow = Platform.Current.Keys.IsKeyDown(AlsoCastMainKey.Key);
 				if ( downNow && !alsoCastMainKeyDownBefore ) {
 					// OnKeyDown: (of the main key)

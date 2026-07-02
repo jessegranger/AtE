@@ -22,7 +22,7 @@ namespace AtE {
 		public FlaskEntity Entity => IsValid(Address) 
 			&& EntityCache.TryGetEntity(Details.Value.entItem, out Entity ent)
 			? new FlaskEntity(ent, FlaskIndex) : null;
-		public IntPtr ItemPtr => Details.Value.entItem; // sometimes this ptr fails to read, it ends up pointing somewhere our Handle isnt authorized? rarely
+		public IntPtr ItemPtr => IsValid(Details.Value.entItem) ? Details.Value.entItem : IntPtr.Zero; // sometimes this ptr fails to read, it ends up pointing somewhere our Handle isnt authorized? rarely
 	}
 
 	/// <summary>
