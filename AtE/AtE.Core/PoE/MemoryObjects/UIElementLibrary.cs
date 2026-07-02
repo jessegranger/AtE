@@ -39,8 +39,8 @@ namespace AtE {
 		// public Element AtlasPanel => IsValid(Address) ? getElement(Cache.AtlasPanel) : null;
 		// public Element AtlasSkillPanel => IsValid(Address) ? getElement(Cache.AtlasSkillPanel) : null;
 		// public Element WorldMap => IsValid(Address) ? getElement(Cache.WorldMap) : null;
-		public MapElement Map => new MapElement() { Address = Cache.Map };
-		public LabelsOnGroundRoot LabelsOnGround => new LabelsOnGroundRoot() { Address = Cache.ItemsOnGroundLabelElement };
+		public MapElement Map => IsValid(Cache.Map) ? new MapElement() { Address = Cache.Map } : null;
+		public LabelsOnGroundRoot LabelsOnGround => IsValid(Cache.ItemsOnGroundLabelElement) ? new LabelsOnGroundRoot() { Address = Cache.ItemsOnGroundLabelElement } : null;
 		// public Element BanditDialog => IsValid(Address) ? getElement(Cache.BanditDialog) : null;
 		// public Element Viewport => IsValid(Address) ? getElement(Cache.GameViewport) : null;
 		public Element RootBuffPanel => IsValid(Address) ? getElement(Cache.RootBuffPanel) : null;
