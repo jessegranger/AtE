@@ -8,15 +8,12 @@ using System.Collections.Generic;
 
 namespace AtE {
 	public class MapElement : Element {
-		public Cached<Offsets.Element_Map> Data;
-		public MapElement() : base() => Data = CachedStruct<Offsets.Element_Map>(() => Address);
-
 		private IntPtr lastKnownLargeMapAddress = IntPtr.Zero;
 		private SubMapElement lastKnownLargeMap;
 		public SubMapElement LargeMap {
 			get {
 				if ( IsValid(Address) ) {
-					IntPtr largeMapPtr = Data.Value.ptrToSubMap_Full;
+					IntPtr largeMapPtr = GetChildPtr(0);
 					if ( IsValid(largeMapPtr) ) {
 						if ( lastKnownLargeMapAddress != largeMapPtr ) {
 							lastKnownLargeMap = new SubMapElement() { Address = largeMapPtr };
@@ -36,7 +33,7 @@ namespace AtE {
 		public SubMapElement MiniMap {
 			get {
 				if ( IsValid(Address) ) {
-					IntPtr miniMapPtr = Data.Value.ptrToSubMap_Mini;
+					IntPtr miniMapPtr = GetChildPtr(1);
 					if ( IsValid(miniMapPtr) ) {
 						if ( lastKnownMiniMapAddress != miniMapPtr ) {
 							lastKnownMiniMap = new SubMapElement() { Address = miniMapPtr };
