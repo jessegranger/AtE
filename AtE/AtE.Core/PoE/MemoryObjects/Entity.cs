@@ -116,13 +116,14 @@ namespace AtE {
 				if ( value == base.Address ) {
 					return;
 				}
+				if ( !IsValid(value) ) {
+					base.Address = IntPtr.Zero;
+					return;
+				}
 				// when this gets assigned, `Cache` gets a new value as well
 				base.Address = value;
 				Details = CachedStruct<Offsets.EntityDetails>(() => Cache.ptrDetails);
 
-				if ( !IsValid(value) ) {
-					return;
-				}
 				// invalidate the private caches whenever Address changes
 				path = null;
 				ComponentPtrs = null;
