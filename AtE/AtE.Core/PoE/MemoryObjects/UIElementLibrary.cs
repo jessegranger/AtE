@@ -34,7 +34,7 @@ namespace AtE {
 		public Element OpenRightPanel => IsValid(Address) ? getElement(Cache.OpenRightPanel) : null;
 		public InventoryRoot InventoryPanel => IsValid(Cache.InventoryPanel) ? new InventoryRoot() { Address = Cache.InventoryPanel } : null;
 		public Element StashElement => IsValid(Address) ? getElement(Cache.StashElement) : null;
-		public Inventory<StashItem> StashInventory => IsValid(Address) ? new Inventory<StashItem>() { Address = Cache.StashElement } : null;
+		public Inventory<StashItem> StashInventory => IsValid(Address) && IsValid(Cache.StashElement) ? new Inventory<StashItem>() { Address = Cache.StashElement } : null;
 		public Element GuildStashElement => IsValid(Address) ? getElement(Cache.GuildStashElement) : null;
 		// public Element AtlasPanel => IsValid(Address) ? getElement(Cache.AtlasPanel) : null;
 		// public Element AtlasSkillPanel => IsValid(Address) ? getElement(Cache.AtlasSkillPanel) : null;
