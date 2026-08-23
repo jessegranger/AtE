@@ -342,14 +342,16 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct AreaGameState {
 			// 3.23: 128 new bytes here
 			// 3.23.2: 512 new bytes here
-			// 3.29: 136 new bytes here
-			[FieldOffset(0x3d0)] public readonly long IsLoading;
+			// 3.29: 128 new bytes here
+			[FieldOffset(0x3c8)] public readonly long IsLoading;
+			// 3.29: 8 new bytes here
 			[FieldOffset(0x408)] public readonly IntPtr elemRoot;
 			// 3.22: 24 new bytes here
 			// 3.24.3: 8 new bytes here
 			// 3.25: 256 new bytes here
 			// 3.28: 8 fewer bytes here
-			[FieldOffset(0x7d8)] public readonly IntPtr strAreaName;
+			// 3.29: 16 new bytes here
+			[FieldOffset(0x7e8)] public readonly IntPtr strAreaName;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LoginGameState {
 			[FieldOffset(0x2D0)] public readonly IntPtr elemRoot;
@@ -1601,7 +1603,8 @@ namespace AtE {
 			// 3.24.3: 8 new bytes here
 			// 3.26: 8 fewer bytes here
 			// 3.28: 136 new bytes here (inherited from Element)
-			[FieldOffset(0x420)] public readonly InventoryArray InventoryList;
+			// 3.29: 16 new bytes here
+			[FieldOffset(0x430)] public readonly InventoryArray InventoryList;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InventoryArray {
