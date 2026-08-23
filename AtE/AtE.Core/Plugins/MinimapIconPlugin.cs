@@ -271,6 +271,11 @@ namespace AtE.Plugins {
 			return icon != SpriteIcon.None;
 		}
 
+		// Chest paths that never get an icon; compiled once, on first use, and reused for the life of the process.
+		private static readonly Regex IgnoredChestPattern = new Regex(
+			"^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|SilverChest|PrimevalChest|StatueMakers|.*Rack|Amphora|.*Pot|.*Boulder|Vase|MapChest|.*Cairn|Crate|Cannibal|TemplarChest|InfestationEgg|.*Barrel|.*Wounded|FungalBloom|GoldenChest|KaomChest|Cacoon|.*Bundle|PordWounded|Tutorial|TribalChest|.*BonePile|Sarcophagi|GoldPot|CopperChest|Labyrinth/Izaro|VaalBoneChest|Betrayal|Laboratory/|LegionChests)",
+			RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
 		private bool TryGetChestIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
 			icon = SpriteIcon.None;
 			iconSize = 1f;
@@ -293,8 +298,7 @@ namespace AtE.Plugins {
 			if( !IsValid(path, 10) ) {
 				return false;
 			}
-			// TODO: pre-compile and cache this expression
-			if( Regex.IsMatch(path, "^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|SilverChest|PrimevalChest|StatueMakers|.*Rack|Amphora|.*Pot|.*Boulder|Vase|MapChest|.*Cairn|Crate|Cannibal|TemplarChest|InfestationEgg|.*Barrel|.*Wounded|FungalBloom|GoldenChest|KaomChest|Cacoon|.*Bundle|PordWounded|Tutorial|TribalChest|.*BonePile|Sarcophagi|GoldPot|CopperChest|Labyrinth/Izaro|VaalBoneChest|Betrayal|Laboratory/|LegionChests)") ) { 
+			if( IgnoredChestPattern.IsMatch(path) ) {
 				// set them to None, and never check them again
 				ent.MinimapIcon = new Entity.Icon() { Size = 1f, Sprite = SpriteIcon.None };
 				return false;
@@ -312,6 +316,16 @@ namespace AtE.Plugins {
 				} else if ( path.StartsWith("Metadata/Chests/LeagueAzmeri/") ) {
 					icon = SpriteIcon.BlueFlag;
 					iconSize = 1.1f;
+				} else if ( path.StartsWith("Metadata/Chests/LeagueDeepwater/")) {
+					iconSize = 1.9f;
+					if( path.EndsWith("Shield") || path.EndsWith("Gloves") || path.EndsWith("Boots") ) {
+						icon = SpriteIcon.RewardArmour;
+					} else if ( path.EndsWith("Weapon")) {
+						icon = SpriteIcon.RewardWeapons;
+					} else {
+						icon = SpriteIcon.RewardGenericItems;
+					}
+				
 				} else if ( path.StartsWith("Metadata/Chests/CocoonRot") ) {
 					icon = SpriteIcon.MediumGreenStar;
 					iconSize = 1.1f;
