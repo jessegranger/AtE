@@ -307,7 +307,7 @@ namespace AtE {
 
 		// dimensions of the sprites file
 		private const int spriteTilesWidth = 14; // there are 14 sprites wide (each 64 pixels wide)
-		private const int spriteTilesHeight = 50; // there are 50 rows of sprites (each 64 pixels tall)
+		private const int spriteTilesHeight = 52; // there are 50 rows of sprites (each 64 pixels tall)
 
 		/// <summary>
 		/// Get uv coordinates (all in range [0-1]) for a portion of the mainTexture
