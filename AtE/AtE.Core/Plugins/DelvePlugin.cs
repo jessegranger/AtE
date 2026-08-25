@@ -207,7 +207,7 @@ namespace AtE.Plugins {
 								iconSize = 2f;
 							} else if (  HighlightAzurite &&  path.Contains("AzuriteVein") ) {
 								DrawLineAndLabel(playerScreenPos, ent, Color.Cyan, "Azurite");
-								icon = SpriteIcon.MediumCyanStar;
+								icon = SpriteIcon.MediumWhiteStar;
 								iconSize = 2f;
 							}
 

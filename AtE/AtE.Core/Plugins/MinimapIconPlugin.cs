@@ -279,6 +279,7 @@ namespace AtE.Plugins {
 		private bool TryGetChestIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
 			icon = SpriteIcon.None;
 			iconSize = 1f;
+			string iconText = null;
 			if ( ent.HasComponent<MinimapIcon>() ) {
 				var minimapIcon = ent.GetComponent<MinimapIcon>();
 				if( IsValid(minimapIcon) && IsValid(minimapIcon.Name, 4) ) {
@@ -318,12 +319,20 @@ namespace AtE.Plugins {
 					iconSize = 1.1f;
 				} else if ( path.StartsWith("Metadata/Chests/LeagueDeepwater/")) {
 					iconSize = 1.9f;
-					if( path.EndsWith("Shield") || path.EndsWith("Gloves") || path.EndsWith("Boots") ) {
+					if ( path.EndsWith("Shield") || path.EndsWith("Gloves") || path.EndsWith("Boots") ) {
 						icon = SpriteIcon.RewardArmour;
-					} else if ( path.EndsWith("Weapon")) {
+					} else if ( path.EndsWith("Weapon") ) {
 						icon = SpriteIcon.RewardWeapons;
+					} else if ( path.EndsWith("BottledItemChest") ) {
+						icon = SpriteIcon.LargeYellowStar;
+					} else if ( path.EndsWith("GoldTreasureChest") ) {
+						icon = SpriteIcon.MediumYellowTriangle;
+						iconSize = 1.5f;
+					} else if ( path.Contains("GemcuttersChest") ) {
+						icon = SpriteIcon.RewardGems;
 					} else {
 						icon = SpriteIcon.RewardGenericItems;
+						iconText = path;
 					}
 				
 				} else if ( path.StartsWith("Metadata/Chests/CocoonRot") ) {
@@ -411,7 +420,7 @@ namespace AtE.Plugins {
 						iconSize = 1.7f;
 					}
 				} else if ( path.StartsWith("Metadata/Chests/SynthesisChests") ) {
-					icon = SpriteIcon.LargeCyanStar;
+					icon = SpriteIcon.LargeWhiteStar;
 					iconSize = 1.5f;
 				} else if ( path.StartsWith("Metadata/Chests/StrongBox") ) {
 					if ( path.EndsWith("/Arcanist") ) {
@@ -461,6 +470,9 @@ namespace AtE.Plugins {
 			}
 			// save for 1000ms, then check for opened status etc
 			ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 1000);
+			if( iconText != null ) {
+				DrawTextAt(WorldToScreen(Position(ent)), iconText, Color.White);
+			}
 			return true;
 		}
 		private bool TryGetEnemyIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
@@ -491,7 +503,7 @@ namespace AtE.Plugins {
 				case Offsets.MonsterRarity.White: if( ! ShowEnemyNormal ) { return false; } break;
 			}
 			switch ( rarity ) {
-				case Offsets.MonsterRarity.Unique: icon = isHidden ? SpriteIcon.SmallPurpleHexagon : SpriteIcon.LargePurpleCircle; break;
+				case Offsets.MonsterRarity.Unique: icon = isHidden ? SpriteIcon.SmallBrownHexagon : SpriteIcon.LargeBrownCircle; break;
 				case Offsets.MonsterRarity.Rare: icon = isHidden ? SpriteIcon.SmallYellowHexagon : SpriteIcon.MediumYellowCircle; break;
 				case Offsets.MonsterRarity.Magic: icon = isHidden ? SpriteIcon.SmallBlueHexagon : SpriteIcon.MediumBlueCircle; break;
 				case Offsets.MonsterRarity.White: icon = isHidden ? SpriteIcon.SmallRedHexagon : SpriteIcon.MediumRedCircle; break;
