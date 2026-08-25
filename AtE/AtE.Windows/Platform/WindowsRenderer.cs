@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using SharpDX;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
@@ -108,6 +109,86 @@ namespace AtE {
 					TextureCache.Add(path, view);
 					return new WindowsTextureHandle(view.NativePointer, w, h);
 				}
+			}
+		}
+
+		/// <summary>
+		/// D3D11 samples the BC formats in hardware, so bundle art can be uploaded exactly as it
+		/// is stored — no software block decoding on this backend.
+		/// </summary>
+		public bool SupportsBlockCompressedTextures => true;
+
+		public ITextureHandle CreateTexture(string name, TextureFormat format, int width, int height, byte[] data, int rowPitch) {
+			Device device = D3DController.Device;
+			if ( device == null ) {
+				throw new InvalidOperationException("WindowsRenderer.CreateTexture called before Initialise.");
+			}
+			if ( data == null ) throw new ArgumentNullException(nameof(data));
+			if ( width <= 0 || height <= 0 ) throw new ArgumentOutOfRangeException(nameof(width), $"{width}x{height}");
+			if ( rowPitch <= 0 ) throw new ArgumentOutOfRangeException(nameof(rowPitch));
+
+			Format dxgi = ToDxgiFormat(format);
+			if ( dxgi == Format.Unknown ) {
+				throw new NotSupportedException($"WindowsRenderer.CreateTexture: no DXGI format for {format}.");
+			}
+
+			// D3D reads straight out of the pinned buffer, so a short array would have it walk
+			// off the end. Rows are rows of 4x4 blocks for the BC formats.
+			bool blockCompressed = DdsImage.IsBlockFormat(format);
+			int rows = blockCompressed ? Math.Max(1, (height + 3) / 4) : height;
+			long needed = (long)rowPitch * rows;
+			if ( data.Length < needed ) {
+				throw new ArgumentException(
+					$"WindowsRenderer.CreateTexture: {width}x{height} {format} needs {needed} bytes " +
+					$"({rowPitch} x {rows}), got {data.Length}.", nameof(data));
+			}
+			// A block-compressed mip 0 must be a whole number of blocks, or D3D returns E_INVALIDARG.
+			if ( blockCompressed && ((width & 3) != 0 || (height & 3) != 0) ) {
+				throw new NotSupportedException(
+					$"WindowsRenderer.CreateTexture: {format} needs dimensions that are multiples of 4, got {width}x{height}.");
+			}
+
+			// Pin the managed bytes just long enough for D3D to copy them into the immutable
+			// texture; nothing keeps the pointer past the constructor.
+			GCHandle pin = GCHandle.Alloc(data, GCHandleType.Pinned);
+			try {
+				using ( var texture = new Texture2D(device, new Texture2DDescription {
+					Width = width,
+					Height = height,
+					ArraySize = 1,
+					BindFlags = BindFlags.ShaderResource,
+					Usage = ResourceUsage.Immutable,
+					CpuAccessFlags = CpuAccessFlags.None,
+					Format = dxgi,
+					MipLevels = 1,
+					OptionFlags = ResourceOptionFlags.None,
+					SampleDescription = new SampleDescription(1, 0)
+				}, new DataRectangle(pin.AddrOfPinnedObject(), rowPitch)) ) {
+					// The view holds its own reference, so the Texture2D wrapper can go.
+					var view = new ShaderResourceView(device, texture);
+					TextureCache.Add(string.IsNullOrEmpty(name) ? $"texture_{view.NativePointer:X}" : name, view);
+					return new WindowsTextureHandle(view.NativePointer, width, height);
+				}
+			} finally {
+				pin.Free();
+			}
+		}
+
+		private static Format ToDxgiFormat(TextureFormat format) {
+			switch ( format ) {
+				case TextureFormat.R8_UNorm: return Format.R8_UNorm;
+				case TextureFormat.R8G8B8A8_UNorm: return Format.R8G8B8A8_UNorm;
+				case TextureFormat.B8G8R8A8_UNorm: return Format.B8G8R8A8_UNorm;
+				case TextureFormat.R16G16B16A16_Float: return Format.R16G16B16A16_Float;
+				case TextureFormat.R32G32B32A32_Float: return Format.R32G32B32A32_Float;
+				case TextureFormat.BC1_UNorm: return Format.BC1_UNorm;
+				case TextureFormat.BC2_UNorm: return Format.BC2_UNorm;
+				case TextureFormat.BC3_UNorm: return Format.BC3_UNorm;
+				case TextureFormat.BC4_UNorm: return Format.BC4_UNorm;
+				case TextureFormat.BC5_UNorm: return Format.BC5_UNorm;
+				case TextureFormat.BC6H_UF16: return Format.BC6H_Uf16;
+				case TextureFormat.BC7_UNorm: return Format.BC7_UNorm;
+				default: return Format.Unknown;
 			}
 		}
 

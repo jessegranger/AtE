@@ -19,6 +19,28 @@ namespace AtE {
 	}
 
 	/// <summary>
+	/// A portable subset of the GPU pixel formats, so the core can hand a decoded texture to a
+	/// backend without naming DXGI or GL types. Backends map these onto their own enums; the
+	/// BC* members are the block-compressed families that PoE's .dds art uses, which GPUs
+	/// sample natively (see <see cref="IRenderer.SupportsBlockCompressedTextures"/>).
+	/// </summary>
+	public enum TextureFormat {
+		Unknown = 0,
+		R8_UNorm,
+		R8G8B8A8_UNorm,
+		B8G8R8A8_UNorm,
+		R16G16B16A16_Float,
+		R32G32B32A32_Float,
+		BC1_UNorm,
+		BC2_UNorm,
+		BC3_UNorm,
+		BC4_UNorm,
+		BC5_UNorm,
+		BC6H_UF16,
+		BC7_UNorm,
+	}
+
+	/// <summary>
 	/// The GPU device + ImGui backend: the part of the overlay's rendering that uploads vertex
 	/// buffers and textures and presents to the screen. The plugin draw calls themselves are
 	/// ImGui (<c>ImGui.*</c>); the small <c>DrawText</c>/<c>DrawSprite</c>/... helpers are exposed
@@ -57,6 +79,25 @@ namespace AtE {
 
 		/// <summary>Upload an image file to the GPU and register it for use as an ImGui texture.</summary>
 		ITextureHandle LoadTexture(string path);
+
+		/// <summary>
+		/// Upload already-decoded texture data (one mip level) and register it as an ImGui
+		/// texture. Used by the bundle browser to preview game art straight out of the GGPK
+		/// without going through a file on disk.
+		///
+		/// <paramref name="rowPitch"/> is bytes per row — for block-compressed formats, per row
+		/// of 4x4 blocks (<see cref="DdsImage.RowPitch"/> computes it). <paramref name="name"/>
+		/// keys the backend's texture cache, so uploading the same name again replaces the
+		/// previous texture.
+		/// </summary>
+		ITextureHandle CreateTexture(string name, TextureFormat format, int width, int height, byte[] data, int rowPitch);
+
+		/// <summary>
+		/// True if <see cref="CreateTexture"/> accepts the BC* formats directly. Backends that
+		/// return false need the caller to decode to <see cref="TextureFormat.R8G8B8A8_UNorm"/>
+		/// first (see <see cref="DdsImage.TryDecodeToRgba"/>).
+		/// </summary>
+		bool SupportsBlockCompressedTextures { get; }
 
 		/// <summary>
 		/// Enable/disable the content layers (ImGui + sprites). Toggled by the focus logic so

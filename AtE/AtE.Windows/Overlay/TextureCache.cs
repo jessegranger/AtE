@@ -14,6 +14,9 @@ namespace AtE {
 			semaphore.Wait();
 			try {
 				if ( byName.TryGetValue(name, out var prior) ) {
+					// Drop the pointer mapping too: the view is about to be disposed, and leaving
+					// the entry behind both leaks and risks resolving a recycled pointer to it.
+					byPtr.Remove(prior.NativePointer);
 					prior.Dispose();
 				}
 				Log($"TextureCache: adding {name} at {texture.NativePointer:X}");

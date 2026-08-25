@@ -194,6 +194,11 @@ namespace AtE {
 		// can be released in Shutdown.
 		private readonly List<uint> glTextures = new List<uint>();
 
+		// Textures created through CreateTexture, keyed by the caller's name, so re-uploading the
+		// same name replaces the old GL texture instead of stacking up a new one every time
+		// (the contract IRenderer.CreateTexture documents).
+		private readonly Dictionary<string, uint> namedTextures = new Dictionary<string, uint>();
+
 		// ImGui state.
 		private IntPtr imguiContext;
 		private ImGuiIOPtr io;
@@ -678,6 +683,55 @@ namespace AtE {
 			}
 		}
 
+		/// <summary>
+		/// This backend is fixed-function GL with no compressed-texture path, so the BC formats
+		/// have to be decoded on the CPU first (<see cref="DdsImage.TryDecodeToRgba"/>).
+		/// </summary>
+		public bool SupportsBlockCompressedTextures => false;
+
+		public ITextureHandle CreateTexture(string name, TextureFormat format, int width, int height, byte[] data, int rowPitch) {
+			if ( !initialised ) {
+				throw new InvalidOperationException("LinuxRenderer.CreateTexture called before Initialise.");
+			}
+			if ( data == null ) throw new ArgumentNullException(nameof(data));
+			if ( width <= 0 || height <= 0 ) throw new ArgumentOutOfRangeException(nameof(width), $"{width}x{height}");
+			// glTexImage2D below uploads GL_RGBA/GL_UNSIGNED_BYTE, so that is all we take.
+			if ( format != TextureFormat.R8G8B8A8_UNorm ) {
+				throw new NotSupportedException(
+					$"LinuxRenderer.CreateTexture: only R8G8B8A8_UNorm is supported (got {format}). " +
+					"Decode to RGBA first — see DdsImage.TryDecodeToRgba.");
+			}
+			if ( rowPitch != width * 4 ) {
+				throw new NotSupportedException(
+					$"LinuxRenderer.CreateTexture: expected a tightly packed {width * 4}-byte row pitch, got {rowPitch}.");
+			}
+			if ( data.Length < width * height * 4 ) {
+				throw new ArgumentException(
+					$"LinuxRenderer.CreateTexture: need {width * height * 4} bytes for {width}x{height}, got {data.Length}.",
+					nameof(data));
+			}
+			// Same render-thread constraint as LoadTexture: the GLX context is only current there.
+			if ( Thread.CurrentThread.ManagedThreadId != renderThreadId ) {
+				Log($"LinuxRenderer.CreateTexture: WARNING — called off the render thread " +
+					$"(got {Thread.CurrentThread.ManagedThreadId}, expected {renderThreadId}); the GL upload may fail.");
+			}
+			GCHandle pin = GCHandle.Alloc(data, GCHandleType.Pinned);
+			uint tex;
+			try {
+				tex = UploadTexture(pin.AddrOfPinnedObject(), width, height, clampToEdge: true);
+			} finally {
+				pin.Free();
+			}
+			if ( !string.IsNullOrEmpty(name) ) {
+				if ( namedTextures.TryGetValue(name, out uint prior) && prior != tex ) {
+					glDeleteTextures(1, ref prior);
+					glTextures.Remove(prior);
+				}
+				namedTextures[name] = tex;
+			}
+			return new LinuxTextureHandle((IntPtr)(long)tex, width, height);
+		}
+
 		// ---- gating ----------------------------------------------------------------------------
 
 		public bool ContentEnabled {
@@ -718,6 +772,7 @@ namespace AtE {
 				Log($"LinuxRenderer.Shutdown: glDeleteTextures failed: {e.Message}");
 			}
 			glTextures.Clear();
+			namedTextures.Clear();
 			fontTexture = 0;
 			spriteTexture = 0;
 

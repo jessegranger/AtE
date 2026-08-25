@@ -58,4 +58,7 @@
     </Content>
   </ItemGroup>
 
+  <!-- The native Oodle decoder (libooz) is declared once in AtE.Core and flows into this output
+       through the ProjectReference above. See AtE.Core\Native\README.md. -->
+
 </Project>

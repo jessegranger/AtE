@@ -44,4 +44,8 @@
     </Content>
   </ItemGroup>
 
+  <!-- The native Oodle decoder (libooz) is declared once in AtE.Core and flows into this output
+       through the ProjectReference above. No prebuilt libooz.so is committed yet — see
+       AtE.Core/Native/README.md for the cmake recipe and where to drop the result. -->
+
 </Project>

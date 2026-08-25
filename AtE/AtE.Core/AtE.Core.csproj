@@ -40,4 +40,35 @@
     <InternalsVisibleTo Include="AtE.Linux" />
   </ItemGroup>
 
+  <!-- The native Oodle decoder for the GGPK bundles.
+
+       PoE links Oodle statically and ships no redistributable DLL, so AtE has to supply a decoder
+       itself: the open-source ooz build. See Native/README.md for provenance, licensing and how to
+       build the Linux one.
+
+       Declared here rather than in each host because Content items carrying CopyToOutputDirectory
+       propagate to referencing projects, so one declaration serves AtE.Windows, AtE.Linux and any
+       future test project — and AtE.Core.dll always lands in the same directory as the host's exe,
+       which is the directory Oodle.TryInitialise probes.
+
+       "Link" with no folder puts the file in the output ROOT, next to the exe, which is where the
+       loader looks. Both platform binaries are copied when present rather than picking one by build
+       host: the file is a few hundred KB, the loader selects the right name for the running OS by
+       itself, and this keeps cross-compiling AtE.Linux from Windows working.
+
+       Condition: the solution still builds with either binary absent. The cost is that a missing
+       file is silent at build time — you find out from the Bundle Browser, which reports that no
+       decoder could be loaded and where it looked. Note MSBuild evaluates Exists() when the project
+       is evaluated, so after dropping a binary in, reload the project in an IDE. -->
+  <ItemGroup>
+    <Content Include="Native\win-x64\libooz.dll" Link="libooz.dll"
+             Condition="Exists('Native\win-x64\libooz.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Native\linux-x64\libooz.so" Link="libooz.so"
+             Condition="Exists('Native\linux-x64\libooz.so')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
