@@ -451,7 +451,7 @@ namespace AtE.Plugins {
 				if ( !gpuCanTakeIt && format != TextureFormat.R8G8B8A8_UNorm ) {
 					if ( !image.TryDecodeToRgba(out byte[] rgba) ) {
 						previewError = $"{image.Format} at {image.Width}x{image.Height} cannot be uploaded as-is, " +
-							"and there is no software decoder for that format (BC6H/BC7 need the GPU).";
+							"and there is no software decoder for that format (BC6H and the float formats are HDR).";
 						return;
 					}
 					data = rgba;
