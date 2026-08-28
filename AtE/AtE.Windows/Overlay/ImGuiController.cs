@@ -24,6 +24,11 @@ namespace AtE {
 
 		private static IntPtr Context;
 		private static ImGuiIOPtr IO;
+
+		// the normal, built-in font (13px)
+		public static ImFontPtr DefaultFont;
+		// same built-in font, rasterized larger, use with ImGui.PushFont(ImGuiController.LargeFont) / ImGui.PopFont()
+		public static ImFontPtr LargeFont;
 		private static InputLayout inputLayout;
 		private static SamplerState samplerState;
 		private static RasterizerState solidRasterState;
@@ -57,8 +62,17 @@ namespace AtE {
 			Log("ImGui: Creating Font texture...");
 			ShaderResourceView fontTexture;
 			unsafe {
-				// use the default font
-				IO.Fonts.AddFontDefault();
+				// use the default font, at its normal size
+				DefaultFont = IO.Fonts.AddFontDefault();
+
+				// add a second copy of the same built-in font, rasterized larger.
+				// AddFontDefault() needs a real ImFontConfig (not a zeroed struct) so the
+				// rasterizer options (oversampling, etc) are initialized to sane defaults.
+				ImFontConfigPtr fontConfig = new ImFontConfigPtr(ImGuiNative.ImFontConfig_ImFontConfig());
+				fontConfig.SizePixels = 26f; // 2x the default 13px - an integer multiple stays pixel-aligned and rasterizes crisper than a non-integer size
+				LargeFont = IO.Fonts.AddFontDefault(fontConfig);
+				fontConfig.Destroy();
+
 				// output the font data as a texture
 				IO.Fonts.GetTexDataAsRGBA32(
 					out byte* pixelData,
