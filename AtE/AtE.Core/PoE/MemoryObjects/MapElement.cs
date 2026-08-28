@@ -7,6 +7,19 @@ using static AtE.Globals;
 using System.Collections.Generic;
 
 namespace AtE {
+	public static partial class Globals {
+		public static float GetMapZoom() {
+			var ui = GetUI();
+			if( ! IsValid(ui) ) {
+				return 1.0f;
+			}
+			var map = ui.Map;
+			if( ! IsValid(map) ) {
+				return 1.0f;
+			}
+			return map.GetMapZoom();
+		}
+	}
 	public class MapElement : Element {
 		private IntPtr lastKnownLargeMapAddress = IntPtr.Zero;
 		private SubMapElement lastKnownLargeMap;
@@ -61,6 +74,9 @@ namespace AtE {
 
 		static MapElement() {
 			new HotKey(VKey.Tab).OnRelease += (sender, args) => UpdateMiniMapRect();
+			new HotKey(VKey.Add).OnRelease += (sender, args) => UpdateMiniMapRect();
+			new HotKey(VKey.Subtract).OnRelease += (sender, args) => UpdateMiniMapRect();
+
 			/*
 			Run("MapElement", (self, dt) => {
 				ImGui.Begin("Minimap debug");
@@ -265,7 +281,20 @@ namespace AtE {
 			return result;
 		}
 		*/
+
+		public float GetMapZoom() {
+			var largeMap = LargeMap;
+			if( IsValid(largeMap) && largeMap.IsVisibleLocal ) {
+				return largeMap.Zoom;
+			}
+			var smallMap = MiniMap;
+			if( IsValid(smallMap) && smallMap.IsVisibleLocal ) {
+				return smallMap.Zoom;
+			}
+			return 1.0f;
+		}
 	}
+
 
 
 }

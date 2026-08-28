@@ -273,7 +273,7 @@ namespace AtE.Plugins {
 
 		// Chest paths that never get an icon; compiled once, on first use, and reused for the life of the process.
 		private static readonly Regex IgnoredChestPattern = new Regex(
-			"^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|SilverChest|PrimevalChest|StatueMakers|.*Rack|Amphora|.*Pot|.*Boulder|Vase|MapChest|.*Cairn|Crate|Cannibal|TemplarChest|InfestationEgg|.*Barrel|.*Wounded|FungalBloom|GoldenChest|KaomChest|Cacoon|.*Bundle|PordWounded|Tutorial|TribalChest|.*BonePile|Sarcophagi|GoldPot|CopperChest|Labyrinth/Izaro|VaalBoneChest|Betrayal|Laboratory/|LegionChests)",
+			"^Metadata/Chests/(?:Urn|Basket|Barrel|Chest|SilverChest|PrimevalChest|StatueMakers|.*Rack|Amphora|.*Pot|.*Boulder|Vase|MapChest|.*Cairn|Crate|Cannibal|TemplarChest|InfestationEgg|.*Barrel|.*Wounded|FungalBloom|GoldenChest|KaomChest|Cacoon|.*Bundle|PordWounded|Tutorial|TribalChest|.*BonePile|Sarcophagi|GoldPot|CopperChest|Labyrinth/Izaro|VaalBoneChest|Betrayal|Laboratory/|LegionChests|Blight)",
 			RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
 		private bool TryGetChestIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
@@ -317,17 +317,47 @@ namespace AtE.Plugins {
 				} else if ( path.StartsWith("Metadata/Chests/LeagueAzmeri/") ) {
 					icon = SpriteIcon.BlueFlag;
 					iconSize = 1.1f;
+				} else if ( path.StartsWith("Metadata/Chests/LeagueAbyss/") ) {
+					iconSize = 2f;
+					if ( path.EndsWith("Armour") ) {
+						icon = SpriteIcon.RewardArmour;
+					} else if ( path.EndsWith("Currency") ) {
+						icon = SpriteIcon.RewardCurrency;
+					} else {
+						icon = SpriteIcon.None;
+						iconText = path;
+					}
+				
 				} else if ( path.StartsWith("Metadata/Chests/LeagueDeepwater/")) {
-					iconSize = 1.9f;
-					if ( path.EndsWith("Shield") || path.EndsWith("Gloves") || path.EndsWith("Boots") ) {
+					iconSize = 2f;
+					if ( path.EndsWith("UniqueArmour") || path.EndsWith("UniqueWeapons") ) {
+						icon = SpriteIcon.RewardUniques;
+					} else if ( path.EndsWith("Shield") || path.EndsWith("Gloves") || path.EndsWith("Boots") ) {
 						icon = SpriteIcon.RewardArmour;
 					} else if ( path.EndsWith("Weapon") ) {
 						icon = SpriteIcon.RewardWeapons;
+					} else if ( path.EndsWith("Jewellery") ) {
+						icon = SpriteIcon.RewardJewellery;
+					} else if ( path.EndsWith("Maps") ) {
+						icon = SpriteIcon.RewardMaps;
+					} else if ( path.EndsWith("Decks") ) {
+						icon = SpriteIcon.RewardDivinationCards;
+					} else if ( path.EndsWith("Scarabs") ) {
+						icon = SpriteIcon.RewardScarabs;
 					} else if ( path.EndsWith("BottledItemChest") ) {
 						icon = SpriteIcon.LargeYellowStar;
+					} else if ( path.EndsWith("ClamTreasureChest") ) {
+						icon = SpriteIcon.LargeYellowCross;
+						iconSize = 1.75f;
 					} else if ( path.EndsWith("GoldTreasureChest") ) {
-						icon = SpriteIcon.MediumYellowTriangle;
-						iconSize = 1.5f;
+						icon = SpriteIcon.Gold;
+						iconSize = 1.95f;
+					} else if ( path.EndsWith("CoralChest") ) {
+						icon = SpriteIcon.None;
+					} else if ( path.EndsWith("CursedTreasureChestEncounter") ) {
+						icon = SpriteIcon.None;
+					} else if ( path.EndsWith("BrinerotStoresChestEncounter") ) {
+						icon = SpriteIcon.None;
 					} else if ( path.Contains("GemcuttersChest") ) {
 						icon = SpriteIcon.RewardGems;
 					} else {
@@ -425,37 +455,37 @@ namespace AtE.Plugins {
 				} else if ( path.StartsWith("Metadata/Chests/StrongBox") ) {
 					if ( path.EndsWith("/Arcanist") ) {
 						icon = SpriteIcon.RewardCurrency;
-						iconSize = 1.75f;
+						iconSize = 2.95f;
 					} else if ( path.EndsWith("/Jeweller") ) {
 						icon = SpriteIcon.RewardJewellery;
-						iconSize = 1.75f;
+						iconSize = 2.95f;
 					} else if ( path.EndsWith("/Strongbox") || path.EndsWith("/Large") || path.EndsWith("/Ornate") || path.EndsWith("/Artisan") ) {
 						icon = SpriteIcon.RewardGenericItems;
-						iconSize = 1.75f;
+						iconSize = 2.95f;
 					} else if ( path.EndsWith("/Armory") ) {
 						icon = SpriteIcon.RewardArmour;
-						iconSize = 1.75f;
+						iconSize = 2.95f;
 					} else if ( path.EndsWith("/StrongboxScarab") ) {
 						icon = SpriteIcon.RewardScarabs;
-						iconSize = 1.75f;
+						iconSize = 2.95f;
 					} else if ( path.EndsWith("/StrongboxDivination") ) {
 						icon = SpriteIcon.RewardDivinationCards;
-						iconSize = 1.75f;
+						iconSize = 2.95f;
 					} else if ( path.EndsWith("/Arsenal") ) {
 						icon = SpriteIcon.RewardWeapons;
-						iconSize = 1.75f;
+						iconSize = 2.95f;
 					} else if ( path.EndsWith("/Gemcutter") ) {
 						icon = SpriteIcon.RewardGems;
-						iconSize = 1.75f;
+						iconSize = 2.95f;
 					} else if ( path.Contains("/Cartographer") ) {
 						icon = SpriteIcon.RewardMaps;
-						iconSize = 1.75f;
+						iconSize = 2.95f;
 					} else if ( path.EndsWith("/VaultsOfAtziriUniqueChest") ) {
 						icon = SpriteIcon.RewardFragments;
-						iconSize = 1.75f;
+						iconSize = 2.95f;
 					} else if ( path.EndsWith("/VaalTempleChest") ) {
 						icon = SpriteIcon.RewardGenericItems;
-						iconSize = 1.75f;
+						iconSize = 2.95f;
 					} else {
 						DrawTextAt(WorldToScreen(Position(ent)), $"Unknown Strongbox: {ent.Path}", Color.White);
 						return false;
@@ -468,6 +498,8 @@ namespace AtE.Plugins {
 				DrawTextAt(WorldToScreen(Position(ent)), $"Unknown Chest: {ent.Path}", Color.White);
 				return false;
 			}
+			// scale by the map zoom
+			iconSize *= GetMapZoom() * 2;
 			// save for 1000ms, then check for opened status etc
 			ent.MinimapIcon = new Entity.Icon(icon, iconSize, Time.ElapsedMilliseconds + 1000);
 			if( iconText != null ) {
@@ -477,7 +509,7 @@ namespace AtE.Plugins {
 		}
 		private bool TryGetEnemyIcon(Entity ent, out SpriteIcon icon, out float iconSize) {
 			icon = SpriteIcon.None;
-			iconSize = 1f;
+			iconSize = 1.2f * GetMapZoom() * 2;
 			var minimapIcon = ent.GetComponent<MinimapIcon>();
 			if ( IsValid(minimapIcon) && minimapIcon.IsVisible ) {
 				return false;
@@ -518,7 +550,8 @@ namespace AtE.Plugins {
 					if( isInvulnTotem ) {
 						icon = SpriteIcon.RedFlag;
 					}
-					DrawSprite(icon, overhead, IconSize * 4, IconSize * 4);
+					var overheadIconSize = IconSize * GetMapZoom() * 8;
+					DrawSprite(icon, overhead, overheadIconSize, overheadIconSize);
 					/*
 					ImGui.Begin("debug_overhead");
 					ImGui.Text("Overhead vector result:");
