@@ -48,19 +48,21 @@ namespace AtE.Plugins {
 
 		// ---- not settings ------------------------------------------------------------------------
 
-		/// <summary>What a worker hands back: exactly one of Image / Text / Error is set.</summary>
+		/// <summary>What a worker hands back: exactly one of Image / TextView / Dat / Error is set.</summary>
 		private sealed class PreviewResult {
 			public readonly int Token;
 			public readonly string Path;
 			public readonly DdsImage Image;
-			public readonly string Text;
+			public readonly TextFileView TextView;
 			public readonly string Error;
-			public PreviewResult(int token, string path, DdsImage image, string text, string error) {
+			public readonly DatFile Dat;
+			public PreviewResult(int token, string path, DdsImage image, TextFileView textView, string error, DatFile dat = null) {
 				Token = token;
 				Path = path;
 				Image = image;
-				Text = text;
+				TextView = textView;
 				Error = error;
+				Dat = dat;
 			}
 		}
 
@@ -84,11 +86,13 @@ namespace AtE.Plugins {
 		private ITextureHandle preview;
 		private string previewPath;
 		private string previewError;
-		private string previewText;
+		private TextFileView previewText;
 		// The parsed image behind the current preview, kept so "Save as PNG" can convert it
 		// without re-reading and re-decompressing the bundle. Immutable once parsed, so handing
 		// the reference to a worker thread is safe.
 		private DdsImage previewImage;
+		// Set instead of the above when the selection is a .datc64 table.
+		private DatTableView previewDat;
 
 		private const int MaxSearchResults = 400;
 		private const int MaxListedFiles = 300;
@@ -221,6 +225,7 @@ namespace AtE.Plugins {
 			previewText = null;
 			previewError = null;
 			previewImage = null;
+			previewDat = null;
 			lock ( previewGate ) {
 				pending = null;
 			}
@@ -334,6 +339,10 @@ namespace AtE.Plugins {
 			}
 			ImGui.SameLine();
 			if ( ImGui.Button("Extract folder") ) ExtractSelected(folder: true);
+			if ( previewDat != null && previewDat.HasSchema && previewPath == selectedPath ) {
+				ImGui.SameLine();
+				if ( ImGui.Button("Export as CSV##BundleBrowserCsv") ) ExportCsv(selectedPath, previewDat);
+			}
 			ImGui.Separator();
 
 			if ( previewPath != selectedPath ) {
@@ -342,10 +351,10 @@ namespace AtE.Plugins {
 				ImGui.PushTextWrapPos(0f);
 				ImGui.TextUnformatted($"No preview: {previewError}");
 				ImGui.PopTextWrapPos();
+			} else if ( previewDat != null ) {
+				previewDat.Draw();
 			} else if ( previewText != null ) {
-				ImGui.PushTextWrapPos(0f);
-				ImGui.TextUnformatted(previewText);
-				ImGui.PopTextWrapPos();
+				previewText.Draw();
 			} else if ( preview != null ) {
 				ImGui.TextUnformatted($"{preview.Width} x {preview.Height}");
 				// Fit the image into the pane, but never upscale past 1:1.
@@ -387,6 +396,20 @@ namespace AtE.Plugins {
 				byte[] bytes = idx.ReadAllBytes(path);
 				string extension = Path.GetExtension(path).TrimStart('.');
 
+				if ( extension.Equals("datc64", StringComparison.OrdinalIgnoreCase) ) {
+					if ( DatFile.TryParse(bytes, out DatFile dat, out string datError) )
+						Publish(token, path, dat: dat);
+					else
+						Publish(token, path, error: $"not a readable .datc64 ({datError})");
+					return;
+				}
+
+				if ( TextExtensions.Contains(extension) ) {
+					// The whole file, split into lines here on the worker; only drawing happens on the render thread.
+					Publish(token, path, textView: new TextFileView(path, bytes));
+					return;
+				}
+
 				if ( DdsImage.TryGetRedirect(bytes, out string redirect) ) {
 					// PoE stores some art entries as "*<other path>". Follow it once — and note
 					// that the target's own extension is what decides how to read it.
@@ -403,36 +426,34 @@ namespace AtE.Plugins {
 					Publish(token, path, image: image);
 					return;
 				}
-				if ( TextExtensions.Contains(extension) ) {
-					int take = Math.Min(bytes.Length, 4000);
-					string text = System.Text.Encoding.UTF8.GetString(bytes, 0, take);
-					if ( text.IndexOf('\0') >= 0 )   // UTF-16, which most of PoE's text files are
-						text = System.Text.Encoding.Unicode.GetString(bytes, 0, take & ~1);
-					Publish(token, path, text: text);
-					return;
-				}
 				Publish(token, path, error: $"{bytes.Length:N0} bytes, not a previewable image ({error})");
 			} catch ( Exception e ) {
 				Publish(token, path, error: e.Message);
 			}
 		}
 
-		private void Publish(int token, string path, DdsImage image = null, string text = null, string error = null) {
+		private void Publish(int token, string path, DdsImage image = null, TextFileView textView = null, string error = null, DatFile dat = null) {
 			lock ( previewGate ) {
 				// Never regress the slot: an older worker finishing after a newer one must not
 				// replace its result, or OnTick would drop the newer one on the token check and
 				// the pane would sit on "Loading preview ..." with nothing left to deliver it.
 				if ( pending == null || pending.Token <= token )
-					pending = new PreviewResult(token, path, image, text, error);
+					pending = new PreviewResult(token, path, image, textView, error, dat);
 			}
 		}
 
 		private void Apply(PreviewResult result) {
 			previewPath = result.Path;
 			previewError = result.Error;
-			previewText = result.Text;
+			previewText = result.TextView;
 			preview = null;
 			previewImage = result.Image;
+			previewDat = null;
+			if ( result.Dat != null ) {
+				DatSchemas.Default.TryGetTable(result.Path, out DatTable schema);
+				previewDat = new DatTableView(result.Path, result.Dat, schema, index);
+				return;
+			}
 			if ( result.Image == null ) return;
 
 			var image = result.Image;
@@ -500,6 +521,25 @@ namespace AtE.Plugins {
 			}) {
 				IsBackground = true,
 				Name = "AtE BundleBrowser png",
+			};
+			t.Start();
+		}
+
+		/// <summary>Writes the parsed table as "&lt;path&gt;.csv" under the same root "Extract file" uses.</summary>
+		private void ExportCsv(string path, DatTableView view) {
+			string outPath = Path.Combine(ExtractRoot, path.Replace('/', Path.DirectorySeparatorChar)) + ".csv";
+			status = $"Exporting {outPath} ...";
+			var t = new Thread(() => {
+				try {
+					int rows = view.ExportCsv(outPath);
+					status = $"Exported {rows:N0} rows to {outPath}";
+				} catch ( Exception e ) {
+					status = $"CSV export failed: {e.Message}";
+					Log($"BundleBrowser: CSV export failed for {path}: {e}");
+				}
+			}) {
+				IsBackground = true,
+				Name = "AtE BundleBrowser csv",
 			};
 			t.Start();
 		}
