@@ -387,15 +387,21 @@ want to tackle them:
 
 ### B. Linux host entry point (`LinuxProgram.Main`)
 
-- **Un-stub `LinuxProgram.Main`.** It currently composes `Platform.Initialise(new LinuxPlatform())`
-  then throws. The orchestration it needs is now all portable in `AtE.Core` (`Overlay.Initialise`/
-  `RenderLoop`, `PoEMemory.OnTick`, `PluginBase.Machine`, `Console`, `EntityCache.MainThread`, and
-  the `Run`/`RunForever` helpers on `Machine`/`Globals`), so the commented-out startup sequence can
-  be enabled almost verbatim from `AtE.Windows/Program.Main`. Cross-check the two `Main`s for any
-  Windows-only setup (single-instance mutex, working-directory/`AppDomain` assumptions, exception
-  dialogs) that needs a Linux equivalent or to be dropped.
-- **Confirm `Console`/`EntityCache` actually moved to `AtE.Core`** (the move is documented but
-  unverified by build); `LinuxProgram` references them.
+- ✅ **`LinuxProgram.Main` un-stubbed.** It no longer throws; it now runs the full startup sequence
+  verbatim from `AtE.Windows/Program.Main` against the portable `AtE.Core` orchestration:
+  `Platform.Initialise(new LinuxPlatform())` → `Overlay.Initialise()` →
+  `RunForever("PoEMemory", PoEMemory.OnTick)` → `Run(PluginBase.Machine)` → `Run(new Console())` →
+  start the `EntityCache.MainThread` worker thread → `Overlay.RenderLoop()` (blocking) → `Join` the
+  worker on exit. The cross-check against the Windows `Main` found no Windows-only setup to port: that
+  `Main` has no single-instance mutex, no `AppDomain`/working-directory assumptions, and no exception
+  dialog — the two `Main`s now differ only in which `IPlatform` they construct. `Run`/`RunForever`/`Log`
+  come from `using static AtE.Globals`; `PluginBase.Machine` and `EntityCache.MainThread` are `internal`
+  in the core and reached via the `[InternalsVisibleTo("AtE.Linux")]` declared in `AtE.Core.csproj`.
+- ✅ **`Console`/`EntityCache` confirmed present in `AtE.Core`** (`AtE.Core/Console.cs`,
+  `AtE.Core/PoE/EntityCache.cs`), along with `Overlay.Initialise`/`RenderLoop` (`AtE.Core/Overlay/Overlay.cs`)
+  — all referenced by `LinuxProgram.Main`.
+- ⚠️ **Not yet run end-to-end.** The host compiles and composes, but actual runtime behaviour against a
+  live game is still gated on the renderer/window/input polish in C–F.
 
 ### C. Runtime asset packaging
 
@@ -411,42 +417,66 @@ want to tackle them:
 
 ### D. Renderer polish (`LinuxRenderer`)
 
-- **Keyboard & text input to ImGui.** There is no WinForms event pump on Linux, so the renderer only
-  feeds ImGui the cursor position and the three mouse buttons (polled from `IInputSource`). ImGui
-  receives no key-down/up, no typed characters, and no modifier state, so text fields and keyboard
-  navigation in ImGui windows won't work. To fix, have `LinuxOverlayWindow` select
-  `KeyPress`/`KeyRelease`/`ButtonPress`/`ButtonRelease` events (it currently only selects
-  `StructureNotify`/`Exposure`) while its input region is active (i.e. when click-through is off),
-  forward them across the seam, and translate into `io.KeysDown`/`io.KeyMap`/`io.AddInputCharacter`
-  plus `KeyShift`/`KeyCtrl`/`KeyAlt` — the analogue of `ImGuiController`'s WinForms wiring. Note the
-  chicken-and-egg with click-through: the overlay only receives X input once the input region is
-  restored, which today happens based on `WantCapture*` from the *previous* frame.
-- **Mouse wheel.** `io.MouseWheel` is never set (Windows feeds it from the `MouseWheel` event); route
-  X button-4/5 (or XInput2 smooth-scroll) once event forwarding exists.
-- **Mouse buttons are read from the global pointer mask**, not from events delivered to the overlay,
-  so ImGui sees a button as "down" even when the click was meant for the game. Prefer real
-  `ButtonPress`/`ButtonRelease` events once D's event forwarding lands.
-- **GL resource cleanup / context teardown.** The renderer never calls `glXDestroyContext`,
-  `glXMakeCurrent(None)`, or `glDeleteTextures`, and exposes no `Dispose`/shutdown hook (the
-  `glDeleteTextures` import is declared but unused). Add a teardown path wired to `Overlay.Close`/
-  window close so the GLX context and the font/sprite/loaded textures are released. `LinuxInputSink`
-  already models the `IDisposable` + finalizer pattern to follow.
-- **Threading assumption.** The GLX context is made current once on the render-loop thread and all
-  GL (including `LoadTexture`) must run there. Confirm no plugin calls `Renderer.LoadTexture` off the
-  render thread; if any do, either marshal the upload onto the render thread or create a shared
-  context. (The Windows backend has no such constraint because D3D11 device contexts are free-threaded
-  for resource creation.)
-- **PNG decoder scope.** The built-in decoder handles only 8-bit, non-interlaced, colour-type 2 (RGB)
-  / 6 (RGBA). Palette (3), grayscale (0/4), 16-bit, and Adam7-interlaced PNGs are rejected. Fine for
-  the current `Sprites.png`, but if future assets need more, either extend the decoder or pull in a
-  small managed decoder. (`SkiaSharp`/`ImageSharp` would also remove the need for it entirely.)
-- **HiDPI.** `io.DisplayFramebufferScale` is hardcoded to `1.0` and the framebuffer size is assumed
-  equal to the window size in pixels. Wire real scale/`ConfigureNotify` framebuffer size if HiDPI/
-  fractional-scaling support is wanted.
-- **Optional renderer consolidation.** The cheat-sheet's original idea — adopt one cross-platform GPU
-  layer (Veldrid/Silk.NET) for *both* platforms and collapse the `IRenderer` seam to a single backend,
-  removing SharpDX — still stands as a larger refactor. The current two-backend split (SharpDX D3D11
-  on Windows, fixed-function GLX here) is the lower-risk path that's now in place.
+The concrete input/lifecycle items (keyboard/text, wheel, event-driven buttons, GL teardown, the
+threading guard) are now done. The remaining three are the explicitly conditional/optional ones
+(PNG-decoder scope, HiDPI, the cross-platform GPU consolidation), left deliberately with their
+rationale below.
+
+- ✅ **Keyboard & text input to ImGui.** `LinuxOverlayWindow` now selects
+  `KeyPress`/`KeyRelease`/`ButtonPress`/`ButtonRelease` (added to the create-time event mask alongside
+  `StructureNotify`/`Exposure`), decodes each X event into an X11-free `LinuxOverlayInput` record
+  (resolving the KeySym via a new `LinuxInputSource.KeysymToVKey` — the inverse of the existing
+  `VKeyToKeysym`, kept next to it so keysym knowledge stays in one file — and typed characters via
+  `XLookupString`), and queues them. The renderer drains the queue each `BeginFrame` (same render-loop
+  thread, so the lock is only defensive) and feeds ImGui `io.KeysDown` (VK-indexed), `io.AddInputCharacter`,
+  and `io.KeyShift`/`KeyCtrl`/`KeyAlt`; it also sets up `io.KeyMap` identically to `ImGuiController`. This
+  is the Linux analogue of the WinForms `KeyDown`/`KeyUp`/`KeyPress` wiring. The click-through
+  chicken-and-egg is unchanged (the empty XShape input region gates *delivery*, so these events only
+  arrive once `WantCapture*` from the previous frame turned click-through off). **Runtime caveat:** X
+  delivers `KeyPress` only to the window holding keyboard focus; a WM-managed utility window may not get
+  focus from a click, so keyboard entry into ImGui fields may still need a focus nudge
+  (`XSetInputFocus`) or compositor validation — tracked with the other runtime items in E.
+- ✅ **Mouse wheel.** X buttons 4/5 (vertical wheel) are translated to `io.MouseWheel` (+1/−1 per notch),
+  accumulated per frame. Horizontal-wheel buttons 6/7 and XInput2 smooth-scroll remain unwired (not
+  needed by current plugins).
+- ✅ **Event-driven mouse buttons.** `io.MouseDown` is now driven by real `ButtonPress`/`ButtonRelease`
+  events delivered to the overlay (X1/X2 included), not the global pointer mask, so ImGui no longer sees
+  a click meant for the game as its own. Held state is cleared whenever click-through is on (ImGui not
+  capturing) so a release that fell through to the game can't leave a button stuck down. Cursor
+  *position* is still polled globally (the shaped-out input region means X delivers no motion events to
+  the overlay) — position isn't a click, so this is correct.
+- ✅ **GL resource cleanup / context teardown.** `LinuxRenderer` now tracks every GL texture it creates
+  (font + sprite atlases, any `LoadTexture` result) and has an idempotent `Shutdown()` that
+  `glDeleteTextures` them, `glXMakeCurrent(None)` + `glXDestroyContext`, and `ImGui.DestroyContext`. It
+  implements `IDisposable` (`Dispose() => Shutdown()`). Teardown is invoked from
+  `LinuxOverlayWindow.RunMessageLoop`'s `finally` — on the render-loop thread, while the `Display*` and
+  drawable are still valid, before the window/display are destroyed — because GL/GLX calls are only
+  valid on the thread the context is current on. `Close()` was correspondingly reduced to *signalling*
+  the loop to stop (the loop then tears down on its own thread); window/display destruction moved into a
+  private `DestroyWindow()` run from the same `finally`, with a `loopRunning` guard so a `Close()` from
+  another thread can't cause a double `XDestroyWindow`. Deliberate deviation from the `LinuxInputSink`
+  pattern: **no finalizer** — a finalizer runs on the GC thread where the GLX context isn't current, so
+  calling GL there would be invalid; teardown must come through the render-loop thread.
+- ✅ **Threading assumption — confirmed.** Audited: `Renderer.LoadTexture` has **no callers anywhere** in
+  the codebase today (the only texture uploads are the font + sprite atlases, done in `Initialise` on
+  the render-loop thread), and every per-frame call into the renderer happens inside
+  `Machine.DefaultMachine.OnTick`, which runs in `Overlay.RenderLoop`'s `onFrame` on the render-loop
+  thread (so even `PoEMemory.OnTick`'s `Clear`/gating calls are on-thread). As a guard for the future,
+  `LoadTexture` records the render thread id at context creation and logs a loud warning if ever called
+  off it (recommending marshalling onto the render thread or a shared context).
+- ⚠️ **PNG decoder scope (unchanged — conditional).** Still handles only 8-bit, non-interlaced,
+  colour-type 2 (RGB) / 6 (RGBA); palette/grayscale/16-bit/Adam7 are rejected with a clear log. This is
+  sufficient for the current `Sprites.png` and any `LoadTexture` asset, and the item is explicitly
+  future-conditional, so it was left as-is. If future assets need more, extend the decoder or adopt
+  `SkiaSharp`/`ImageSharp` (which would remove the built-in decoder entirely).
+- ⚠️ **HiDPI (unchanged — conditional).** `io.DisplayFramebufferScale` stays `1.0` and the framebuffer
+  size is taken equal to the window pixel size. Real scale detection is environment-specific (Xrandr /
+  `Xft.dpi` / `ConfigureNotify` framebuffer size) and only wanted under fractional scaling, so it is left
+  for when HiDPI support is actually needed rather than implemented half-way.
+- ⚠️ **Optional renderer consolidation (unchanged — larger refactor).** Adopting one cross-platform GPU
+  layer (Veldrid/Silk.NET) for *both* platforms to collapse the `IRenderer` seam and drop SharpDX still
+  stands as a larger, separate refactor. The current two-backend split (SharpDX D3D11 on Windows,
+  fixed-function GLX here) is the lower-risk path now in place.
 
 ### E. Window seam (`LinuxOverlayWindow`) follow-ups
 
