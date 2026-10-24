@@ -307,7 +307,6 @@ namespace AtE {
 			[FieldOffset(0x209)] public readonly GameStateType Kind;
 			// 3.23.2: 2 new bytes here
 			[FieldOffset(0x218)] public readonly IntPtr ptrData; // ptr to InGameState_Data struct
-			[FieldOffset(0x220)] public readonly int TicksPerLastFrame; // 1000 ticks = 1 ms
 			// 3.28.0: 8 fewer bytes here
 			[FieldOffset(0x270)] public readonly IntPtr ptrWorldData; // ptr to WorldData
 			[FieldOffset(0x290)] public readonly IntPtr ptrUIElements; // ptr to InGameState_UIElements
@@ -322,6 +321,11 @@ namespace AtE {
 			[FieldOffset(0x5a0)] public readonly IntPtr elemRoot;
 			[FieldOffset(0x5b0)] public readonly IntPtr elemInputFocus; // which element has input focus or null
 			[FieldOffset(0x5d8)] public readonly IntPtr elemHover; // element which is currently hovered
+			// 3.29.3: confirmed with MemoryServer /track over 10s (r2=1.0000, no flat intervals)
+			[FieldOffset(0x92c)] public readonly int GameTimeMs; // int32 counter, 1000/s (999.98 measured), ~52 million = 14.6 hours at test time
+			[FieldOffset(0x930)] public readonly float FrameDeltaSec; // jitters 0.016-0.019, last frame duration
+			[FieldOffset(0x934)] public readonly float GameTimeSec; // float32, == GameTimeMs / 1000, 1.0/s
+			[FieldOffset(0x93a)] public readonly bool IsRunning;
 			// 3.28.0: 40 new bytes here
 			[FieldOffset(0x5b8)] public readonly Vector2 MousePos;
 			[FieldOffset(0x5b8)] public readonly int MousePosX;

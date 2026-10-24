@@ -170,31 +170,8 @@ namespace AtE {
 			}
 		}
 
-		public bool IsPaused => Data.Value.CurrentPtr != IntPtr.Zero && Data.Value.CurrentPtr == Data.Value.PausedPtr;
-
-		public void DebugIsPaused() {
-			ImGui.Begin("Paused Debug");
-			ImGui.Text("(1) Running: " + Describe(Data.Value.RunningPtr));
-			if( PoEMemory.TryRead(Data.Value.RunningPtr, out IntPtr runningPtrValue)) {
-				ImGui.SameLine();
-				ImGui.Text("Value: " + Describe(runningPtrValue));
-			}
-			ImGui.Text("(2) Current: " + Describe(Data.Value.CurrentPtr));
-			if( PoEMemory.TryRead(Data.Value.CurrentPtr, out IntPtr currentPtrValue)) {
-				ImGui.SameLine();
-				ImGui.Text("Value: " + Describe(currentPtrValue));
-			}
-			ImGui.Text("(3) Paused: " + Describe(Data.Value.PausedPtr));
-			if( PoEMemory.TryRead(Data.Value.PausedPtr, out IntPtr pausedPtrValue)) {
-				ImGui.SameLine();
-				ImGui.Text("Value: " + Describe(pausedPtrValue));
-				if( PoEMemory.TryRead(pausedPtrValue, out IntPtr pausedPtrValueValue)) {
-					ImGui.SameLine();
-					ImGui.Text("Value: " + Describe(pausedPtrValueValue));
-				}
-			}
-			ImGui.End();
-		}
+		public bool IsRunning => Cache.IsRunning;
+		public bool IsPaused => !Cache.IsRunning;
 
 		public Element Hovered => IsValid(Address) && ElementCache.TryGetElement(Cache.elemHover, out Element hover) ? hover : null;
 
