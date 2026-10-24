@@ -126,9 +126,7 @@ namespace AtE {
 				if ( cur == null ) continue;
 
 				if ( line.StartsWith("\t\t", StringComparison.Ordinal) ) {
-					Entry entry;
-					try { entry = ParseEntry(line); }
-					catch ( FormatException ) { continue; }   // skip a malformed line, keep the file
+					Entry entry = ParseEntry(line);   // null for a malformed line, which is skipped
 					if ( entry == null ) continue;
 					if ( lang == "English" ) cur.English.Add(entry);
 					if ( lang == wanted && wanted != "English" ) cur.Wanted.Add(entry);
@@ -158,8 +156,12 @@ namespace AtE {
 			if ( q2 >= line.Length ) return null;
 
 			var entry = new Entry();
-			entry.Conditions = line.Substring(0, q1).Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)
-				.Select(ParseCondition).ToArray();
+			var conditions = new List<Condition>();
+			foreach ( string tok in line.Substring(0, q1).Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries) ) {
+				if ( !TryParseCondition(tok, out Condition cond) ) return null;
+				conditions.Add(cond);
+			}
+			entry.Conditions = conditions.ToArray();
 			entry.Template = Unescape(line.Substring(q1 + 1, q2 - q1 - 1));
 
 			Handler last = null;
@@ -174,24 +176,31 @@ namespace AtE {
 			return entry;
 		}
 
-		private static Condition ParseCondition(string tok) {
-			var c = new Condition { Lo = long.MinValue, Hi = long.MaxValue };
-			if ( tok == "#" ) return c;
+		private static bool TryParseCondition(string tok, out Condition c) {
+			c = new Condition { Lo = long.MinValue, Hi = long.MaxValue };
+			if ( tok == "#" ) return true;
 			if ( tok[0] == '!' ) {
 				c.Not = true;
-				c.Lo = c.Hi = long.Parse(tok.Substring(1), CultureInfo.InvariantCulture);
-				return c;
+				if ( !long.TryParse(tok.Substring(1), NumberStyles.Integer, CultureInfo.InvariantCulture, out long not) ) return false;
+				c.Lo = c.Hi = not;
+				return true;
 			}
-			int bar = tok.IndexOf('|');
-			if ( bar < 0 ) {
-				c.Lo = c.Hi = long.Parse(tok, CultureInfo.InvariantCulture);
-				return c;
-			}
-			// "lo|hi"; the data has one stray "a|b|#" which is read as just "a|b".
+			// "N", or "lo|hi" with # for unbounded. The data has one stray "a|b|#", read as just "a|b".
 			string[] parts = tok.Split('|');
-			if ( parts[0] != "#" ) c.Lo = long.Parse(parts[0], CultureInfo.InvariantCulture);
-			if ( parts[1] != "#" ) c.Hi = long.Parse(parts[1], CultureInfo.InvariantCulture);
-			return c;
+			if ( parts.Length == 1 ) {
+				if ( !long.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out long exact) ) return false;
+				c.Lo = c.Hi = exact;
+				return true;
+			}
+			if ( parts[0] != "#" ) {
+				if ( !long.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out long lo) ) return false;
+				c.Lo = lo;
+			}
+			if ( parts[1] != "#" ) {
+				if ( !long.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out long hi) ) return false;
+				c.Hi = hi;
+			}
+			return true;
 		}
 
 		private static string Unescape(string s) {
@@ -274,6 +283,31 @@ namespace AtE {
 				if ( !string.IsNullOrEmpty(text) ) lines.Add(text);
 			}
 			return string.Join("\n", lines);
+		}
+
+		/// <summary>
+		/// The raw format string for one stat of a mod, e.g. "{0:+d} to maximum Mana", unrendered.
+		/// Of a block's several lines (increased/reduced, singular/plural ...) it returns the one this
+		/// mod's values select. A block covering several stats gives the same string for each of them.
+		/// Newlines inside a template are shown as the file writes them, a backslash and an n.
+		/// </summary>
+		public string FormatString(IList<StatValue> stats, int index, string domain = null) {
+			if ( !TryFind(stats[index].Id, PreferredFile(domain), out Block block, out bool silent) )
+				return silent ? "(no_description)" : "(no description)";
+
+			var values = new StatValue[block.Ids.Length];
+			for ( int k = 0; k < values.Length; k++ ) {
+				values[k] = new StatValue(block.Ids[k], 0, 0);
+				for ( int j = 0; j < stats.Count; j++ ) {
+					if ( stats[j].Id != block.Ids[k] ) continue;
+					values[k] = stats[j];
+					break;
+				}
+			}
+			var entries = block.Entries;
+			if ( entries.Count == 0 ) return "(no description)";
+			Entry chosen = Pick(entries, values, useMax: false) ?? Pick(entries, values, useMax: true) ?? entries[0];
+			return chosen.Template.Replace("\n", "\\n");
 		}
 
 		private static string Range(long min, long max) => min == max ? min.ToString(CultureInfo.InvariantCulture) : $"({min}-{max})";

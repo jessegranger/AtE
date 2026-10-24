@@ -111,6 +111,7 @@ namespace AtE.Plugins {
 			}
 
 			var matchColor = new Vector4(1f, 0.85f, 0.3f, 1f);
+			var currentColor = new Vector4(1f, 0.6f, 0.1f, 1f);
 			int currentLine = current >= 0 ? matchLines[current] : -1;
 			var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper_ImGuiListClipper());
 			clipper.Begin(lines.Length, lineHeight);
@@ -118,9 +119,12 @@ namespace AtE.Plugins {
 				for ( int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++ ) {
 					// ImGui has no tab stops; expand them so indentation survives.
 					string text = $"{i + 1,7}  {lines[i].Replace("\t", "    ")}";
-					if ( i == currentLine ) ImGui.TextColored(new Vector4(1f, 0.6f, 0.1f, 1f), text);
-					else if ( isMatch != null && isMatch[i] ) ImGui.TextColored(matchColor, text);
-					else ImGui.TextUnformatted(text);
+					// Not ImGui.TextColored: it is printf-style, and these files are full of '%'.
+					bool isCurrent = i == currentLine;
+					bool highlight = isCurrent || (isMatch != null && isMatch[i]);
+					if ( highlight ) ImGui.PushStyleColor(ImGuiCol.Text, isCurrent ? currentColor : matchColor);
+					ImGui.TextUnformatted(text);
+					if ( highlight ) ImGui.PopStyleColor();
 				}
 			}
 			clipper.End();

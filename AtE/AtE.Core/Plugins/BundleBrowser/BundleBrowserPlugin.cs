@@ -309,7 +309,7 @@ namespace AtE.Plugins {
 
 		private void DrawDetails() {
 			if ( selectedPath == null ) {
-				ImGui.TextWrapped("Pick a file on the left. .dds art previews here; text files show their first lines.");
+				ImGui.TextWrapped("Pick a file on the left. .dds art previews here, text files open in a searchable viewer, and .datc64 tables with a saved schema open as a grid.");
 				return;
 			}
 			ImGui.PushTextWrapPos(0f);
