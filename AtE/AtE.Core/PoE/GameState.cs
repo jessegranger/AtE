@@ -170,8 +170,7 @@ namespace AtE {
 			}
 		}
 
-		public bool IsRunning => Cache.IsRunning;
-		public bool IsPaused => !Cache.IsRunning;
+		public bool IsPaused => Data.Value.IsPaused;
 
 		public Element Hovered => IsValid(Address) && ElementCache.TryGetElement(Cache.elemHover, out Element hover) ? hover : null;
 

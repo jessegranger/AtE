@@ -538,6 +538,12 @@ namespace AtE {
 			[FieldOffset(0xa28)] public readonly IntPtr EntityListHead; // ptr EntityListNode
 			[FieldOffset(0xa30)] public readonly long EntitiesCount;
 			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
+
+			// 3.29.3: confirmed with MemoryServer /track: int32 tick counter, ~9.5/s in steps (96% flat sampling at 20ms),
+			// FREEZES while the game is paused (read 16322 constant while paused, resumed from there). Simulation tick, not real time.
+			[FieldOffset(0xB18)] public readonly int SimulationTicks;
+			// 3.29.3 tentative: bytes at 0xB9C and 0xB9D read 1,1 while paused and 0 while running (single observation each)
+			[FieldOffset(0xB9C)] public readonly bool IsPaused;
 		}
 
 		/// <summary>

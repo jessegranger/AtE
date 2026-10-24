@@ -491,11 +491,11 @@ namespace AtE.Plugins {
 					return this;
 				}
 
-				// as of now (3.27) this is unreliable
-				// if ( gameRoot.InGameState?.IsPaused ?? true ) {
-					// DrawBottomLeftText("Skills are paused when the game is paused.", Color.LightGray);
-					// return this;
-				// }
+				if ( gameRoot.InGameState?.IsPaused ?? true ) {
+					DrawBottomLeftText("Skills are paused when the game is paused.", Color.LightGray);
+					return this;
+				}
+
 				if ( gameRoot.EscapeState?.Menu != null ) {
 					DrawBottomLeftText("Skills are paused for Escape menu.", Color.LightGray);
 					return this;

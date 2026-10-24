@@ -107,11 +107,10 @@ namespace AtE {
 				return this;
 			}
 
-			// as of now (3.27) this is unreliable
-			// if ( PoEMemory.GameRoot?.InGameState.IsPaused ?? true ) {
-			// DrawBottomLeftText("Flasks are paused when the game is paused", Color.LightGray);
-			// return this;
-			// }
+			if ( PoEMemory.GameRoot?.InGameState.IsPaused ?? true ) {
+				DrawBottomLeftText("Flasks are paused when the game is paused", Color.LightGray);
+				return this;
+			}
 
 			if ( gameRoot.EscapeState?.Menu != null ) {
 				DrawBottomLeftText("Flasks are paused for Escape menu.", Color.LightGray);

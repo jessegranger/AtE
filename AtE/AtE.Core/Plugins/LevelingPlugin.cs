@@ -377,7 +377,7 @@ namespace AtE {
 			}
 
 
-			if ( DismissStoryText ) {
+			if ( DismissStoryText && !( PoEMemory.GameRoot?.InGameState.IsPaused ?? true ) ) {
 				var dialog = ui.NpcOptions;
 				
 				/*
