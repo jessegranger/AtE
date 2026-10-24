@@ -186,7 +186,7 @@ namespace AtE.Plugins {
 					}
 				} else if ( ShowLeagueResources && path.StartsWith("Metadata/MiscellaneousObjects/Azmeri") ) {
 					TryGetLeagueResourceIcon(ent, out icon, out iconSize);
-				} else if ( ShowLeagueResources && path.StartsWith("Metadata/Terrain/Leagues/Azmeri") ) {
+				} else if ( ShowLeagueResources && path.StartsWith("Metadata/Terrain/Leagues/") ) {
 					TryGetLeagueResourceIcon(ent, out icon, out iconSize);
 					// icon = SpriteIcon.GreenExclamation;
 					// iconSize = 1.25f;
@@ -262,6 +262,14 @@ namespace AtE.Plugins {
 				icon = SpriteIcon.None;
 			} else if ( path.EndsWith("IntroTunnelPath") ) {
 				icon = SpriteIcon.GreenFlag;
+			} else if ( path.EndsWith("GoldenLantern") ) {
+				icon = SpriteIcon.YellowExclamation;
+				iconSize = 1.75f;
+			} else if ( path.EndsWith("Encounter") ) {
+				icon = SpriteIcon.GreenExclamation;
+				iconSize = 1.75f;
+			} else if ( path.Contains("ResourceChest") || path.EndsWith("PlacementController") || path.EndsWith("Pointer") || path.EndsWith("Lantern") || path.EndsWith("AnchorHigh") ) {
+				icon = SpriteIcon.None;
 			} else if ( DebugUnknownResources ) {
 				DrawBottomLeftText($"Unknown Terrain: {ent.Path}", Color.Yellow);
 				DrawTextAt(ent, ent.Path, Color.White);
@@ -346,6 +354,8 @@ namespace AtE.Plugins {
 						icon = SpriteIcon.RewardScarabs;
 					} else if ( path.EndsWith("BottledItemChest") ) {
 						icon = SpriteIcon.LargeYellowStar;
+					} else if ( path.EndsWith("CurrencyTreasureChest") ) {
+						icon = SpriteIcon.RewardCurrency;
 					} else if ( path.EndsWith("ClamTreasureChest") ) {
 						icon = SpriteIcon.LargeYellowCross;
 						iconSize = 1.75f;
@@ -552,6 +562,7 @@ namespace AtE.Plugins {
 					}
 					var overheadIconSize = IconSize * GetMapZoom() * 8;
 					DrawSprite(icon, overhead, overheadIconSize, overheadIconSize);
+					DrawTextAt(ent, ent.Path, Color.White);
 					/*
 					ImGui.Begin("debug_overhead");
 					ImGui.Text("Overhead vector result:");
