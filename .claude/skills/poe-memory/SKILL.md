@@ -33,6 +33,8 @@ In a URL write `+` as `%2B` (a bare `+` becomes a space, which is also accepted 
 | `/record?at=A&at=B&len=0x40&len=0x100&ms=100&dur=30000&name=label` | same sampling, written to `memdumps/<name>-<time>.jsonl` beside the exe (header line with meta, then `{"t":ms,"hex":[...]}`). For long runs / offline analysis in Python |
 | `/info?id=ID&skill=<owner skill name>` | ground truth for an entity: buffs (Timer/MaxTime), animation controller `TimeSpentAnimating`, duration-ish stats, owner skill `MinionDuration` (skill name lookup is unreliable; `animate_weapon` was not found) |
 | `/scan?id=ID&value=1.75,3000&tol=0.01&kind=f32\|i32\|both&depth=1&len=0x400` | find values across every component of an entity (plus the animated object's components) and pointees. Reports label paths like `Comp+0x20*+0x38` |
+| `/hunt?filter=AnimatedWeapon&dur=85.6&rate=30&tol=45&player=1` | for each matching entity predict deadline/spawn/remaining/elapsed values (ticks, ms, s) from SimulationTicks + `TimeSpentAnimating` + known duration and print TSV hits (`ent T elapsed label type value candidate delta`). Very noisy at wide `tol` (small ints and entity ids match by chance); aggregate offline and trust only low-variance deltas. `player=1` also scans the player's graph (heavy; the overlay crashed once during such a run, cause not established) |
+| `/dump?filter=AnimatedWeapon&depth=1&len=0x400&limit=40` | raw hex of every matching entity's component graph, header `#ENT id T game_ms elapsed`. ~5 MB for 15 entities and it stalls the overlay main thread for several seconds, so save to a file with `-o` and analyze offline. Use `corr.py` (below) on it |
 | `/gsnap?id=ID&name=a&depth=1&len=0x400` | snapshot all components + pointees (+ animated object) under a label |
 | `/gdiff?name=a[&name2=b][&top=1][&match=Comp]` | re-read now (or vs snapshot b) and list changed 4-byte slots. **Use `top=1`** (component bodies only) first: pointee regions are full of heap-reuse noise |
 
@@ -49,6 +51,11 @@ Reverse engineering here is differential. Form a hypothesis, run a controlled ex
 5. **Distinguish per-entity from shared:** compare several entities of the same type. A pointer that is identical across entities (e.g. DiesAfterTime `+0x20`) points at shared static data, not per-entity state.
 6. **Record**: write confirmed offsets into `AtE.Core/PoE/Offsets.cs` with a name, the game version (`Offsets.PoEVersion`), and a comment on the evidence. Mark unconfirmed ones as unknown rather than guessing.
 
+## Offline correlation across entities (`corr.py`)
+
+When many entities of one type exist, a per-entity stamp can be found without knowing units: `curl -s .../dump -o d.txt; python .claude/skills/poe-memory/corr.py d.txt real 0.95 40`.
+It fits every 4/8-byte slot (i32/f32/i64/f64) against each entity's creation time (`game_ms - elapsed*1000`) and prints slots with |Pearson r| above the threshold. Entity ids correlate ~0.95 with creation order, so r in the 0.95 range on `Entity+0x88` or an Actor/Life pointee chain is noise; look for r>0.99 and confirm that the value is constant per entity across two dumps. Many labels are the same memory reached through pointer cycles; deduplicate mentally.
+
 ## Cautions
 
 - **Paused game.** The user can pause so state does not move (and so a minion does not expire during analysis). Simulation time stops, but the real-time clock below keeps running.
@@ -63,6 +70,10 @@ Reverse engineering here is differential. Form a hypothesis, run a controlled ex
 - Player `Actor+0x740`: ArrayHandle (head, tail) of `DeployedObjectsArrayEntry` (12-byte entries: EntityId, SkillId, unknown int). Entry `i` is at `head + 12*i`.
 - `DiesAfterTime` component is only 0x28 bytes: vtable, owner entity (+0x08), second vtable (+0x18), pointer (+0x20) to a *shared* object (same address across entities; contains small records, an effect-related texture reference). No per-entity timer was found in it, nor anywhere else in the minion's components, for Animate Weapon (checked across ~5 simulated seconds and across a refresh).
 - `ClientAnimationController+0x1A4` `TimeSpentAnimating` is simulation time (stops when paused).
+
+- `InGameState_Data.SimulationTicks` int32 at `ingame+0x218*+0xB18` (found by another session). Counts up in irregular steps, measured 24.7-27.7/s (not a clean 30/s), and **resets on area change**. Do not assume a fixed tick rate when converting to seconds.
+- Animated object's `AnimatedRender+0x1E8` is a per-entity constant float = the animated object's creation time in seconds on the animation clock (`TimeSpentAnimating == animClockNow - this`; verified over 27 AnimatedWeapon observations; slope 1.0/s vs creation real time; unchanged between dumps). It is the animated object's start stamp, so it encodes the same information as `TimeSpentAnimating` and does not fix refresh desync by itself.
+- No creation tick/deadline for an AnimatedWeapon was found in the entity's own components (depth 1), the animated object, or the owner's DeployedObjects entry (checked with `/hunt` over 16 entities and `corr.py` over 15).
 
 ## Open questions
 

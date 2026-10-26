@@ -167,6 +167,12 @@ namespace AtE {
 					return RunOnMain(() => Ents(q["filter"], q["comp"], q["id"], ParseInt(q["limit"], 30)));
 				case "/info":
 					return RunOnMain(() => Info(ParseInt(q["id"], 0), q["skill"]));
+				case "/dump":
+					return RunOnMain(() => Dump(q["filter"] ?? "AnimatedWeapon", ParseInt(q["depth"], 1), ParseInt(q["len"], 0x400), ParseInt(q["limit"], 40)));
+				case "/hunt":
+					return RunOnMain(() => Hunt(q["filter"] ?? "AnimatedWeapon", double.Parse(q["dur"] ?? "85.6", CultureInfo.InvariantCulture),
+						double.Parse(q["rate"] ?? "30", CultureInfo.InvariantCulture), double.Parse(q["tol"] ?? "45", CultureInfo.InvariantCulture),
+						ParseInt(q["depth"], 1), ParseInt(q["len"], 0x400), q["player"] == "1"));
 				case "/gsnap":
 					return RunOnMain(() => GraphSnap(ParseInt(q["id"], 0), q["name"] ?? "a", ParseInt(q["depth"], 1), ParseInt(q["len"], 0x400)));
 				case "/gdiff":
@@ -360,6 +366,129 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 				}
 			}
 			sb.AppendLine($"# {changedSlots} changed 4-byte slots" + (changedSlots > lines ? " (output capped at 1500)" : ""));
+			return sb.ToString();
+		}
+
+		/// <summary>
+		/// Simulation ticks (the server tick counter, ~30/s). Lives in InGameState_Data, at ingame+0x218*+0xB18.
+		/// </summary>
+		private static bool TryReadSimTicks(out long ticks) {
+			ticks = 0;
+			var igs = PoEMemory.GameRoot?.InGameState;
+			if ( !IsValid(igs) || !PoEMemory.TryRead(igs.Address + 0x218, out IntPtr data) || !IsValid(data) ) return false;
+			if ( !PoEMemory.TryRead(data + 0xB18, out int t) ) return false;
+			ticks = t;
+			return true;
+		}
+
+		/// <summary>
+		/// Look for a deadline/start stamp/remaining-time for every live entity whose path matches `filter`.
+		/// Given the simulation tick now (T), the entity's elapsed animation time and its known total duration,
+		/// predict the values a deadline, spawn stamp, remaining or elapsed field would hold (in ticks, ms and seconds)
+		/// and report every 4/8 byte slot in the entity's components (+ pointees, + animated object, + the owner's
+		/// DeployedObjects entry) that is within tolerance. One TSV line per hit; aggregate across calls offline:
+		///   ent  T  elapsed_s  label  type  value  candidate  delta
+		/// </summary>
+		private string Hunt(string filter, double durSec, double rate, double tolTicks, int depth, int len, bool includePlayer) {
+			if ( !TryReadSimTicks(out long T) ) return "error: cannot read SimulationTicks\n";
+			var sb = new StringBuilder();
+			var player = PoEMemory.GameRoot?.InGameState?.Player;
+			sb.AppendLine($"# hunt filter={filter} dur={durSec}s rate={rate}/s T={T} game_time_ms={ReadGameTimeMs()}");
+			int ents = 0;
+			foreach ( var ent in EntityCache.GetEntities().ToList() ) {
+				if ( ent.Path == null || ent.Path.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
+				var cac = ent.GetComponent<Animated>()?.AnimatedObject?.GetComponent<ClientAnimationController>();
+				if ( cac == null ) continue;
+				double elapsed = cac.TimeSpentAnimating;
+				ents++;
+				double E = elapsed * rate, DT = durSec * rate, R = DT - E;
+				double msPerTick = 1000.0 / rate;
+
+				// (name, predicted value, tolerance) for integer slots
+				var intCands = new List<(string name, double value, double tol)> {
+					("deadline_ticks", T + R, tolTicks), ("spawn_ticks", T - E, tolTicks),
+					("remaining_ticks", R, tolTicks), ("elapsed_ticks", E, tolTicks),
+					("duration_ticks", DT, 0.5),
+					("deadline_ms", (T + R) * msPerTick, tolTicks * msPerTick), ("spawn_ms", (T - E) * msPerTick, tolTicks * msPerTick),
+					("remaining_ms", R * msPerTick, tolTicks * msPerTick), ("elapsed_ms", elapsed * 1000, tolTicks * msPerTick),
+					("duration_ms", durSec * 1000, 1),
+				};
+				var floatCands = new List<(string name, double value, double tol)> {
+					("deadline_s", (T + R) / rate, tolTicks / rate), ("spawn_s", (T - E) / rate, tolTicks / rate),
+					("remaining_s", durSec - elapsed, 0.05), ("elapsed_s", elapsed, 0.05), ("duration_s", durSec, 0.0005),
+					("tick_s", T / rate, tolTicks / rate),
+				};
+
+				int hits = 0;
+				void Check(string label, long addr, byte[] buf) {
+					for ( int o = 0; o + 4 <= buf.Length && hits < 300; o += 4 ) {
+						int i32 = BitConverter.ToInt32(buf, o);
+						if ( i32 != 0 ) {
+							foreach ( var c in intCands ) {
+								if ( Math.Abs(i32 - c.value) <= c.tol ) { sb.AppendLine($"{ent.Id}\t{T}\t{elapsed:F3}\t{label}+0x{o:X}\ti32\t{i32}\t{c.name}\t{i32 - c.value:F1}"); hits++; }
+							}
+						}
+						float f = BitConverter.ToSingle(buf, o);
+						if ( !float.IsNaN(f) && f != 0 ) {
+							foreach ( var c in floatCands ) {
+								if ( Math.Abs(f - c.value) <= c.tol ) { sb.AppendLine($"{ent.Id}\t{T}\t{elapsed:F3}\t{label}+0x{o:X}\tf32\t{f:G7}\t{c.name}\t{f - c.value:F3}"); hits++; }
+							}
+						}
+						if ( o % 8 == 0 && o + 8 <= buf.Length ) {
+							long i64 = BitConverter.ToInt64(buf, o);
+							if ( i64 > int.MaxValue || i64 < int.MinValue ) {
+								foreach ( var c in intCands ) {
+									if ( Math.Abs(i64 - c.value) <= c.tol ) { sb.AppendLine($"{ent.Id}\t{T}\t{elapsed:F3}\t{label}+0x{o:X}\ti64\t{i64}\t{c.name}\t{i64 - c.value:F1}"); hits++; }
+								}
+							}
+							double d = BitConverter.ToDouble(buf, o);
+							if ( !double.IsNaN(d) && d != 0 ) {
+								foreach ( var c in floatCands ) {
+									if ( Math.Abs(d - c.value) <= c.tol ) { sb.AppendLine($"{ent.Id}\t{T}\t{elapsed:F3}\t{label}+0x{o:X}\tf64\t{d:G9}\t{c.name}\t{d - c.value:F3}"); hits++; }
+								}
+							}
+						}
+					}
+				}
+
+				WalkEntityGraph(ent, depth, len, (label, addr, data) => Check(label, addr, data));
+
+				// the owner's DeployedObjects entry for this entity (12 bytes: EntityId, SkillId, unknown)
+				var actor = player?.GetComponent<Actor>();
+				if ( actor != null && PoEMemory.TryRead(actor.Address + 0x740, out IntPtr head) && PoEMemory.TryRead(actor.Address + 0x748, out IntPtr tail) ) {
+					long n = (tail.ToInt64() - head.ToInt64()) / 12;
+					for ( long i = 0; i < n && i < 200; i++ ) {
+						var entry = new byte[12];
+						if ( PoEMemory.TryRead(new IntPtr(head.ToInt64() + i * 12), entry) == 12 && BitConverter.ToUInt32(entry, 0) == ent.Id ) {
+							sb.AppendLine($"{ent.Id}\t{T}\t{elapsed:F3}\tdeployedEntry\traw\t{BitConverter.ToString(entry)}\tindex={i}\t");
+							Check("deployedEntry", head.ToInt64() + i * 12, entry);
+						}
+					}
+				}
+				if ( includePlayer && player != null && IsValid(player) ) {
+					WalkEntityGraph(player, depth, len, (label, addr, data) => Check("player:" + label, addr, data));
+				}
+				sb.AppendLine($"# entity {ent.Id} elapsed={elapsed:F3}s hits={hits}");
+			}
+			sb.AppendLine($"# {ents} matching entities");
+			return sb.ToString();
+		}
+
+		/// <summary>
+		/// Raw dump of every matching entity's component graph, for offline correlation (eg: which slot is linear in spawn time).
+		/// Per entity a header line "#ENT id T game_time_ms elapsed_s" followed by "label&lt;TAB&gt;hexbytes" lines.
+		/// </summary>
+		private string Dump(string filter, int depth, int len, int limit) {
+			TryReadSimTicks(out long T);
+			var sb = new StringBuilder();
+			int n = 0;
+			foreach ( var ent in EntityCache.GetEntities().ToList() ) {
+				if ( ent.Path == null || ent.Path.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
+				var cac = ent.GetComponent<Animated>()?.AnimatedObject?.GetComponent<ClientAnimationController>();
+				if ( n++ >= limit ) break;
+				sb.AppendLine($"#ENT\t{ent.Id}\t{T}\t{ReadGameTimeMs()}\t{(cac != null ? cac.TimeSpentAnimating : -1f):F4}");
+				WalkEntityGraph(ent, depth, len, (label, addr, data) => sb.AppendLine($"{label}\t{BitConverter.ToString(data).Replace("-", "")}"));
+			}
 			return sb.ToString();
 		}
 
