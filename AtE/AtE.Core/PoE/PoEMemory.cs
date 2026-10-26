@@ -332,34 +332,82 @@ namespace AtE {
 
 
 
+		/// <summary>
+		/// True if ptr looks like a live GameRoot: the array of GameStateArrayEntry has the engine's
+		/// invariant that every entry's handle pointer is exactly 16 bytes before its state pointer.
+		/// Eleven entries all satisfying that by chance is effectively impossible.
+		/// </summary>
+		private static bool LooksLikeGameRoot(IntPtr ptr) {
+			if ( !TryRead(ptr, out Offsets.GameRoot root) ) return false;
+			if ( !root.InGameState.IsValid || root.InGameState.ptrToGameState == IntPtr.Zero ) return false;
+			if ( !root.AreaLoadingState.IsValid || root.AreaLoadingState.ptrToGameState == IntPtr.Zero ) return false;
+			if ( !root.EscapeState.IsValid || root.EscapeState.ptrToGameState == IntPtr.Zero ) return false;
+			int valid = 0;
+			foreach ( var entry in new[] { root.AreaLoadingState, root.WaitingState, root.CreditsState, root.EscapeState, root.InGameState,
+				root.ChangePasswordState, root.LoginState, root.PreGameState, root.CreateCharacterState, root.SelectCharacterState,
+				root.DeleteCharacterState, root.LoadingState } ) {
+				if ( entry.ptrToGameState != IntPtr.Zero && entry.IsValid ) valid++;
+			}
+			return valid >= 8;
+		}
+
+		/// <summary>
+		/// Find the global that holds the GameRoot pointer. The code pattern is tried first because it
+		/// is instant, but it breaks whenever the compiler reshuffles that function. The fallback does
+		/// not depend on any instruction bytes: it treats every pointer-sized slot in the module image
+		/// that points outside the module as a candidate and keeps the one that validates as a GameRoot
+		/// by its data structure. That works for any build or binary format (PE or ELF) as long as the
+		/// GameRoot layout itself is unchanged.
+		/// </summary>
+		private static bool TryLocateGameRoot(out IntPtr gameRoot) {
+			gameRoot = IntPtr.Zero;
+
+			if ( TryFindPatternInExe(out IntPtr matchAddress, IntPtr.Zero, IntPtr.Zero, Offsets.GameRoot_SearchMask, Offsets.GameRoot_SearchPattern)
+				&& TryRead(matchAddress + Offsets.GameRoot_SearchPattern.Length, out int localOffset)
+				&& TryRead(matchAddress + localOffset, out Offsets.GameRoot_Ref baseRefs)
+				&& LooksLikeGameRoot(baseRefs.ptrToGameRootPtr) ) {
+				Log($"PoEMemory: GameRoot found via code pattern at {Describe(matchAddress)}");
+				gameRoot = baseRefs.ptrToGameRootPtr;
+				return true;
+			}
+
+			Log($"PoEMemory: Code pattern failed, scanning the module image for the GameRoot structure...");
+			if ( !Memory.TryReadImage(out byte[] image) || image == null ) {
+				return false;
+			}
+			long start = Time.ElapsedMilliseconds;
+			long moduleBase = Memory.BaseAddress.ToInt64();
+			long moduleEnd = moduleBase + image.Length;
+			var slots = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, long>(image);
+			int candidates = 0;
+			for ( int i = 0; i < slots.Length; i++ ) {
+				long v = slots[i];
+				if ( v < 0x10000 || v > 0x00007FFFFFFFFFFFL || (v >= moduleBase && v < moduleEnd) || (v & 7) != 0 ) {
+					continue;
+				}
+				candidates++;
+				if ( LooksLikeGameRoot(new IntPtr(v)) ) {
+					Log($"PoEMemory: GameRoot found via structure scan: global at base+0x{i * 8L:X} -> {Describe(new IntPtr(v))} ({candidates} candidates, {Time.ElapsedMilliseconds - start} ms)");
+					gameRoot = new IntPtr(v);
+					return true;
+				}
+			}
+			Log($"PoEMemory: Structure scan found no GameRoot ({candidates} candidates, {Time.ElapsedMilliseconds - start} ms)");
+			return false;
+		}
+
 		// The process is already open (via IProcessMemory.TryAttach); locate the GameStateBase
 		// by scanning the module image, which is the platform-neutral half of attaching.
 		private static void AttachGameRoot(int pid) {
 			Log($"PoEMemory: AttachGameRoot(pid {pid})");
 
-			// Patterns are based from ExileApi Memory.cs
-			if ( !TryFindPatternInExe(out IntPtr matchAddress, IntPtr.Zero, IntPtr.Zero, Offsets.GameRoot_SearchMask, Offsets.GameRoot_SearchPattern) ) {
-				Log($"PoEMemory: Failed to find search pattern in memory.");
-				Detach();
-				return;
-			}
-			Log($"PoEMemory: Game State Base Search Pattern matched at {Describe(matchAddress)}");
-			// this first location is in the code section where the pattern matched (at the start of the pattern)
-			// so skip 8, read an integer from there in the code that is a local offset to a global in the code section
-			if ( !TryRead(matchAddress + Offsets.GameRoot_SearchPattern.Length, out int localOffset) ) {
-				Log($"PoEMemory: Failed to read a localOffset after the search pattern.");
+			if ( !TryLocateGameRoot(out IntPtr gameRootPtr) ) {
+				Log($"PoEMemory: Failed to locate the GameRoot.");
 				Detach();
 				return;
 			}
 
-			// the place in code plus the array index + 0xC has the address of the GameStateBase
-			if ( !TryRead(matchAddress + localOffset, out Offsets.GameRoot_Ref baseRefs) ) {
-				Log($"PoEMemory: Failed to find GameRoot.");
-				Detach();
-				return;
-			}
-
-			GameRoot = new GameRoot() { Address = baseRefs.ptrToGameRootPtr };
+			GameRoot = new GameRoot() { Address = gameRootPtr };
 			Log($"PoEMemory: Game State Base is {Describe(GameRoot.Address)}");
 			if ( !GameRoot.IsValid ) {
 				Log($"PoEMemory: Game State Base address resulted in an invalid GameRoot.");
