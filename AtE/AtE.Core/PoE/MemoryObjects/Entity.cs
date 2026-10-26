@@ -238,6 +238,12 @@ namespace AtE {
 
 		public Animated Animated => GetComponent<Animated>();
 
+		/// <summary>
+		/// Creation time (seconds, animation clock) of this entity's animated object, read from its AnimatedRender.
+		/// NaN if this entity has no animated object. Same information as ClientAnimationController.TimeSpentAnimating.
+		/// </summary>
+		public float CreationTime => Animated?.AnimatedObject?.GetComponent<AnimatedRender>()?.CreationTime ?? float.NaN;
+
 		public void ClearComponents() {
 			ComponentPtrs = null;
 			ComponentCache?.Clear();

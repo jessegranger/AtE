@@ -315,7 +315,10 @@ namespace AtE {
 	public class Melee : Component<Offsets.Component_Empty> { }
 	public class Hull : Component<Offsets.Component_Empty> { }
 	public class AttachedAnimatedObject : Component<Offsets.Component_Empty> { }
-	public class AnimatedRender : Component<Offsets.Component_Empty> { }
+	public class AnimatedRender : Component<Offsets.Component_AnimatedRender> {
+		/// <summary>Creation time in seconds on the animation clock; see <see cref="Offsets.Component_AnimatedRender.CreationTime"/>.</summary>
+		public float CreationTime => Cache.CreationTime;
+	}
 	public class SkinMesh : Component<Offsets.Component_Empty> { }
 	public class Animated : Component<Offsets.Component_Animated> {
 		public Entity AnimatedObject => IsValid(Address) && EntityCache.TryGetEntity(Cache.ptrToAnimatedEntity, out Entity ent) ? ent : null;

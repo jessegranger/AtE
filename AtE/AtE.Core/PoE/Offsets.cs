@@ -1035,6 +1035,16 @@ namespace AtE {
 			// 3.25: 48 new bytes here?
 			[FieldOffset(0x260)] public readonly IntPtr ptrToAnimatedEntity;
 		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_AnimatedRender {
+			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			/// <summary>
+			/// Per-entity constant: the animated object's creation time in seconds on the animation clock
+			/// (ClientAnimationController.TimeSpentAnimating == animClockNow - CreationTime). Same information as
+			/// TimeSpentAnimating, so it desyncs the same way for minions that refresh their duration.
+			/// 3.29.3, verified over 27 AnimatedWeapon observations (slope 1.0/s vs real creation time).
+			/// </summary>
+			[FieldOffset(0x1E8)] public readonly float CreationTime;
+		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_AreaTransition {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
