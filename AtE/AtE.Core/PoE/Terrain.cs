@@ -29,22 +29,54 @@ namespace AtE {
 		}
 
 		private List<AreaExit> exits = new List<AreaExit>();
-		private long exitsUpdated = 0;
+		private List<AreaDoor> doors = new List<AreaDoor>();
+		private long entitiesUpdated = 0;
+		private void UpdateFromEntities() {
+			if ( IsLoaded && Time.ElapsedMilliseconds - entitiesUpdated > 500 ) {
+				AreaExits.UpdateFromEntities(exits);
+				if ( AreaDoors.UpdateFromEntities(this, doors) ) DoorGeneration += 1;
+				entitiesUpdated = Time.ElapsedMilliseconds;
+			}
+		}
+
 		/// <summary>
 		/// The ways out of this area: approximate from the tiles at first, exact once their AreaTransition entity is seen.
 		/// </summary>
 		public IReadOnlyList<AreaExit> Exits {
 			get {
-				if ( IsLoaded && Time.ElapsedMilliseconds - exitsUpdated > 500 ) {
-					AreaExits.UpdateFromEntities(exits);
-					exitsUpdated = Time.ElapsedMilliseconds;
-				}
+				UpdateFromEntities();
 				return exits;
 			}
 		}
 
+		/// <summary>
+		/// The doors seen so far in this area (doors are only known once they come into range).
+		/// </summary>
+		public IReadOnlyList<AreaDoor> Doors {
+			get {
+				UpdateFromEntities();
+				return doors;
+			}
+		}
+
+		/// <summary>
+		/// Goes up each time a door with a new Passage is found, so the Navigator knows to rebuild.
+		/// </summary>
+		public int DoorGeneration { get; private set; } = 0;
+
+		/// <summary>
+		/// Add a door known some other way (eg, without game memory); its Passage is found from the grid if empty.
+		/// </summary>
+		public void AddDoor(AreaDoor door) {
+			if ( door.Passage.Count == 0 ) door.Passage = AreaDoors.FindPassage(this, door.GridMin, door.GridMax);
+			doors.Add(door);
+			DoorGeneration += 1;
+		}
+
 		public void Clear() {
 			exits = new List<AreaExit>();
+			doors = new List<AreaDoor>();
+			DoorGeneration += 1;
 			walkable = projectile = null;
 			loadedFrom = IntPtr.Zero;
 			Width = Height = BytesPerRow = 0;

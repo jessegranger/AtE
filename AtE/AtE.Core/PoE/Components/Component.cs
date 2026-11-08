@@ -946,6 +946,7 @@ namespace AtE {
 
 	public class TriggerableBlockage : Component<Offsets.Component_TriggerableBlockage> {
 		public bool IsOpen => Cache.IsClosed == 0;
+		public bool IsClosed => Cache.IsClosed != 0;
 		public Offsets.Vector2i GridMin => Cache.GridMin;
 		public Offsets.Vector2i GridMax => Cache.GridMax;
 	}

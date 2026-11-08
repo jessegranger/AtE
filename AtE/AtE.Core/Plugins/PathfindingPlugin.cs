@@ -22,6 +22,7 @@ namespace AtE {
 		public int SmoothClearance = 3;
 
 		public bool ShowExits = false;
+		public bool ShowDoors = false;
 		public string RouteGoal = "";
 
 		// when pinned, the test path goes to PinnedTarget instead of the cursor
@@ -52,7 +53,7 @@ namespace AtE {
 			if ( testPath != null ) {
 				ImGui.Text($"Path: {testPath.Cells.Count} cells, {testPath.Waypoints.Count} waypoints, cost {testPath.Cost:F0}");
 				ImGui.Text($"Search ({testPath.Method}): {testPath.Expanded} cells expanded in {testPath.ElapsedMs:F2} ms (worst for this target: {worstPathMs:F2} ms)");
-				ImGui.TextWrapped($"From {testPath.Start} to {testPath.Goal} via {string.Join(" ", testPath.Waypoints.Skip(1).Take(12))}{(testPath.Waypoints.Count > 13 ? " ..." : "")}");
+				ImGui.TextWrapped($"From {testPath.Start} to {testPath.Goal}: {string.Join(" | ", testPath.Steps.Take(12))}{(testPath.Steps.Count > 12 ? " ..." : "")}");
 				if ( ImGui.Button("Save path for debugging") ) {
 					SavePathDebug();
 				}
@@ -87,6 +88,9 @@ namespace AtE {
 		private void RenderExitsPanel(Terrain terrain) {
 			ImGui.Separator();
 			ImGui.Checkbox("Show Exits", ref ShowExits);
+			ImGui.SameLine();
+			ImGui.Checkbox("Show Doors", ref ShowDoors);
+			foreach ( var door in terrain.Doors ) ImGui.Text($"{door}");
 			var area = GetCurrentArea();
 			ImGui.Text($"Area: {area}");
 			if ( area != null ) {
@@ -222,6 +226,36 @@ namespace AtE {
 				DrawGridLine(points[i - 1], points[i], z, Color.Cyan);
 				if ( TryGridToScreen(points[i], z, out Vector2 point) ) DrawCircle(point, 3, Color.Cyan);
 			}
+			// the doors to open on the way: highlight the label to click, or the door if its label is not showing
+			foreach ( var step in testPath.Steps ) {
+				if ( step.Kind != NavStepKind.OpenDoor ) continue;
+				var label = step.Door.GetLabel();
+				if ( IsValid(label) ) {
+					var rect = label.GetClientRect();
+					DrawFrame(rect, Color.Gold, 2);
+					DrawTextAt(new Vector2(rect.X, rect.Y + rect.Height + 2), "click to open", Color.Gold);
+				} else if ( TryGridToScreen(step.Target, z, out Vector2 door) ) {
+					DrawCircle(door, 8, Color.Gold);
+					DrawTextAt(door + new Vector2(10, -6), "open door", Color.Gold);
+				}
+			}
+		}
+
+		private void RenderDoors(Terrain terrain, float z) {
+			foreach ( var door in terrain.Doors ) {
+				Color color = door.IsClosed ? Color.Red : Color.LimeGreen;
+				var min = door.GridMin;
+				var max = door.GridMax;
+				var a = new Offsets.Vector2i(min.X, max.Y);
+				var b = new Offsets.Vector2i(max.X, min.Y);
+				DrawGridLine(min, a, z, color);
+				DrawGridLine(a, max, z, color);
+				DrawGridLine(max, b, z, color);
+				DrawGridLine(b, min, z, color);
+				foreach ( var cell in door.Passage ) {
+					if ( TryGridToScreen(cell, z, out Vector2 dot) ) DrawCircle(dot, 1, color);
+				}
+			}
 		}
 
 		private static Vector2 WindowOffset() =>
@@ -253,6 +287,10 @@ namespace AtE {
 				if ( ShowExits ) {
 					var terrain = GetTerrain();
 					if ( terrain != null ) RenderExits(terrain, playerPos.Z);
+				}
+				if ( ShowDoors ) {
+					var terrain = GetTerrain();
+					if ( terrain != null ) RenderDoors(terrain, playerPos.Z);
 				}
 
 				if ( ShowPathToCursor ) {

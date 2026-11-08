@@ -28,8 +28,24 @@ namespace AtE {
 		public double ElapsedMs;
 		/// <summary>How this path was made: "corridor", "full" (the corridor search failed), or "repair" (re-used a previous path).</summary>
 		public string Method;
-		/// <summary>The Terrain.Generation this path was planned on.</summary>
-		public int Generation;
+		/// <summary>The Terrain.Generation (and DoorGeneration) this path was planned on.</summary>
+		public int Generation, DoorGeneration;
+		/// <summary>
+		/// What to do to follow the path: walk to each waypoint in turn, and open each closed door on the way
+		/// (the waypoint before an OpenDoor step is the cell just in front of the door).
+		/// </summary>
+		public List<NavStep> Steps;
+	}
+
+	public enum NavStepKind { Walk, OpenDoor }
+
+	public class NavStep {
+		public NavStepKind Kind;
+		/// <summary>Walk: where to walk to. OpenDoor: the door's position.</summary>
+		public Offsets.Vector2i Target;
+		/// <summary>OpenDoor: the door to open, by clicking its label (AreaDoor.GetLabel).</summary>
+		public AreaDoor Door;
+		public override string ToString() => Kind == NavStepKind.Walk ? $"walk to {Target}" : $"open door {Door?.EntityId} at {Target}";
 	}
 
 	/// <summary>
@@ -66,6 +82,10 @@ namespace AtE {
 		public int RepairRadius = 12;
 		/// <summary>UpdatePath rejoins the previous path this many cells ahead of the closest point.</summary>
 		public int RepairAhead = 16;
+		/// <summary>The extra cost (in cells walked) of going through a closed door, so open ways are preferred.</summary>
+		public float DoorPenalty = 30f;
+		/// <summary>The clearance given to the cells of a door's passage.</summary>
+		public byte DoorClearance = 3;
 
 		private static readonly int[] DX = { 0, 1, 1, 1, 0, -1, -1, -1 };
 		private static readonly int[] DY = { 1, 1, 0, -1, -1, -1, 0, 1 };
@@ -75,8 +95,13 @@ namespace AtE {
 
 		// the terrain these arrays were built from
 		private Terrain prepared;
-		private int preparedGeneration = -1;
+		private int preparedGeneration = -1, preparedDoorGeneration = -1;
 		private float preparedWallPenalty = float.NaN;
+
+		// doors: the door (index into Terrain.Doors, plus 1) whose passage each padded cell is in, or 0
+		private ushort[] doorAt;
+		private IReadOnlyList<AreaDoor> doors = Array.Empty<AreaDoor>();
+		private bool[] doorClosed = Array.Empty<bool>(); // a snapshot taken before each search
 
 		// fine grid, padded by one blocked cell on every side so neighbors never need a bounds check
 		// cell (x,y) is at index (y + 1) * pw + (x + 1)
@@ -123,7 +148,9 @@ namespace AtE {
 		/// worth calling as soon as the area loads. Searches call it too, so calling it is optional.
 		/// </summary>
 		public void Prepare(Terrain terrain) {
-			if ( prepared == terrain && preparedGeneration == terrain.Generation && preparedWallPenalty == WallPenalty ) return;
+			var terrainDoors = terrain.Doors; // (reading Doors can find new ones, so read it before checking DoorGeneration)
+			if ( prepared == terrain && preparedGeneration == terrain.Generation && preparedDoorGeneration == terrain.DoorGeneration
+				&& preparedWallPenalty == WallPenalty ) return;
 			for ( int c = 0; c < penalty.Length; c++ ) penalty[c] = StepPenalty(c);
 			int width = terrain.Width, height = terrain.Height;
 			if ( clear == null || pw != width + 2 || ph != height + 2 ) {
@@ -131,18 +158,31 @@ namespace AtE {
 				ph = height + 2;
 				int n = pw * ph;
 				clear = new byte[n];
+				doorAt = new ushort[n];
 				g = new float[n];
 				from = new byte[n];
 				stamp = new int[n];
 				gen = 0;
 			} else {
 				Array.Clear(clear, 0, clear.Length);
+				Array.Clear(doorAt, 0, doorAt.Length);
 			}
 			for ( int d = 0; d < 8; d++ ) dirOffset[d] = (DY[d] * pw) + DX[d];
 			terrain.UnpackClearance(clear, pw + 1, pw);
+			// door passages are walkable here (Terrain still has them blocked as they were when the area loaded)
+			doors = terrainDoors;
+			for ( int i = 0; i < doors.Count && i < ushort.MaxValue; i++ ) {
+				foreach ( var cell in doors[i].Passage ) {
+					if ( !terrain.InBounds(cell.X, cell.Y) ) continue;
+					int idx = ((cell.Y + 1) * pw) + cell.X + 1;
+					clear[idx] = Math.Max(clear[idx], DoorClearance);
+					doorAt[idx] = (ushort)(i + 1);
+				}
+			}
 			PrepareRegions(width, height);
 			prepared = terrain;
 			preparedGeneration = terrain.Generation;
+			preparedDoorGeneration = terrain.DoorGeneration;
 			preparedWallPenalty = WallPenalty;
 		}
 
@@ -311,6 +351,7 @@ namespace AtE {
 			if ( !TrySnap(terrain, start, out start) || !TrySnap(terrain, goal, out goal) ) return null;
 			var timer = Stopwatch.StartNew();
 			Prepare(terrain);
+			SnapshotDoors();
 
 			int startR = cellRegion[((start.Y + 1) * pw) + start.X + 1];
 			int goalR = cellRegion[((goal.Y + 1) * pw) + goal.X + 1];
@@ -330,20 +371,17 @@ namespace AtE {
 				cells = Search(start, goal, false, null, ref expanded, out cost);
 			}
 			if ( cells == null ) return null;
-			var waypoints = SmoothIndices(terrain, cells, 0, cells.Count - 1);
-			return new NavPath() {
+			return Finish(new NavPath() {
 				Cells = cells,
 				Plan = cells,
-				Waypoints = Pick(cells, waypoints),
-				WaypointIndices = waypoints,
 				Start = start,
 				Goal = goal,
 				Cost = cost,
 				Expanded = expanded,
-				ElapsedMs = timer.Elapsed.TotalMilliseconds,
 				Method = method,
 				Generation = terrain.Generation,
-			};
+				DoorGeneration = terrain.DoorGeneration,
+			}, timer);
 		}
 
 		/// <summary>
@@ -353,13 +391,16 @@ namespace AtE {
 		/// </summary>
 		public NavPath UpdatePath(NavPath previous, Terrain terrain, Offsets.Vector2i start, Offsets.Vector2i goal) {
 			if ( terrain == null || !terrain.IsLoaded ) return null;
-			if ( previous == null || previous.Generation != terrain.Generation || previous.Cells.Count == 0
+			_ = terrain.Doors; // (finds any new doors, which changes DoorGeneration)
+			if ( previous == null || previous.Generation != terrain.Generation || previous.DoorGeneration != terrain.DoorGeneration
+				|| previous.Cells.Count == 0
 				|| !TrySnap(terrain, goal, out goal) || goal.Id != previous.Goal.Id
 				|| !TrySnap(terrain, start, out start) ) {
 				return FindPath(terrain, start, goal);
 			}
 			var timer = Stopwatch.StartNew();
 			Prepare(terrain);
+			SnapshotDoors();
 			// measure the player against the plan itself, not against the previous (repaired) path:
 			// otherwise, when the player walks away from the plan, each repair re-joins the head of the one before
 			// (which leads back to the plan), and the path never gets re-planned
@@ -393,23 +434,69 @@ namespace AtE {
 			var result = new List<Offsets.Vector2i>(head.Count + plan.Count - rejoin);
 			result.AddRange(head);
 			for ( int i = rejoin + 1; i < plan.Count; i++ ) result.Add(plan[i]);
-			// smooth it all again: re-using the old waypoints past the splice left stray one-cell hops behind,
+			// smooth it all again (in Finish): re-using the old waypoints past the splice left stray one-cell hops behind,
 			// and smoothing a whole cross-map path is still under 1ms (Debug build)
-			var waypoints = SmoothIndices(terrain, result, 0, result.Count - 1);
-			return new NavPath() {
+			return Finish(new NavPath() {
 				Cells = result,
 				Plan = plan,
 				PlanProgress = closest,
-				Waypoints = Pick(result, waypoints),
-				WaypointIndices = waypoints,
 				Start = start,
 				Goal = goal,
 				Cost = previous.Cost, // approximate
 				Expanded = expanded,
-				ElapsedMs = timer.Elapsed.TotalMilliseconds,
 				Method = "repair",
 				Generation = terrain.Generation,
-			};
+				DoorGeneration = terrain.DoorGeneration,
+			}, timer);
+		}
+
+		private void SnapshotDoors() {
+			if ( doorClosed.Length != doors.Count ) doorClosed = new bool[doors.Count];
+			for ( int i = 0; i < doors.Count; i++ ) doorClosed[i] = doors[i].IsClosed;
+		}
+
+		private int Index(Offsets.Vector2i cell) => ((cell.Y + 1) * pw) + cell.X + 1;
+
+		/// <summary>The closed door (index into doors, plus 1) whose passage the cell is in, or 0.</summary>
+		private int ClosedDoorAt(int idx) {
+			int d = doorAt[idx];
+			return d != 0 && doorClosed[d - 1] ? d : 0;
+		}
+
+		/// <summary>
+		/// Make the Waypoints and Steps of a path from its Cells: the path is smoothed in pieces between the closed doors it
+		/// goes through, so the cell in front of each door (where to stand to open it) and the cell behind it are waypoints.
+		/// </summary>
+		private NavPath Finish(NavPath path, Stopwatch timer) {
+			var cells = path.Cells;
+			var waypoints = new List<int>() { 0 };
+			var steps = new List<NavStep>();
+			void WalkTo(int index) {
+				waypoints.Add(index);
+				steps.Add(new NavStep() { Kind = NavStepKind.Walk, Target = cells[index] });
+			}
+			int pieceStart = 0;
+			for ( int i = 1; i < cells.Count; i++ ) {
+				int door = ClosedDoorAt(Index(cells[i]));
+				if ( door == 0 || doorAt[Index(cells[i - 1])] == door ) continue;
+				int exit = i;
+				while ( exit < cells.Count - 1 && doorAt[Index(cells[exit])] == door ) exit += 1;
+				// walk up to the door
+				var piece = SmoothIndices(cells, pieceStart, i - 1);
+				for ( int k = 1; k < piece.Count; k++ ) WalkTo(piece[k]);
+				// open it, then walk through it
+				steps.Add(new NavStep() { Kind = NavStepKind.OpenDoor, Target = doors[door - 1].GridPos, Door = doors[door - 1] });
+				WalkTo(exit);
+				pieceStart = exit;
+				i = exit;
+			}
+			var last = SmoothIndices(cells, pieceStart, cells.Count - 1);
+			for ( int k = 1; k < last.Count; k++ ) WalkTo(last[k]);
+			path.WaypointIndices = waypoints;
+			path.Waypoints = Pick(cells, waypoints);
+			path.Steps = steps;
+			path.ElapsedMs = timer.Elapsed.TotalMilliseconds;
+			return path;
 		}
 
 		/// <summary>
@@ -507,6 +594,8 @@ namespace AtE {
 					// don't cut corners: both orthogonal neighbors must be walkable too
 					if ( diagonal && (clear[idx + DX[dir]] == 0 || clear[idx + (DY[dir] * pw)] == 0) ) continue;
 					float gNext = gHere + ((diagonal ? Sqrt2 : 1f) * penalty[c]);
+					int door = doorAt[nIdx];
+					if ( door != 0 && door != doorAt[idx] && doorClosed[door - 1] ) gNext += DoorPenalty; // stepping into a closed door
 					if ( stamp[nIdx] == openStamp && gNext >= g[nIdx] ) continue;
 					g[nIdx] = gNext;
 					from[nIdx] = (byte)dir;
@@ -538,7 +627,9 @@ namespace AtE {
 		public List<Offsets.Vector2i> Smooth(Terrain terrain, List<Offsets.Vector2i> cells) {
 			var result = new List<Offsets.Vector2i>();
 			if ( cells == null || cells.Count == 0 ) return result;
-			foreach ( int i in SmoothIndices(terrain, cells, 0, cells.Count - 1) ) result.Add(cells[i]);
+			Prepare(terrain);
+			SnapshotDoors();
+			foreach ( int i in SmoothIndices(cells, 0, cells.Count - 1) ) result.Add(cells[i]);
 			return result;
 		}
 
@@ -547,7 +638,7 @@ namespace AtE {
 		/// <summary>
 		/// Smooth cells[from .. to], returning the indices of the waypoints (always including from and to).
 		/// </summary>
-		private List<int> SmoothIndices(Terrain terrain, List<Offsets.Vector2i> cells, int from, int to) {
+		private List<int> SmoothIndices(List<Offsets.Vector2i> cells, int from, int to) {
 			var result = new List<int>() { from };
 			int maxLeg = Math.Min(MaxLeg, legClearance.Length - 1);
 			int i = from;
@@ -556,15 +647,15 @@ namespace AtE {
 				// legClearance[k] = the clearance needed for the leg i -> i+k
 				// the leg's start counts too: IsLineClear checks it, so from a cell next to a wall no leg would ever pass,
 				// and the path would be smoothed into one-cell hops
-				int minClearance = Math.Min(SmoothClearance, terrain.Clearance(cells[i]));
+				int minClearance = Math.Min(SmoothClearance, clear[Index(cells[i])]);
 				for ( int j = i + 1; j <= last; j++ ) {
-					minClearance = Math.Min(minClearance, terrain.Clearance(cells[j]));
+					minClearance = Math.Min(minClearance, clear[Index(cells[j])]);
 					legClearance[j - i] = Math.Max(1, minClearance);
 				}
 				// try the longest leg first: in the open it is clear right away
 				int next = i + 1;
 				for ( int j = last; j > i + 1; j-- ) {
-					if ( terrain.IsLineClear(cells[i], cells[j], legClearance[j - i]) ) {
+					if ( IsLineClear(cells[i], cells[j], legClearance[j - i]) ) {
 						next = j;
 						break;
 					}
@@ -573,6 +664,30 @@ namespace AtE {
 				i = next;
 			}
 			return result;
+		}
+
+		/// <summary>
+		/// Like Terrain.IsLineClear, but on this grid, where door passages are walkable; a closed door still blocks the line.
+		/// </summary>
+		private bool IsLineClear(Offsets.Vector2i a, Offsets.Vector2i b, int minClearance) {
+			int x = a.X, y = a.Y;
+			int dx = Math.Abs(b.X - x), dy = -Math.Abs(b.Y - y);
+			int sx = x < b.X ? 1 : -1, sy = y < b.Y ? 1 : -1;
+			int err = dx + dy;
+			bool Clear(int cx, int cy) {
+				int idx = ((cy + 1) * pw) + cx + 1;
+				return clear[idx] >= minClearance && ClosedDoorAt(idx) == 0;
+			}
+			while ( true ) {
+				if ( !Clear(x, y) ) return false;
+				if ( x == b.X && y == b.Y ) return true;
+				int e2 = 2 * err;
+				bool stepX = e2 >= dy, stepY = e2 <= dx;
+				// a diagonal step also needs both of the cells it squeezes between
+				if ( stepX && stepY && !(Clear(x + sx, y) && Clear(x, y + sy)) ) return false;
+				if ( stepX ) { err += dy; x += sx; }
+				if ( stepY ) { err += dx; y += sy; }
+			}
 		}
 
 		private static List<Offsets.Vector2i> Pick(List<Offsets.Vector2i> cells, List<int> indices) {

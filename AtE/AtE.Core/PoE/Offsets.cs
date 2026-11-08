@@ -1622,10 +1622,13 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_TriggerableBlockage {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			// 3.29.3: confirmed on a Door in The Crematorium: 1 -> 0 when the door was opened
+			// (and the game then rewrote the walkable grid inside GridMin..GridMax to remove the door)
 			[FieldOffset(0x30)] public readonly byte IsClosed;
 			[FieldOffset(0x38)] public readonly ArrayHandle UnknownArray;
-			[FieldOffset(0x50)] public readonly Vector2i GridMin;
-			[FieldOffset(0x58)] public readonly Vector2i GridMax;
+			// 3.29.3: confirmed on three Doors: an inclusive box of grid cells around the door's GridPos
+			[FieldOffset(0x64)] public readonly Vector2i GridMin;
+			[FieldOffset(0x6C)] public readonly Vector2i GridMax;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Usable  {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
