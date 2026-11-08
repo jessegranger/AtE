@@ -208,6 +208,9 @@ namespace AtE {
 		[DllImport("user32.dll", SetLastError = true)] public static extern bool ScreenToClient(IntPtr hWnd, ref Point point);
 		[DllImport("user32.dll", SetLastError = true)] public static extern IntPtr GetForegroundWindow();
 		[DllImport("user32.dll", SetLastError = true)] public static extern IntPtr GetActiveWindow();
+		[DllImport("user32.dll", SetLastError = true)] public static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+		public const uint WM_KEYDOWN = 0x0100;
+		public const uint WM_KEYUP = 0x0101;
 
 
 	}

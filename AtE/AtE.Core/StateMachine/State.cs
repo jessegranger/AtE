@@ -134,7 +134,7 @@ namespace AtE {
 	class KeyDown : KeyState {
 		public KeyDown(VKey key, IState next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
-			if( dt > 0 && (PoEMemory.TargetHasFocus || Overlay.HasFocus) ) {
+			if( dt > 0 && CanSendKey(Key) ) {
 				Platform.Current.Input.KeyDown(Key);
 				return Next;
 			}
@@ -147,7 +147,7 @@ namespace AtE {
 		public KeyUp(VKey key, IState next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
 			// if ( !AllowInputInChatBox && ChatIsOpen() ) return Next;
-			if( dt > 0 && (PoEMemory.TargetHasFocus || Overlay.HasFocus) ) {
+			if( dt > 0 && CanSendKey(Key) ) {
 				Platform.Current.Input.KeyUp(Key);
 				return Next;
 			}

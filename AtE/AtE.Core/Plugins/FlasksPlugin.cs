@@ -75,7 +75,7 @@ namespace AtE {
 				var now = Time.ElapsedMilliseconds;
 				mostRecentFlask = now;
 				mostRecentUse[flaskEnt.FlaskIndex] = now;
-				if ( PoEMemory.TargetHasFocus ) {
+				if ( CanSendKey(flaskEnt.Key) ) {
 					Notify($"Using flask {flaskEnt.Key} because {reason}");
 					Platform.Current.Input.KeyDown(flaskEnt.Key);
 					Platform.Current.Input.KeyUp(flaskEnt.Key);

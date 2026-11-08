@@ -24,5 +24,11 @@ namespace AtE {
 
 		/// <summary>Release a key.</summary>
 		void KeyUp(VKey key);
+
+		/// <summary>
+		/// True if KeyDown/KeyUp of this key reach the game even when its window does not have focus.
+		/// Otherwise (the default), keys go to whatever window has focus, so callers must check focus first.
+		/// </summary>
+		bool CanSendInBackground(VKey key) => false;
 	}
 }

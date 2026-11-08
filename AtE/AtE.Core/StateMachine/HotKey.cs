@@ -38,7 +38,7 @@ namespace AtE {
 			}
 		}
 		public bool PressImmediate() {
-			if ( PoEMemory.IsAttached && PoEMemory.TargetHasFocus && !PoEMemory.GameRoot.InGameState.HasInputFocus ) {
+			if ( CanSendKey(Key) && !PoEMemory.GameRoot.InGameState.HasInputFocus ) {
 				Log($"HotKey: PressImmediate {Key}");
 				Platform.Current.Input.KeyDown(Key);
 				Platform.Current.Input.KeyUp(Key);
@@ -52,6 +52,13 @@ namespace AtE {
 
 
 	public static partial class Globals {
+		/// <summary>
+		/// True if sending this key now would reach the game: either the input sink can send it to the game in the background,
+		/// or the game (or the overlay) has focus.
+		/// </summary>
+		public static bool CanSendKey(VKey key) => PoEMemory.IsAttached
+			&& (Platform.Current.Input.CanSendInBackground(key) || PoEMemory.TargetHasFocus || Overlay.HasFocus);
+
 		public static void ImGui_HotKeyButton(string label, ref HotKey hotKey) {
 			if ( ImGui.Button($"{label} : {Describe(hotKey.Key)}") ) {
 				Run(new KeyPicker() { Target = hotKey });
