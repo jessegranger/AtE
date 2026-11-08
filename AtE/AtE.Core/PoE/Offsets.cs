@@ -466,6 +466,10 @@ namespace AtE {
 			public bool IsTown => IsTownByte == 1;
 			[FieldOffset(0x15)] public readonly byte HasWaypointByte;
 			public bool HasWaypoint => HasWaypointByte == 1;
+			// 3.29.3: this struct is the in-memory row of WorldAreas.dat; Connections is a list of ptrs to the rows of the neighboring areas
+			// (The Coast: Lioneye's Watch, The Mud Flats, The Tidal Island)
+			[FieldOffset(0x16)] public readonly long ConnectionsCount;
+			[FieldOffset(0x1E)] public readonly IntPtr ptrConnections; // ptr to IntPtr[ConnectionsCount], each a WorldAreaDetails
 			[FieldOffset(0x26)] public readonly uint MonsterLevel;
 			[FieldOffset(0x2A)] public readonly uint WorldAreaId;
 			/* true but useless:
@@ -568,6 +572,23 @@ namespace AtE {
 			// a superset of WalkableGrid (includes water, excludes buildings): projectile / line-of-sight, same encoding
 			[FieldOffset(0xE8)] public readonly ArrayHandle ProjectileGrid;
 			[FieldOffset(0x100)] public readonly int BytesPerRow;
+		}
+
+		/// <summary>
+		/// One entry of TerrainData.TileDetails, row-major (index = tileY * TilesX + tileX).
+		/// </summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct TileDetails {
+			public const int Size = 0x38;
+			[FieldOffset(0x00)] public readonly IntPtr ptrSubTiles;
+			[FieldOffset(0x08)] public readonly IntPtr ptrTileFile; // shared by every tile cut from the same .tdt
+			[FieldOffset(0x30)] private readonly long unk30; // makes sizeof(TileDetails) == Size, so arrays of it can be read in bulk
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct TileFile {
+			[FieldOffset(0x00)] public readonly IntPtr vtable;
+			// eg, "Metadata/Terrain/Beach/Transitions/BeachToSwamp/act1_area2_transition_v01_01.tdt"
+			// 3.29.3: in The Coast, all three exits are cut from .tdt files with "transition" in their path
+			[FieldOffset(0x08)] public readonly StringHandle Path;
 		}
 
 		/// <summary>

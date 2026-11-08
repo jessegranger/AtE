@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using static AtE.Globals;
 
 namespace AtE {
@@ -23,7 +24,23 @@ namespace AtE {
 			OnAreaChange += (sender, areaName) => Clear();
 		}
 
+		private List<AreaExit> exits = new List<AreaExit>();
+		private long exitsUpdated = 0;
+		/// <summary>
+		/// The ways out of this area: approximate from the tiles at first, exact once their AreaTransition entity is seen.
+		/// </summary>
+		public IReadOnlyList<AreaExit> Exits {
+			get {
+				if ( IsLoaded && Time.ElapsedMilliseconds - exitsUpdated > 500 ) {
+					AreaExits.UpdateFromEntities(exits);
+					exitsUpdated = Time.ElapsedMilliseconds;
+				}
+				return exits;
+			}
+		}
+
 		public void Clear() {
+			exits = new List<AreaExit>();
 			walkable = projectile = null;
 			loadedFrom = IntPtr.Zero;
 			Width = Height = BytesPerRow = 0;
@@ -61,7 +78,8 @@ namespace AtE {
 			Height = height;
 			BytesPerRow = bytesPerRow;
 			loadedFrom = data.WalkableGrid.Head;
-			Log($"Terrain: loaded {Width}x{Height} cells ({size} bytes per grid)");
+			exits = AreaExits.FromTiles(data);
+			Log($"Terrain: loaded {Width}x{Height} cells ({size} bytes per grid), {exits.Count} exits in the tiles");
 			return true;
 		}
 
@@ -86,6 +104,39 @@ namespace AtE {
 		/// </summary>
 		public bool IsProjectilePassable(int x, int y) => Cell(projectile, x, y) > 0;
 		public bool IsProjectilePassable(Offsets.Vector2i pos) => IsProjectilePassable(pos.X, pos.Y);
+
+		/// <summary>
+		/// Can you walk in a straight line from a to b, staying on cells with at least minClearance.
+		/// </summary>
+		public bool IsLineClear(Offsets.Vector2i a, Offsets.Vector2i b, int minClearance = 1) =>
+			IsLineClear(walkable, a, b, minClearance);
+
+		/// <summary>
+		/// Can a projectile fly in a straight line from a to b.
+		/// </summary>
+		public bool HasLineOfSight(Offsets.Vector2i a, Offsets.Vector2i b) =>
+			IsLineClear(projectile, a, b, 1);
+
+		// Bresenham, but a diagonal step also needs both of the cells it squeezes between (so a line can't cut a corner)
+		private bool IsLineClear(byte[] grid, Offsets.Vector2i a, Offsets.Vector2i b, int minClearance) {
+			if ( grid == null ) return false;
+			int x = a.X, y = a.Y;
+			int dx = Math.Abs(b.X - x), dy = -Math.Abs(b.Y - y);
+			int sx = x < b.X ? 1 : -1, sy = y < b.Y ? 1 : -1;
+			int err = dx + dy;
+			while ( true ) {
+				if ( Cell(grid, x, y) < minClearance ) return false;
+				if ( x == b.X && y == b.Y ) return true;
+				int e2 = 2 * err;
+				bool stepX = e2 >= dy, stepY = e2 <= dx;
+				if ( stepX && stepY
+					&& (Cell(grid, x + sx, y) < minClearance || Cell(grid, x, y + sy) < minClearance) ) {
+					return false;
+				}
+				if ( stepX ) { err += dy; x += sx; }
+				if ( stepY ) { err += dx; y += sy; }
+			}
+		}
 	}
 
 	public static partial class Globals {
