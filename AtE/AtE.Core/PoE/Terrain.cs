@@ -15,6 +15,10 @@ namespace AtE {
 		public int Height { get; private set; }
 		public int BytesPerRow { get; private set; }
 		public bool IsLoaded => walkable != null;
+		/// <summary>
+		/// Goes up each time new grids are loaded, so other code can tell when to rebuild what it derived from them.
+		/// </summary>
+		public int Generation { get; private set; } = 0;
 
 		private byte[] walkable;
 		private byte[] projectile;
@@ -72,15 +76,30 @@ namespace AtE {
 				&& PoEMemory.TryRead(data.ProjectileGrid.Head, proj) == size) ) {
 				proj = null;
 			}
+			SetGrids(width, height, bytesPerRow, walk, proj);
+			loadedFrom = data.WalkableGrid.Head;
+			exits = AreaExits.FromTiles(data, this);
+			Log($"Terrain: loaded {Width}x{Height} cells ({size} bytes per grid), {exits.Count} exits in the tiles");
+			return true;
+		}
+
+		private void SetGrids(int width, int height, int bytesPerRow, byte[] walk, byte[] proj) {
 			walkable = walk;
 			projectile = proj;
 			Width = width;
 			Height = height;
 			BytesPerRow = bytesPerRow;
-			loadedFrom = data.WalkableGrid.Head;
-			exits = AreaExits.FromTiles(data);
-			Log($"Terrain: loaded {Width}x{Height} cells ({size} bytes per grid), {exits.Count} exits in the tiles");
-			return true;
+			Generation += 1;
+		}
+
+		/// <summary>
+		/// Make a Terrain from grids already in hand (eg, saved from a game session), without reading game memory.
+		/// The grids use the same packed 4-bit encoding as the game (see Offsets.TerrainData).
+		/// </summary>
+		public static Terrain FromGrids(int width, int height, int bytesPerRow, byte[] walkable, byte[] projectile = null) {
+			var terrain = new Terrain();
+			terrain.SetGrids(width, height, bytesPerRow, walkable, projectile);
+			return terrain;
 		}
 
 		public bool InBounds(int x, int y) => x >= 0 && y >= 0 && x < Width && y < Height;
@@ -96,6 +115,21 @@ namespace AtE {
 		/// </summary>
 		public int Clearance(int x, int y) => Cell(walkable, x, y);
 		public int Clearance(Offsets.Vector2i pos) => Clearance(pos.X, pos.Y);
+		/// <summary>
+		/// Unpack the walkable grid into dest, one byte of clearance per cell: cell (x,y) goes to dest[offset + y * stride + x].
+		/// </summary>
+		public void UnpackClearance(byte[] dest, int offset, int stride) {
+			if ( walkable == null ) return;
+			for ( int y = 0; y < Height; y++ ) {
+				int src = y * BytesPerRow, dst = offset + (y * stride);
+				for ( int x = 0; x < Width; x += 2 ) {
+					byte b = walkable[src + (x >> 1)];
+					dest[dst + x] = (byte)(b & 0xF);
+					if ( x + 1 < Width ) dest[dst + x + 1] = (byte)(b >> 4);
+				}
+			}
+		}
+
 		public bool IsWalkable(int x, int y) => Cell(walkable, x, y) > 0;
 		public bool IsWalkable(Offsets.Vector2i pos) => IsWalkable(pos.X, pos.Y);
 

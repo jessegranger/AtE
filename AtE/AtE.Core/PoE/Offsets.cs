@@ -491,6 +491,15 @@ namespace AtE {
 
 			[FieldOffset(0x270)] public readonly Vector3 Position;
 
+			/// <summary>
+			/// The clip space position of a world position; W is the distance in front of the camera (negative when behind it).
+			/// </summary>
+			public Vector4 WorldToClip(Vector3 pos) => Vector4.Transform(new Vector4(pos, 1f), Matrix);
+
+			public static Vector2 ClipToScreen(Vector4 coord, float width, float height) => new Vector2(
+				(1.0f + (coord.X / coord.W)) * (width / 2f),
+				(1.0f - (coord.Y / coord.W)) * (height / 2f));
+
 			public unsafe Vector2 WorldToScreen(Vector3 pos, float width, float height) {
 				Vector2 result; // put a struct on the stack
 				Vector4 coord = *(Vector4*)&pos;

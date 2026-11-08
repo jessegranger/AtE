@@ -14,7 +14,7 @@ namespace AtE {
 	public class AreaExit {
 		/// <summary>The label on the door, eg "The Mud Flats"; null until the entity has been seen.</summary>
 		public string Destination;
-		/// <summary>Exact once Seen, otherwise the center of the transition tiles.</summary>
+		/// <summary>Exact once Seen, otherwise the walkable cell of the transition tiles closest to their center.</summary>
 		public Offsets.Vector2i GridPos;
 		/// <summary>True once the AreaTransition entity has been seen.</summary>
 		public bool Seen;
@@ -39,7 +39,7 @@ namespace AtE {
 		/// <summary>
 		/// Find exit candidates from the area's tiles: each connected group of tiles cut from the same "transition" .tdt.
 		/// </summary>
-		public static List<AreaExit> FromTiles(Offsets.TerrainData data) {
+		public static List<AreaExit> FromTiles(Offsets.TerrainData data, Terrain terrain) {
 			var result = new List<AreaExit>();
 			int tilesX = (int)data.TilesX, tilesY = (int)data.TilesY;
 			int count = tilesX * tilesY;
@@ -71,10 +71,12 @@ namespace AtE {
 					TileMaxX = int.MinValue, TileMaxY = int.MinValue,
 				};
 				long sumX = 0, sumY = 0, n = 0;
+				var clusterTiles = new List<int>();
 				// flood fill the neighboring tiles from the same file
 				stack.Push(i);
 				while ( stack.Count > 0 ) {
 					int t = stack.Pop();
+					clusterTiles.Add(t);
 					int tx = t % tilesX, ty = t / tilesX;
 					exit.TileMinX = Math.Min(exit.TileMinX, tx);
 					exit.TileMinY = Math.Min(exit.TileMinY, ty);
@@ -89,13 +91,38 @@ namespace AtE {
 						stack.Push(nt);
 					}
 				}
-				const int half = Offsets.TerrainData.CellsPerTile / 2;
-				exit.GridPos = new Offsets.Vector2i(
-					(int)(sumX * Offsets.TerrainData.CellsPerTile / n) + half,
-					(int)(sumY * Offsets.TerrainData.CellsPerTile / n) + half);
+				const int cellsPerTile = Offsets.TerrainData.CellsPerTile;
+				var center = new Offsets.Vector2i(
+					(int)(sumX * cellsPerTile / n) + (cellsPerTile / 2),
+					(int)(sumY * cellsPerTile / n) + (cellsPerTile / 2));
+				exit.GridPos = ClosestWalkable(terrain, clusterTiles, tilesX, center);
 				result.Add(exit);
 			}
 			return result;
+		}
+
+		/// <summary>
+		/// The center of a group of tiles is often off the walkable ground (eg, in the cliff around a door),
+		/// so use the walkable cell in those tiles that is closest to the center, so that paths can reach it.
+		/// </summary>
+		private static Offsets.Vector2i ClosestWalkable(Terrain terrain, List<int> tiles, int tilesX, Offsets.Vector2i center) {
+			const int cellsPerTile = Offsets.TerrainData.CellsPerTile;
+			var best = center;
+			long bestDistance = long.MaxValue;
+			foreach ( int t in tiles ) {
+				int x0 = (t % tilesX) * cellsPerTile, y0 = (t / tilesX) * cellsPerTile;
+				for ( int y = y0; y < y0 + cellsPerTile; y++ ) {
+					for ( int x = x0; x < x0 + cellsPerTile; x++ ) {
+						long dx = x - center.X, dy = y - center.Y;
+						long d = (dx * dx) + (dy * dy);
+						if ( d < bestDistance && terrain.IsWalkable(x, y) ) {
+							bestDistance = d;
+							best = new Offsets.Vector2i(x, y);
+						}
+					}
+				}
+			}
+			return best;
 		}
 
 		/// <summary>

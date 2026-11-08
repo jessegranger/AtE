@@ -30,6 +30,7 @@ namespace AtE {
 		private NavPath testPath;
 		private Offsets.Vector2i testPathFrom, testPathTo;
 		private long testPathTime = 0;
+		private double worstPathMs = 0;
 
 		/// <summary>
 		/// Uses ImGui to render controls for configurable fields.
@@ -50,7 +51,11 @@ namespace AtE {
 			ImGui.SliderInt("Smooth Clearance", ref SmoothClearance, 1, 5);
 			if ( testPath != null ) {
 				ImGui.Text($"Path: {testPath.Cells.Count} cells, {testPath.Waypoints.Count} waypoints, cost {testPath.Cost:F0}");
-				ImGui.Text($"Search: {testPath.Expanded} cells expanded in {testPath.ElapsedMs:F1} ms");
+				ImGui.Text($"Search ({testPath.Method}): {testPath.Expanded} cells expanded in {testPath.ElapsedMs:F2} ms (worst for this target: {worstPathMs:F2} ms)");
+				ImGui.TextWrapped($"From {testPath.Start} to {testPath.Goal} via {string.Join(" ", testPath.Waypoints.Skip(1).Take(12))}{(testPath.Waypoints.Count > 13 ? " ..." : "")}");
+				if ( ImGui.Button("Save path for debugging") ) {
+					SavePathDebug();
+				}
 			} else if ( ShowPathToCursor ) {
 				ImGui.Text("Path: none");
 			}
@@ -120,7 +125,7 @@ namespace AtE {
 		private void RenderExits(Terrain terrain, float z) {
 			var next = NextRouteExit(terrain);
 			foreach ( var exit in terrain.Exits ) {
-				var screen = GridToScreen(exit.GridPos, z);
+				if ( !TryGridToScreen(exit.GridPos, z, out Vector2 screen) ) continue; // behind the camera
 				Color color = exit == next ? Color.Gold : exit.Seen ? Color.White : Color.Orange;
 				DrawCircle(screen, 10, color);
 				DrawTextAt(screen + new Vector2(12, -6), exit.Destination ?? "exit?", color);
@@ -146,9 +151,32 @@ namespace AtE {
 						: terrain.IsProjectilePassable(x, y) ? Color.CornflowerBlue // blocked, but projectiles pass
 						: Color.Red;
 					// TODO: z comes from the player, so cells on slopes will be drawn off the ground
-					DrawCircle(GridToScreen(new Offsets.Vector2i(x, y), z), 2, color);
+					if ( TryGridToScreen(new Offsets.Vector2i(x, y), z, out Vector2 dot) ) DrawCircle(dot, 2, color);
 				}
 			}
+		}
+
+		// a short history of the paths made, to see how a bad one came about
+		private readonly Queue<string> pathHistory = new Queue<string>();
+		private void RecordPath(string why, NavPath path, Offsets.Vector2i player, Offsets.Vector2i target) {
+			pathHistory.Enqueue($"{Time.ElapsedMilliseconds} {why} player={player} target={target} -> "
+				+ (path == null ? "null" : $"{path.Method} gen={path.Generation} start={path.Start} goal={path.Goal} cells={path.Cells.Count} waypoints={string.Join(" ", path.Waypoints)}"));
+			while ( pathHistory.Count > 30 ) pathHistory.Dequeue();
+		}
+
+		private void SavePathDebug() {
+			var sb = new StringBuilder();
+			sb.AppendLine($"area: {GetCurrentArea()} terrain generation: {GetTerrain()?.Generation}");
+			sb.AppendLine($"pinned: {targetPinned} {pinnedTarget}");
+			sb.AppendLine("history:");
+			foreach ( var line in pathHistory ) sb.AppendLine(line);
+			if ( testPath != null ) {
+				sb.AppendLine($"waypoint indices: {string.Join(" ", testPath.WaypointIndices)}");
+				sb.AppendLine($"cells: {string.Join(" ", testPath.Cells)}");
+			}
+			string file = System.IO.Path.Combine(AppContext.BaseDirectory, "pathfinding-debug.txt");
+			System.IO.File.WriteAllText(file, sb.ToString());
+			Notify($"Saved {file}");
 		}
 
 		private void RenderPathToCursor(Offsets.Vector2i playerGrid, float z) {
@@ -162,28 +190,37 @@ namespace AtE {
 			}
 			var target = targetPinned ? pinnedTarget : cursorGrid;
 
-			// re-plan when either end moves, but not more than 10 times a second
-			bool moved = target.Id != testPathTo.Id || playerGrid.Id != testPathFrom.Id;
-			if ( moved && Time.ElapsedMilliseconds - testPathTime > 100 ) {
-				DefaultNavigator.WallPenalty = WallPenalty;
-				DefaultNavigator.SmoothClearance = SmoothClearance;
-				testPath = DefaultNavigator.FindPath(terrain, playerGrid, target);
+			// a new target needs a new plan (at most 10 times a second, for a moving cursor);
+			// when only the player moves, UpdatePath re-uses the plan we have, which is cheap enough for every frame
+			DefaultNavigator.WallPenalty = WallPenalty;
+			DefaultNavigator.SmoothClearance = SmoothClearance;
+			if ( target.Id != testPathTo.Id ) {
+				if ( Time.ElapsedMilliseconds - testPathTime > 100 ) {
+					testPath = DefaultNavigator.FindPath(terrain, playerGrid, target);
+					RecordPath("new target", testPath, playerGrid, target);
+					testPathFrom = playerGrid;
+					testPathTo = target;
+					testPathTime = Time.ElapsedMilliseconds;
+					worstPathMs = 0;
+				}
+			} else if ( playerGrid.Id != testPathFrom.Id ) {
+				testPath = DefaultNavigator.UpdatePath(testPath, terrain, playerGrid, target);
+				RecordPath("player moved", testPath, playerGrid, target);
 				testPathFrom = playerGrid;
-				testPathTo = target;
-				testPathTime = Time.ElapsedMilliseconds;
 			}
+			if ( testPath != null ) worstPathMs = Math.Max(worstPathMs, testPath.ElapsedMs);
 
-			DrawCircle(GridToScreen(target, z), 6, targetPinned ? Color.Magenta : Color.White);
+			if ( TryGridToScreen(target, z, out Vector2 targetScreen) ) DrawCircle(targetScreen, 6, targetPinned ? Color.Magenta : Color.White);
 			if ( testPath == null ) return;
 			if ( ShowPathCells ) {
 				foreach ( var cell in testPath.Cells ) {
-					DrawCircle(GridToScreen(cell, z), 1, Color.Gray);
+					if ( TryGridToScreen(cell, z, out Vector2 cellScreen) ) DrawCircle(cellScreen, 1, Color.Gray);
 				}
 			}
 			var points = testPath.Waypoints;
 			for ( int i = 1; i < points.Count; i++ ) {
-				DrawLine(GridToScreen(points[i - 1], z), GridToScreen(points[i], z), Color.Cyan);
-				DrawCircle(GridToScreen(points[i], z), 3, Color.Cyan);
+				DrawGridLine(points[i - 1], points[i], z, Color.Cyan);
+				if ( TryGridToScreen(points[i], z, out Vector2 point) ) DrawCircle(point, 3, Color.Cyan);
 			}
 		}
 
@@ -226,12 +263,9 @@ namespace AtE {
 
 				var pc = p.GetComponent<Pathfinding>();
 				if ( ShowCurrentPath && IsValid(pc) && pc.IsMoving ) {
-					var prevPos = GridToScreen(pc.PrevPos, playerPos.Z);
-					var nextPos = GridToScreen(pc.NextPos, playerPos.Z);
-					var targetPos = GridToScreen(pc.TargetPos, playerPos.Z);
-					DrawLine(WorldToScreen(playerPos), nextPos, Color.Yellow);
-					DrawLine(prevPos, nextPos, Color.Orange);
-					DrawLine(nextPos, targetPos, Color.Red);
+					DrawWorldLine(playerPos, Offsets.GridToWorld(pc.NextPos, playerPos.Z), Color.Yellow);
+					DrawGridLine(pc.PrevPos, pc.NextPos, playerPos.Z, Color.Orange);
+					DrawGridLine(pc.NextPos, pc.TargetPos, playerPos.Z, Color.Red);
 				}
 			}
 			return this;

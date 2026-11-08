@@ -176,7 +176,18 @@ namespace AtE {
 		/// <summary>
 		/// The walkable (and projectile) grids for the current area, or null while they are not readable.
 		/// </summary>
-		public Terrain Terrain => IsValid(Address) && terrain.Update(Data.Value.Terrain) ? terrain : null;
+		public Terrain Terrain {
+			get {
+				if ( !(IsValid(Address) && terrain.Update(Data.Value.Terrain)) ) return null;
+				if ( terrain.Generation != navigatorGeneration ) {
+					// build the navigation data right after the area loads, instead of during the first path search
+					navigatorGeneration = terrain.Generation;
+					DefaultNavigator.Prepare(terrain);
+				}
+				return terrain;
+			}
+		}
+		private int navigatorGeneration = -1;
 
 		public Element Hovered => IsValid(Address) && ElementCache.TryGetElement(Cache.elemHover, out Element hover) ? hover : null;
 
@@ -410,6 +421,38 @@ namespace AtE {
 			return GetCamera().WorldToScreen(pos, rect.X, rect.Y);
 		}
 		public static Vector2 GridToScreen(Offsets.Vector2i pos, float z = 0) => WorldToScreen(Offsets.GridToWorld(pos, z));
+
+		// clip space W is roughly the distance from the camera; anything closer than this is treated as behind it
+		private const float NearClipW = 10f;
+
+		/// <summary>
+		/// Like WorldToScreen, but returns false for positions behind the camera,
+		/// which WorldToScreen would otherwise flip to the wrong side of the screen.
+		/// (On the Coast, the ground ~250 cells towards the bottom of the screen is already behind the camera.)
+		/// </summary>
+		public static bool TryWorldToScreen(Vector3 pos, out Vector2 screen) {
+			var clip = GetCamera().WorldToClip(pos);
+			var size = WindowSize.Value;
+			screen = clip.W < NearClipW ? Vector2.Zero : Offsets.Camera.ClipToScreen(clip, size.X, size.Y);
+			return clip.W >= NearClipW;
+		}
+		public static bool TryGridToScreen(Offsets.Vector2i pos, float z, out Vector2 screen) =>
+			TryWorldToScreen(Offsets.GridToWorld(pos, z), out screen);
+
+		/// <summary>
+		/// Draw a line between two world positions, cut off where it passes behind the camera.
+		/// </summary>
+		public static void DrawWorldLine(Vector3 a, Vector3 b, Color color) {
+			var camera = GetCamera();
+			Vector4 ca = camera.WorldToClip(a), cb = camera.WorldToClip(b);
+			if ( ca.W < NearClipW && cb.W < NearClipW ) return;
+			if ( ca.W < NearClipW ) ca = Vector4.Lerp(ca, cb, (NearClipW - ca.W) / (cb.W - ca.W));
+			else if ( cb.W < NearClipW ) cb = Vector4.Lerp(cb, ca, (NearClipW - cb.W) / (ca.W - cb.W));
+			var size = WindowSize.Value;
+			DrawLine(Offsets.Camera.ClipToScreen(ca, size.X, size.Y), Offsets.Camera.ClipToScreen(cb, size.X, size.Y), color);
+		}
+		public static void DrawGridLine(Offsets.Vector2i a, Offsets.Vector2i b, float z, Color color) =>
+			DrawWorldLine(Offsets.GridToWorld(a, z), Offsets.GridToWorld(b, z), color);
 		public static void DrawTextAt(Vector3 pos, string text, Color color) => DrawTextAt(WorldToScreen(pos), text, color);
 
 		public static bool IsValid(GameRoot state) => state != null && state.IsValid;
