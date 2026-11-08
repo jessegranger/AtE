@@ -44,6 +44,7 @@ namespace AtE {
 		public string Status { get; private set; } = "off";
 		public Hostile Target { get; private set; }
 
+		private bool binding;
 		private ExploreTarget exploreTarget;
 		private long exploreTargetTime;
 
@@ -91,6 +92,12 @@ namespace AtE {
 			if ( game.HasInputFocus ) return Wait("typing in the game");
 			if ( PoEMemory.GameRoot?.EscapeState?.Menu != null ) return Wait("escape menu");
 			if ( !PoEMemory.TargetHasFocus ) return Wait("the game needs focus to use the mouse");
+			if ( binding ) return Wait("changing the skill bar");
+			// left click should only move (and interact), never attack
+			if ( !SkillBar.LeftClickIsMovement() ) {
+				Bind(SkillBar.LeftClickSlot, SkillBar.MovementName);
+				return Wait("putting Movement on left click");
+			}
 			var grid = pos.GridPos;
 			float z = Position(player).Z;
 
@@ -154,6 +161,37 @@ namespace AtE {
 			Combat.PathTo(exploreTarget.GridPos, this);
 		}
 
+		/// <summary>
+		/// Use the skill called name (eg, "Fireball") aimed at screenPos: press the key of the slot it is on, or, if it is
+		/// not on the skill bar, put it on a free slot first (then this returns false until that is done).
+		/// </summary>
+		protected bool UseSkill(string name, Vector2 screenPos, uint holdMs = 40) {
+			if ( binding ) return false;
+			var slot = SkillBar.FindSlot(name);
+			if ( slot == null ) {
+				var free = SkillBar.FindFreeSlot();
+				if ( free == null ) {
+					Status = $"no free slot for {name}";
+					return false;
+				}
+				Bind(free.Index, name);
+				return false;
+			}
+			SkillBar.UseSlot(slot, screenPos, holdMs);
+			return true;
+		}
+
+		/// <summary>Put name on a slot (see SkillBar.BindSkill); the driver waits until it is done, and stops if it fails.</summary>
+		protected void Bind(int slotIndex, string name) {
+			if ( binding ) return;
+			binding = true;
+			if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, "changing the skill bar");
+			Run(SkillBar.BindSkill(slotIndex, name, (ok, why) => {
+				binding = false;
+				if ( !ok ) Stop($"could not put {name} on slot {slotIndex}: {why}");
+			}));
+		}
+
 		private IState Wait(string why) {
 			Status = $"waiting: {why}";
 			DrawBottomLeftText($"{Name}: {Status}", Color.Gray);
@@ -168,6 +206,8 @@ namespace AtE {
 	public class SkillAttackDriver : CombatDriver {
 		public override string Name => "Combat: Skill Attack";
 
+		/// <summary>The skill to attack with, by name (eg, Fireball); it is put on a free slot if needed. Empty: press AttackKey instead.</summary>
+		public string AttackSkill = "";
 		public HotKey AttackKey = new HotKey(VKey.Q);
 		public int Range = 30; // cells
 		public bool LineOfSight = true;
@@ -182,7 +222,10 @@ namespace AtE {
 		public override void Render() {
 			base.Render();
 			ImGui.Separator();
-			ImGui_HotKeyButton("Attack Skill Key", ref AttackKey);
+			ImGui.InputText("Attack Skill", ref AttackSkill, 64);
+			ImGui.SameLine();
+			ImGui_HelpMarker("A skill's name, eg Fireball. It is put on a free slot if it is not on the skill bar, and used as fast as its cast time allows. Leave empty to press the Attack Skill Key instead.");
+			if ( string.IsNullOrWhiteSpace(AttackSkill) ) ImGui_HotKeyButton("Attack Skill Key", ref AttackKey);
 			ImGui.SliderInt("Attack Range (cells)", ref Range, 3, 80);
 			ImGui.Checkbox("Needs Line of Sight", ref LineOfSight);
 			ImGui.SliderInt("Attack Interval (ms)", ref AttackIntervalMs, 50, 1500);
@@ -190,6 +233,13 @@ namespace AtE {
 		}
 
 		protected override void Attack(Hostile target, Vector2 screenPos) {
+			if ( !string.IsNullOrWhiteSpace(AttackSkill) ) {
+				var slot = SkillBar.FindSlot(AttackSkill.Trim());
+				int interval = Math.Max(AttackIntervalMs, SkillBar.CastTimeMs(slot?.Skill));
+				if ( Time.ElapsedMilliseconds - lastAttack < interval ) return;
+				if ( UseSkill(AttackSkill.Trim(), screenPos, (uint)HoldMs) ) lastAttack = Time.ElapsedMilliseconds;
+				return;
+			}
 			if ( AttackKey.Key == VKey.None || Time.ElapsedMilliseconds - lastAttack < AttackIntervalMs ) return;
 			lastAttack = Time.ElapsedMilliseconds;
 			// aim with the real cursor (the game only reads it while focused), press the skill key (which can be posted)

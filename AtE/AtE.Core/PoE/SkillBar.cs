@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using static AtE.Globals;
 
 namespace AtE {
@@ -123,6 +124,109 @@ namespace AtE {
 
 		/// <summary>The first slot with a skill whose internal name (eg, "fireball") or display name (eg, "Fireball") is name; null if none.</summary>
 		public static SkillSlot FindSlot(string name) => GetSlots().FirstOrDefault(s => IsNamed(s.Skill, name));
+
+		public static SkillSlot GetSlot(int index) => GetSlots().FirstOrDefault(s => s.Index == index);
+
+		/// <summary>True if slot holds name ("Movement", a skill's name, or "Clear" for an empty slot).</summary>
+		public static bool Holds(SkillSlot slot, string name) => slot != null
+			&& (string.Equals(name, ClearName, StringComparison.OrdinalIgnoreCase) ? slot.IsEmpty : IsNamed(slot.Skill, name));
+
+		/// <summary>
+		/// A slot that a skill could be bound to without taking anything away: the first empty, visible slot whose key
+		/// is a plain key (Q, W, E, R, T, ...; not a mouse button, no modifier). Null if there is none.
+		/// </summary>
+		public static SkillSlot FindFreeSlot() => GetSlots().FirstOrDefault(s =>
+			s.IsEmpty && s.IsVisible && s.Key != VKey.None && !s.IsMouseButton && s.Modifiers == VKey.None);
+
+		/// <summary>The result of BindSkill: did it work, and if not, why.</summary>
+		public delegate void BindResult(bool ok, string why);
+
+		/// <summary>
+		/// Put name ("Movement", "Clear", or a skill's name) on a slot, the way a player does: click the slot,
+		/// wait for the hidden skill bar to open, click the skill there, then wait for the slot to hold it.
+		/// It clicks, so the game must have focus. Calls done (if given) when it finishes either way.
+		/// </summary>
+		public static IState BindSkill(int slotIndex, string name, BindResult done = null, uint timeoutMs = 1500) {
+			int step = 0;
+			long elapsed = 0;
+			IState Finish(bool ok, string why) {
+				if ( !ok ) {
+					Log($"BindSkill({slotIndex}, {name}): {why}");
+					if ( IsChoosing ) PressEscape(); // don't leave it open
+				}
+				done?.Invoke(ok, why);
+				return null;
+			}
+			return State.NewState($"BindSkill({slotIndex}, {name})", (self, dt) => {
+				elapsed += dt;
+				if ( !PoEMemory.TargetHasFocus ) return Finish(false, "the game is not focused");
+				var slot = GetSlot(slotIndex);
+				if ( slot == null ) return Finish(false, "no such slot");
+				switch ( step ) {
+					case 0: // open the hidden skill bar from the slot
+						if ( Holds(slot, name) ) return Finish(true, "already there");
+						if ( !slot.IsVisible ) return Finish(false, "the slot is not visible");
+						if ( !IsChoosing ) ClickAt(slot.Rect);
+						step = 1; elapsed = 0;
+						return self;
+					case 1: // wait for it to open
+						if ( IsChoosing ) { step = 2; elapsed = 0; }
+						else if ( elapsed > timeoutMs ) return Finish(false, "the hidden skill bar did not open");
+						return self;
+					case 2: // click the skill
+						var pick = FindAvailable(name);
+						if ( pick == null ) return Finish(false, $"{name} is not in the hidden skill bar ({string.Join(", ", GetAvailable())})");
+						ClickAt(pick.Rect);
+						step = 3; elapsed = 0;
+						return self;
+					default: // wait for the slot to hold it
+						if ( Holds(slot, name) ) return Finish(true, "bound");
+						if ( elapsed > timeoutMs ) return Finish(false, "the slot did not change");
+						return self;
+				}
+			});
+		}
+
+		/// <summary>Click the middle of rect (in client coordinates, like Element.GetClientRect).</summary>
+		public static void ClickAt(RectangleF rect) {
+			MouseTo(new Vector2(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2)));
+			Platform.Current.Input.MouseButton(MouseBtn.Left, true);
+			Platform.Current.Input.MouseButton(MouseBtn.Left, false);
+		}
+
+		/// <summary>Move the cursor to pos (in client coordinates).</summary>
+		public static void MouseTo(Vector2 pos) => Platform.Current.Input.MouseMove(pos + WindowOffset());
+
+		private static void PressEscape() {
+			Platform.Current.Input.KeyDown(VKey.Escape);
+			Platform.Current.Input.KeyUp(VKey.Escape);
+		}
+
+		/// <summary>
+		/// Use a slot: aim the cursor at target (client coordinates), then click the slot's mouse button, or hold its key
+		/// for holdMs. Modifiers are held around it (they go through SendInput, which needs focus; plain keys can be posted).
+		/// </summary>
+		public static void UseSlot(SkillSlot slot, Vector2 target, uint holdMs = 40) {
+			if ( slot == null || slot.Key == VKey.None ) return;
+			MouseTo(target);
+			var input = Platform.Current.Input;
+			var mods = new List<VKey>();
+			if ( (slot.Key & VKey.Control) != 0 ) mods.Add(VKey.ControlKey);
+			if ( (slot.Key & VKey.Shift) != 0 ) mods.Add(VKey.ShiftKey);
+			if ( (slot.Key & VKey.Alt) != 0 ) mods.Add(VKey.Menu);
+			foreach ( var m in mods ) input.KeyDown(m);
+			var button = ToMouseButton(slot.KeyCode);
+			if ( button.HasValue ) {
+				input.MouseButton(button.Value, true);
+				input.MouseButton(button.Value, false);
+				foreach ( var m in mods ) input.KeyUp(m);
+			} else {
+				Run(new PressKey(slot.KeyCode, holdMs, State.NewState(() => { foreach ( var m in mods ) input.KeyUp(m); })));
+			}
+		}
+
+		private static Vector2 WindowOffset() =>
+			PoEMemory.Memory.TryGetTargetWindowRect(out int x, out int y, out _, out _) ? new Vector2(x, y) : Vector2.Zero;
 
 		public static bool IsNamed(ActorSkill skill, string name) => skill != null && name != null
 			&& (string.Equals(SkillName(skill), name, StringComparison.OrdinalIgnoreCase)
