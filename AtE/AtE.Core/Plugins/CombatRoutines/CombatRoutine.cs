@@ -1,0 +1,148 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
+using System.Numerics;
+using static AtE.Globals;
+
+namespace AtE {
+
+	/// <summary>
+	/// A combat driver that follows a script: for each area, a list of objectives (see Objective) to do in order.
+	/// While the driver is on, it works on the first objective that is not complete. In an area with no objectives, or
+	/// once they are all complete, it does what CombatDriver does (fight, explore, stop when clear).
+	///
+	/// The current area's objectives are drawn on screen, marked done / current / to do.
+	/// A routine for a class calls Area(...) in its constructor, eg:
+	///   Area("The Twilight Strand", new PickUp("Driftwood Wand"), new Kill("Hillock", "Hillock"), new GoToArea("Lioneye's Watch"));
+	/// </summary>
+	public abstract class CombatRoutine : CombatDriver {
+
+		private readonly List<(string area, List<Objective> objectives)> areas = new List<(string, List<Objective>)>();
+		private uint areaHash;
+
+		public bool ShowObjectives = true;
+
+		/// <summary>The objectives for an area, by its name ("The Twilight Strand"), its name with act ("The Coast (Act 1)") or its id ("1_1_1").</summary>
+		protected void Area(string area, params Objective[] objectives) => areas.Add((area, objectives.ToList()));
+
+		/// <summary>The objectives for the current area, or null if this routine has none for it.</summary>
+		public List<Objective> CurrentObjectives {
+			get {
+				var here = GetCurrentArea();
+				if ( here == null ) return null;
+				return areas.FirstOrDefault(a =>
+					string.Equals(a.area, here.Name, StringComparison.OrdinalIgnoreCase)
+					|| string.Equals(a.area, here.DisplayName, StringComparison.OrdinalIgnoreCase)
+					|| string.Equals(a.area, here.Id, StringComparison.OrdinalIgnoreCase)).objectives;
+			}
+		}
+
+		/// <summary>The objective being worked on now, or null.</summary>
+		public Objective Current { get; private set; }
+
+		public override void Render() {
+			base.Render();
+			ImGuiNET.ImGui.Checkbox("Show Objectives", ref ShowObjectives);
+		}
+
+		public override IState OnTick(long dt) {
+			if ( Enabled && !Paused && PoEMemory.IsAttached ) {
+				ForgetOnNewArea();
+				if ( !IsActive ) UpdateCompletion(); // (while on, Decide does this)
+				if ( ShowObjectives ) DrawObjectives();
+			}
+			return base.OnTick(dt);
+		}
+
+		// a new area instance (even the same area again) starts the objectives over
+		private void ForgetOnNewArea() {
+			uint hash = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
+			if ( hash == areaHash ) return;
+			areaHash = hash;
+			Current = null;
+			foreach ( var area in areas ) foreach ( var o in area.objectives ) o.Reset();
+		}
+
+		// mark the objectives that are done, up to the first one that is not (which becomes Current)
+		private void UpdateCompletion(CombatContext ctx) {
+			var objectives = CurrentObjectives;
+			Current = null;
+			if ( objectives == null ) return;
+			foreach ( var o in objectives ) {
+				if ( o.IsComplete ) {
+					if ( o.Sticky || o.CheckDone(ctx) ) continue;
+					o.IsComplete = false; // undone (eg, the skill was taken off the bar): do it again
+					Log($"{Name}: not done any more: {o.Name}");
+				}
+				if ( o.CheckDone(ctx) ) {
+					o.IsComplete = true;
+					o.Detail = "";
+					Log($"{Name}: done: {o.Name}");
+					continue;
+				}
+				Current = o;
+				break;
+			}
+		}
+
+		private long lastCompletionCheck;
+		private void UpdateCompletion() {
+			if ( Time.ElapsedMilliseconds - lastCompletionCheck < 250 ) return;
+			lastCompletionCheck = Time.ElapsedMilliseconds;
+			var game = PoEMemory.GameRoot?.InGameState;
+			var terrain = GetTerrain();
+			var player = GetPlayer();
+			var pos = player?.GetComponent<Positioned>();
+			if ( game == null || terrain == null || !IsValid(pos) ) return;
+			UpdateCompletion(new CombatContext(this, game, terrain, player, pos.GridPos, Position(player).Z));
+		}
+
+		protected override void Decide(CombatContext ctx) {
+			UpdateCompletion(ctx);
+			if ( Current == null ) {
+				base.Decide(ctx);
+				return;
+			}
+			SetStatus(Current.Name);
+			Current.Tick(ctx);
+			if ( !string.IsNullOrEmpty(Current.Detail) ) SetStatus($"{Current.Name}: {Current.Detail}");
+		}
+
+		private void DrawObjectives() {
+			var objectives = CurrentObjectives;
+			if ( objectives == null ) return;
+			var size = WindowSize.Value;
+			var pos = new Vector2(size.X * 0.30f, size.Y * 0.08f); // top middle-left: clear of the console, minimap and quest tracker
+			const float line = 16f;
+			DrawTextAt(pos, $"{Name}: {GetCurrentArea()?.DisplayName}{(IsActive ? "" : " (off)")}", Color.Orange);
+			pos.Y += line;
+			bool foundCurrent = false;
+			foreach ( var o in objectives ) {
+				string mark;
+				Color color;
+				if ( o.IsComplete ) { mark = "[x]"; color = Color.LightGreen; }
+				else if ( !foundCurrent ) { mark = "[>]"; color = Color.Yellow; foundCurrent = true; }
+				else { mark = "[ ]"; color = Color.Gray; }
+				string detail = !o.IsComplete && o == Current && !string.IsNullOrEmpty(o.Detail) ? $" - {o.Detail}" : "";
+				DrawTextAt(pos, $"{mark} {o.Name}{detail}", color);
+				pos.Y += line;
+			}
+		}
+	}
+
+	/// <summary>
+	/// A routine to try the objectives with: for The Twilight Strand, clear the area, then go to Lioneye's Watch.
+	/// </summary>
+	public class TestRoutine : CombatRoutine {
+		public override string Name => "Combat: Test Routine";
+		public string AttackSkill = "Fireball";
+		public TestRoutine() {
+			Area("The Twilight Strand",
+				new BindSkill("Fireball"),
+				new Kill("Hillock", "Hillock", "Fireball"),
+				new GoToArea("Lioneye's Watch"));
+		}
+		protected override void Attack(Hostile target, Vector2 screenPos) => UseSkillPaced(AttackSkill, screenPos);
+	}
+}

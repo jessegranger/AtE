@@ -49,6 +49,19 @@ namespace AtE {
 			return result;
 		}
 
+		/// <summary>ent as a Hostile (whether or not it is hostile), with its distance from from; null if it has no position.</summary>
+		public static Hostile ToHostile(Entity ent, Offsets.Vector2i from) {
+			var pos = ent?.GetComponent<Positioned>();
+			if ( !IsValid(pos) ) return null;
+			return new Hostile() {
+				Entity = ent,
+				GridPos = pos.GridPos,
+				WorldPos = Position(ent),
+				Rarity = ent.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White,
+				Distance = Distance(from, pos.GridPos),
+			};
+		}
+
 		public static float Distance(Offsets.Vector2i a, Offsets.Vector2i b) {
 			float dx = a.X - b.X, dy = a.Y - b.Y;
 			return MathF.Sqrt((dx * dx) + (dy * dy));

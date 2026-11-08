@@ -504,6 +504,39 @@ namespace AtE {
 		/// <summary>
 		/// True if a path from a to b exists (through doors, open or not). Cheap: no search.
 		/// </summary>
+		/// <summary>
+		/// The walkable cell nearest pos (within maxRadius cells) that can be walked to from from. Unlike TrySnap, which
+		/// takes the nearest walkable cell, this never picks one on the far side of a wall (eg, for a door or an area
+		/// transition set into a wall, whose own cell is blocked).
+		/// </summary>
+		public bool TrySnapReachable(Terrain terrain, Offsets.Vector2i from, Offsets.Vector2i pos, out Offsets.Vector2i result, int maxRadius = 40) {
+			result = pos;
+			if ( terrain == null || !terrain.IsLoaded || !TrySnap(terrain, from, out from) ) return false;
+			Prepare(terrain);
+			int want = regionComponent[cellRegion[Index(from)]];
+			bool Ok(int x, int y) {
+				if ( x < 0 || y < 0 || x >= terrain.Width || y >= terrain.Height || !terrain.IsWalkable(x, y) ) return false;
+				int region = cellRegion[Index(new Offsets.Vector2i(x, y))];
+				return region >= 0 && regionComponent[region] == want;
+			}
+			if ( Ok(pos.X, pos.Y) ) return true;
+			for ( int r = 1; r <= maxRadius; r++ ) {
+				int best = int.MaxValue;
+				for ( int dx = -r; dx <= r; dx++ ) {
+					for ( int dy = -r; dy <= r; dy++ ) {
+						if ( Math.Max(Math.Abs(dx), Math.Abs(dy)) != r ) continue; // only the ring
+						int d = (dx * dx) + (dy * dy);
+						if ( d < best && Ok(pos.X + dx, pos.Y + dy) ) {
+							best = d;
+							result = new Offsets.Vector2i(pos.X + dx, pos.Y + dy);
+						}
+					}
+				}
+				if ( best != int.MaxValue ) return true;
+			}
+			return false;
+		}
+
 		public bool IsReachable(Terrain terrain, Offsets.Vector2i a, Offsets.Vector2i b) {
 			if ( terrain == null || !terrain.IsLoaded ) return false;
 			if ( !TrySnap(terrain, a, out a) || !TrySnap(terrain, b, out b) ) return false;

@@ -1,6 +1,7 @@
 using ImGuiNET;
 using System;
 using System.Drawing;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using static AtE.Globals;
@@ -98,74 +99,115 @@ namespace AtE {
 				Bind(SkillBar.LeftClickSlot, SkillBar.MovementName);
 				return Wait("putting Movement on left click");
 			}
-			var grid = pos.GridPos;
-			float z = Position(player).Z;
-
+			var ctx = new CombatContext(this, game, terrain, player, pos.GridPos, Position(player).Z);
 			try {
-				Decide(game, terrain, player, grid, z);
+				Decide(ctx);
 			} finally {
 				// walk, if walking was decided on
 				if ( DefaultFollower.IsActiveFor(this) ) {
-					DefaultFollower.Tick(DefaultNavigator, terrain, grid, z);
+					DefaultFollower.Tick(DefaultNavigator, terrain, ctx.Grid, ctx.Z);
 				}
 			}
 			DrawBottomLeftText($"{Name}: {Status}", Color.Orange);
 			return this;
 		}
 
-		private void Decide(InGameState game, Terrain terrain, PlayerEntity player, Offsets.Vector2i grid, float z) {
-			var hostiles = Combat.GetHostiles(grid, EngageRadius)
-				.Where(h => DefaultNavigator.IsReachable(terrain, grid, h.GridPos)).ToList();
+		/// <summary>
+		/// Called each frame while the driver is on (and the game is ready for input): decide what to do, by calling
+		/// TryRetreat, TryFight, Engage, TryExplore, WalkTo, UseSkill... (they set Status). Walking happens after this returns.
+		/// The default: retreat if low on life, else fight, else explore, else stop.
+		/// </summary>
+		protected virtual void Decide(CombatContext ctx) {
+			if ( TryRetreat(ctx) || TryFight(ctx) ) return;
+			if ( !TryExplore(ctx) ) Stop("the area is explored and clear");
+		}
 
-			// low on life: get away from them
-			var life = player.GetComponent<Life>();
-			if ( RetreatBelowLifePercent > 0 && hostiles.Count > 0 && IsValid(life) ) {
-				float max = life.MaxHP + life.MaxES;
-				float percent = max <= 0 ? 100 : 100f * (life.CurHP + life.CurES) / max;
-				if ( percent < RetreatBelowLifePercent ) {
-					if ( Combat.NearestSafeSpot(terrain, grid, hostiles.Select(h => h.GridPos), RetreatDistance, out var safe) ) {
-						Status = $"retreating to {safe} ({percent:F0}% life)";
-						Combat.PathTo(safe, this);
-						return;
-					}
-				}
+		/// <summary>If life + energy shield is below RetreatBelowLifePercent with monsters near, walk away from them; true if retreating.</summary>
+		public bool TryRetreat(CombatContext ctx) {
+			var life = ctx.Player.GetComponent<Life>();
+			if ( RetreatBelowLifePercent <= 0 || ctx.Hostiles.Count == 0 || !IsValid(life) ) return false;
+			float max = life.MaxHP + life.MaxES;
+			float percent = max <= 0 ? 100 : 100f * (life.CurHP + life.CurES) / max;
+			if ( percent >= RetreatBelowLifePercent ) return false;
+			if ( !Combat.NearestSafeSpot(ctx.Terrain, ctx.Grid, ctx.Hostiles.Select(h => h.GridPos), RetreatDistance, out var safe) ) return false;
+			WalkTo(safe, $"retreating to {safe} ({percent:F0}% life)");
+			return true;
+		}
+
+		/// <summary>Fight the monster ChooseTarget picks from those near (with skill, if given, else Attack); true if fighting.</summary>
+		public bool TryFight(CombatContext ctx, string skill = null) {
+			Target = ChooseTarget(ctx.Hostiles);
+			return Target != null && Engage(ctx, Target, skill);
+		}
+
+		/// <summary>
+		/// Fight target: if it is within range (and in sight, if needed), attack it, with skill if given (see UseSkill),
+		/// else with Attack; otherwise walk to a spot where it would be. False if there is no such spot.
+		/// </summary>
+		public bool Engage(CombatContext ctx, Hostile target, string skill = null, float range = 0, bool? needsLineOfSight = null) {
+			if ( range <= 0 ) range = AttackRange;
+			bool los = needsLineOfSight ?? NeedsLineOfSight;
+			Target = target;
+			float d = Combat.Distance(ctx.Grid, target.GridPos);
+			bool inRange = d <= range && (!los || ctx.Terrain.HasLineOfSight(ctx.Grid, target.GridPos));
+			if ( inRange && TryWorldToScreen(target.WorldPos, out Vector2 screen) && PathFollower.IsSafeToClick(screen) ) {
+				if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, "attacking");
+				Status = $"attacking {target}{(skill == null ? "" : $" with {skill}")}";
+				if ( skill == null ) Attack(target, screen);
+				else UseSkillPaced(skill, screen);
+				return true;
 			}
-
-			// fight
-			Target = ChooseTarget(hostiles);
-			if ( Target != null ) {
-				bool inRange = Target.Distance <= AttackRange && (!NeedsLineOfSight || terrain.HasLineOfSight(grid, Target.GridPos));
-				if ( inRange && TryWorldToScreen(Target.WorldPos, out Vector2 screen) && PathFollower.IsSafeToClick(screen) ) {
-					if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, "attacking");
-					Status = $"attacking {Target}";
-					Attack(Target, screen);
-					return;
-				}
-				if ( Combat.FindAttackSpot(terrain, grid, Target.GridPos, AttackRange * 0.8f, NeedsLineOfSight, out var spot) ) {
-					Status = $"moving to attack {Target} from {spot}";
-					Combat.PathTo(spot, this);
-					return;
-				}
+			if ( Combat.FindAttackSpot(ctx.Terrain, ctx.Grid, target.GridPos, range * 0.8f, los, out var spot) ) {
+				WalkTo(spot, $"moving to attack {target} from {spot}");
+				return true;
 			}
+			return false;
+		}
 
-			// explore (look for the next place twice a second, it moves as the area is explored)
+		private long lastPacedUse;
+		/// <summary>UseSkill, but no more often than the skill's cast time (and at least 150 ms apart).</summary>
+		public bool UseSkillPaced(string skill, Vector2 screenPos) {
+			int interval = Math.Max(150, SkillBar.CastTimeMs(SkillBar.FindSlot(skill)?.Skill));
+			if ( Time.ElapsedMilliseconds - lastPacedUse < interval ) return false;
+			if ( !UseSkill(skill, screenPos) ) return false;
+			lastPacedUse = Time.ElapsedMilliseconds;
+			return true;
+		}
+
+		/// <summary>True once TryExplore has found nothing left to explore in this area.</summary>
+		public bool ExploreDone => exploreTarget != null && exploreTarget.Kind == ExploreTargetKind.None;
+
+		/// <summary>Walk to the next unexplored place; false if there is none left.</summary>
+		public bool TryExplore(CombatContext ctx) {
+			// look for the next place twice a second, it moves as the area is explored
 			if ( exploreTarget == null || Time.ElapsedMilliseconds - exploreTargetTime > 500 || DefaultFollower.Status == FollowStatus.Arrived ) {
-				exploreTarget = DefaultExplorer.FindNextTarget(DefaultNavigator, terrain, grid, monsters: false);
+				exploreTarget = DefaultExplorer.FindNextTarget(DefaultNavigator, ctx.Terrain, ctx.Grid, monsters: false);
 				exploreTargetTime = Time.ElapsedMilliseconds;
 			}
-			if ( exploreTarget.Kind == ExploreTargetKind.None ) {
-				Stop("the area is explored and clear");
-				return;
-			}
-			Status = $"exploring {exploreTarget.GridPos} ({DefaultExplorer.ExploredFraction:P0} explored)";
-			Combat.PathTo(exploreTarget.GridPos, this);
+			if ( exploreTarget.Kind == ExploreTargetKind.None ) return false;
+			WalkTo(exploreTarget.GridPos, $"exploring {exploreTarget.GridPos} ({DefaultExplorer.ExploredFraction:P0} explored)");
+			return true;
 		}
+
+		/// <summary>Walk the player to goal (the walking happens after Decide returns).</summary>
+		public void WalkTo(Offsets.Vector2i goal, string status) {
+			Status = status;
+			Combat.PathTo(goal, this);
+		}
+
+		/// <summary>Stop walking (eg, to click something).</summary>
+		public void StopWalking(string why) {
+			if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, why);
+		}
+
+		/// <summary>Set the status line (shown at the bottom left).</summary>
+		public void SetStatus(string status) => Status = status;
 
 		/// <summary>
 		/// Use the skill called name (eg, "Fireball") aimed at screenPos: press the key of the slot it is on, or, if it is
 		/// not on the skill bar, put it on a free slot first (then this returns false until that is done).
 		/// </summary>
-		protected bool UseSkill(string name, Vector2 screenPos, uint holdMs = 40) {
+		public bool UseSkill(string name, Vector2 screenPos, uint holdMs = 40) {
 			if ( binding ) return false;
 			var slot = SkillBar.FindSlot(name);
 			if ( slot == null ) {
@@ -182,7 +224,7 @@ namespace AtE {
 		}
 
 		/// <summary>Put name on a slot (see SkillBar.BindSkill); the driver waits until it is done, and stops if it fails.</summary>
-		protected void Bind(int slotIndex, string name) {
+		public void Bind(int slotIndex, string name) {
 			if ( binding ) return;
 			binding = true;
 			if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, "changing the skill bar");
@@ -197,6 +239,25 @@ namespace AtE {
 			DrawBottomLeftText($"{Name}: {Status}", Color.Gray);
 			return this;
 		}
+	}
+
+	/// <summary>
+	/// What a combat driver knows about the current frame, for deciding what to do.
+	/// </summary>
+	public class CombatContext {
+		public readonly CombatDriver Driver;
+		public readonly InGameState Game;
+		public readonly Terrain Terrain;
+		public readonly PlayerEntity Player;
+		public readonly Offsets.Vector2i Grid;
+		public readonly float Z;
+		private List<Hostile> hostiles;
+		public CombatContext(CombatDriver driver, InGameState game, Terrain terrain, PlayerEntity player, Offsets.Vector2i grid, float z) {
+			Driver = driver; Game = game; Terrain = terrain; Player = player; Grid = grid; Z = z;
+		}
+		/// <summary>The hostile monsters within the driver's EngageRadius that can be walked to, nearest first.</summary>
+		public List<Hostile> Hostiles => hostiles ??= Combat.GetHostiles(Grid, Driver.EngageRadius)
+			.Where(h => DefaultNavigator.IsReachable(Terrain, Grid, h.GridPos)).ToList();
 	}
 
 	/// <summary>
