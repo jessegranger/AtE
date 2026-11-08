@@ -208,13 +208,35 @@ namespace AtE {
 		/// </summary>
 		public UIElementLibrary UIElements => IsValid(Cache.ptrUIElements) ? new UIElementLibrary() { Address = Cache.ptrUIElements } : null;
 
+		private int screenRadius;
+		private long screenRadiusTime;
+		// how far (in cells) the screen reaches from the player: the smaller of the distances to the top and bottom edges
+		// (the camera doesn't zoom, so this is measured once a second)
+		private int ScreenRevealRadius(Offsets.Vector2i player) {
+			if ( Time.ElapsedMilliseconds - screenRadiusTime < 1000 ) return screenRadius;
+			screenRadiusTime = Time.ElapsedMilliseconds;
+			var size = WindowSize.Value;
+			float z = Position(Player).Z;
+			if ( size.X <= 0 || !TryGridToScreen(player, z, out Vector2 p) ) return screenRadius;
+			int r = int.MaxValue;
+			foreach ( var edge in new[] { new Vector2(p.X, 0), new Vector2(p.X, size.Y) } ) {
+				if ( !TryScreenToGrid(edge, z, out var g) ) continue;
+				float dx = g.X - player.X, dy = g.Y - player.Y;
+				r = Math.Min(r, (int)MathF.Sqrt((dx * dx) + (dy * dy)));
+			}
+			if ( r != int.MaxValue ) screenRadius = r;
+			return screenRadius;
+		}
+
 		public override IState OnTick(long dt) {
 			if ( IsDisposed ) return null;
 
 			// keep track of what the player has explored, for anything that wants to clear the area
 			var playerPos = Player?.GetComponent<Positioned>();
 			if ( IsValid(playerPos) ) {
-				DefaultExplorer.Update(Terrain, WorldData?.AreaHash ?? 0, playerPos.GridPos);
+				var area = GetCurrentArea();
+				bool exploreAll = area != null && (area.IsTown || (area.Name?.Contains("Hideout") ?? false)); // (TODO: "Hideout" is English only)
+				DefaultExplorer.Update(Terrain, WorldData?.AreaHash ?? 0, playerPos.GridPos, exploreAll, ScreenRevealRadius(playerPos.GridPos));
 			}
 
 			/*

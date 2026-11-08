@@ -23,16 +23,28 @@ namespace AtE {
 	}
 
 	/// <summary>
-	/// Tracks which walkable cells of an area the player has been near (within RevealRadius),
+	/// Tracks which walkable cells of an area the player has been near (within the reveal radius),
 	/// and picks where to go next to see the rest of it.
 	///
 	/// This is our own record, not the game's minimap: it only covers what was seen while the overlay was running.
+	/// (The minimap's fog of war could not be found in the game's memory, outside of what it draws on the GPU:
+	/// the area data, its terrain grids, its minimap mask (InGameState_Data+0xE98, one byte per 3x3 cells, which is the
+	/// walkable ground, revealed or not) and its tile details don't change as the minimap is revealed. So, like the
+	/// minimap, cells count as explored once they have been on screen: the reveal radius is how far the screen reaches.)
+	/// Towns and hideouts count as explored as soon as they are entered.
 	/// It is kept per area instance (by area hash), so a trip to town and back keeps it.
 	/// </summary>
 	public class Explorer {
 
-		/// <summary>Walkable cells within this many cells of the player count as explored.</summary>
+		/// <summary>Walkable cells within this many cells of the player count as explored (at least; see ScreenRevealRadius).</summary>
 		public int RevealRadius = 45;
+		/// <summary>
+		/// If true, the reveal radius is how far the screen reaches from the player (the smaller of the distances to the
+		/// top and bottom edges), like the minimap, which shows what has been on screen. Never less than RevealRadius.
+		/// </summary>
+		public bool RevealToScreenEdge = true;
+		/// <summary>The radius used for the last Update.</summary>
+		public int CurrentRevealRadius { get; private set; }
 		/// <summary>A region (one connected part of an 8x8 block) is worth visiting if it has this many unexplored cells (or half its cells, if smaller).</summary>
 		public int MinUnexplored = 16;
 		/// <summary>Hostile monsters within this many cells (straight line) are targets before exploring.</summary>
@@ -72,16 +84,23 @@ namespace AtE {
 		/// <summary>
 		/// Mark the cells around the player as explored. Cheap when the player has not moved much; call every frame.
 		/// </summary>
-		public void Update(Terrain terrain, uint areaHash, Offsets.Vector2i player) {
+		/// <param name="exploreAll">True to count the whole area as explored at once (eg, a town or hideout).</param>
+		/// <param name="screenRadius">How far the screen reaches from the player, in cells (0 if unknown).</param>
+		public void Update(Terrain terrain, uint areaHash, Offsets.Vector2i player, bool exploreAll = false, int screenRadius = 0) {
 			if ( terrain == null || !terrain.IsLoaded ) return;
 			if ( current == null || currentArea != areaHash || current.Width != terrain.Width || current.Height != terrain.Height ) {
 				Select(terrain, areaHash);
 			}
 			current.LastUsed = Time.ElapsedMilliseconds;
+			if ( exploreAll ) {
+				MarkAll();
+				return;
+			}
 			int dx0 = player.X - current.LastMarked.X, dy0 = player.Y - current.LastMarked.Y;
 			if ( (dx0 * dx0) + (dy0 * dy0) < 9 ) return; // moved less than 3 cells
 			current.LastMarked = player;
-			int r = RevealRadius;
+			int r = RevealToScreenEdge ? Math.Max(RevealRadius, Math.Min(screenRadius, 200)) : RevealRadius;
+			CurrentRevealRadius = r;
 			for ( int dy = -r; dy <= r; dy++ ) {
 				int y = player.Y + dy;
 				if ( y < 0 || y >= current.Height ) continue;
@@ -96,6 +115,13 @@ namespace AtE {
 					current.BlockUnexplored[((y >> 3) * current.BlocksX) + (x >> 3)] -= 1;
 				}
 			}
+		}
+
+		private void MarkAll() {
+			if ( current.Explored == current.Walkable ) return;
+			Array.Fill(current.Bits, ulong.MaxValue);
+			current.Explored = current.Walkable;
+			Array.Clear(current.BlockUnexplored, 0, current.BlockUnexplored.Length);
 		}
 
 		private void Select(Terrain terrain, uint areaHash) {

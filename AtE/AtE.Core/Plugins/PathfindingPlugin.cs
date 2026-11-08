@@ -92,6 +92,11 @@ namespace AtE {
 			ImGui_HelpMarker("Instead of the cursor, the path goes to where clearing the area should go next: a nearby monster, or the nearest unexplored place.");
 			ImGui.Checkbox("Target Monsters", ref ExploreMonsters);
 			ImGui.SliderInt("Reveal Radius", ref DefaultExplorer.RevealRadius, 10, 100);
+			ImGui.SameLine();
+			ImGui_HelpMarker("Walkable cells this close to the player count as explored. With 'Reveal to Screen Edge', it's how far the screen reaches (like the minimap), but never less than this.");
+			ImGui.Checkbox("Reveal to Screen Edge", ref DefaultExplorer.RevealToScreenEdge);
+			ImGui.SameLine();
+			ImGui.Text($"(now {DefaultExplorer.CurrentRevealRadius} cells)");
 			if ( exploreTarget != null ) ImGui.Text($"Next target: {exploreTarget} (found in {exploreTarget.ElapsedMs:F2} ms)");
 			ImGui.Separator();
 
