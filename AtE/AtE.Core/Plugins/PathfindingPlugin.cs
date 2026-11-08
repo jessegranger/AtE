@@ -222,6 +222,7 @@ namespace AtE {
 			if ( terrain == null ) return;
 			var follower = DefaultFollower;
 			Offsets.Vector2i target;
+			bool following = follower.IsActiveFor(this);
 			if ( follower.IsActive ) {
 				target = follower.Goal; // (the cursor is busy walking)
 			} else {
@@ -244,15 +245,16 @@ namespace AtE {
 
 			// start / stop walking along the path
 			if ( FollowKey.IsReleased ) {
-				if ( follower.IsActive ) {
+				if ( following ) {
 					follower.Stop(FollowStatus.Idle, "stopped");
 				} else {
 					followingExplore = PathToExploreTarget;
-					follower.Start(target);
+					follower.Start(target, this);
 				}
+				following = follower.IsActiveFor(this);
 			}
-			if ( follower.IsActive ) {
-				if ( followingExplore ) follower.SetGoal(target); // the next exploration target moves as the area is explored
+			if ( following ) {
+				if ( followingExplore ) follower.SetGoal(target, this); // the next exploration target moves as the area is explored
 				follower.AimAhead = AimAhead;
 				follower.MoveKey = MoveOnlyKey.Key;
 				DefaultNavigator.WallPenalty = WallPenalty;
@@ -262,15 +264,16 @@ namespace AtE {
 					// on to the next place to explore
 					exploreTarget = DefaultExplorer.FindNextTarget(DefaultNavigator, terrain, playerGrid, ExploreMonsters);
 					exploreTargetTime = Time.ElapsedMilliseconds;
-					if ( exploreTarget.Kind != ExploreTargetKind.None ) follower.Start(exploreTarget.GridPos);
+					if ( exploreTarget.Kind != ExploreTargetKind.None ) follower.Start(exploreTarget.GridPos, this);
 				}
 				testPath = follower.Path;
 				testPathTo = target;
 				testPathFrom = playerGrid;
 			}
-			if ( follower.IsActive || follower.Status != FollowStatus.Idle ) {
-				DrawBottomLeftText($"Follow: {follower.Status} {follower.Detail}", follower.IsActive ? Color.Cyan : Color.Gray);
+			if ( following || (follower.Owner == this && follower.Status != FollowStatus.Idle) ) {
+				DrawBottomLeftText($"Follow: {follower.Status} {follower.Detail}", following ? Color.Cyan : Color.Gray);
 			}
+			if ( follower.IsActive && !following ) testPath = follower.Path; // someone else (eg, a combat driver) is walking: show their path
 
 			// a new target needs a new plan (at most 10 times a second, for a moving cursor);
 			// when only the player moves, UpdatePath re-uses the plan we have, which is cheap enough for every frame

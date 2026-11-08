@@ -37,6 +37,8 @@ namespace AtE {
 		public VKey MoveKey = VKey.None;
 
 		public bool IsActive { get; private set; }
+		/// <summary>Whoever started it (eg, a plugin), so two things don't steer the player at once.</summary>
+		public object Owner { get; private set; }
 		public Offsets.Vector2i Goal { get; private set; }
 		public NavPath Path { get; private set; }
 		public FollowStatus Status { get; private set; } = FollowStatus.Idle;
@@ -51,8 +53,9 @@ namespace AtE {
 		private int stuckCount;
 		private int terrainGeneration;
 
-		public void Start(Offsets.Vector2i goal) {
+		public void Start(Offsets.Vector2i goal, object owner = null) {
 			if ( !IsActive || goal.Id != Goal.Id ) Path = null;
+			Owner = owner;
 			Goal = goal;
 			IsActive = true;
 			Status = FollowStatus.Walking;
@@ -64,10 +67,13 @@ namespace AtE {
 		}
 
 		/// <summary>Change the goal while walking (eg, to the next exploration target), keeping everything else going.</summary>
-		public void SetGoal(Offsets.Vector2i goal) {
-			if ( !IsActive ) Start(goal);
+		public void SetGoal(Offsets.Vector2i goal, object owner = null) {
+			if ( !IsActive || Owner != owner ) Start(goal, owner);
 			else Goal = goal;
 		}
+
+		/// <summary>True if owner is the one walking the player now.</summary>
+		public bool IsActiveFor(object owner) => IsActive && Owner == owner;
 
 		public void Stop(FollowStatus status = FollowStatus.Idle, string detail = "") {
 			IsActive = false;

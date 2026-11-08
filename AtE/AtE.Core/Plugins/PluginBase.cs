@@ -30,7 +30,7 @@ namespace AtE {
 	public class PluginBase : State {
 
 		private static bool TryRegisterPluginType(Type T) {
-			if ( T == null || !T.IsSubclassOf(typeof(PluginBase)) ) {
+			if ( T == null || !T.IsSubclassOf(typeof(PluginBase)) || T.IsAbstract ) { // (abstract: a base class for other plugins)
 				return false;
 			}
 			Log($"Loading plugin: {T.Name}");
