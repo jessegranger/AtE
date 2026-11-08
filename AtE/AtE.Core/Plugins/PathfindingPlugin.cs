@@ -25,6 +25,11 @@ namespace AtE {
 		public bool ShowDoors = false;
 		public string RouteGoal = "";
 
+		public HotKey FollowKey = new HotKey(VKey.End);
+		public HotKey MoveOnlyKey = new HotKey(VKey.None);
+		public int AimAhead = 18;
+		private bool followingExplore = false; // keep going to the next exploration target after arriving
+
 		public bool ShowExploration = false;
 		public bool PathToExploreTarget = false;
 		public bool ExploreMonsters = true;
@@ -66,6 +71,15 @@ namespace AtE {
 			} else if ( ShowPathToCursor ) {
 				ImGui.Text("Path: none");
 			}
+			ImGui.Separator();
+			ImGui_HotKeyButton("Follow Path", ref FollowKey);
+			ImGui.SameLine();
+			ImGui_HelpMarker("Walks the player along the path being shown (to the pinned target, an exit, or the next exploration target), clicking on the ground ahead, and clicking closed doors open. Press again to stop. The game needs focus, because it only reads the mouse while it has focus.");
+			ImGui_HotKeyButton("Move Only key (in game)", ref MoveOnlyKey);
+			ImGui.SameLine();
+			ImGui_HelpMarker("If you bind the game's \"Move Only\" action to a key, set the same key here: walking will press it instead of left clicking, so it never attacks or picks things up on the way.");
+			ImGui.SliderInt("Aim Ahead (cells)", ref AimAhead, 6, 40);
+			ImGui.Text($"Follow: {DefaultFollower.Status} {DefaultFollower.Detail}");
 			ImGui.Separator();
 			ImGui.Text($"Explored: {DefaultExplorer.ExploredFraction:P0} of this area");
 			ImGui.SameLine();
@@ -206,26 +220,65 @@ namespace AtE {
 		private void RenderPathToCursor(Offsets.Vector2i playerGrid, float z) {
 			var terrain = GetTerrain();
 			if ( terrain == null ) return;
-			// GridToWorld puts things 80 units above z, so un-project onto that same plane
-			if ( !TryScreenToGrid(Platform.Current.Keys.GetCursorPos() - WindowOffset(), z + 80f, out Offsets.Vector2i cursorGrid) ) return;
-			if ( PinTargetKey.IsReleased ) {
-				targetPinned = !targetPinned;
-				pinnedTarget = cursorGrid;
+			var follower = DefaultFollower;
+			Offsets.Vector2i target;
+			if ( follower.IsActive ) {
+				target = follower.Goal; // (the cursor is busy walking)
+			} else {
+				// GridToWorld puts things 80 units above z, so un-project onto that same plane
+				if ( !TryScreenToGrid(Platform.Current.Keys.GetCursorPos() - WindowOffset(), z + 80f, out Offsets.Vector2i cursorGrid) ) return;
+				if ( PinTargetKey.IsReleased ) {
+					targetPinned = !targetPinned;
+					pinnedTarget = cursorGrid;
+				}
+				target = targetPinned ? pinnedTarget : cursorGrid;
 			}
-			var target = targetPinned ? pinnedTarget : cursorGrid;
 			if ( PathToExploreTarget ) {
 				if ( exploreTarget == null || exploreTarget.Kind == ExploreTargetKind.None ) {
+					if ( follower.IsActive && followingExplore ) follower.Stop(FollowStatus.Arrived, "nothing left to explore");
 					testPath = null;
 					return;
 				}
 				target = exploreTarget.GridPos;
 			}
 
+			// start / stop walking along the path
+			if ( FollowKey.IsReleased ) {
+				if ( follower.IsActive ) {
+					follower.Stop(FollowStatus.Idle, "stopped");
+				} else {
+					followingExplore = PathToExploreTarget;
+					follower.Start(target);
+				}
+			}
+			if ( follower.IsActive ) {
+				if ( followingExplore ) follower.SetGoal(target); // the next exploration target moves as the area is explored
+				follower.AimAhead = AimAhead;
+				follower.MoveKey = MoveOnlyKey.Key;
+				DefaultNavigator.WallPenalty = WallPenalty;
+				DefaultNavigator.SmoothClearance = SmoothClearance;
+				var status = follower.Tick(DefaultNavigator, terrain, playerGrid, z);
+				if ( status == FollowStatus.Arrived && followingExplore ) {
+					// on to the next place to explore
+					exploreTarget = DefaultExplorer.FindNextTarget(DefaultNavigator, terrain, playerGrid, ExploreMonsters);
+					exploreTargetTime = Time.ElapsedMilliseconds;
+					if ( exploreTarget.Kind != ExploreTargetKind.None ) follower.Start(exploreTarget.GridPos);
+				}
+				testPath = follower.Path;
+				testPathTo = target;
+				testPathFrom = playerGrid;
+			}
+			if ( follower.IsActive || follower.Status != FollowStatus.Idle ) {
+				DrawBottomLeftText($"Follow: {follower.Status} {follower.Detail}", follower.IsActive ? Color.Cyan : Color.Gray);
+			}
+
 			// a new target needs a new plan (at most 10 times a second, for a moving cursor);
 			// when only the player moves, UpdatePath re-uses the plan we have, which is cheap enough for every frame
 			DefaultNavigator.WallPenalty = WallPenalty;
 			DefaultNavigator.SmoothClearance = SmoothClearance;
-			if ( target.Id != testPathTo.Id ) {
+			if ( follower.IsActive ) {
+				// (the follower keeps its own path up to date)
+			} else if ( target.Id != testPathTo.Id ) {
 				if ( Time.ElapsedMilliseconds - testPathTime > 100 ) {
 					testPath = DefaultNavigator.FindPath(terrain, playerGrid, target);
 					RecordPath("new target", testPath, playerGrid, target);
