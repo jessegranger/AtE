@@ -562,7 +562,7 @@ namespace AtE.Plugins {
 					}
 					var overheadIconSize = IconSize * GetMapZoom() * 8;
 					DrawSprite(icon, overhead, overheadIconSize, overheadIconSize);
-					DrawTextAt(ent, ent.Path, Color.White);
+					// DrawTextAt(ent, ent.Path, Color.White);
 					/*
 					ImGui.Begin("debug_overhead");
 					ImGui.Text("Overhead vector result:");

@@ -172,6 +172,12 @@ namespace AtE {
 
 		public bool IsPaused => Data.Value.IsPaused;
 
+		private readonly Terrain terrain = new Terrain();
+		/// <summary>
+		/// The walkable (and projectile) grids for the current area, or null while they are not readable.
+		/// </summary>
+		public Terrain Terrain => IsValid(Address) && terrain.Update(Data.Value.Terrain) ? terrain : null;
+
 		public Element Hovered => IsValid(Address) && ElementCache.TryGetElement(Cache.elemHover, out Element hover) ? hover : null;
 
 		/// <summary>

@@ -537,13 +537,37 @@ namespace AtE {
 			// 3.27: 16 new bytes here
 			[FieldOffset(0xa28)] public readonly IntPtr EntityListHead; // ptr EntityListNode
 			[FieldOffset(0xa30)] public readonly long EntitiesCount;
-			// [FieldOffset(0x9C8)] public readonly long Terrain; // TODO: TerrainData struct
 
 			// 3.29.3: confirmed with MemoryServer /track: int32 tick counter, ~9.5/s in steps (96% flat sampling at 20ms),
 			// FREEZES while the game is paused (read 16322 constant while paused, resumed from there). Simulation tick, not real time.
 			[FieldOffset(0xB18)] public readonly int SimulationTicks;
 			// 3.29.3 tentative: bytes at 0xB9C and 0xB9D read 1,1 while paused and 0 while running (single observation each)
 			[FieldOffset(0xB9C)] public readonly bool IsPaused;
+
+			// 3.29.3: confirmed with MemoryServer in Oriath Docks (vtable at +0x0, 37x37 tiles, two 426x851 nibble grids),
+			// and by drawing both grids in The Coast (blocked/projectile cells line up with walls and water)
+			[FieldOffset(0xBF0)] public readonly TerrainData Terrain;
+		}
+
+		/// <summary>
+		/// The static terrain of the current area. The grids are in the same cell coordinates as Positioned.GridPos.
+		/// Each grid is 4 bits per cell: cell (x,y) is in byte (y * BytesPerRow + x / 2), even x in the low nibble.
+		/// </summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct TerrainData {
+			public const int CellsPerTile = 23;
+			[FieldOffset(0x00)] public readonly IntPtr vtable;
+			[FieldOffset(0x18)] public readonly long TilesX;
+			[FieldOffset(0x20)] public readonly long TilesY;
+			[FieldOffset(0x28)] public readonly ArrayHandle TileDetails; // 0x38 bytes per tile, TilesX * TilesY of them
+			// [FieldOffset(0x40)] public readonly long VerticesX; // TilesX + 1
+			// [FieldOffset(0x48)] public readonly long VerticesY; // TilesY + 1
+			// [FieldOffset(0x50)] public readonly ArrayHandle Vertices; // 3 bytes per vertex
+			// [FieldOffset(0x68)] public readonly ArrayHandle TileMeshes; // refs to ".tmd" files
+			// 0 = blocked, 1..5 = walkable, larger values have more clearance from walls
+			[FieldOffset(0xD0)] public readonly ArrayHandle WalkableGrid;
+			// a superset of WalkableGrid (includes water, excludes buildings): projectile / line-of-sight, same encoding
+			[FieldOffset(0xE8)] public readonly ArrayHandle ProjectileGrid;
+			[FieldOffset(0x100)] public readonly int BytesPerRow;
 		}
 
 		/// <summary>
@@ -1155,7 +1179,7 @@ namespace AtE {
 			// [FieldOffset(0x38)] public readonly uint UnkInt38;
 			// [FieldOffset(0x3c)] public readonly int UnkInt3c;
 			// [FieldOffset(0x40)] public readonly int UnkInt40;
-			[FieldOffset(0x40)] public readonly byte Charges;
+			[FieldOffset(0x40)] public readonly byte Charges; // 3.29.3: confirmed (endurance/frenzy_charge, fortification); impaled_debuff uses it as hits remaining (5 -> 0)
 			// [FieldOffset(0x4a)] public readonly int UnkInt4A;
 			// [FieldOffset(0x44)] public readonly int UnkInt44;
 			// [FieldOffset(0x48)] public readonly int UnkInt48;

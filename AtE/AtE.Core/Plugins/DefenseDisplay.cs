@@ -241,7 +241,8 @@ namespace AtE.Plugins {
 										} else if( name.Equals("magma_pustule") ) {
 											energyStacks = buff.Charges;
 										} else if( name.Equals("impaled_debuff") ) {
-											impaleStacks += Math.Max((int)buff.Charges, 1);
+											// each impale is its own buff; its Charges is the hits remaining (starts at 5), not a stack count
+											impaleStacks += 1;
 										} else if( ShowEnemyCurses && name.StartsWith("curse") ) {
 											curses.Add(name);
 										}
