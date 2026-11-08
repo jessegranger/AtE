@@ -136,6 +136,31 @@ namespace AtE {
 
 		public bool InBounds(int x, int y) => x >= 0 && y >= 0 && x < Width && y < Height;
 
+		/// <summary>
+		/// Read the walkable grid as it is in the game now (it changes when doors and other blockers open), for the cells
+		/// in the inclusive box min..max. live(x, y) is then true for the cells walkable now. False if it can't be read.
+		/// (The grid used for everything else is a copy made when the area loaded.)
+		/// </summary>
+		public bool TryReadLiveWalkable(Offsets.Vector2i min, Offsets.Vector2i max, out Func<int, int, bool> live) {
+			live = null;
+			if ( !IsLoaded || loadedFrom == IntPtr.Zero ) return false;
+			int x0 = Math.Max(0, min.X), y0 = Math.Max(0, min.Y), x1 = Math.Min(Width - 1, max.X), y1 = Math.Min(Height - 1, max.Y);
+			if ( x1 < x0 || y1 < y0 ) return false;
+			int b0 = x0 >> 1, rowBytes = (x1 >> 1) - b0 + 1, rows = y1 - y0 + 1;
+			var box = new byte[rowBytes * rows];
+			var row = new byte[rowBytes];
+			for ( int y = y0; y <= y1; y++ ) {
+				if ( PoEMemory.TryRead(loadedFrom + (y * BytesPerRow) + b0, row) != rowBytes ) return false;
+				Array.Copy(row, 0, box, (y - y0) * rowBytes, rowBytes);
+			}
+			live = (x, y) => {
+				if ( x < x0 || x > x1 || y < y0 || y > y1 ) return IsWalkable(x, y);
+				byte v = box[((y - y0) * rowBytes) + (x >> 1) - b0];
+				return ((x & 1) == 0 ? v & 0xF : v >> 4) > 0;
+			};
+			return true;
+		}
+
 		private int Cell(byte[] grid, int x, int y) {
 			if ( grid == null || !InBounds(x, y) ) return 0;
 			byte b = grid[(y * BytesPerRow) + (x >> 1)];
