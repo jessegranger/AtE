@@ -127,7 +127,7 @@ namespace AtE {
 			var area = GetCurrentArea();
 			ImGui.Text($"Area: {area}");
 			if ( area != null ) {
-				ImGui.Text($"Connects to: {string.Join(", ", area.Connections.Select(a => a.Name))}");
+				ImGui.Text($"Connects to: {string.Join(", ", area.Connections.Select(a => a.DisplayName))}");
 			}
 			ImGui.SetNextItemWidth(200);
 			ImGui.InputText("Route to Area", ref RouteGoal, 64);
@@ -135,7 +135,7 @@ namespace AtE {
 			ImGui_HelpMarker("Name (eg 'The Ledge') or id (eg '1_1_5') of an area; shows the areas to walk through, and highlights the exit to take.");
 			var route = string.IsNullOrWhiteSpace(RouteGoal) ? null : WorldArea.FindRoute(area, RouteGoal.Trim());
 			if ( !string.IsNullOrWhiteSpace(RouteGoal) ) {
-				ImGui.TextWrapped(route == null ? "Route: not found" : $"Route: {string.Join(" -> ", route.Select(a => a.Name))}");
+				ImGui.TextWrapped(route == null ? "Route: not found" : $"Route: {string.Join(" -> ", route.Select(a => a.DisplayName))}");
 			}
 			int i = 0;
 			foreach ( var exit in terrain.Exits ) {

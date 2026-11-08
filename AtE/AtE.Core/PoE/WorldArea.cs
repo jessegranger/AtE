@@ -36,7 +36,16 @@ namespace AtE {
 
 		public IEnumerable<WorldArea> Connections => connections.Select(FromAddress).Where(a => a != null);
 
-		public override string ToString() => $"{Name} ({Id})";
+		/// <summary>
+		/// True for an area like Aspirants' Plaza (the Labyrinth's entrance), which lists the towns of more than one act
+		/// as neighbors: you arrive from one of them, and can't walk through it to another.
+		/// </summary>
+		public bool IsHub => Connections.Where(a => a.IsTown).Select(a => a.Act).Distinct().Count() > 1;
+
+		/// <summary>The name, with the act when there is one (several areas share a name, eg The Sarn Encampment in acts 3 and 8).</summary>
+		public string DisplayName => Act > 0 ? $"{Name} (Act {Act})" : Name;
+
+		public override string ToString() => $"{DisplayName} ({Id})";
 
 		private static readonly Dictionary<IntPtr, WorldArea> cache = new Dictionary<IntPtr, WorldArea>();
 		static WorldArea() {
@@ -54,7 +63,7 @@ namespace AtE {
 
 		/// <summary>
 		/// Breadth-first search over Connections, returns the areas to walk through (starting with from, ending at the goal),
-		/// or null if no goal is reachable.
+		/// or null if no goal is reachable. Never passes through a hub (see IsHub), but can start or end at one.
 		/// </summary>
 		public static List<WorldArea> FindRoute(WorldArea from, Func<WorldArea, bool> isGoal) {
 			if ( from == null ) return null;
@@ -69,6 +78,7 @@ namespace AtE {
 					route.Reverse();
 					return route;
 				}
+				if ( area != from && area.IsHub ) continue;
 				foreach ( var next in area.Connections ) {
 					if ( !cameFrom.ContainsKey(next) ) {
 						cameFrom[next] = area;
@@ -81,6 +91,7 @@ namespace AtE {
 
 		public static List<WorldArea> FindRoute(WorldArea from, string goalName) =>
 			FindRoute(from, a => string.Equals(a.Name, goalName, StringComparison.OrdinalIgnoreCase)
+				|| string.Equals(a.DisplayName, goalName, StringComparison.OrdinalIgnoreCase)
 				|| string.Equals(a.Id, goalName, StringComparison.OrdinalIgnoreCase));
 	}
 
