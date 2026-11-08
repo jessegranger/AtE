@@ -55,6 +55,15 @@ namespace AtE {
 			ImGui.SliderInt("Engage Radius (cells)", ref EngageRadius, 10, 120);
 			ImGui.SliderInt("Retreat Below Life %", ref RetreatBelowLifePercent, 0, 90);
 			ImGui.SliderInt("Retreat Distance (cells)", ref RetreatDistance, 10, 80);
+			if ( ImGui.TreeNode("Skill Bar") ) {
+				foreach ( var slot in SkillBar.GetSlots() ) {
+					int ms = SkillBar.CastTimeMs(slot.Skill);
+					ImGui.Text($"{slot}{(ms > 0 ? $" ({ms} ms)" : "")}");
+				}
+				ImGui.Text($"Available{(SkillBar.IsChoosing ? " (open)" : "")}: {string.Join(", ", SkillBar.GetAvailable())}");
+				if ( !SkillBar.LeftClickIsMovement() ) ImGui.TextColored(new Vector4(1, .6f, .2f, 1), "Left click is not Movement: walking may attack");
+				ImGui.TreePop();
+			}
 		}
 
 		public void Stop(string why) {

@@ -430,6 +430,23 @@ namespace AtE {
 		// 3.28.0: 136 bytes above here (inherited from Element)
 		public static readonly int Element_Text = 0x338;
 
+		// 3.29.3: the skill bar (UIElements.SkillBar): children [0..12] are the 13 skill slots, in the order of
+		// use_bound_skill1..13 in production_Config.ini. A slot's child [0][0] is its key label, and the hidden
+		// skill bar's children [1..] are the skills to choose from (child [0] is the "Always Attack Without Moving" option).
+		/// <summary>ptr to the ActorSkill shown in a skill bar (or hidden skill bar) cell; 0 when empty.</summary>
+		public static readonly int Element_SkillCell_Skill = 0x328;
+		/// <summary>ushort, the id of the ActorSkill in a skill cell (0x4000 Default Attack, ...); 0 when there is none.</summary>
+		public static readonly int Element_SkillCell_SkillId = 0x330;
+		/// <summary>
+		/// ptr to a skill cell's icon. The hidden skill bar's Movement and Clear cells have no skill, only an icon:
+		/// its name (SkillCellIcon_Name) ends with "SkillMoveOnly" or "SkillClear".
+		/// </summary>
+		public static readonly int Element_SkillCell_Icon = 0x238;
+		/// <summary>ptr to a unicode string, the name of a skill cell's icon (eg, "Art/2DArt/UIImages/InGame/SkillMoveOnly").</summary>
+		public static readonly int SkillCellIcon_Name = 0x10;
+		/// <summary>int, the Windows virtual key code (1 = left mouse, 0x51 = Q, ...) on a skill slot's key label; the modifier is not here.</summary>
+		public static readonly int Element_SkillKeyLabel_VKey = 0x298;
+
 		[StructLayout(LayoutKind.Explicit)] public struct ChildrenArrayEntry {
 			[FieldOffset(0x0)] public readonly IntPtr ptrChild;
 		}
