@@ -124,6 +124,7 @@ namespace AtE {
 		private int[] regionBlock;
 		private float[] regionX, regionY; // the center of the region, in cells
 		private float[] regionPenalty; // the average step cost multiplier of its cells
+		private int[] regionSize; // how many cells it has
 		private int[] regionComponent; // regions with different components are not connected at all
 		private int[] adjStart, adjTo; // the neighbors of region r are adjTo[adjStart[r] .. adjStart[r+1]-1]
 		private float[] rg;
@@ -239,6 +240,7 @@ namespace AtE {
 			regionX = new float[regionCount];
 			regionY = new float[regionCount];
 			regionPenalty = new float[regionCount];
+			regionSize = counts.ToArray();
 			for ( int r = 0; r < regionCount; r++ ) {
 				regionX[r] = sumX[r] / counts[r];
 				regionY[r] = sumY[r] / counts[r];
@@ -497,6 +499,77 @@ namespace AtE {
 			path.Steps = steps;
 			path.ElapsedMs = timer.Elapsed.TotalMilliseconds;
 			return path;
+		}
+
+		/// <summary>
+		/// True if a path from a to b exists (through doors, open or not). Cheap: no search.
+		/// </summary>
+		public bool IsReachable(Terrain terrain, Offsets.Vector2i a, Offsets.Vector2i b) {
+			if ( terrain == null || !terrain.IsLoaded ) return false;
+			if ( !TrySnap(terrain, a, out a) || !TrySnap(terrain, b, out b) ) return false;
+			Prepare(terrain);
+			return regionComponent[cellRegion[Index(a)]] == regionComponent[cellRegion[Index(b)]];
+		}
+
+		/// <summary>
+		/// Search outward from start, nearest first by travel cost (over the coarse regions, so the cost is approximate),
+		/// for the first region whose cells satisfy wanted. Returns false if no reachable region does.
+		/// target is the cell of that region closest to its center; cost is the approximate travel cost to it.
+		/// mightWant, if given, is a cheap test (block x, block y, region size) to skip regions without listing their cells.
+		/// </summary>
+		public bool FindNearestRegion(Terrain terrain, Offsets.Vector2i start, Func<List<Offsets.Vector2i>, bool> wanted,
+			out Offsets.Vector2i target, out float cost, Func<int, int, int, bool> mightWant = null) {
+			target = default;
+			cost = 0;
+			if ( terrain == null || !terrain.IsLoaded || !TrySnap(terrain, start, out start) ) return false;
+			Prepare(terrain);
+			int startR = cellRegion[Index(start)];
+			rgen += 1;
+			int openStamp = 2 * rgen, closedStamp = (2 * rgen) + 1;
+			ropen.Clear();
+			rg[startR] = 0;
+			rstamp[startR] = openStamp;
+			ropen.Enqueue(startR, 0);
+			var cells = new List<Offsets.Vector2i>(BlockSize * BlockSize);
+			bool found = false;
+			while ( ropen.TryDequeue(out int r, out _) ) {
+				if ( rstamp[r] == closedStamp ) continue;
+				rstamp[r] = closedStamp;
+				int b = regionBlock[r];
+				bool maybe = mightWant == null || mightWant(b % bw, b / bw, regionSize[r]);
+				if ( maybe ) {
+					// the cells of region r
+					cells.Clear();
+					int x0 = (b % bw) << BlockShift, y0 = (b / bw) << BlockShift;
+					for ( int y = y0; y < y0 + BlockSize && y < ph - 2; y++ ) {
+						for ( int x = x0; x < x0 + BlockSize && x < pw - 2; x++ ) {
+							if ( cellRegion[((y + 1) * pw) + x + 1] == r ) cells.Add(new Offsets.Vector2i(x, y));
+						}
+					}
+				}
+				if ( maybe && wanted(cells) ) {
+					float best = float.MaxValue;
+					foreach ( var c in cells ) {
+						float d = Octile(c.X - regionX[r], c.Y - regionY[r]);
+						if ( d < best ) { best = d; target = c; }
+					}
+					cost = rg[r];
+					found = true;
+					break;
+				}
+				for ( int i = adjStart[r]; i < adjStart[r + 1]; i++ ) {
+					int n = adjTo[i];
+					if ( rstamp[n] == closedStamp ) continue;
+					float step = Octile(regionX[n] - regionX[r], regionY[n] - regionY[r]) * (regionPenalty[r] + regionPenalty[n]) / 2f;
+					float gNext = rg[r] + step;
+					if ( rstamp[n] == openStamp && gNext >= rg[n] ) continue;
+					rg[n] = gNext;
+					rstamp[n] = openStamp;
+					ropen.Enqueue(n, gNext);
+				}
+			}
+			ropen.Clear();
+			return found;
 		}
 
 		/// <summary>

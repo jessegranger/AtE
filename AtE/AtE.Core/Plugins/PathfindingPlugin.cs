@@ -25,6 +25,12 @@ namespace AtE {
 		public bool ShowDoors = false;
 		public string RouteGoal = "";
 
+		public bool ShowExploration = false;
+		public bool PathToExploreTarget = false;
+		public bool ExploreMonsters = true;
+		private ExploreTarget exploreTarget;
+		private long exploreTargetTime = 0;
+
 		// when pinned, the test path goes to PinnedTarget instead of the cursor
 		private bool targetPinned = false;
 		private Offsets.Vector2i pinnedTarget;
@@ -60,6 +66,19 @@ namespace AtE {
 			} else if ( ShowPathToCursor ) {
 				ImGui.Text("Path: none");
 			}
+			ImGui.Separator();
+			ImGui.Text($"Explored: {DefaultExplorer.ExploredFraction:P0} of this area");
+			ImGui.SameLine();
+			if ( ImGui.Button("Reset##explored") ) DefaultExplorer.Reset();
+			ImGui.Checkbox("Show Exploration", ref ShowExploration);
+			ImGui.SameLine();
+			ImGui_HelpMarker("Colors the terrain dots by whether they have been explored (gray) or not (orange), and marks the next target.");
+			ImGui.Checkbox("Path to Next Target", ref PathToExploreTarget);
+			ImGui.SameLine();
+			ImGui_HelpMarker("Instead of the cursor, the path goes to where clearing the area should go next: a nearby monster, or the nearest unexplored place.");
+			ImGui.Checkbox("Target Monsters", ref ExploreMonsters);
+			ImGui.SliderInt("Reveal Radius", ref DefaultExplorer.RevealRadius, 10, 100);
+			if ( exploreTarget != null ) ImGui.Text($"Next target: {exploreTarget} (found in {exploreTarget.ElapsedMs:F2} ms)");
 			ImGui.Separator();
 
 			var terrain = GetTerrain();
@@ -154,6 +173,7 @@ namespace AtE {
 					Color color = clearance > 0 ? ClearanceColors[Math.Min(clearance, ClearanceColors.Length - 1)]
 						: terrain.IsProjectilePassable(x, y) ? Color.CornflowerBlue // blocked, but projectiles pass
 						: Color.Red;
+					if ( ShowExploration && clearance > 0 ) color = DefaultExplorer.IsExplored(x, y) ? Color.DimGray : Color.Orange;
 					// TODO: z comes from the player, so cells on slopes will be drawn off the ground
 					if ( TryGridToScreen(new Offsets.Vector2i(x, y), z, out Vector2 dot) ) DrawCircle(dot, 2, color);
 				}
@@ -193,6 +213,13 @@ namespace AtE {
 				pinnedTarget = cursorGrid;
 			}
 			var target = targetPinned ? pinnedTarget : cursorGrid;
+			if ( PathToExploreTarget ) {
+				if ( exploreTarget == null || exploreTarget.Kind == ExploreTargetKind.None ) {
+					testPath = null;
+					return;
+				}
+				target = exploreTarget.GridPos;
+			}
 
 			// a new target needs a new plan (at most 10 times a second, for a moving cursor);
 			// when only the player moves, UpdatePath re-uses the plan we have, which is cheap enough for every frame
@@ -293,7 +320,22 @@ namespace AtE {
 					if ( terrain != null ) RenderDoors(terrain, playerPos.Z);
 				}
 
-				if ( ShowPathToCursor ) {
+				if ( ShowExploration || PathToExploreTarget ) {
+					var terrain = GetTerrain();
+					// the next target moves as the area is explored, so only look for it twice a second
+					if ( terrain != null && (exploreTarget == null || Time.ElapsedMilliseconds - exploreTargetTime > 500) ) {
+						exploreTarget = DefaultExplorer.FindNextTarget(DefaultNavigator, terrain, playerGrid, ExploreMonsters);
+						exploreTargetTime = Time.ElapsedMilliseconds;
+					}
+					if ( ShowExploration && exploreTarget != null && exploreTarget.Kind != ExploreTargetKind.None
+						&& TryGridToScreen(exploreTarget.GridPos, playerPos.Z, out Vector2 next) ) {
+						var color = exploreTarget.Kind == ExploreTargetKind.Monster ? Color.OrangeRed : Color.Violet;
+						DrawCircle(next, 12, color);
+						DrawTextAt(next + new Vector2(14, -6), exploreTarget.Kind == ExploreTargetKind.Monster ? "fight" : "explore", color);
+					}
+				}
+
+				if ( ShowPathToCursor || PathToExploreTarget ) {
 					RenderPathToCursor(playerGrid, playerPos.Z);
 				} else {
 					testPath = null;

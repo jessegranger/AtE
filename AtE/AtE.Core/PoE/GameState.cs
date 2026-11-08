@@ -211,6 +211,12 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( IsDisposed ) return null;
 
+			// keep track of what the player has explored, for anything that wants to clear the area
+			var playerPos = Player?.GetComponent<Positioned>();
+			if ( IsValid(playerPos) ) {
+				DefaultExplorer.Update(Terrain, WorldData?.AreaHash ?? 0, playerPos.GridPos);
+			}
+
 			/*
 			// Experiment: once each frame, forcefully invalidate the player's buff cache
 			PlayerEntity p = GetPlayer();
