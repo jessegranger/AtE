@@ -61,14 +61,15 @@
        decoder could be loaded and where it looked. Note MSBuild evaluates Exists() when the project
        is evaluated, so after dropping a binary in, reload the project in an IDE. -->
   <ItemGroup>
-    <Content Include="Native\win-x64\libooz.dll" Link="libooz.dll"
-             Condition="Exists('Native\win-x64\libooz.dll')">
+    <Content Include="Native\win-x64\libooz.dll" Link="libooz.dll" Condition="Exists('Native\win-x64\libooz.dll')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Native\linux-x64\libooz.so" Link="libooz.so"
-             Condition="Exists('Native\linux-x64\libooz.so')">
+    <Content Include="Native\linux-x64\libooz.so" Link="libooz.so" Condition="Exists('Native\linux-x64\libooz.so')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Plugins\CombatRoutines\" />
   </ItemGroup>
 
 </Project>

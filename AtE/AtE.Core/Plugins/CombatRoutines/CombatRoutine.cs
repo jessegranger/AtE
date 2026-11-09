@@ -22,6 +22,14 @@ namespace AtE {
 		private uint areaHash;
 
 		public bool ShowObjectives = true;
+		/// <summary>Pick up the items that show a label on the ground (see Looter), when no monster is within AttackRange.</summary>
+		public bool PickUpItems = true;
+		protected readonly Looter Looter = new Looter();
+
+		protected CombatRoutine() =>
+			// an item an objective is to pick up is left to it, so it sees the item go and knows it is done
+			Looter.Leave = text => CurrentObjectives?.OfType<PickUp>().Any(p => !p.IsComplete
+				&& text.IndexOf(p.LabelText, StringComparison.OrdinalIgnoreCase) >= 0) ?? false;
 
 		/// <summary>The objectives for an area, by its name ("The Twilight Strand"), its name with act ("The Coast (Act 1)") or its id ("1_1_1").</summary>
 		protected void Area(string area, params Objective[] objectives) => areas.Add((area, objectives.ToList()));
@@ -44,6 +52,7 @@ namespace AtE {
 		public override void Render() {
 			base.Render();
 			ImGuiNET.ImGui.Checkbox("Show Objectives", ref ShowObjectives);
+			ImGuiNET.ImGui.Checkbox("Pick Up Items", ref PickUpItems);
 		}
 
 		public override IState OnTick(long dt) {
@@ -63,6 +72,7 @@ namespace AtE {
 			Current = null;
 			lastProven = -1;
 			lastProvenCheck = 0;
+			Looter.Reset();
 			foreach ( var area in areas ) foreach ( var o in area.objectives ) o.Reset();
 		}
 
@@ -130,7 +140,7 @@ namespace AtE {
 		protected override void Decide(CombatContext ctx) {
 			UpdateCompletion(ctx);
 			if ( Current == null ) {
-				base.Decide(ctx);
+				if ( !TryLoot(ctx) ) base.Decide(ctx);
 				return;
 			}
 			SetStatus(Current.Name);
@@ -143,11 +153,20 @@ namespace AtE {
 				}
 				return;
 			}
+			if ( !Current.UsesInventory && TryLoot(ctx) ) return;
 			Current.Tick(ctx);
 			if ( !string.IsNullOrEmpty(Current.Detail) ) SetStatus($"{Current.Name}: {Current.Detail}");
 		}
 
 		private long lastInventoryClose;
+
+		// pick up an item, if there is one and no monster is close; true if doing so
+		private bool TryLoot(CombatContext ctx) {
+			if ( !PickUpItems || ctx.Hostiles.Any(h => h.Distance <= AttackRange) || BackpackIsOpen() ) return false;
+			if ( !Looter.TryLoot(ctx) ) return false;
+			SetStatus(Looter.Status);
+			return true;
+		}
 
 		private void DrawObjectives() {
 			var objectives = CurrentObjectives;
