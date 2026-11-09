@@ -172,6 +172,14 @@ namespace AtE {
 
 		public bool IsPaused => Data.Value.IsPaused;
 
+		/// <summary>The passive ids the character has allocated (as in Path of Building's tree data), or empty if not readable.</summary>
+		public ushort[] AllocatedPassives =>
+			IsValid(Address)
+			&& PoEMemory.TryRead(Data.Value.ServerData, out Offsets.ServerData server)
+			&& PoEMemory.TryRead(server.ptrPassives, out Offsets.ServerData_Passives passives)
+			? new ArrayHandle<ushort>(passives.AllocatedPassives).ToArray(limit: 1000)
+			: Array.Empty<ushort>();
+
 		private readonly Terrain terrain = new Terrain();
 		/// <summary>
 		/// The walkable (and projectile) grids for the current area, or null while they are not readable.

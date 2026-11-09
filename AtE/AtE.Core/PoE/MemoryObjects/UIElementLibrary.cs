@@ -28,6 +28,16 @@ namespace AtE {
 		/// <summary>The "Skip All Tutorials" button, shown to a new character.</summary>
 		public Element SkipAllTutorials => IsValid(Address) ? getElement(Cache.SkipAllTutorials) : null;
 		public Element SkillBar => IsValid(Address) ? getElement(Cache.SkillBar) : null;
+		/// <summary>The level-up button, shown while there are passive points to spend.</summary>
+		public Element PassivePointsButton => IsValid(Address) ? getElement(Cache.PassivePointsButton) : null;
+		/// <summary>How many passive points there are to spend (the number on PassivePointsButton; 0 while it is hidden).</summary>
+		public int UnspentPassivePoints {
+			get {
+				var button = PassivePointsButton;
+				if ( !IsValid(button) || !button.IsVisible ) return 0;
+				return int.TryParse(button.GetChild(1)?.Text, out int n) ? n : 0;
+			}
+		}
 		public Element SkillTree => IsValid(Address) ? getElement(Cache.SkillTree) : null;
 		public Element HiddenSkillBar => IsValid(Address) ? getElement(Cache.HiddenSkillBar) : null;
 		public Element ChatBoxRoot => IsValid(Address) ? getElement(Cache.ChatBoxRoot) : null;

@@ -42,9 +42,9 @@ namespace AtE {
 						}
 					}
 				} else {
-					object[] array = (object[])value;
+					Array array = (Array)value; // (not object[]: arrays of value types, eg ushort[], are not)
 					for ( int i = 0; i < array.Length; i++ ) {
-						var item = array[i];
+						var item = array.GetValue(i);
 						nextLabel = $"{label}[{i}]";
 						if ( ImGui_ObjectLabel(id, nextLabel, item, seen, type) ) {
 							ImGui_Object(id, $"[{i}]", item, seen);
@@ -153,8 +153,7 @@ namespace AtE {
 					IntPtr[] ptrs = (IntPtr[])value;
 					return ImGui.TreeNode($"{prefix} [{ptrs.Length} items]##{id}");
 				} else {
-					object[] array = (object[])value;
-					return ImGui.TreeNode($"{prefix} [{array.Length} items]##{id}");
+					return ImGui.TreeNode($"{prefix} [{((Array)value).Length} items]##{id}");
 				}
 			}
 

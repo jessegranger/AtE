@@ -579,6 +579,18 @@ namespace AtE {
 			[FieldOffset(0xBF0)] public readonly TerrainData Terrain;
 		}
 
+		// 3.29.3, InGameState_Data.ServerData. Found by searching ServerData's pointees for arrays of passive ids, and
+		// confirmed by allocating Frost Walker (44955): the array went from 91 to 92 ids with 44955 in its sorted place.
+		// ServerData+0xC2E8 points at the same array, 0x10 further on (at +0x190 of that object).
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ServerData {
+			[FieldOffset(0xC2E0)] public readonly IntPtr ptrPassives; // ptr ServerData_Passives
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ServerData_Passives {
+			// of ushort: the passive ids the character has allocated (the ids of Path of Building's tree data), sorted
+			[FieldOffset(0x180)] public readonly ArrayHandle AllocatedPassives;
+			// the unspent and refund point counts were not found here (no 1 -> 0 change when the last point was spent)
+		}
+
 		/// <summary>
 		/// The static terrain of the current area. The grids are in the same cell coordinates as Positioned.GridPos.
 		/// Each grid is 4 bits per cell: cell (x,y) is in byte (y * BytesPerRow + x / 2), even x in the low nibble.
@@ -650,6 +662,9 @@ namespace AtE {
 			[FieldOffset(0x450)] public readonly IntPtr HelpPanelButton;
 			[FieldOffset(0x460)] public readonly IntPtr SkipAllTutorials;
 			[FieldOffset(0x488)] public readonly IntPtr Mouse;
+			// 3.29.3: the level-up button (GameUI[3][0]), shown while there are passive points to spend: Child[1].Text is
+			// how many ("1" with one point). +0x3D0 has another element with the same text, in a hidden panel.
+			[FieldOffset(0x518)] public readonly IntPtr PassivePointsButton;
 			[FieldOffset(0x490)] public readonly IntPtr SkillBar;
 			[FieldOffset(0x498)] public readonly IntPtr HiddenSkillBar;
 			// Crucible: 8 new bytes here
