@@ -836,10 +836,64 @@ namespace AtE {
 		public Offsets.SkillGemQualityType QualityType => Cache.QualityType;
 
 		public uint SocketColor => Details.Value.SocketColor;
+		/// <summary>The socket color that matches this gem (a gem fits any socket, but gets +10% quality in its own color).</summary>
+		public SocketColor Color => (SocketColor)Details.Value.SocketColor;
 	}
 
-	public class Sockets : Component<Offsets.Component_Sockets> {
+	/// <summary>
+	/// White (4) is confirmed: sockets are white by default, and any gem fits any socket. The others are the codes
+	/// PoE has used (not seen here yet).
+	/// </summary>
+	public enum SocketColor { None = 0, Red = 1, Green = 2, Blue = 3, White = 4 }
 
+	/// <summary>An item's sockets: their colors, which are linked, and the gem in each.</summary>
+	public class Sockets : Component<Offsets.Component_Sockets> {
+		public const int Max = 6;
+
+		/// <summary>The color of socket i, None if there is no socket i.</summary>
+		public SocketColor Color(int i) => (SocketColor)ColorCode(i);
+		private int ColorCode(int i) {
+			var c = Cache;
+			switch ( i ) {
+				case 0: return c.Socket0;
+				case 1: return c.Socket1;
+				case 2: return c.Socket2;
+				case 3: return c.Socket3;
+				case 4: return c.Socket4;
+				case 5: return c.Socket5;
+				default: return 0;
+			}
+		}
+
+		public int Count => Enumerable.Range(0, Max).Count(i => Color(i) != SocketColor.None);
+
+		/// <summary>The gem in socket i, or null if it is empty.</summary>
+		public Entity Gem(int i) {
+			var c = Cache;
+			IntPtr ptr = i == 0 ? c.entGem0 : i == 1 ? c.entGem1 : i == 2 ? c.entGem2 : i == 3 ? c.entGem3 : i == 4 ? c.entGem4 : i == 5 ? c.entGem5 : IntPtr.Zero;
+			return IsValid(ptr) ? new Entity() { Address = ptr } : null;
+		}
+
+		/// <summary>The socket holding a gem whose path contains all of pathParts (eg, "/Gems/", "Fireball"), or -1.</summary>
+		public int IndexOfGem(params string[] pathParts) {
+			for ( int i = 0; i < Count; i++ ) {
+				if ( Gem(i)?.Path is string path && pathParts.All(path.Contains) ) return i;
+			}
+			return -1;
+		}
+
+		/// <summary>The sizes of the groups of linked sockets, in socket order (eg, [2, 1]: sockets 0 and 1 are linked, 2 is alone).</summary>
+		public byte[] LinkGroups => new ArrayHandle<byte>(Cache.Links).ToArray(limit: Max);
+
+		/// <summary>The sockets linked with socket (itself included).</summary>
+		public IEnumerable<int> LinkedWith(int socket) {
+			int start = 0;
+			foreach ( byte size in LinkGroups ) {
+				if ( socket < start + size ) return Enumerable.Range(start, size);
+				start += size;
+			}
+			return new[] { socket };
+		}
 	}
 
 	public class Stack : Component<Offsets.Component_Stack> {

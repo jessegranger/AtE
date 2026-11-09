@@ -63,6 +63,20 @@ namespace AtE {
 					.Where(e => Globals.IsValid(e) && e.IsVisible);
 			}
 		}
+
+		/// <summary>
+		/// The items in it, whether or not its panel is open (like VisibleItems, without asking the parents' visibility:
+		/// a closed inventory panel keeps its items, only the panel is hidden).
+		/// </summary>
+		public IEnumerable<T> Items {
+			get {
+				var ctor = typeof(T).GetConstructor(new Type[] { typeof(IntPtr) });
+				return AllVisibleChildren(this, new HashSet<int>())
+					.Where(e => Globals.IsValid(e))
+					.Select(e => (T)ctor.Invoke(new object[] { e.Address }))
+					.Where(e => Globals.IsValid(e));
+			}
+		}
 	
 		private static IEnumerable<Element> AllVisibleChildren(Element cursor, HashSet<int> seen) {
 			int index = 0;

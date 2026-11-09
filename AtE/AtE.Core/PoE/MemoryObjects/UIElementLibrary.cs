@@ -25,6 +25,8 @@ namespace AtE {
 		public Element OpenMenuPopoutButton => IsValid(Address) ? getElement(Cache.OpenMenuPopoutButton) : null;
 		public Element CurrentTime => IsValid(Address) ? getElement(Cache.CurrentTime) : null;
 		public Element Mouse => IsValid(Address) ? getElement(Cache.Mouse) : null;
+		/// <summary>The "Skip All Tutorials" button, shown to a new character.</summary>
+		public Element SkipAllTutorials => IsValid(Address) ? getElement(Cache.SkipAllTutorials) : null;
 		public Element SkillBar => IsValid(Address) ? getElement(Cache.SkillBar) : null;
 		public Element SkillTree => IsValid(Address) ? getElement(Cache.SkillTree) : null;
 		public Element HiddenSkillBar => IsValid(Address) ? getElement(Cache.HiddenSkillBar) : null;

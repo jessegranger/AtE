@@ -648,6 +648,7 @@ namespace AtE {
 			// 3.27: 8 new bytes here
 			[FieldOffset(0x448)] public readonly IntPtr GreenShopButton;
 			[FieldOffset(0x450)] public readonly IntPtr HelpPanelButton;
+			[FieldOffset(0x460)] public readonly IntPtr SkipAllTutorials;
 			[FieldOffset(0x488)] public readonly IntPtr Mouse;
 			[FieldOffset(0x490)] public readonly IntPtr SkillBar;
 			[FieldOffset(0x498)] public readonly IntPtr HiddenSkillBar;
@@ -750,7 +751,7 @@ namespace AtE {
 			// [FieldOffset(0x938)] public readonly IntPtr Unknown938;
 			// [FieldOffset(0x940)] public readonly IntPtr Unknown940;
 			// [FieldOffset(0x948)] public readonly IntPtr Unknown948;
-			// [FieldOffset(0x950)] public readonly IntPtr Unknown950;
+			// 00[FieldOffset(0x950)] public readonly IntPtr Unknown950;
 			// [FieldOffset(0x958)] public readonly IntPtr Unknown958;
 			// [FieldOffset(0x960)] public readonly IntPtr Unknown960;
 			// [FieldOffset(0x968)] public readonly IntPtr Unknown968;
@@ -772,7 +773,7 @@ namespace AtE {
 			// [FieldOffset(0x9E8)] public readonly IntPtr Unknown9E8;
 			// [FieldOffset(0x9F0)] public readonly IntPtr Unknown9F0;
 			// [FieldOffset(0x9f8)] public readonly IntPtr InvitesPanel;
-			[FieldOffset(0xAF0)] public readonly IntPtr GemLvlUpPanel;
+			[FieldOffset(0xC68)] public readonly IntPtr GemLvlUpPanel;
 			// [FieldOffset(0xA58)] public readonly IntPtr SkillBarNotifyPanel1;
 			[FieldOffset(0xBC0)] public readonly IntPtr ItemOnGroundTooltip;
 
@@ -1591,21 +1592,25 @@ namespace AtE {
 			[FieldOffset(0x4c)] public readonly uint LimitLevel;
 		}
 
+		// 3.29.3, read from the Driftwood Wand (2 linked sockets, Fireball in the first): the socket colors are 4 and 4 (white),
+		// Links holds the one byte 2, entGem0 is the Fireball gem and entGem1 is 0.
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Sockets {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x18)] public readonly int Socket0;
-			[FieldOffset(0x1c)] public readonly int Socket1;
-			[FieldOffset(0x20)] public readonly int Socket2;
-			[FieldOffset(0x24)] public readonly int Socket3;
-			[FieldOffset(0x28)] public readonly int Socket4;
-			[FieldOffset(0x2c)] public readonly int Socket5;
-			[FieldOffset(0x30)] public readonly IntPtr entGem0; // ? an ent with a SkillGem component?
-			[FieldOffset(0x38)] public readonly IntPtr entGem1; // ? an ent with a SkillGem component?
-			[FieldOffset(0x40)] public readonly IntPtr entGem2; // ? an ent with a SkillGem component?
-			[FieldOffset(0x48)] public readonly IntPtr entGem3; // ? an ent with a SkillGem component?
-			[FieldOffset(0x50)] public readonly IntPtr entGem4; // ? an ent with a SkillGem component?
-			[FieldOffset(0x58)] public readonly IntPtr entGem5; // ? an ent with a SkillGem component?
-			[FieldOffset(0x60)] public readonly ArrayHandle Links; // not sure yet
+			// the color of each socket, 0 for no socket, 4 for white (the default; see AtE.SocketColor)
+			[FieldOffset(0x10)] public readonly int Socket0;
+			[FieldOffset(0x14)] public readonly int Socket1;
+			[FieldOffset(0x18)] public readonly int Socket2;
+			[FieldOffset(0x1c)] public readonly int Socket3;
+			[FieldOffset(0x20)] public readonly int Socket4;
+			[FieldOffset(0x24)] public readonly int Socket5;
+			[FieldOffset(0x28)] public readonly ArrayHandle Links; // of byte: the size of each group of linked sockets, in socket order
+			// [FieldOffset(0x40)] an object (vtable at mod+0x35E9DE0), unknown
+			[FieldOffset(0x48)] public readonly IntPtr entGem0; // the gem entity in each socket, 0 for empty
+			[FieldOffset(0x50)] public readonly IntPtr entGem1;
+			[FieldOffset(0x58)] public readonly IntPtr entGem2;
+			[FieldOffset(0x60)] public readonly IntPtr entGem3;
+			[FieldOffset(0x68)] public readonly IntPtr entGem4;
+			[FieldOffset(0x70)] public readonly IntPtr entGem5;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Stack {
@@ -1676,8 +1681,9 @@ namespace AtE {
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_ItemsOnGroundLabelRoot {
 			// 3.27: 432 bytes here
-			[FieldOffset(0x450)] public readonly ItemsOnGroundLabelEntry hoverLabel; // 2 ptrs, one Element, one Entity
-			[FieldOffset(0x468)] public readonly IntPtr labelsOnGroundHead;
+			[FieldOffset(0x450)] public readonly ItemsOnGroundLabelEntry hoverLabel; // 2 ptrs, one Element, one Entity (3.29.3: not checked, probably moved like the list below)
+			// 3.29.3: the list moved from 0x468 (seen with a Driftwood Wand and the Dying Exile: each entry's +0x10 is the label, +0x18 its entity)
+			[FieldOffset(0x4E8)] public readonly IntPtr labelsOnGroundHead;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemsOnGroundLabelEntry {
 			[FieldOffset(0x00)] public readonly IntPtr nextEntry;

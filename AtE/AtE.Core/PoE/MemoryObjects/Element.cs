@@ -138,7 +138,7 @@ namespace AtE {
 						yield return label;
 					}
 					cursor = entry.nextEntry;
-				}
+				} else break;
 			} while ( IsValid(cursor) && cursor != Details.Value.labelsOnGroundHead );
 		}
 	}

@@ -61,6 +61,8 @@ namespace AtE {
 			if ( hash == areaHash ) return;
 			areaHash = hash;
 			Current = null;
+			lastProven = -1;
+			lastProvenCheck = 0;
 			foreach ( var area in areas ) foreach ( var o in area.objectives ) o.Reset();
 		}
 
@@ -69,13 +71,24 @@ namespace AtE {
 			var objectives = CurrentObjectives;
 			Current = null;
 			if ( objectives == null ) return;
-			foreach ( var o in objectives ) {
+			int proven = LastProven(objectives, ctx);
+			for ( int i = 0; i < objectives.Count; i++ ) {
+				var o = objectives[i];
+				if ( i <= proven ) {
+					// it, or one after it, is done now: so it was done (eg, Default Attack is off slot 3 because Fireball is on it)
+					if ( !o.IsComplete ) {
+						o.IsComplete = true;
+						o.Detail = "";
+						Log($"{Name}: done: {o.Name}");
+					}
+					continue;
+				}
 				if ( o.IsComplete ) {
-					if ( o.Sticky || o.CheckDone(ctx) ) continue;
+					if ( o.Sticky || o.IsDone(ctx) ) continue;
 					o.IsComplete = false; // undone (eg, the skill was taken off the bar): do it again
 					Log($"{Name}: not done any more: {o.Name}");
 				}
-				if ( o.CheckDone(ctx) ) {
+				if ( o.IsDone(ctx) ) {
 					o.IsComplete = true;
 					o.Detail = "";
 					Log($"{Name}: done: {o.Name}");
@@ -84,6 +97,22 @@ namespace AtE {
 				Current = o;
 				break;
 			}
+		}
+
+		// the last objective that is done now (see Objective.ProvesEarlier), or -1; asked every 250 ms
+		private int lastProven = -1;
+		private long lastProvenCheck;
+		private int LastProven(List<Objective> objectives, CombatContext ctx) {
+			if ( Time.ElapsedMilliseconds - lastProvenCheck < 250 ) return Math.Min(lastProven, objectives.Count - 1);
+			lastProvenCheck = Time.ElapsedMilliseconds;
+			lastProven = -1;
+			for ( int i = objectives.Count - 1; i >= 0; i-- ) {
+				if ( objectives[i].ProvesEarlier && objectives[i].IsDone(ctx) ) {
+					lastProven = i;
+					break;
+				}
+			}
+			return lastProven;
 		}
 
 		private long lastCompletionCheck;
@@ -105,9 +134,20 @@ namespace AtE {
 				return;
 			}
 			SetStatus(Current.Name);
+			if ( !Current.UsesInventory && BackpackIsOpen() ) {
+				// eg, left open after socketing a gem: it covers the screen
+				ctx.Driver.StopWalking("closing the inventory");
+				if ( Time.ElapsedMilliseconds - lastInventoryClose > 700 ) {
+					lastInventoryClose = Time.ElapsedMilliseconds;
+					SocketGem.PressKey(VKey.I);
+				}
+				return;
+			}
 			Current.Tick(ctx);
 			if ( !string.IsNullOrEmpty(Current.Detail) ) SetStatus($"{Current.Name}: {Current.Detail}");
 		}
+
+		private long lastInventoryClose;
 
 		private void DrawObjectives() {
 			var objectives = CurrentObjectives;
