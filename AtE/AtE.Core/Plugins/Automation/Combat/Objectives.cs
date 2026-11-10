@@ -33,6 +33,11 @@ namespace AtE {
 		/// itself, eg, a skill bound to a slot: socketing a support later says nothing about where the skill is on the bar.
 		/// </summary>
 		public virtual bool ProvenBy(IEnumerable<Objective> later) => true;
+		/// <summary>
+		/// True if it no longer matters, the routine having got past it to a later objective (all those after it, given in
+		/// order, are complete up to one that undoes it): eg, Default Attack on a slot, once Fireball goes on that slot.
+		/// </summary>
+		public virtual bool SupersededBy(IEnumerable<Objective> later) => false;
 		/// <summary>True if it works in the inventory panel; while working on any other objective the routine closes it.</summary>
 		public virtual bool UsesInventory => false;
 		/// <summary>Also done when this is true (eg, any weapon is equipped, for picking up the starting weapon).</summary>
@@ -371,6 +376,15 @@ namespace AtE {
 		public override bool Sticky => false;
 		// only by a later one putting something else on the same slot (eg, Fireball in place of Default Attack)
 		public override bool ProvenBy(IEnumerable<Objective> later) => Slot >= 0 && later.OfType<BindSkill>().Any(b => b.Slot == Slot);
+		// reached a later one putting something else on the same slot: don't put this back over it
+		public override bool SupersededBy(IEnumerable<Objective> later) {
+			if ( Slot < 0 ) return false;
+			foreach ( var o in later ) {
+				if ( o is BindSkill b && b.Slot == Slot ) return true;
+				if ( !o.IsComplete ) return false;
+			}
+			return false;
+		}
 		public override bool CheckDone(CombatContext ctx) => Slot < 0
 			? SkillBar.FindSlot(Skill) != null
 			: SkillBar.Holds(SkillBar.GetSlot(Slot), Skill);

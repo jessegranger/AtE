@@ -84,7 +84,7 @@ namespace AtE {
 			int proven = LastProven(objectives, ctx);
 			for ( int i = 0; i < objectives.Count; i++ ) {
 				var o = objectives[i];
-				if ( i <= proven && o.ProvenBy(objectives.Skip(i + 1).Take(proven - i)) ) {
+				if ( (i <= proven && o.ProvenBy(objectives.Skip(i + 1).Take(proven - i))) || o.SupersededBy(objectives.Skip(i + 1)) ) {
 					// it, or one after it, is done now: so it was done (eg, Default Attack is off slot 3 because Fireball is on it)
 					if ( !o.IsComplete ) {
 						o.IsComplete = true;
