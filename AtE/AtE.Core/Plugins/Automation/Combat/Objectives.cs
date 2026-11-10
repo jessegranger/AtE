@@ -28,6 +28,11 @@ namespace AtE {
 		public virtual bool Sticky => true;
 		/// <summary>True if this being done shows the objectives before it are done (see CombatRoutine).</summary>
 		public virtual bool ProvesEarlier => true;
+		/// <summary>
+		/// True if a later objective being done shows this one was done (see ProvesEarlier); false if this must be checked
+		/// itself, eg, a skill bound to a slot: socketing a support later says nothing about where the skill is on the bar.
+		/// </summary>
+		public virtual bool ProvenBy(IEnumerable<Objective> later) => true;
 		/// <summary>True if it works in the inventory panel; while working on any other objective the routine closes it.</summary>
 		public virtual bool UsesInventory => false;
 		/// <summary>Also done when this is true (eg, any weapon is equipped, for picking up the starting weapon).</summary>
@@ -364,6 +369,8 @@ namespace AtE {
 		public BindSkill(string skill, int slot = -1) { Skill = skill; Slot = slot; }
 		public override string Name => Slot < 0 ? $"Put {Skill} on the skill bar" : $"Put {Skill} on slot {Slot}";
 		public override bool Sticky => false;
+		// only by a later one putting something else on the same slot (eg, Fireball in place of Default Attack)
+		public override bool ProvenBy(IEnumerable<Objective> later) => Slot >= 0 && later.OfType<BindSkill>().Any(b => b.Slot == Slot);
 		public override bool CheckDone(CombatContext ctx) => Slot < 0
 			? SkillBar.FindSlot(Skill) != null
 			: SkillBar.Holds(SkillBar.GetSlot(Slot), Skill);

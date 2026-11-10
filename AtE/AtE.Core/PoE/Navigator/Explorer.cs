@@ -169,7 +169,8 @@ namespace AtE {
 					}
 				}
 			}
-			if ( result.Kind == ExploreTargetKind.None && current != null ) {
+			// (on entering an area, the terrain can be the new one's while the map is still the last one's, until Update)
+			if ( result.Kind == ExploreTargetKind.None && current != null && current.Width == terrain.Width && current.Height == terrain.Height ) {
 				int Needed(int regionSize) => Math.Min(MinUnexplored, Math.Max(1, regionSize / 2));
 				bool Wanted(List<Offsets.Vector2i> cells) {
 					int unexplored = 0;
@@ -178,7 +179,10 @@ namespace AtE {
 				}
 				// skip a region without looking at its cells when its whole block has too few unexplored ones
 				var map = current;
-				bool MightWant(int bx, int by, int regionSize) => map.BlockUnexplored[(by * map.BlocksX) + bx] >= Needed(regionSize);
+				bool MightWant(int bx, int by, int regionSize) {
+					int i = (by * map.BlocksX) + bx;
+					return bx < 0 || bx >= map.BlocksX || i < 0 || i >= map.BlockUnexplored.Length || map.BlockUnexplored[i] >= Needed(regionSize);
+				}
 				if ( nav.FindNearestRegion(terrain, player, Wanted, out var target, out float cost, MightWant) ) {
 					result = new ExploreTarget() { Kind = ExploreTargetKind.Explore, GridPos = target, Cost = cost };
 				}

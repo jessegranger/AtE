@@ -165,6 +165,10 @@ namespace AtE {
 					return RunOnMain(Status);
 				case "/ents":
 					return RunOnMain(() => Ents(q["filter"], q["comp"], q["id"], ParseInt(q["limit"], 30)));
+				case "/skillbar":
+					return RunOnMain(SkillBarText);
+				case "/routine":
+					return RunOnMain(RoutineText);
 				case "/backpack":
 					return RunOnMain(Backpack);
 				case "/info":
@@ -201,6 +205,8 @@ namespace AtE {
 @"MemoryServer (read-only, loopback only)
   /status
   /ents?filter=<path substring>&comp=<ComponentName>&id=<entity id>&limit=30
+  /skillbar                     the skill bar's slots: key, skill name, internal name, id
+  /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
   /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
   /info?id=<entity id>&skill=<owner skill name>   ground truth: buffs (timer/max), animation time, duration-ish stats, owner skill MinionDuration
   /scan?id=<entity id>&value=1.5,3000&tol=0.01&kind=f32|i32|both&depth=1&len=0x400   find values in all components (and the animated object's) + pointees
@@ -213,6 +219,32 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
   e.g. ingame+0x920   comp(1234,DiesAfterTime)+0x20*   (use %2B for + in URLs, or curl -G --data-urlencode)\n";
 
 		// ---------------------------------------------------------------- status / entities
+
+		private string SkillBarText() {
+			var sb = new StringBuilder();
+			foreach ( var slot in SkillBar.GetSlots() ) {
+				sb.AppendLine($"{slot}  internal={slot.Skill?.InternalName} display={slot.Skill?.DisplayName} id={slot.Skill?.Id} visible={slot.IsVisible}");
+			}
+			return sb.Length == 0 ? "(no skill bar)\n" : sb.ToString();
+		}
+
+		private string RoutineText() {
+			var driver = GetPlugin<AutomationPlugin>()?.Combat.Current;
+			if ( !(driver is CombatRoutine routine) ) return $"the routine is {driver?.Name ?? "(none)"}, which has no objectives\n";
+			var sb = new StringBuilder($"{routine.Name}: {(routine.IsActive ? "on" : "off")}, {routine.Status}\n");
+			var game = PoEMemory.GameRoot?.InGameState;
+			var terrain = GetTerrain();
+			var player = GetPlayer();
+			var pos = player?.GetComponent<Positioned>();
+			var ctx = game == null || terrain == null || !IsValid(pos) ? null
+				: new CombatContext(routine, game, terrain, player, pos.GridPos, Position(player).Z);
+			foreach ( var o in routine.CurrentObjectives ?? new List<Objective>() ) {
+				string now;
+				try { now = ctx == null ? "?" : o.IsDone(ctx).ToString(); } catch ( Exception e ) { now = e.GetType().Name; }
+				sb.AppendLine($"{(o.IsComplete ? "[x]" : "[ ]")}{(o == routine.Current ? ">" : " ")} {o.Name}  done-now={now} sticky={o.Sticky} proves={o.ProvesEarlier} {o.Detail}");
+			}
+			return sb.ToString();
+		}
 
 		private string Backpack() {
 			var sb = new StringBuilder();

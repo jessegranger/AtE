@@ -84,7 +84,7 @@ namespace AtE {
 			int proven = LastProven(objectives, ctx);
 			for ( int i = 0; i < objectives.Count; i++ ) {
 				var o = objectives[i];
-				if ( i <= proven ) {
+				if ( i <= proven && o.ProvenBy(objectives.Skip(i + 1).Take(proven - i)) ) {
 					// it, or one after it, is done now: so it was done (eg, Default Attack is off slot 3 because Fireball is on it)
 					if ( !o.IsComplete ) {
 						o.IsComplete = true;
@@ -160,9 +160,21 @@ namespace AtE {
 
 		private long lastInventoryClose;
 
-		// pick up an item, if there is one and no monster is close; true if doing so
+		// pick up an item, if there is one; true if doing so, or fighting the monsters near it (or near the player) first.
+		// (so an item comes before walking on to the next objective: walking away from the monsters, then coming back
+		// for the item, back and forth, never gets it)
 		private bool TryLoot(CombatContext ctx) {
-			if ( !PickUpItems || ctx.Hostiles.Any(h => h.Distance <= AttackRange) || BackpackIsOpen() ) return false;
+			if ( !PickUpItems || BackpackIsOpen() || !Looter.TryGetTarget(ctx, out var item) ) return false;
+			var near = ctx.Hostiles.Where(h => h.Distance <= AttackRange || Combat.Distance(h.GridPos, item) <= AttackRange).ToList();
+			if ( near.Count > 0 ) {
+				if ( Current is Kill ) return false; // (it fights them its own way, eg, Orbit)
+				var target = ChooseTarget(near);
+				if ( target != null && Engage(ctx, target) ) {
+					SetStatus($"fighting {target} before picking up an item");
+					return true;
+				}
+				return false;
+			}
 			if ( !Looter.TryLoot(ctx) ) return false;
 			SetStatus(Looter.Status);
 			return true;

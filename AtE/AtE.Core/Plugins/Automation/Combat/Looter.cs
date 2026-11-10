@@ -37,12 +37,25 @@ namespace AtE {
 			current = 0;
 		}
 
+		/// <summary>Where the item to pick up next is (the one being picked up, else the nearest); false if there is none.</summary>
+		public bool TryGetTarget(CombatContext ctx, out Offsets.Vector2i grid) {
+			var found = Target(ctx);
+			grid = found.grid;
+			return found.item != null;
+		}
+
+		// the item being picked up, if it is still there, else the nearest
+		private (LabelOnGround label, Entity item, Offsets.Vector2i grid, float distance) Target(CombatContext ctx) {
+			var items = Items(ctx).ToList();
+			if ( items.Count == 0 ) return default;
+			var found = items.FirstOrDefault(i => i.item.Id == current);
+			return found.item != null ? found : items.OrderBy(i => i.distance).First();
+		}
+
 		/// <summary>Work on picking up the nearest item; false if there is none to pick up.</summary>
 		public bool TryLoot(CombatContext ctx) {
-			var items = Items(ctx).ToList();
-			if ( items.Count == 0 ) { current = 0; return false; }
-			var (label, item, grid, d) = items.FirstOrDefault(i => i.item.Id == current);
-			if ( item == null ) (label, item, grid, d) = items.OrderBy(i => i.distance).First();
+			var (label, item, grid, d) = Target(ctx);
+			if ( item == null ) { current = 0; return false; }
 			current = item.Id;
 			string name = Ground.LabelText(label.Label) ?? "an item";
 
