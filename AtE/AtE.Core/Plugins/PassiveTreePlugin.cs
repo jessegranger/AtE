@@ -1,6 +1,7 @@
 using ImGuiNET;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -21,6 +22,10 @@ namespace AtE {
 		public int TargetTree = -1;
 		/// <summary>Another folder to look in for TreeData/&lt;version&gt;/tree.lua (eg, one with a newer tree than PoB has).</summary>
 		public string TreeDataFolder = "";
+		/// <summary>Mark the plan on the passive tree while it is open.</summary>
+		public bool ShowOnTree = true;
+		/// <summary>How many of the next planned points to mark.</summary>
+		public int ShowNextCount = 10;
 
 		public PobBuild Build { get; private set; }
 		public PassivePlan Plan { get; private set; }
@@ -53,6 +58,11 @@ namespace AtE {
 			string folder = TreeDataFolder ?? "";
 			if ( ImGui.InputText("Extra TreeData folder", ref folder, 400) ) TreeDataFolder = folder;
 			if ( ImGui.IsItemDeactivatedAfterEdit() ) { trees.Clear(); Reload(); }
+			ImGui.Checkbox("Mark the plan on the open tree", ref ShowOnTree);
+			ImGui.SameLine();
+			ImGui.SetNextItemWidth(100);
+			ImGui.InputInt("next points", ref ShowNextCount);
+			if ( PassiveTreePanel.IsOpen ) ImGui.TextUnformatted($"Tree open: {PassiveTreePanel.Centers.Count} passives on it, zoom {PassiveTreePanel.ScreenScale:F3}");
 
 			if ( error != null ) Warning(error);
 			if ( Plan != null ) RenderPlan(Plan);
@@ -94,6 +104,31 @@ namespace AtE {
 				if ( stage.Unreachable.Count > 0 ) Warning($"Not connected (eg, taken with a jewel; not planned): {string.Join(", ", stage.Unreachable.Select(n => n.Name))}");
 				if ( stage.ClusterNodes > 0 || stage.BloodlineNodes > 0 ) Warning($"Left out: {stage.ClusterNodes} cluster jewel nodes, {stage.BloodlineNodes} bloodline nodes");
 				ImGui.TreePop();
+			}
+		}
+
+		public override IState OnTick(long dt) {
+			if ( Enabled && !Paused && ShowOnTree && Plan != null && PoEMemory.IsAttached && PassiveTreePanel.IsOpen ) {
+				MarkPlan(Plan);
+			}
+			return base.OnTick(dt);
+		}
+
+		// green: allocated; yellow: the next point; orange: the ones after it; gray: the rest of the plan
+		private void MarkPlan(PassivePlan plan) {
+			var allocated = new HashSet<int>((PoEMemory.GameRoot?.InGameState?.AllocatedPassives ?? Array.Empty<ushort>()).Select(id => (int)id));
+			float radius = Math.Max(4f, 50f * PassiveTreePanel.ScreenScale);
+			int next = 0;
+			foreach ( var step in plan.Steps.Concat(plan.AscendancySteps) ) {
+				if ( !PassiveTreePanel.TryGetScreenPosition(step.Node.Id, out var pos) ) continue;
+				if ( allocated.Contains(step.Node.Id) ) {
+					DrawCircle(pos, radius, Color.LimeGreen);
+				} else if ( step.Node.Ascendancy == null && next++ < ShowNextCount ) {
+					DrawCircle(pos, next == 1 ? radius * 1.4f : radius, next == 1 ? Color.Yellow : Color.Orange);
+					DrawTextAt(pos + new Vector2(radius, -radius), $"{next}", next == 1 ? Color.Yellow : Color.Orange);
+				} else {
+					DrawCircle(pos, radius * 0.6f, Color.Gray);
+				}
 			}
 		}
 

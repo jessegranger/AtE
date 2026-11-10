@@ -591,6 +591,23 @@ namespace AtE {
 			// the unspent and refund point counts were not found here (no 1 -> 0 change when the last point was spent)
 		}
 
+		// 3.29.3, the open passive tree: UIElements.SkillTree.Child[1] is a canvas in tree coordinates (Path of Building's
+		// group x,y), offset by its ScrollOffset (half its size) and zoomed by its Scale. Its children are groups (at their
+		// group's x,y) of nodes, and a few nodes of their own; a node's center is at its Position + Size/2 (orbit radius
+		// and angle checked on group 141). Each node leads to its passive id, eg Witch nodes near her start, ids 8879 14419
+		// 34750 at orbit 3 index 1, 3, 4.
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_PassiveNode {
+			[FieldOffset(0x298)] public readonly IntPtr ptrNodeData; // ptr PassiveNodeData
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct PassiveNodeData {
+			[FieldOffset(0x08)] public readonly IntPtr ptrPassiveSkill; // a row of PassiveSkills.dat (rows are packed: unaligned)
+			[FieldOffset(0x1C)] public readonly int Orbit;
+			[FieldOffset(0x20)] public readonly int OrbitIndex;
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct PassiveSkillRow {
+			[FieldOffset(0x30)] public readonly ushort Id;
+		}
+
 		/// <summary>
 		/// The static terrain of the current area. The grids are in the same cell coordinates as Positioned.GridPos.
 		/// Each grid is 4 bits per cell: cell (x,y) is in byte (y * BytesPerRow + x / 2), even x in the low nibble.

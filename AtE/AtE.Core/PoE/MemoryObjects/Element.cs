@@ -95,23 +95,39 @@ namespace AtE {
 			}
 		}
 
-		public virtual RectangleF GetClientRect() {
-			if ( Address == IntPtr.Zero ) return RectangleF.Empty;
+		private static Vector2 ScreenScale() {
 			// Offsets.Vector2i size = PoEMemory.GameRoot.InGameState?.WorldData?.Camera.Size ?? default;
 			float width = WindowSize.Value.X;
 			float height = WindowSize.Value.Y;
-			var rootScale = PoEMemory.GameRoot?.InGameState?.UIRoot?.Scale ?? .75f;
 			// the UI is developed against a virtual 2560x1600 screen, (a 1.6 aspect ratio)
 			// so all UI coordinates are scaled by rootScale,
 			// and the ratio is adjusted with ratioFixMulti
 			var ratioFixMult = width / height / 1.6f;
-			Vector2 screenScale = new Vector2(
+			return new Vector2(
 				width / 2560f / ratioFixMult,
 				height / 1600f);
+		}
 
+		public virtual RectangleF GetClientRect() {
+			if ( Address == IntPtr.Zero ) return RectangleF.Empty;
+			var rootScale = PoEMemory.GameRoot?.InGameState?.UIRoot?.Scale ?? .75f;
+			Vector2 screenScale = ScreenScale();
 			var vPos = screenScale * GetAbsolutePosition();
 			var vSize = screenScale * (Size * Scale / rootScale);
 			return new RectangleF(vPos.X, vPos.Y, vSize.X, vSize.Y);
+		}
+
+		/// <summary>
+		/// Where a point in this element's own coordinates (the space its children are placed in, moved by ScrollOffset)
+		/// is on the screen; and how many screen pixels one unit of that space is.
+		/// </summary>
+		public Vector2 LocalToScreen(Vector2 local) {
+			var rootScale = PoEMemory.GameRoot?.InGameState?.UIRoot?.Scale ?? .75f;
+			return ScreenScale() * (GetAbsolutePosition() + ((ScrollOffset + local) * Scale / rootScale));
+		}
+		public float LocalScaleToScreen() {
+			var rootScale = PoEMemory.GameRoot?.InGameState?.UIRoot?.Scale ?? .75f;
+			return ScreenScale().Y * Scale / rootScale;
 		}
 
 	}
