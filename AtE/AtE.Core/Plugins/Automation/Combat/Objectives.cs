@@ -187,6 +187,8 @@ namespace AtE {
 	/// </summary>
 	public class Orbit : Kill {
 		public float Radius;
+		/// <summary>How far from it to circle, in cells, with a melee skill (when Radius is 0).</summary>
+		public float MeleeRadius = 6;
 		public long MaxWalkMs = 1500;
 		private int point = -1; // the point being walked to, an index into Cardinal; -1 for none yet
 		private bool castDue = true;
@@ -198,7 +200,7 @@ namespace AtE {
 		private static readonly Vector2[] Cardinal = { new Vector2(0, -1), new Vector2(-1, 0), new Vector2(0, 1), new Vector2(1, 0) };
 		private const string CardinalNames = "NWSE";
 
-		/// <param name="radius">How far from it to circle, in cells; 0 for 60% of the driver's AttackRange.</param>
+		/// <param name="radius">How far from it to circle, in cells; 0 for MeleeRadius with a melee skill, else 60% of the driver's AttackRange.</param>
 		public Orbit(string label, string pathContains, string skill, float radius = 0)
 			: base(label, pathContains, skill) => Radius = radius;
 
@@ -206,7 +208,9 @@ namespace AtE {
 		public override void Reset() { base.Reset(); point = -1; castDue = true; castUntil = aimSince = 0; }
 
 		protected override void Fight(CombatContext ctx, Hostile target) {
-			float radius = Radius > 0 ? Radius : ctx.Driver.AttackRange * .6f;
+			float radius = Radius > 0 ? Radius
+				: SkillBar.IsMelee(SkillBar.FindSlot(Skill)?.Skill) ? MeleeRadius
+				: ctx.Driver.AttackRange * .6f;
 			if ( Time.ElapsedMilliseconds < castUntil ) {
 				ctx.Driver.StopWalking("casting");
 				Detail = $"casting {Skill}";
@@ -468,7 +472,7 @@ namespace AtE {
 			LinkedTo = linkedTo; LinkedToPathContains = linkedTo == null ? null : PathPart(linkedTo);
 		}
 		// "Arcane Surge Support" is Metadata/Items/Gems/SupportGemArcaneSurge
-		private static string PathPart(string gem) => gem.Replace(" Support", "").Replace(" ", "");
+		public static string PathPart(string gem) => gem.Replace(" Support", "").Replace(" ", "");
 
 		public override string Name => LinkedTo == null ? $"Socket {Gem} in the main hand" : $"Socket {Gem} linked to {LinkedTo}";
 		public override bool Sticky => false;

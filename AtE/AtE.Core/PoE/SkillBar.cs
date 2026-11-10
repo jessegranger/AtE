@@ -245,6 +245,19 @@ namespace AtE {
 		public static int CastTimeMs(ActorSkill skill) =>
 			skill != null && skill.TryGetStat(Offsets.GameStat.VirtualBaseSpellCastTimeMs, out int ms) ? ms : 0;
 
+		/// <summary>True if skill is a melee skill: it has the Melee tag (or the stat that says so).</summary>
+		public static bool IsMelee(ActorSkill skill) {
+			if ( skill == null ) return false;
+			if ( skill.TryGetStat(Offsets.GameStat.SkillIsMeleeSkill, out int melee) && melee != 0 ) return true;
+			if ( skill.TryGetStat(Offsets.GameStat.AttackIsMelee, out melee) && melee != 0 ) return true;
+			return SkillTags(skill).Contains("Melee", StringComparer.OrdinalIgnoreCase);
+		}
+
+		/// <summary>The skill's tags (eg, "Attack", "Melee", "Spell", "Projectile"); empty if they cannot be read.</summary>
+		public static string[] SkillTags(ActorSkill skill) {
+			try { return skill?.GetAllTags().ToArray() ?? Array.Empty<string>(); } catch ( Exception ) { return Array.Empty<string>(); }
+		}
+
 		public static MouseBtn? ToMouseButton(VKey key) {
 			switch ( key & VKey.KeyCode ) {
 				case VKey.LButton: return MouseBtn.Left;
