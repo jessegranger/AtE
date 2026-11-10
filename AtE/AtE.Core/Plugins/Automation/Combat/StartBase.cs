@@ -1,4 +1,5 @@
 using ImGuiNET;
+using System.Collections.Generic;
 using System.Numerics;
 using static AtE.Globals;
 
@@ -20,6 +21,8 @@ namespace AtE {
 		protected abstract string StartingSkill { get; }
 		/// <summary>The support gem in the Large Chest (eg, "Arcane Surge Support").</summary>
 		protected abstract string StartingSupport { get; }
+		/// <summary>The reward to take for each quest, in Lioneye's Watch: quest name => reward (eg, "Enemy at the Gate" => "Splitting Steel").</summary>
+		protected virtual Dictionary<string, string> QuestRewards => new Dictionary<string, string>();
 
 		protected StartBase() {
 			Area("The Twilight Strand",
@@ -37,6 +40,8 @@ namespace AtE {
 				new SocketGem(StartingSupport, linkedTo: StartingSkill),
 				new Orbit("Hillock", "Hillock", StartingSkill) { SearchAt = Search.TheOnlyExit },
 				new GoToArea("Lioneye's Watch"));
+			var rewards = QuestRewards;
+			if ( rewards.Count > 0 ) Area("Lioneye's Watch", new TakeQuestRewards(rewards));
 		}
 
 		public override void Render() {

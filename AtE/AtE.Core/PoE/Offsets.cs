@@ -715,7 +715,7 @@ namespace AtE {
 			[FieldOffset(0x790)] public readonly IntPtr NpcDialog;
 			[FieldOffset(0x798)] public readonly IntPtr NpcOptions;
 			// [FieldOffset(0x728)] public readonly IntPtr LeagueInteractButtonPanel;
-			// [FieldOffset(0x728)] public readonly IntPtr QuestRewardWindow;
+			[FieldOffset(0x7a8)] public readonly IntPtr QuestRewardWindow;
 			// [FieldOffset(0x730)] public readonly IntPtr Unknown730;
 			[FieldOffset(0x7b8)] public readonly IntPtr PurchaseWindow;
 			// [FieldOffset(0x740)] public readonly IntPtr Unknown740; // LeagueSellPanel
@@ -1210,8 +1210,9 @@ namespace AtE {
 			[FieldOffset(0x10)] public readonly byte ItemCellSizeX;
 			[FieldOffset(0x11)] public readonly byte ItemCellSizeY;
 			// 3.29.3: read from a Chance to Poison Support gem in the backpack (Metadata/Items/Gems/SupportGemLesserPoison):
-			// +0x48 points at u"Chance to Poison" (gems are named without " Support"), +0x90 at its description
-			[FieldOffset(0x48)] public readonly IntPtr strName; // ptr to string unicode
+			// +0x48 is a StringHandle: u"Chance to Poison" (gems are named without " Support"); a short name is kept in it,
+			// not pointed at (a Cleave reward: u"Cleave" in place, Length 6, Capacity 7). +0x90 points at its description
+			[FieldOffset(0x48)] public readonly StringHandle Name;
 			[FieldOffset(0x90)] public readonly IntPtr strDescription; // ptr to string unicode
 			[FieldOffset(0x80)] public readonly IntPtr ptrEntityPath; // ptr to (ptr to?) string ascii "Metadata/..."
 			[FieldOffset(0x88)] public readonly IntPtr prtItemType; // ptr to (ptr to?) string unicode

@@ -165,6 +165,11 @@ namespace AtE {
 					return RunOnMain(Status);
 				case "/ents":
 					return RunOnMain(() => Ents(q["filter"], q["comp"], q["id"], ParseInt(q["limit"], 30)));
+				case "/tree": {
+					string at = q["at"];
+					int depth = ParseInt(q["depth"], 3);
+					return RunOnMain(() => TryResolve(at, out long addr, out string err) ? ElementTree(new IntPtr(addr), depth) : $"error: {err}" + NL);
+				}
 				case "/skillbar":
 					return RunOnMain(SkillBarText);
 				case "/routine":
@@ -205,6 +210,7 @@ namespace AtE {
 @"MemoryServer (read-only, loopback only)
   /status
   /ents?filter=<path substring>&comp=<ComponentName>&id=<entity id>&limit=30
+  /tree?at=EXPR&depth=3         an element and its children: path of child indexes, address, visible, text, and the item if it is an InventoryItem
   /skillbar                     the skill bar's slots: key, skill name, internal name, id
   /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
   /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
@@ -219,6 +225,22 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
   e.g. ingame+0x920   comp(1234,DiesAfterTime)+0x20*   (use %2B for + in URLs, or curl -G --data-urlencode)\n";
 
 		// ---------------------------------------------------------------- status / entities
+
+		private string ElementTree(IntPtr address, int depth) {
+			var sb = new StringBuilder();
+			void Walk(Element e, string path, int d) {
+				if ( !IsValid(e) ) { sb.AppendLine($"{path} (invalid)"); return; }
+				var item = new InventoryItem(e.Address).Entity;
+				var children = e.Children.ToList();
+				sb.AppendLine($"{path} 0x{e.Address.ToInt64():X} visible={e.IsVisibleLocal} children={children.Count} text={e.Text?.Trim()}{(item == null ? "" : $" item={item.Path} entity=0x{item.Address.ToInt64():X} base=0x{(item.GetComponent<Base>()?.Address ?? IntPtr.Zero).ToInt64():X} name={Equipment.ItemName(item)}")}");
+				if ( d <= 0 ) return;
+				for ( int i = 0; i < children.Count; i++ ) Walk(children[i], $"{path}.{i}", d - 1);
+			}
+			Walk(new Element() { Address = address }, "root", depth);
+			return sb.ToString();
+		}
+
+		private const string NL = "\n";
 
 		private string SkillBarText() {
 			var sb = new StringBuilder();

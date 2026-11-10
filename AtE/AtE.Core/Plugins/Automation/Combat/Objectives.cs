@@ -611,13 +611,17 @@ namespace AtE {
 		/// <summary>An item's base name (eg, "Driftwood Wand", "Fireball"), or null if it cannot be read.</summary>
 		public static string ItemName(Entity e) {
 			var info = e?.GetComponent<Base>()?.Info;
-			return info != null && PoEMemory.TryReadString(info.Value.strName, System.Text.Encoding.Unicode, out string name)
-				&& !string.IsNullOrWhiteSpace(name) ? name : null;
+			var name = info?.Value.Name.Value;
+			return string.IsNullOrWhiteSpace(name) ? null : name;
 		}
 
 		/// <summary>Is the gem called name (see IsGem) in the backpack (open or not).</summary>
 		public static bool GemInBackpack(string name) =>
 			GetUI()?.InventoryPanel?.Backpack?.Items.Any(i => IsGem(i.Entity, name)) ?? false;
+
+		/// <summary>Is the gem called name (see IsGem) in the backpack, or socketed in the main hand weapon.</summary>
+		public static bool HasGem(string name) => GemInBackpack(name)
+			|| (GetUI()?.InventoryPanel?.LWeapon?.Items.Any(i => i.Entity?.GetComponent<Sockets>() is Sockets s && IsValid(s) && s.IndexOfGem(e => IsGem(e, name)) >= 0) ?? false);
 
 		/// <summary>The gems in the backpack, as "name (path)", for status lines.</summary>
 		public static string BackpackGems() => string.Join(", ", (GetUI()?.InventoryPanel?.Backpack?.Items ?? Enumerable.Empty<InventoryItem>())
