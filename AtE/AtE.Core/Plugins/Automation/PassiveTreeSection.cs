@@ -27,6 +27,10 @@ namespace AtE {
 		/// <summary>How many of the next planned points to mark.</summary>
 		public int ShowNextCount = 10;
 
+		/// <summary>Spends points on the plan, while it is on.</summary>
+		[NoPersist]
+		public readonly PassiveAllocator Allocator = new PassiveAllocator();
+
 		public PobBuild Build { get; private set; }
 		public PassivePlan Plan { get; private set; }
 		private string error;
@@ -62,6 +66,12 @@ namespace AtE {
 			ImGui.SameLine();
 			ImGui.SetNextItemWidth(100);
 			ImGui.InputInt("next points", ref ShowNextCount);
+			if ( ImGui.Button(Allocator.IsActive ? "Stop spending" : "Spend points") ) {
+				if ( Allocator.IsActive ) Allocator.Stop("stopped");
+				else Allocator.Start();
+			}
+			ImGui.SameLine();
+			ImGui.TextUnformatted(Allocator.IsActive ? $"On: {Allocator.Status}" : $"Off ({Allocator.Status})");
 			if ( PassiveTreePanel.IsOpen ) ImGui.TextUnformatted($"Tree open: {PassiveTreePanel.Centers.Count} passives on it, zoom {PassiveTreePanel.ScreenScale:F3}");
 
 			if ( error != null ) Warning(error);
@@ -108,6 +118,12 @@ namespace AtE {
 		}
 
 		public override IState OnTick(long dt) {
+			// (load the build without waiting for the console to be opened: the combat routines spend points on it)
+			if ( Plan == null && error == null && !string.IsNullOrEmpty(BuildFile) ) Reload();
+			if ( Allocator.IsActive && PoEMemory.IsAttached ) {
+				Allocator.Tick(Plan);
+				DrawBottomLeftText($"Passive Tree: {Allocator.Status}", System.Drawing.Color.Orange);
+			}
 			if ( ShowOnTree && Plan != null && PoEMemory.IsAttached && PassiveTreePanel.IsOpen ) {
 				MarkPlan(Plan);
 			}

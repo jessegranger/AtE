@@ -97,6 +97,10 @@ namespace AtE {
 				return Wait("putting Movement on left click");
 			}
 			var ctx = new CombatContext(this, game, terrain, player, pos.GridPos, Position(player).Z);
+			if ( TrySpendPoints(ctx) ) {
+				DrawBottomLeftText($"{Name}: {Status}", Color.Orange);
+				return this;
+			}
 			try {
 				Decide(ctx);
 			} finally {
@@ -108,6 +112,47 @@ namespace AtE {
 			DrawBottomLeftText($"{Name}: {Status}", Color.Orange);
 			return this;
 		}
+
+		// the points and passives there were when spending last stopped short (eg, at a mastery): not tried again until they change
+		private string spendStoppedAt;
+
+		/// <summary>
+		/// With passive points to spend and no monsters within AttackRange (as for picking up items), spend them on the
+		/// Passive Tree plan (see PassiveAllocator); if monsters come that close while the tree is open, close it. True while doing either (instead of anything else).
+		/// </summary>
+		public bool TrySpendPoints(CombatContext ctx) {
+			var section = GetPlugin<AutomationPlugin>()?.PassiveTree;
+			var allocator = section?.Allocator;
+			if ( allocator == null || section.Plan == null ) return false;
+			int points = GetUI()?.UnspentPassivePoints ?? 0;
+			string at = $"{points} points, {ctx.Game.AllocatedPassives.Length} passives";
+			if ( ctx.Hostiles.Any(h => h.Distance <= AttackRange) ) {
+				if ( allocator.IsActive ) allocator.Stop("monsters came near");
+				spending = false;
+				if ( !PassiveTreePanel.IsOpen ) return false;
+				StopWalking("closing the passive tree");
+				Status = "monsters near: closing the passive tree";
+				if ( Time.ElapsedMilliseconds - lastTreeClose > 700 ) {
+					lastTreeClose = Time.ElapsedMilliseconds;
+					Platform.Current.Input.KeyDown(VKey.Escape);
+					Platform.Current.Input.KeyUp(VKey.Escape);
+				}
+				return true;
+			}
+			if ( !allocator.IsActive ) {
+				// it stopped: all spent, or stopped short
+				if ( spending ) { spending = false; spendStoppedAt = at; }
+				if ( points == 0 || at == spendStoppedAt ) return false;
+				allocator.Start();
+				spending = true;
+			}
+			// (the Passive Tree section ticks the allocator)
+			StopWalking("spending passive points");
+			Status = $"spending passive points: {allocator.Status}";
+			return true;
+		}
+		private bool spending;
+		private long lastTreeClose;
 
 		/// <summary>
 		/// Called each frame while the driver is on (and the game is ready for input): decide what to do, by calling
