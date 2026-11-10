@@ -52,6 +52,7 @@ namespace AtE {
 			if ( Enabled && !Paused ) {
 				foreach ( var section in Sections ) section.OnTick(dt);
 			}
+			DefaultFollower.ReleaseIfNotTicked();
 			if ( ShowClicks ) ClickMarks.Draw();
 			return this;
 		}

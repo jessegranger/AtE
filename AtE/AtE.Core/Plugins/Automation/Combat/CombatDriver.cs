@@ -261,6 +261,7 @@ namespace AtE {
 				Bind(free.Index, name);
 				return false;
 			}
+			DefaultFollower.ReleaseMouse(); // (walking holds the left button: let go of it to fight)
 			SkillBar.UseSlot(slot, screenPos, holdMs);
 			return true;
 		}

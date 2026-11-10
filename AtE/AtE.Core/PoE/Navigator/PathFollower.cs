@@ -8,8 +8,8 @@ namespace AtE {
 	public enum FollowStatus { Idle, Walking, OpeningDoor, Arrived, NoPath, Stuck, WaitingForFocus, Paused }
 
 	/// <summary>
-	/// Walks the player along a NavPath to a goal, by clicking on the ground a little way ahead on the path,
-	/// and opens closed doors on the way by clicking their labels.
+	/// Walks the player along a NavPath to a goal, by holding the left button down and keeping the cursor on the ground a
+	/// little way ahead on the path, and opens closed doors on the way by clicking their labels.
 	///
 	/// PoE only moves the player by mouse (clicking, or a skill aimed at the cursor), and only reads the
 	/// mouse while it has focus (see WindowsInputSink), so this waits while the game is not focused.
@@ -21,8 +21,10 @@ namespace AtE {
 		public int AimAhead = 18;
 		/// <summary>Within this many cells of the goal counts as arrived.</summary>
 		public int ArriveRadius = 4;
-		/// <summary>How often to click (or press MoveKey) while walking.</summary>
+		/// <summary>How often to move the cursor along (or press MoveKey) while walking.</summary>
 		public long ClickIntervalMs = 120;
+		/// <summary>Hold the left button down while walking, steering with the cursor, instead of clicking each ClickIntervalMs.</summary>
+		public bool HoldMouse = true;
 		/// <summary>If the player moves less than 2 cells in this long, re-plan; after MaxStuck re-plans in a row, give up.</summary>
 		public long StuckMs = 1500;
 		public int MaxStuck = 3;
@@ -52,6 +54,9 @@ namespace AtE {
 		private long progressTime;
 		private int stuckCount;
 		private int terrainGeneration;
+		// the left button is held down (see HoldMouse), since lastTick
+		private bool held;
+		private long lastTick;
 
 		public void Start(Offsets.Vector2i goal, object owner = null) {
 			if ( !IsActive || goal.Id != Goal.Id ) Path = null;
@@ -76,6 +81,7 @@ namespace AtE {
 		public bool IsActiveFor(object owner) => IsActive && Owner == owner;
 
 		public void Stop(FollowStatus status = FollowStatus.Idle, string detail = "") {
+			ReleaseMouse();
 			IsActive = false;
 			Status = status;
 			Detail = detail;
@@ -83,6 +89,7 @@ namespace AtE {
 
 		public FollowStatus Tick(Navigator nav, Terrain terrain, Offsets.Vector2i player, float z) {
 			if ( !IsActive ) return Status;
+			lastTick = Time.ElapsedMilliseconds;
 			var game = PoEMemory.GameRoot?.InGameState;
 			if ( terrain == null || game == null ) return Wait(FollowStatus.Paused, "no terrain");
 			if ( terrain.Generation != terrainGeneration ) {
@@ -117,6 +124,7 @@ namespace AtE {
 					return Status;
 				}
 				Path = nav.FindPath(terrain, player, Goal); // start over, the plan may be wrong
+				ReleaseMouse(); // (and press again, in case the game lost the held button)
 				progressTime = now;
 			}
 
@@ -129,6 +137,7 @@ namespace AtE {
 				var front = i > 0 ? Path.Steps[i - 1].Target : player;
 				doorCell = Math.Max(0, Path.Cells.FindIndex(c => c.Id == front.Id));
 				if ( Distance(player, doorStep.Target) <= DoorReach ) {
+					ReleaseMouse();
 					Status = FollowStatus.OpeningDoor;
 					Detail = $"door {doorStep.Door.EntityId}";
 					if ( now - lastDoorClick > DoorClickIntervalMs && TryGetDoorClickPoint(doorStep, z, out Vector2 at) ) {
@@ -150,6 +159,12 @@ namespace AtE {
 						MoveCursor(screen);
 						Platform.Current.Input.KeyDown(MoveKey);
 						Platform.Current.Input.KeyUp(MoveKey);
+					} else if ( HoldMouse ) {
+						MoveCursor(screen);
+						if ( !held ) {
+							Platform.Current.Input.MouseButton(MouseBtn.Left, true);
+							held = true;
+						}
 					} else {
 						Click(screen);
 					}
@@ -162,10 +177,23 @@ namespace AtE {
 		}
 
 		private FollowStatus Wait(FollowStatus status, string why) {
+			ReleaseMouse();
 			Status = status;
 			Detail = why;
 			progressTime = Time.ElapsedMilliseconds; // waiting is not being stuck
 			return Status;
+		}
+
+		/// <summary>Let go of the left button, if walking is holding it down (it is pressed again on the next step).</summary>
+		public void ReleaseMouse() {
+			if ( !held ) return;
+			held = false;
+			Platform.Current.Input.MouseButton(MouseBtn.Left, false);
+		}
+
+		/// <summary>Call each frame: lets go of the left button if whoever was walking stopped ticking (eg, was switched off).</summary>
+		public void ReleaseIfNotTicked() {
+			if ( held && Time.ElapsedMilliseconds - lastTick > 250 ) ReleaseMouse();
 		}
 
 		private bool TryGetDoorClickPoint(NavStep step, float z, out Vector2 at) {
