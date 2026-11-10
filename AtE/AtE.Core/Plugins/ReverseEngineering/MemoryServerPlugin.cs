@@ -165,6 +165,8 @@ namespace AtE {
 					return RunOnMain(Status);
 				case "/ents":
 					return RunOnMain(() => Ents(q["filter"], q["comp"], q["id"], ParseInt(q["limit"], 30)));
+				case "/backpack":
+					return RunOnMain(Backpack);
 				case "/info":
 					return RunOnMain(() => Info(ParseInt(q["id"], 0), q["skill"]));
 				case "/dump":
@@ -199,6 +201,7 @@ namespace AtE {
 @"MemoryServer (read-only, loopback only)
   /status
   /ents?filter=<path substring>&comp=<ComponentName>&id=<entity id>&limit=30
+  /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
   /info?id=<entity id>&skill=<owner skill name>   ground truth: buffs (timer/max), animation time, duration-ish stats, owner skill MinionDuration
   /scan?id=<entity id>&value=1.5,3000&tol=0.01&kind=f32|i32|both&depth=1&len=0x400   find values in all components (and the animated object's) + pointees
   /gsnap?id=<entity id>&name=a&depth=1&len=0x400    snapshot all components + pointees (+ animated object) under a label
@@ -210,6 +213,18 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
   e.g. ingame+0x920   comp(1234,DiesAfterTime)+0x20*   (use %2B for + in URLs, or curl -G --data-urlencode)\n";
 
 		// ---------------------------------------------------------------- status / entities
+
+		private string Backpack() {
+			var sb = new StringBuilder();
+			foreach ( var item in BackpackItems() ) {
+				var ent = item.Entity;
+				sb.AppendLine($"element=0x{item.Address.ToInt64():X} entity=0x{(ent?.Address ?? IntPtr.Zero).ToInt64():X} {ent?.Path}");
+				foreach ( var kv in (ent?.GetComponents() ?? new Dictionary<string, IntPtr>()).OrderBy(k => k.Key) ) {
+					sb.AppendLine($"    {kv.Key} = 0x{kv.Value.ToInt64():X}");
+				}
+			}
+			return sb.Length == 0 ? "(none)\n" : sb.ToString();
+		}
 
 		private string Status() {
 			var sb = new StringBuilder();

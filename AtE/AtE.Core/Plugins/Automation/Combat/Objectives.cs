@@ -188,7 +188,7 @@ namespace AtE {
 	public class Orbit : Kill {
 		public float Radius;
 		/// <summary>How far from it to circle, in cells, with a melee skill (when Radius is 0).</summary>
-		public float MeleeRadius = 6;
+		public float MeleeRadius = 8;
 		public long MaxWalkMs = 1500;
 		private int point = -1; // the point being walked to, an index into Cardinal; -1 for none yet
 		private bool castDue = true;
@@ -458,9 +458,7 @@ namespace AtE {
 	/// </summary>
 	public class SocketGem : Objective {
 		public readonly string Gem;
-		public readonly string GemPathContains;
 		public readonly string LinkedTo;
-		public readonly string LinkedToPathContains;
 		private long lastAction;
 		private const long Pace = 700;
 		private const long SocketPace = 1500; // after a click on a socket, time for it to show in the Sockets before the next click
@@ -468,32 +466,30 @@ namespace AtE {
 		/// <param name="gem">The gem's name (eg, "Fireball", "Arcane Surge Support").</param>
 		/// <param name="linkedTo">For a support: the gem (in the weapon) to link it with (eg, "Fireball").</param>
 		public SocketGem(string gem, string linkedTo = null) {
-			Gem = gem; GemPathContains = PathPart(gem);
-			LinkedTo = linkedTo; LinkedToPathContains = linkedTo == null ? null : PathPart(linkedTo);
+			Gem = gem;
+			LinkedTo = linkedTo;
 		}
-		// "Arcane Surge Support" is Metadata/Items/Gems/SupportGemArcaneSurge
-		public static string PathPart(string gem) => gem.Replace(" Support", "").Replace(" ", "");
 
 		public override string Name => LinkedTo == null ? $"Socket {Gem} in the main hand" : $"Socket {Gem} linked to {LinkedTo}";
+		public override void Reset() { base.Reset(); picked = false; }
 		public override bool Sticky => false;
 		public override bool UsesInventory => true;
 
-		private InventoryItem GemInBackpack() => BackpackItems().FirstOrDefault(i =>
-			(i.Entity?.Path?.Contains("/Gems/") ?? false) && i.Entity.Path.Contains(GemPathContains));
+		private InventoryItem GemInBackpack() => BackpackItems().FirstOrDefault(i => Equipment.IsGem(i.Entity, Gem));
 		private static InventoryItem Weapon() => GetUI()?.InventoryPanel?.LWeapon?.Items.FirstOrDefault(i => IsValid(i.Entity?.GetComponent<Sockets>()));
 
 		public override bool CheckDone(CombatContext ctx) {
 			var sockets = Weapon()?.Entity?.GetComponent<Sockets>();
 			if ( !IsValid(sockets) ) return false;
-			int i = sockets.IndexOfGem("/Gems/", GemPathContains);
-			return i >= 0 && (LinkedTo == null || sockets.LinkedWith(i).Contains(sockets.IndexOfGem("/Gems/", LinkedToPathContains)));
+			int i = sockets.IndexOfGem(e => Equipment.IsGem(e, Gem));
+			return i >= 0 && (LinkedTo == null || sockets.LinkedWith(i).Contains(sockets.IndexOfGem(e => Equipment.IsGem(e, LinkedTo))));
 		}
 
 		// the empty socket to put it in (linked to LinkedTo's), one of the gem's color if there is one (for +10% quality), or -1
 		private int TargetSocket(Sockets sockets, SocketColor gemColor) {
 			IEnumerable<int> candidates = Enumerable.Range(0, sockets.Count);
 			if ( LinkedTo != null ) {
-				int other = sockets.IndexOfGem("/Gems/", LinkedToPathContains);
+				int other = sockets.IndexOfGem(e => Equipment.IsGem(e, LinkedTo));
 				if ( other < 0 ) { Detail = $"{LinkedTo} is not in the weapon"; return -1; }
 				candidates = sockets.LinkedWith(other);
 			}
@@ -505,6 +501,7 @@ namespace AtE {
 			return empty.Where(i => sockets.Color(i) == gemColor).DefaultIfEmpty(empty[0]).First();
 		}
 		private SocketColor gemColor; // as read while the gem was in the backpack (it has no entity of ours on the cursor)
+		private bool picked; // the gem was found in the backpack, and clicked
 
 		public override void Tick(CombatContext ctx) {
 			ctx.Driver.StopWalking("using the inventory");
@@ -525,11 +522,13 @@ namespace AtE {
 			}
 			var gem = GemInBackpack();
 			if ( gem != null ) gemColor = gem.Entity.GetComponent<SkillGem>()?.Color ?? SocketColor.None;
+			else if ( !picked ) { Detail = $"no {Gem} in the backpack (gems there: {Equipment.BackpackGems()})"; return; }
 			int target = TargetSocket(weapon.Entity.GetComponent<Sockets>(), gemColor);
 			if ( target < 0 ) return;
 			if ( gem != null ) {
 				Detail = "picking up the gem";
 				SkillBar.ClickAt(gem.GetClientRect());
+				picked = true;
 				return;
 			}
 			// not in the backpack and not socketed: it is on the cursor
@@ -575,6 +574,34 @@ namespace AtE {
 		}
 
 		/// <summary>Is an item whose path contains all the parts (eg, "/Gems/", "Fireball") in the backpack (open or not).</summary>
+		/// <summary>
+		/// Is e the gem called name (eg, "Chance to Poison Support"): by its item name (a support's is without " Support"),
+		/// or, if that cannot be read, by its metadata path (which is not always the name: Chance to Poison Support is
+		/// Metadata/Items/Gems/SupportGemLesserPoison).
+		/// </summary>
+		public static bool IsGem(Entity e, string name) {
+			if ( !(e?.Path is string path) || !path.Contains("/Gems/") ) return false;
+			var itemName = ItemName(e);
+			return itemName != null ? string.Equals(itemName, name, StringComparison.OrdinalIgnoreCase)
+					|| string.Equals($"{itemName} Support", name, StringComparison.OrdinalIgnoreCase)
+				: path.Contains(name.Replace(" Support", "").Replace(" ", ""), StringComparison.OrdinalIgnoreCase);
+		}
+
+		/// <summary>An item's base name (eg, "Driftwood Wand", "Fireball"), or null if it cannot be read.</summary>
+		public static string ItemName(Entity e) {
+			var info = e?.GetComponent<Base>()?.Info;
+			return info != null && PoEMemory.TryReadString(info.Value.strName, System.Text.Encoding.Unicode, out string name)
+				&& !string.IsNullOrWhiteSpace(name) ? name : null;
+		}
+
+		/// <summary>Is the gem called name (see IsGem) in the backpack (open or not).</summary>
+		public static bool GemInBackpack(string name) =>
+			GetUI()?.InventoryPanel?.Backpack?.Items.Any(i => IsGem(i.Entity, name)) ?? false;
+
+		/// <summary>The gems in the backpack, as "name (path)", for status lines.</summary>
+		public static string BackpackGems() => string.Join(", ", (GetUI()?.InventoryPanel?.Backpack?.Items ?? Enumerable.Empty<InventoryItem>())
+			.Where(i => i.Entity?.Path?.Contains("/Gems/") ?? false).Select(i => $"{ItemName(i.Entity) ?? "?"} ({i.Entity.Path})"));
+
 		public static bool InBackpack(params string[] pathParts) =>
 			GetUI()?.InventoryPanel?.Backpack?.Items.Any(i => i.Entity?.Path is string path && pathParts.All(path.Contains)) ?? false;
 	}

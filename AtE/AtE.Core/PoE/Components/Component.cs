@@ -882,6 +882,14 @@ namespace AtE {
 			return -1;
 		}
 
+		/// <summary>The socket holding a gem that matches, or -1.</summary>
+		public int IndexOfGem(Func<Entity, bool> match) {
+			for ( int i = 0; i < Count; i++ ) {
+				if ( Gem(i) is Entity gem && match(gem) ) return i;
+			}
+			return -1;
+		}
+
 		/// <summary>The sizes of the groups of linked sockets, in socket order (eg, [2, 1]: sockets 0 and 1 are linked, 2 is alone).</summary>
 		public byte[] LinkGroups => new ArrayHandle<byte>(Cache.Links).ToArray(limit: Max);
 

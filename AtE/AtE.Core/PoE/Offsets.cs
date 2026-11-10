@@ -1209,8 +1209,10 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Base_Info {
 			[FieldOffset(0x10)] public readonly byte ItemCellSizeX;
 			[FieldOffset(0x11)] public readonly byte ItemCellSizeY;
-			[FieldOffset(0x30)] public readonly IntPtr strName;
-			[FieldOffset(0x78)] public readonly IntPtr strDescription; // ptr to string unicode
+			// 3.29.3: read from a Chance to Poison Support gem in the backpack (Metadata/Items/Gems/SupportGemLesserPoison):
+			// +0x48 points at u"Chance to Poison" (gems are named without " Support"), +0x90 at its description
+			[FieldOffset(0x48)] public readonly IntPtr strName; // ptr to string unicode
+			[FieldOffset(0x90)] public readonly IntPtr strDescription; // ptr to string unicode
 			[FieldOffset(0x80)] public readonly IntPtr ptrEntityPath; // ptr to (ptr to?) string ascii "Metadata/..."
 			[FieldOffset(0x88)] public readonly IntPtr prtItemType; // ptr to (ptr to?) string unicode
 			[FieldOffset(0x90)] public readonly IntPtr ptrBaseItemTypes;

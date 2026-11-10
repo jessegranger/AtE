@@ -28,12 +28,12 @@ namespace AtE {
 				new BindSkill("Default Attack", 3), // Q
 				new PickUp("Dying Exile", "Click"),
 				new Kill("the Dying Exile's zombie", "Monsters/Zombies/ZombieBite", "Default Attack", range: 25),
-				new PickUp(StartingSkill) { DoneWhen = () => Equipment.InBackpack("/Gems/", SocketGem.PathPart(StartingSkill)) },
+				new PickUp(StartingSkill) { DoneWhen = () => Equipment.GemInBackpack(StartingSkill) },
 				new SocketGem(StartingSkill),
 				new BindSkill(StartingSkill, 3), // Q, in place of Default Attack
 				// on the way to Hillock, who stands in the only way out: walk past the monsters
 				new PickUp("Large Chest", "Open") { SearchAt = Search.TheOnlyExit },
-				new PickUp(StartingSupport) { SearchAt = Search.TheOnlyExit, DoneWhen = () => Equipment.InBackpack("/Gems/", SocketGem.PathPart(StartingSupport)) },
+				new PickUp(StartingSupport) { SearchAt = Search.TheOnlyExit, DoneWhen = () => Equipment.GemInBackpack(StartingSupport) },
 				new SocketGem(StartingSupport, linkedTo: StartingSkill),
 				new Orbit("Hillock", "Hillock", StartingSkill) { SearchAt = Search.TheOnlyExit },
 				new GoToArea("Lioneye's Watch"));
