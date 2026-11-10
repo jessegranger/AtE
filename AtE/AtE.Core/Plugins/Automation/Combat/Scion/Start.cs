@@ -1,4 +1,6 @@
-﻿namespace AtE {
+﻿using System.Collections.Generic;
+
+namespace AtE {
 
 	/// <summary>A new Witch, to Lioneye's Watch (see StartBase).</summary>
 	public class ScionStart : StartBase {
@@ -6,6 +8,9 @@
 		protected override string StartingWeapon => "Rusted Sword";
 		protected override string StartingSkill => "Spectral Throw";
 		protected override string StartingSupport => "Prismatic Burst Support";
+		protected override Dictionary<string, string> QuestRewards => new Dictionary<string, string> {
+			["Enemy at the Gate"] = "Splitting Steel",
+		};
 	}
 }
 

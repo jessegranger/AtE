@@ -12,6 +12,9 @@ namespace AtE {
 		protected override string StartingWeapon => "Glass Shank";
 		protected override string StartingSkill => "Viper Strike";
 		protected override string StartingSupport => "Chance To Poison Support";
+		protected override Dictionary<string, string> QuestRewards => new Dictionary<string, string> {
+			["Enemy at the Gate"] = "Cobra Lash",
+		};
 	}
 }
 
