@@ -26,7 +26,7 @@ namespace AtE {
 		public static void Initialise(IPlatform platform) {
 			if ( platform == null ) throw new ArgumentNullException(nameof(platform));
 			if ( _current != null ) throw new InvalidOperationException("Platform already initialised.");
-			_current = platform;
+			_current = new ClickMarkingPlatform(platform);
 		}
 	}
 }

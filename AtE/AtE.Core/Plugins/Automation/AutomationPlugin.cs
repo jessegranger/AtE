@@ -27,10 +27,16 @@ namespace AtE {
 		public readonly PassiveTreeSection PassiveTree = new PassiveTreeSection();
 		public readonly CombatSection Combat = new CombatSection();
 
+		/// <summary>Draw a small expanding circle where each mouse click is sent (see ClickMarks).</summary>
+		public bool ShowClicks = true;
+
 		private IEnumerable<AutomationSection> Sections => new AutomationSection[] { Navigation, PassiveTree, Combat };
 
 		public override void Render() {
 			base.Render();
+			ImGui.Checkbox("Show Clicks", ref ShowClicks);
+			ImGui.SameLine();
+			ImGui_HelpMarker("Draws a small yellow circle, growing for a moment, wherever a mouse click is sent (by a routine, path following, or any other plugin).");
 			foreach ( var section in Sections ) {
 				if ( ImGui.CollapsingHeader(section.Name) ) {
 					ImGui.PushID(section.Key);
@@ -46,6 +52,7 @@ namespace AtE {
 			if ( Enabled && !Paused ) {
 				foreach ( var section in Sections ) section.OnTick(dt);
 			}
+			if ( ShowClicks ) ClickMarks.Draw();
 			return this;
 		}
 
@@ -55,7 +62,8 @@ namespace AtE {
 				.Concat(Combat.Routines.Select(r => ($"{Combat.Key}.{r.Key}.", (object)r)));
 
 		public override string[] Save() =>
-			FieldLines(this).Where(line => line.StartsWith($"{nameof(Enabled)}="))
+			// (the sections are saved below, by field)
+			FieldLines(this).Where(line => !new[] { nameof(Navigation), nameof(PassiveTree), nameof(Combat) }.Any(f => line.StartsWith($"{f}=")))
 				.Concat(SettingsTargets.SelectMany(t => FieldLines(t.target, t.prefix)))
 				.ToArray();
 
