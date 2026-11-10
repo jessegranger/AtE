@@ -11,16 +11,15 @@ namespace AtE {
 	/// <summary>
 	/// The base for a combat driver: a plugin that clears an area by itself.
 	///
-	/// Each frame, while switched on (ToggleKey): if life is low, retreat to a safe spot; else pick a monster
+	/// Each frame, while switched on (Start, by CombatSection's key): if life is low, retreat to a safe spot; else pick a monster
 	/// (ChooseTarget), and if it is in range (with line of sight, if NeedsLineOfSight) Attack it, or else walk to a
 	/// spot where it would be; with no monsters around, walk to the next unexplored place; with nothing left, stop.
 	///
 	/// A driver for a particular build overrides Attack (and usually AttackRange / NeedsLineOfSight / ChooseTarget).
 	/// Moving the player and attacking both use the mouse, so this waits while the game is not focused.
 	/// </summary>
-	public abstract class CombatDriver : PluginBase {
+	public abstract class CombatDriver : AutomationSection {
 
-		public HotKey ToggleKey = new HotKey(VKey.None);
 		/// <summary>Monsters within this many cells are fought before exploring further.</summary>
 		public int EngageRadius = 60;
 		/// <summary>Retreat (to a spot RetreatDistance from all monsters) when life + energy shield is below this percent; 0 never retreats.</summary>
@@ -51,9 +50,6 @@ namespace AtE {
 
 		public override void Render() {
 			base.Render();
-			ImGui_HotKeyButton("On / Off", ref ToggleKey);
-			ImGui.SameLine();
-			ImGui.Text(IsActive ? $"On: {Status}" : $"Off ({Status})");
 			ImGui.SliderInt("Engage Radius (cells)", ref EngageRadius, 10, 120);
 			ImGui.SliderInt("Retreat Below Life %", ref RetreatBelowLifePercent, 0, 90);
 			ImGui.SliderInt("Retreat Distance (cells)", ref RetreatDistance, 10, 80);
@@ -68,6 +64,11 @@ namespace AtE {
 			}
 		}
 
+		public void Start() {
+			IsActive = true;
+			Status = "starting";
+		}
+
 		public void Stop(string why) {
 			IsActive = false;
 			Status = why;
@@ -76,11 +77,7 @@ namespace AtE {
 		}
 
 		public override IState OnTick(long dt) {
-			if ( !Enabled || Paused || !PoEMemory.IsAttached ) return this;
-			if ( ToggleKey.IsReleased ) {
-				if ( IsActive ) Stop("switched off");
-				else { IsActive = true; Status = "starting"; }
-			}
+			if ( !PoEMemory.IsAttached ) return this;
 			if ( !IsActive ) return this;
 
 			var game = PoEMemory.GameRoot?.InGameState;
@@ -265,7 +262,7 @@ namespace AtE {
 	/// Fits most single-skill builds (a spell, a bow attack, a melee strike with a short range).
 	/// </summary>
 	public class SkillAttackDriver : CombatDriver {
-		public override string Name => "Combat: Skill Attack";
+		public override string Name => "Skill Attack";
 
 		/// <summary>The skill to attack with, by name (eg, Fireball); it is put on a free slot if needed. Empty: press AttackKey instead.</summary>
 		public string AttackSkill = "";

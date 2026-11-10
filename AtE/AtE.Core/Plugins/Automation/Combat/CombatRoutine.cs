@@ -56,7 +56,7 @@ namespace AtE {
 		}
 
 		public override IState OnTick(long dt) {
-			if ( Enabled && !Paused && PoEMemory.IsAttached ) {
+			if ( PoEMemory.IsAttached ) {
 				ForgetOnNewArea();
 				if ( !IsActive ) UpdateCompletion(); // (while on, Decide does this)
 				if ( ShowObjectives ) DrawObjectives();
@@ -194,7 +194,7 @@ namespace AtE {
 	/// A routine to try the objectives with: for The Twilight Strand, clear the area, then go to Lioneye's Watch.
 	/// </summary>
 	public class TestRoutine : CombatRoutine {
-		public override string Name => "Combat: Test Routine";
+		public override string Name => "Test Routine";
 		public string AttackSkill = "Fireball";
 		public TestRoutine() {
 			Area("The Twilight Strand",

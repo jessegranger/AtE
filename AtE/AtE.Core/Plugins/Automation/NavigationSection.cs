@@ -8,7 +8,8 @@ using System.Text;
 using static AtE.Globals;
 
 namespace AtE {
-	class PathfindingPlugin : PluginBase {
+	public class NavigationSection : AutomationSection {
+		public override string Name => "Navigation";
 
 		public bool ShowCurrentPath = false;
 		public bool ShowTerrain = false;
@@ -355,7 +356,7 @@ namespace AtE {
 		/// <param name="dt">duration of this frame, in ms</param>
 		/// <returns>This plugin, or another IState to replace it.</returns>
 		public override IState OnTick(long dt) {
-			if ( Enabled && !Paused && PoEMemory.IsAttached ) {
+			if ( PoEMemory.IsAttached ) {
 				var p = GetPlayer();
 				if ( !IsAlive(p) ) return this;
 				var posComponent = p.GetComponent<Positioned>();

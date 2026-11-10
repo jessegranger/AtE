@@ -13,8 +13,8 @@ namespace AtE {
 	/// Follow a Path of Building build's passive tree: pick a saved build (and which of its trees to end with), and see
 	/// the order its points would be taken in (see PassivePlan). Nothing is allocated in the game yet.
 	/// </summary>
-	public class PassiveTreePlugin : PluginBase {
-		public override string Name => "Passive Tree Plan";
+	public class PassiveTreeSection : AutomationSection {
+		public override string Name => "Passive Tree";
 
 		/// <summary>The build, relative to PobBuild.DefaultFolder (or a full path).</summary>
 		public string BuildFile = "";
@@ -108,7 +108,7 @@ namespace AtE {
 		}
 
 		public override IState OnTick(long dt) {
-			if ( Enabled && !Paused && ShowOnTree && Plan != null && PoEMemory.IsAttached && PassiveTreePanel.IsOpen ) {
+			if ( ShowOnTree && Plan != null && PoEMemory.IsAttached && PassiveTreePanel.IsOpen ) {
 				MarkPlan(Plan);
 			}
 			return base.OnTick(dt);

@@ -45,53 +45,77 @@ namespace AtE {
 
 		private static void ApplyIniToPlugin(PluginBase plugin) {
 			Type T = plugin.GetType();
-			if ( iniSettings.TryGetValue(T.Name, out var iniSection) ) {
-				foreach ( var pair in iniSection ) {
-					Log($"INI [{T.Name}] {pair.Key} = {pair.Value}");
-					// if the plugin can Load the key directly, let them parse it themselves
-					if ( plugin.Load(pair.Key, pair.Value) ) {
-						continue;
-					}
-					// otherwise, let's try a default deserialization
-					var field = T.GetField(pair.Key); // find the public field named by the Key
-					if ( field == null ) {
-						Log($"INI Line did not reference a Plugin field: {pair.Key}");
-						continue;
-					}
-					// skip loading any fields marked as NoPersist
-					if ( field.GetCustomAttribute<NoPersist>() != null ) {
-						Log($"INI Line skipping NoPersist field: {pair.Key}");
-						continue;
-					}
-
-					if ( field.FieldType == typeof(HotKey) ) {
-						field.SetValue(plugin, HotKey.Parse(pair.Value));
-					} else if ( field.FieldType == typeof(VKey) ) {
-						if ( Enum.TryParse(pair.Value, out VKey key) ) {
-							field.SetValue(plugin, key);
-						}
-					} else if ( field.FieldType == typeof(float) ) {
-						field.SetValue(plugin, float.Parse(pair.Value));
-					} else if ( field.FieldType == typeof(double) ) {
-						field.SetValue(plugin, double.Parse(pair.Value));
-					} else if ( field.FieldType == typeof(long) ) {
-						field.SetValue(plugin, long.Parse(pair.Value));
-					} else if ( field.FieldType == typeof(int) ) {
-						field.SetValue(plugin, int.Parse(pair.Value));
-					} else if ( field.FieldType == typeof(uint) ) {
-						field.SetValue(plugin, uint.Parse(pair.Value));
-					} else if ( field.FieldType == typeof(bool) ) {
-						field.SetValue(plugin, bool.Parse(pair.Value));
-					} else if ( field.FieldType == typeof(string) ) {
-						field.SetValue(plugin, pair.Value);
-					} else if ( field.FieldType == typeof(Stopwatch) ) {
-						continue;
-					} else {
-						throw new ArgumentException($"Unknown Field Type, cannot load from string: {field.FieldType}");
-					}
+			iniSettings.TryGetValue(T.Name, out var iniSection);
+			// the settings of plugins merged into this one, until it has saved its own
+			foreach ( var (section, prefix) in plugin.FormerSections ) {
+				if ( iniSection != null && iniSection.Keys.Any(k => k.StartsWith(prefix)) ) continue;
+				if ( !iniSettings.TryGetValue(section, out var former) ) continue;
+				foreach ( var pair in former ) {
+					Log($"INI [{section}] {pair.Key} = {pair.Value} (now {T.Name} {prefix}{pair.Key})");
+					plugin.Load(prefix + pair.Key, pair.Value);
 				}
 			}
+			if ( iniSection == null ) return;
+			foreach ( var pair in iniSection ) {
+				Log($"INI [{T.Name}] {pair.Key} = {pair.Value}");
+				// if the plugin can Load the key directly, let them parse it themselves
+				if ( plugin.Load(pair.Key, pair.Value) ) {
+					continue;
+				}
+				// otherwise, let's try a default deserialization
+				TrySetField(plugin, pair.Key, pair.Value);
+			}
 		}
+
+		/// <summary>
+		/// Set the public field of target named by key, from its value in the INI file; false if there is no such field
+		/// (or it is NoPersist).
+		/// </summary>
+		internal static bool TrySetField(object target, string key, string value) {
+			var field = target.GetType().GetField(key); // find the public field named by the Key
+			if ( field == null ) {
+				Log($"INI Line did not reference a Plugin field: {key}");
+				return false;
+			}
+			// skip loading any fields marked as NoPersist
+			if ( field.GetCustomAttribute<NoPersist>() != null ) {
+				Log($"INI Line skipping NoPersist field: {key}");
+				return false;
+			}
+
+			if ( field.FieldType == typeof(HotKey) ) {
+				field.SetValue(target, HotKey.Parse(value));
+			} else if ( field.FieldType == typeof(VKey) ) {
+				if ( Enum.TryParse(value, out VKey key2) ) {
+					field.SetValue(target, key2);
+				}
+			} else if ( field.FieldType == typeof(float) ) {
+				field.SetValue(target, float.Parse(value));
+			} else if ( field.FieldType == typeof(double) ) {
+				field.SetValue(target, double.Parse(value));
+			} else if ( field.FieldType == typeof(long) ) {
+				field.SetValue(target, long.Parse(value));
+			} else if ( field.FieldType == typeof(int) ) {
+				field.SetValue(target, int.Parse(value));
+			} else if ( field.FieldType == typeof(uint) ) {
+				field.SetValue(target, uint.Parse(value));
+			} else if ( field.FieldType == typeof(bool) ) {
+				field.SetValue(target, bool.Parse(value));
+			} else if ( field.FieldType == typeof(string) ) {
+				field.SetValue(target, value);
+			} else if ( field.FieldType == typeof(Stopwatch) ) {
+				return false;
+			} else {
+				throw new ArgumentException($"Unknown Field Type, cannot load from string: {field.FieldType}");
+			}
+			return true;
+		}
+
+		/// <summary>The INI lines for target's public fields (but not NoPersist ones), each key starting with prefix.</summary>
+		internal static IEnumerable<string> FieldLines(object target, string prefix = "") =>
+			target.GetType().GetFields().Where(field => field.GetCustomAttribute<NoPersist>() == null)
+				.Select(field => $"{prefix}{field.Name}={field.GetValue(target)}");
+
 		private static void ReapplyIniToAllPlugins() {
 			foreach ( var plugin in Plugins ) {
 				ApplyIniToPlugin(plugin);
@@ -172,8 +196,8 @@ namespace AtE {
 				string[] linesFromPlugin = plugin.Save();
 				if ( linesFromPlugin == null ) {
 					// if the plugin.Save() returned null, use this default serialization of public fields:
-					foreach ( var field in plugin.GetType().GetFields().Where(field => field.GetCustomAttribute<NoPersist>() == null) ) {
-						sb.AppendLine($"{field.Name}={field.GetValue(plugin)}");
+					foreach ( var line in FieldLines(plugin) ) {
+						sb.AppendLine(line);
 					}
 				} else { // otherwise, use all the lines from Save()
 					foreach ( var line in linesFromPlugin ) {
@@ -248,6 +272,12 @@ namespace AtE {
 			}
 			ImGui.Separator();
 		}
+
+		/// <summary>
+		/// The INI sections of plugins that were merged into this one, and the prefix their keys now have: they are given
+		/// to Load (with the prefix) until this plugin's own section has a key with that prefix.
+		/// </summary>
+		protected virtual IEnumerable<(string section, string prefix)> FormerSections => Enumerable.Empty<(string, string)>();
 
 		/// <summary>
 		/// Sub-classes should return null to use the default serialization

@@ -10,7 +10,7 @@ namespace AtE {
 	/// Large Chest on the way to the exit for Arcane Surge Support, kill Hillock (in front of the exit) with Fireball.
 	/// </summary>
 	public class WitchStart : CombatRoutine {
-		public override string Name => "Combat: Witch Start";
+		public override string Name => "Witch Start";
 
 		public WitchStart() {
 			Area("The Twilight Strand",
