@@ -94,7 +94,7 @@ namespace AtE {
 		private ScoringContext context;
 		private bool areaHooked;
 
-		private void ClearCaches() { infos.Clear(); scores.Clear(); contextKey = null; context = null; }
+		private void ClearCaches() { infos.Clear(); scores.Clear(); tips.Clear(); contextKey = null; context = null; }
 
 		/// <summary>
 		/// A key for an item while in this area: its entity's address, and what changes when it is crafted on (where its
@@ -121,13 +121,16 @@ namespace AtE {
 			if ( key != contextKey || context == null ) {
 				contextKey = key;
 				scores.Clear();
-				context = ScoringContext.FromGame(Gems, loadout.Values, Priority());
+				tips.Clear();
+				context =ScoringContext.FromGame(Gems, loadout.Values, Priority());
 			}
 			return context;
 		}
 
 		// the scores to draw, worked out every so often (each one solves the sockets a few times)
-		private readonly List<(RectangleF rect, string text, Color color)> labels = new List<(RectangleF, string, Color)>();
+		// (each with its cache key, and how to explain it when hovered: worked out then, and kept in tips)
+		private readonly List<(RectangleF rect, string text, Color color, string key, Func<string> explain)> labels = new List<(RectangleF, string, Color, string, Func<string>)>();
+		private readonly Dictionary<string, string> tips = new Dictionary<string, string>();
 		private long labelsTime;
 
 		private void DrawItemScores() {
@@ -144,7 +147,42 @@ namespace AtE {
 					Log($"{Name}: scoring items: {e.Message}");
 				}
 			}
-			foreach ( var (rect, text, color) in labels ) DrawTextAt(new Vector2(rect.X + 2, rect.Y + 2), text, color);
+			foreach ( var (rect, text, color, _, _) in labels ) DrawTextAt(new Vector2(rect.X + 2, rect.Y + 2), text, color);
+			DrawHoveredTip();
+		}
+
+		// the hovered item's score, explained in a box under it
+		private void DrawHoveredTip() {
+			var cursor = Platform.Current.Keys.GetCursorPos();
+			if ( PoEMemory.Memory.TryGetTargetWindowRect(out int wx, out int wy, out _, out _) ) cursor -= new Vector2(wx, wy);
+			foreach ( var (rect, _, _, key, explain) in labels ) {
+				if ( !rect.Contains(cursor.X, cursor.Y) ) continue;
+				if ( !tips.TryGetValue(key, out var tip) ) {
+					try { tip = explain(); } catch ( Exception e ) { tip = $"(could not explain: {e.Message})"; }
+					tips[key] = tip;
+				}
+				if ( string.IsNullOrEmpty(tip) ) return;
+				var size = ImGui.CalcTextSize(tip);
+				const float pad = 6;
+				var pos = new Vector2(rect.X, rect.Bottom + 4);
+				pos.X = Math.Clamp(pos.X, 0, Math.Max(0, Overlay.Width - size.X - 2 * pad));
+				if ( pos.Y + size.Y + 2 * pad > Overlay.Height ) pos.Y = rect.Top - size.Y - 2 * pad - 4;
+				var draw = ImGui.GetForegroundDrawList();
+				draw.AddRectFilled(pos, pos + size + new Vector2(2 * pad), (uint)ToRGBA(Color.FromArgb(230, 10, 10, 15)), 3f);
+				draw.AddRect(pos, pos + size + new Vector2(2 * pad), (uint)ToRGBA(Color.FromArgb(255, 110, 100, 80)), 3f);
+				draw.AddText(pos + new Vector2(pad), (uint)ToRGBA(Color.White), tip);
+				return;
+			}
+		}
+
+		// an item's score, part by part (see ItemScorer.Explain), as the tip's text
+		private static string Explain(ScoringContext ctx, Dictionary<string, ItemInfo> loadout, string slot, string header) {
+			var (parts, gems) = ItemScorer.Explain(ctx, loadout, slot);
+			var lines = new List<string> { header };
+			foreach ( var (part, points) in parts.OrderByDescending(p => Math.Abs(p.points)) ) lines.Add($"  {points,6:+0;-0} {part}");
+			if ( parts.Count == 0 ) lines.Add("  nothing that counts for the build");
+			if ( gems.Count > 0 ) lines.Add($"holds: {string.Join(", ", gems)}");
+			return string.Join("\n", lines);
 		}
 
 		private void MakeLabels(bool inventory, bool purchase) {
@@ -155,7 +193,9 @@ namespace AtE {
 					if ( loadout[slot] == null ) continue;
 					string key = $"worn {slot}";
 					if ( !scores.TryGetValue(key, out var label) ) scores[key] = label = ($"{ItemScorer.ItemScore(ctx, loadout, slot):F0}", Color.White);
-					labels.Add((element.GetClientRect(), label.text, label.color));
+					string s = slot;
+					labels.Add((element.GetClientRect(), label.text, label.color, key,
+						() => Explain(ctx, loadout, s, $"{loadout[s].Name}: {label.text} (worn, {s})")));
 				}
 				foreach ( var item in GetUI()?.InventoryPanel?.Backpack?.Items ?? Enumerable.Empty<InventoryItem>() ) Label(ctx, loadout, item);
 			}
@@ -178,7 +218,19 @@ namespace AtE {
 				}
 				scores[key] = label;
 			}
-			labels.Add((element.GetClientRect(), label.text, label.color));
+			labels.Add((element.GetClientRect(), label.text, label.color, key, () => ExplainCandidate(ctx, loadout, info)));
+		}
+
+		// a candidate: why it cannot be used, or its parts as if worn in its best slot, and what that does to the total
+		private static string ExplainCandidate(ScoringContext ctx, Dictionary<string, ItemInfo> loadout, ItemInfo info) {
+			string unidentified = info.Identified ? "" : "\n(unidentified: only its base, implicits and sockets are known)";
+			if ( ItemScorer.Unusable(ctx, info) is string why ) return $"{info.Name}: 0, cannot be used ({why})";
+			var (slot, score, gain) = ItemScorer.Candidate(ctx, loadout, info);
+			if ( slot == null ) return null;
+			var with = ItemScorer.WithItem(loadout, info, slot);
+			loadout.TryGetValue(slot, out var worn);
+			string vs = worn == null ? $"{slot} is empty" : $"replacing {worn.Name}";
+			return Explain(ctx, with, slot, $"{info.Name}: {score:F0} in {slot}") + $"\nwearing it: {gain:+0;-0;0} ({vs})" + unidentified;
 		}
 
 		/// <summary>The visible item elements under root (eg, the purchase window's items).</summary>

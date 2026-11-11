@@ -138,6 +138,16 @@ namespace AtE.Tests {
 		}
 
 		[Fact]
+		public void The_explained_parts_add_up_to_the_score() {
+			var ctx = Witch();
+			var wand = Item(ItemKind.OneHand, "B-B", ("spell_damage_+%", 20), ("base_maximum_life", 10), ("base_fire_damage_resistance_%", 12));
+			var loadout = Loadout(("LWeapon", wand), ("Boots", Item(ItemKind.Boots, null, ("base_movement_velocity_+%", 10))));
+			var (parts, gems) = ItemScorer.Explain(ctx, loadout, "LWeapon");
+			Assert.Equal(ItemScorer.ItemScore(ctx, loadout, "LWeapon"), parts.Sum(p => p.points), 0);
+			Assert.Equal(new[] { "Fireball", "Arcane Surge" }, gems);
+		}
+
+		[Fact]
 		public void Added_damage_to_spells_and_attacks_counts_for_a_spell() {
 			var ctx = Witch();
 			var wand = Item(ItemKind.OneHand, "B-B");

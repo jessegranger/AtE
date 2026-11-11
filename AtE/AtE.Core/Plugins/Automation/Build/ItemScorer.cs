@@ -168,6 +168,34 @@ namespace AtE {
 		}
 
 		/// <summary>
+		/// Where the score of the item in slot comes from: each part of the loadout's score, with it less without it
+		/// (they add up to ItemScore), and the gems it holds in the socket arrangement.
+		/// </summary>
+		public static (List<(string part, double points)> parts, List<string> gems) Explain(ScoringContext ctx, IReadOnlyDictionary<string, ItemInfo> loadout, string slot) {
+			var parts = new List<(string, double)>();
+			var gems = new List<string>();
+			if ( !loadout.TryGetValue(slot, out var item) || item == null ) return (parts, gems);
+			var without = loadout.ToDictionary(kv => kv.Key, kv => kv.Key == slot ? null : kv.Value);
+			var a = Score(ctx, loadout);
+			var b = Score(ctx, without);
+			// main x damage, split so that the parts add up: (main gained at the old damage) + (damage gained on the new main)
+			parts.Add(("main skill sockets", (a.Main - b.Main) * b.Damage));
+			parts.Add(($"main skill damage (x{a.Damage:F2} vs x{b.Damage:F2})", a.Main * (a.Damage - b.Damage)));
+			parts.Add(("utility sockets", a.Utility - b.Utility));
+			parts.Add(("movement speed", a.Movement - b.Movement));
+			foreach ( var name in a.DefenceParts.Keys.Union(b.DefenceParts.Keys) ) {
+				a.DefenceParts.TryGetValue(name, out double x);
+				b.DefenceParts.TryGetValue(name, out double y);
+				parts.Add((name, x - y));
+			}
+			if ( item.Sockets != null ) {
+				foreach ( var p in a.Sockets.Placements.Where(p => p.Item == item.Sockets).OrderBy(p => p.Socket) )
+					gems.Add($"{p.Gem.Name}{(p.ColorMatches ? " (colour match)" : "")}");
+			}
+			return (parts.Where(p => Math.Abs(p.Item2) >= 0.5).ToList(), gems);
+		}
+
+		/// <summary>
 		/// An item not worn: the best slot for it, its score there (as if worn), and how much the loadout's total would
 		/// change (more than 0: it is better). A two handed weapon empties the off hand. An item the character cannot use
 		/// (see Unusable) scores 0, and is no gain.
@@ -177,16 +205,21 @@ namespace AtE {
 			double current = Score(ctx, loadout).Total;
 			(string slot, double score, double gain) best = (null, 0, double.NegativeInfinity);
 			foreach ( var slot in SlotsFor(item.Kind) ) {
-				var with = loadout.ToDictionary(kv => kv.Key, kv => kv.Value);
-				with[slot] = item;
-				if ( item.Kind == ItemKind.TwoHand ) with["RWeapon"] = null;
-				// (an off hand with a two handed weapon worn takes its place)
-				if ( item.Kind == ItemKind.OffHand && with.TryGetValue("LWeapon", out var main) && main?.Kind == ItemKind.TwoHand ) with["LWeapon"] = null;
+				var with = WithItem(loadout, item, slot);
 				double total = Score(ctx, with).Total;
 				double gain = total - current;
 				if ( gain > best.gain ) best = (slot, ItemScore(ctx, with, slot), gain);
 			}
 			return best;
+		}
+
+		/// <summary>The loadout with item worn in slot. A two handed weapon empties the off hand; an off hand takes a two handed weapon's place.</summary>
+		public static Dictionary<string, ItemInfo> WithItem(IReadOnlyDictionary<string, ItemInfo> loadout, ItemInfo item, string slot) {
+			var with = loadout.ToDictionary(kv => kv.Key, kv => kv.Value);
+			with[slot] = item;
+			if ( item.Kind == ItemKind.TwoHand ) with["RWeapon"] = null;
+			if ( item.Kind == ItemKind.OffHand && with.TryGetValue("LWeapon", out var main) && main?.Kind == ItemKind.TwoHand ) with["LWeapon"] = null;
+			return with;
 		}
 
 		/// <summary>Each element's resistance from items (fire, cold, lightning, chaos).</summary>
