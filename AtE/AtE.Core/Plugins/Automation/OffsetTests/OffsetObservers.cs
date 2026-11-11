@@ -306,6 +306,13 @@ namespace AtE {
 						c.That(Enum.IsDefined(typeof(Offsets.ItemRarity), mods.Rarity), $"ItemRarity is {mods.Rarity}");
 						c.That(mods.Level <= 100 && mods.ReqLevel <= 100, $"ItemLevel {mods.Level} / RequiredLevel {mods.ReqLevel} are not levels");
 						c.Note($"{mods.Rarity} ilvl {mods.Level}");
+						// the starting Driftwood Wand (the wielded one: a Wand1 dropped later has its own levels) is item level 1, requires level 1
+						var panel = GetUI()?.InventoryPanel;
+						bool wielded = IsValid(panel) && new[] { panel.LWeapon, panel.RWeapon }.Where(i => i != null).SelectMany(i => i.Items).Any(i => i.Entity?.Address == e.Address);
+						if ( wielded && e.Path.EndsWith("Wand1") ) {
+							c.GoldenAny("item.Wand1.wielded.ItemLevel", mods.Level);
+							c.GoldenAny("item.Wand1.wielded.RequiredLevel", mods.ReqLevel);
+						}
 					}
 					var weapon = e.GetComponent<Weapon>();
 					if ( IsValid(weapon) ) {
