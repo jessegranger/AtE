@@ -1,0 +1,517 @@
+# Offsets that no live check or observer covers, each group with why. A ratchet (see OffsetCoverage): a new offset must have a check
+# or be listed here; one listed here that is covered now must be taken off. Format: Struct.Field, with # for comments.
+# Regenerate the gap with  curl "http://127.0.0.1:7788/offsets/coverage?format=unchecked"  (or read the failing test).
+
+# ActiveSkill: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+ActiveSkill.CastTypeCount
+ActiveSkill.CastTypes
+ActiveSkill.LongDescription
+ActiveSkill.Names
+ActiveSkill.SkillTagCount
+ActiveSkill.SkillTags
+ActiveSkill.UnknownArray
+ActiveSkill.UnknownArrayPtr
+ActiveSkill.UnknownByte
+
+# ActorSkill: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+ActorSkill.CanBeUsed
+ActorSkill.CanBeUsedWithWeapon
+ActorSkill.CooldownMS
+ActorSkill.SoulsPerUse
+ActorSkill.TotalUses
+ActorSkill.TotalVaalUses
+ActorSkill.UseStage
+ActorSkill.ptrGameStats
+ActorSkill.ptrSelf
+
+# ActorSkillArrayEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+ActorSkillArrayEntry.Padding
+
+# ActorSkillUIState: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+ActorSkillUIState.CooldownHigh
+ActorSkillUIState.CooldownLow
+ActorSkillUIState.CooldownMS
+ActorSkillUIState.NumberOfUses
+ActorSkillUIState.Padding
+ActorSkillUIState.SkillId
+
+# ActorVaalSkillArrayEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+ActorVaalSkillArrayEntry.CurVaalSouls
+ActorVaalSkillArrayEntry.MaxVaalSouls
+ActorVaalSkillArrayEntry.longUnknown
+ActorVaalSkillArrayEntry.ptrActiveSkill
+ActorVaalSkillArrayEntry.ptrDataFile
+
+# AreaGameState: states and screens that are not the one being played (login, character select); AreaGameState.elemRoot is the loading screen root
+AreaGameState.elemRoot
+
+# ArmourValues: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+ArmourValues.ArmourMax
+ArmourValues.ArmourMin
+ArmourValues.ESMax
+ArmourValues.ESMin
+ArmourValues.EvasionMax
+ArmourValues.EvasionMin
+ArmourValues.MoveSpeed
+ArmourValues.WardMax
+ArmourValues.WardMin
+
+# AttributeValues: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+AttributeValues.Dexterity
+AttributeValues.Intelligence
+AttributeValues.Strength
+
+# BlightDetails: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+BlightDetails.strIcon
+BlightDetails.strId
+BlightDetails.strName
+
+# Buff: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Buff.Charges
+Buff.MaxTime
+Buff.Timer
+Buff.entOwner
+Buff.entOwnerAgain
+Buff.ptrData
+Buff.ptrGameStatsHandleMaybe
+Buff.ptrName
+
+# ChestEffect: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+ChestEffect.strPath
+
+# ChildrenArrayEntry: element fields no UI check reads yet (scroll, hover label, label details); the label list itself is covered
+ChildrenArrayEntry.ptrChild
+
+# Component: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component.entOwner
+
+# Component_Actor: not exercised yet
+Component_Actor.ActorSkillUIStatesHandle
+Component_Actor.ActorVaalSkillsHandle
+Component_Actor.AnimationId
+Component_Actor.DeployedObjectsHandle
+Component_Actor.ptrAction
+
+# Component_Actor_Action: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+Component_Actor_Action.Destination
+Component_Actor_Action.Skill
+Component_Actor_Action.Target
+
+# Component_Animated: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Animated.entOwner
+Component_Animated.ptrToAnimatedEntity
+
+# Component_AnimatedRender: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_AnimatedRender.CreationTime
+Component_AnimatedRender.entOwner
+
+# Component_Armour: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Armour.entOwner
+Component_Armour.ptrToArmourValues
+
+# Component_AttributeRequirements: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_AttributeRequirements.entOwner
+Component_AttributeRequirements.ptrToAttributeValues
+
+# Component_Base: not exercised yet
+Component_Base.Influences
+Component_Base.IsCorruptedByte
+Component_Base.strPublicPrice
+
+# Component_Base_Info: not exercised yet
+Component_Base_Info.XBoxControllerItemDescription
+Component_Base_Info.prtItemType
+Component_Base_Info.ptrBaseItemTypes
+Component_Base_Info.ptrEntityPath
+Component_Base_Info.strDescription
+
+# Component_Beam: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Beam.BeamEnd
+Component_Beam.BeamStart
+Component_Beam.entOwner
+
+# Component_BlightTower: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_BlightTower.entOwner
+Component_BlightTower.ptrToBlightDetails
+
+# Component_Buffs: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Buffs.Buffs
+Component_Buffs.entOwner
+
+# Component_Chest: not exercised yet
+Component_Chest.ptrToChestEffect
+
+# Component_ClientAnimationController: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_ClientAnimationController.AnimationId
+Component_ClientAnimationController.TimeSpentAnimating
+Component_ClientAnimationController.entOwner
+
+# Component_CurrencyInfo: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_CurrencyInfo.MaxStackSize
+Component_CurrencyInfo.entOwner
+
+# Component_DiesAfterTime: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_DiesAfterTime.entOwner
+Component_DiesAfterTime.ptrAt0x20
+Component_DiesAfterTime.vtable
+
+# Component_Empty: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Empty.entOwner
+
+# Component_Flask: not exercised yet
+Component_Flask.arrayOfUnknown
+
+# Component_Inventories: inventory item elements (hover, grid position, sprite): need the panel open with items in it (next)
+Component_Inventories.UnknownArray
+Component_Inventories.entOwner
+
+# Component_Magnetic: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Magnetic.Force
+Component_Magnetic.entOwner
+
+# Component_Map: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Map.MapDetails
+Component_Map.Series
+Component_Map.Tier
+Component_Map.entOwner
+
+# Component_MinimapIcon: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_MinimapIcon.IsHide
+Component_MinimapIcon.IsVisible
+Component_MinimapIcon.entOwner
+Component_MinimapIcon.strName
+
+# Component_Mods: not exercised yet
+Component_Mods.EnchantedModsArray
+Component_Mods.Identified
+Component_Mods.IncubatorKillCount
+Component_Mods.IsMirrored
+Component_Mods.IsSplit
+Component_Mods.IsSynthesised
+Component_Mods.IsUsable
+Component_Mods.ModStats
+Component_Mods.ScourgeModsArray
+Component_Mods.UniqueName
+Component_Mods.ptrIncubator
+
+# Component_Monolith: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Monolith.EssenceTypes
+Component_Monolith.OpenStage
+Component_Monolith.entOwner
+
+# Component_Monster: not exercised yet
+Component_Monster.padding
+
+# Component_Pathfinding: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Pathfinding.ClickToNextPosition
+Component_Pathfinding.IsMoving
+Component_Pathfinding.StayTime
+Component_Pathfinding.WantMoveToPosition
+Component_Pathfinding.WasInThisPosition
+Component_Pathfinding.entOwner
+
+# Component_Portal: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Portal.entOwner
+Component_Portal.ptrWorldArea
+
+# Component_Quality: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Quality.ItemQuality
+Component_Quality.entOwner
+
+# Component_RenderItem: not exercised yet
+Component_RenderItem.entOwner
+Component_RenderItem.strResourceName
+
+# Component_Shrine: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Shrine.IsTaken
+Component_Shrine.entOwner
+
+# Component_SkillGem: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+Component_SkillGem.Details
+Component_SkillGem.ExperienceMaxLevel
+Component_SkillGem.ExperiencePrevLevel
+Component_SkillGem.Level
+Component_SkillGem.QualityType
+Component_SkillGem.TotalExpGained
+Component_SkillGem.entOwner
+
+# Component_Sockets: not exercised yet
+Component_Sockets.Socket0
+Component_Sockets.Socket1
+Component_Sockets.Socket2
+Component_Sockets.Socket3
+Component_Sockets.Socket4
+Component_Sockets.Socket5
+Component_Sockets.entGem0
+Component_Sockets.entGem1
+Component_Sockets.entGem2
+Component_Sockets.entGem3
+Component_Sockets.entGem4
+Component_Sockets.entGem5
+
+# Component_Targetable: not exercised yet
+Component_Targetable.IsTargeted
+
+# Component_TimerComponent: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_TimerComponent.TimeLeft
+Component_TimerComponent.entOwner
+
+# Component_TriggerableBlockage: not exercised yet
+Component_TriggerableBlockage.UnknownArray
+Component_TriggerableBlockage.entOwner
+
+# Component_Usable: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+Component_Usable.PaddingAlwaysZero
+Component_Usable.entOwner
+Component_Usable.ptrToUnknown
+
+# Component_WorldItem: not exercised yet
+Component_WorldItem.entOwner
+
+# CostTypeEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+CostTypeEntry.ptrDataFile
+CostTypeEntry.ptrName
+
+# DeployedObjectsArrayEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+DeployedObjectsArrayEntry.EntityId
+DeployedObjectsArrayEntry.SkillId
+DeployedObjectsArrayEntry.intUnknown
+
+# Element: element fields no UI check reads yet (scroll, hover label, label details); the label list itself is covered
+Element.ScrollOffset
+Element.unkArrayHandle
+
+# Element_EntityLabel: element fields no UI check reads yet (scroll, hover label, label details); the label list itself is covered
+Element_EntityLabel.textHandle
+
+# Element_Inventory: inventory item elements (hover, grid position, sprite): need the panel open with items in it (next)
+Element_Inventory.CursorInInventory
+Element_Inventory.HoverItem
+Element_Inventory.ItemCount
+Element_Inventory.MoveItemHoverState
+Element_Inventory.Size
+Element_Inventory.XFake
+Element_Inventory.XReal
+Element_Inventory.YFake
+Element_Inventory.YReal
+
+# Element_InventoryItem: inventory item elements (hover, grid position, sprite): need the panel open with items in it (next)
+Element_InventoryItem.Height
+Element_InventoryItem.InventPosition
+Element_InventoryItem.Width
+Element_InventoryItem.spriteDetails
+
+# Element_ItemsOnGroundLabelRoot: element fields no UI check reads yet (scroll, hover label, label details); the label list itself is covered
+Element_ItemsOnGroundLabelRoot.hoverLabel
+
+# Element_PassiveNode: the passive tree nodes: need the open tree walked (next); AllocatedPassives is covered
+Element_PassiveNode.ptrNodeData
+
+# Entity: unknown, padding or unused fields of structs that are otherwise covered (see each)
+Entity.SeedMaybe
+
+# EssenceTypeEntry: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+EssenceTypeEntry.ptrType
+
+# FileRoot_Ref: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+FileRoot_Ref.ptrToFileRootPtr
+
+# File_InfoBlock: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+File_InfoBlock.AreaCount
+File_InfoBlock.Capacity
+File_InfoBlock.Count
+File_InfoBlock.Records
+File_InfoBlock.strName
+File_InfoBlock.vtable
+
+# File_ModTypeDat_Entry: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+File_ModTypeDat_Entry.Hash
+File_ModTypeDat_Entry.Padding
+File_ModTypeDat_Entry.SellPrice
+File_ModTypeDat_Entry.strName
+
+# File_ModsDat_TagArray_Entry: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+File_ModsDat_TagArray_Entry.ptrEntry
+File_ModsDat_TagArray_Entry.ptrFileBase
+
+# File_RecordSet: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+File_RecordSet.recordCount
+File_RecordSet.recordsArray
+
+# File_RootHeader: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+File_RootHeader.Capacity
+File_RootHeader.Count
+File_RootHeader.ptrFileNode
+File_RootHeader.unk0x00
+File_RootHeader.unk0x18
+
+# File_RootNode: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+File_RootNode.ptrFileInfo
+File_RootNode.unk0x00
+File_RootNode.unk0x10
+
+# File_StatsDat_Entry: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+File_StatsDat_Entry.Flag0
+File_StatsDat_Entry.IsLocal
+File_StatsDat_Entry.IsWeaponLocal
+File_StatsDat_Entry.Padding
+File_StatsDat_Entry.Type
+File_StatsDat_Entry.longName
+File_StatsDat_Entry.strName
+
+# File_TagsDat_Entry: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+File_TagsDat_Entry.Hash
+File_TagsDat_Entry.displayName
+File_TagsDat_Entry.strName
+
+# GameStateArrayEntryHandle: unknown, padding or unused fields of structs that are otherwise covered (see each)
+GameStateArrayEntryHandle.Unknown1
+
+# GemEffects: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+GemEffects.Cooldown
+GemEffects.CostTypesCount
+GemEffects.CostValuesCount
+GemEffects.EffectivenessOfAddedDamage
+GemEffects.Level
+GemEffects.RequiredLevel
+GemEffects.StatsCount
+GemEffects.StatsValue0
+GemEffects.StatsValue1
+GemEffects.StatsValue2
+GemEffects.StatsValue3
+GemEffects.StatsValue4
+GemEffects.StatsValue5
+GemEffects.StatsValue6
+GemEffects.VaalNumberOfUses
+GemEffects.VaalSoulGainPreventionMS
+GemEffects.VaalSoulsPerUse
+GemEffects.ptrCostTypes
+GemEffects.ptrCostValues
+GemEffects.ptrSkillGem
+
+# InGameState_Data: unknown, padding or unused fields of structs that are otherwise covered (see each)
+InGameState_Data.MapStats
+
+# IncubatorEntry: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+IncubatorEntry.strName
+
+# InventoryVisual: inventory item elements (hover, grid position, sprite): need the panel open with items in it (next)
+InventoryVisual.ptrModel
+InventoryVisual.ptrName
+InventoryVisual.ptrTexture
+
+# ItemStatEntry: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+ItemStatEntry.Padding
+ItemStatEntry.Pointer0
+ItemStatEntry.Pointer1
+
+# ItemsOnGroundLabelEntry: element fields no UI check reads yet (scroll, hover label, label details); the label list itself is covered
+ItemsOnGroundLabelEntry.prevEntry
+
+# ItemsOnGroundLabelEntryDetails: element fields no UI check reads yet (scroll, hover label, label details); the label list itself is covered
+ItemsOnGroundLabelEntryDetails.FutureTime
+
+# LoginGameState: states and screens that are not the one being played (login, character select); AreaGameState.elemRoot is the loading screen root
+LoginGameState.elemRoot
+
+# MapDetails: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+MapDetails.ptrArea
+
+# ModStats: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+ModStats.CraftedStatsArray
+ModStats.EnchantedStatsArray
+ModStats.ExplicitStatsArray
+ModStats.FracturedStatsArray
+ModStats.ImplicitStatsArray
+ModStats.ScourgeStatsArray
+
+# MonsterData: unknown, padding or unused fields of structs that are otherwise covered (see each)
+MonsterData.intUnknown
+MonsterData.ptrUnknown08
+MonsterData.ptrUnknown10
+MonsterData.ptrUnknown18
+
+# NameAndIndexStruct: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+NameAndIndexStruct.Index
+NameAndIndexStruct.Padding
+NameAndIndexStruct.ptrName
+
+# ObjectMagicProperties_ModEntry: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+ObjectMagicProperties_ModEntry.Padding
+ObjectMagicProperties_ModEntry.ptrAt10
+ObjectMagicProperties_ModEntry.ptrAt18
+ObjectMagicProperties_ModEntry.ptrAt28
+
+# PassiveNodeData: the passive tree nodes: need the open tree walked (next); AllocatedPassives is covered
+PassiveNodeData.Orbit
+PassiveNodeData.OrbitIndex
+PassiveNodeData.ptrPassiveSkill
+
+# PassiveSkillRow: the passive tree nodes: need the open tree walked (next); AllocatedPassives is covered
+PassiveSkillRow.Id
+
+# PreGameState: states and screens that are not the one being played (login, character select); AreaGameState.elemRoot is the loading screen root
+PreGameState.elemRoot
+
+# SkillGem: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+SkillGem.Padding0
+SkillGem.Padding1
+SkillGem.Padding2
+SkillGem.UnknownPtr
+SkillGem.UnknownPtr3
+SkillGem.ptrActiveSkill
+
+# SkillGemDetails: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+SkillGemDetails.LimitLevel
+SkillGemDetails.MaxLevel
+SkillGemDetails.SocketColor
+SkillGemDetails.entOwner
+
+# SkillNames: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+SkillNames.Description
+SkillNames.DisplayName
+SkillNames.IconName
+SkillNames.InternalName
+SkillNames.SkillName
+
+# SkillTagDesc: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+SkillTagDesc.DisplayName
+SkillTagDesc.InternalName
+SkillTagDesc.ptrDataFile
+
+# SkillTagEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+SkillTagEntry.ptrDataFile
+SkillTagEntry.ptrSkillTagDesc
+
+# SpriteDetails: inventory item elements (hover, grid position, sprite): need the panel open with items in it (next)
+SpriteDetails.Height
+SpriteDetails.Width
+SpriteDetails.strSpriteFile
+SpriteDetails.strSpriteFileAgain
+SpriteDetails.strSpriteFileLong
+SpriteDetails.unkFlags
+
+# StatsArrayEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+StatsArrayEntry.Padding
+StatsArrayEntry.ptrDataFile
+
+# StrongboxDetails: unknown, padding or unused fields of structs that are otherwise covered (see each)
+StrongboxDetails.OpenOnDamage
+StrongboxDetails.Stompable
+StrongboxDetails.WillDestroyAfterOpen
+
+# TileDetails: unknown, padding or unused fields of structs that are otherwise covered (see each)
+TileDetails.unk30
+
+# UniqueNameEntry: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+UniqueNameEntry.Padding
+UniqueNameEntry.ptrWord
+
+# WordEntry: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
+WordEntry.ptrWord
+
+# WorldAreaRef: unknown, padding or unused fields of structs that are otherwise covered (see each)
+WorldAreaRef.ptrUnk90
+
+# WorldData: unknown, padding or unused fields of structs that are otherwise covered (see each)
+WorldData.vtable

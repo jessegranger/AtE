@@ -46,6 +46,15 @@ namespace AtE {
 			OptionalTarget = optionalTarget,
 		};
 
+		/// <summary>Every component named (of those the entity has) keeps the entity's address at +0x8 (entOwner).</summary>
+		internal static void Owners(TestContext c, Entity e, params string[] names) {
+			var components = e.GetComponents();
+			foreach ( var name in names ) {
+				if ( !components.TryGetValue(name, out IntPtr ptr) ) continue;
+				if ( !PoEMemory.TryRead(ptr + 8, out IntPtr owner) || owner != e.Address ) c.That(false, $"{name}'s entOwner (+0x8) is not the entity");
+			}
+		}
+
 		private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
 		// ---------------------------------------------------------------- A1: the roots
@@ -71,7 +80,7 @@ namespace AtE {
 				return c.Result();
 			}, needsPlayer: false);
 
-			yield return Check("A1.GameStateKinds", new[] { "InGameState.Kind", "GameState.Kind" }, c => {
+			yield return Check("A1.GameStateKinds", new[] { "InGameState.Kind", "Offsets.GameState_Kind" }, c => {
 				var r = PoEMemory.GameRoot.Cache;
 				var expect = new (string name, IntPtr ptr, Offsets.GameStateType kind)[] {
 					("AreaLoadingState", r.AreaLoadingState.ptrToGameState, Offsets.GameStateType.AreaLoadingState),
@@ -108,7 +117,7 @@ namespace AtE {
 		// ---------------------------------------------------------------- A2: the area
 
 		private static IEnumerable<OffsetCheck> Area() {
-			yield return Check("A2.InGameStatePointers", new[] { "InGameState.ptrData", "InGameState.ptrWorldData", "InGameState.ptrUIElements", "InGameState.elemRoot" }, c => {
+			yield return Check("A2.InGameStatePointers", new[] { "InGameState.ptrData", "InGameState.ptrWorldData", "InGameState.ptrUIElements", "InGameState.elemRoot", "Element.Children", "Element.elemSelf" }, c => {
 				var game = c.Game;
 				var gs = game.Cache;
 				c.That(Offsets.IsValid(gs.ptrData), "ptrData is not a pointer");
@@ -183,7 +192,7 @@ namespace AtE {
 
 			yield return Check("A2.Terrain", new[] {
 					"InGameState_Data.Terrain", "TerrainData.vtable", "TerrainData.TilesX", "TerrainData.TilesY", "TerrainData.TileDetails", "TerrainData.WalkableGrid",
-					"TerrainData.ProjectileGrid", "TerrainData.BytesPerRow", "TileDetails.ptrSubTiles", "TileDetails.ptrTileFile", "TileFile.vtable", "TileFile.Path" }, c => {
+					"TerrainData.ProjectileGrid", "TerrainData.BytesPerRow", "ArrayHandle.*", "TileDetails.ptrSubTiles", "TileDetails.ptrTileFile", "TileFile.vtable", "TileFile.Path" }, c => {
 				var td = c.Game.Data.Value.Terrain;
 				c.That(Offsets.IsValid(td.vtable), "TerrainData vtable is not a pointer (InGameState_Data.Terrain moved)");
 				c.InRange("TilesX", td.TilesX, 1, 200);
@@ -264,7 +273,7 @@ namespace AtE {
 		private static IEnumerable<OffsetCheck> PlayerEntity() {
 			yield return Check("A3.PlayerEntity", new[] {
 					"InGameState_Data.entPlayer", "Entity.vtable", "Entity.ptrDetails", "Entity.ComponentBasePtrs", "Entity.Id", "EntityDetails.ptrPath", "EntityDetails.ptrComponentLookup",
-					"ComponentLookup.*", "Component_Render.entOwner", "Component_Positioned.entOwner", "Component_Life.entOwner", "Component_Player.entOwner", "Component_Actor.entOwner", "Component_Stats.entOwner" }, c => {
+					"ComponentLookup.*", "Component_Render.entOwner", "Component_Positioned.entOwner", "Component_Life.entOwner", "Component_Player.entOwner", "Component_Actor.entOwner", "Component_Stats.entOwner", "Component_Stats.vtable", "Component_Actor.vtable", "Component_Actor.entOwnerAgain" }, c => {
 				var data = c.Game.Data.Value;
 				c.That(Offsets.IsValid(data.entPlayer), "entPlayer is not a pointer");
 				var player = c.Player;
@@ -282,6 +291,10 @@ namespace AtE {
 					if ( !components.TryGetValue(name, out IntPtr ptr) ) { c.That(false, $"the component lookup has no {name} (ptrComponentLookup / ComponentLookup)"); continue; }
 					if ( !PoEMemory.TryRead(ptr + 8, out IntPtr owner) || owner != player.Address ) c.That(false, $"{name}'s entOwner (+0x8) is not the player");
 				}
+				foreach ( var name in new[] { "Stats", "Actor" } ) {
+					if ( components.TryGetValue(name, out IntPtr ptr) ) c.That(PoEMemory.TryRead(ptr, out IntPtr vtable) && Offsets.IsValid(vtable), $"{name}'s vtable (+0x0) is not a pointer");
+				}
+				if ( components.TryGetValue("Actor", out IntPtr actorPtr) ) c.That(PoEMemory.TryRead(actorPtr + 0x6d8, out IntPtr again) && again == player.Address, "Actor's entOwnerAgain (+0x6d8) is not the player");
 				c.Note($"{components.Count} components");
 				return c.Result();
 			}, new[] { "A2.InGameStatePointers" }, needsPlayer: false, timeoutMs: 5000);
@@ -350,7 +363,7 @@ namespace AtE {
 				return c.Result();
 			}, new[] { "A4.Life" }, timeoutMs: 1000, optionalTarget: true);
 
-			yield return Check("A4.Positioned", new[] { "Component_Positioned.Reaction", "Component_Positioned.GridPos", "Component_Positioned.Rotation", "Component_Positioned.Scale", "Component_Positioned.Size", "Component_Positioned.WorldPos" }, c => {
+			yield return Check("A4.Positioned", new[] { "Component_Positioned.Reaction", "Component_Positioned.GridPos", "Component_Positioned.Rotation", "Component_Positioned.Scale", "Component_Positioned.Size", "Component_Positioned.WorldPos", "Vector2i.*" }, c => {
 				var pos = c.Player.GetComponent<Positioned>();
 				if ( !IsValid(pos) ) return Outcome.Fail("no Positioned component");
 				var terrain = GetTerrain();
@@ -372,7 +385,7 @@ namespace AtE {
 				return c.Result();
 			}, new[] { "A2.Terrain", "A3.PlayerEntity" });
 
-			yield return Check("A4.Render", new[] { "Component_Render.Pos", "Component_Render.Bounds", "Component_Render.Name", "Component_Render.Rotation", "Component_Render.RotationRadians" }, c => {
+			yield return Check("A4.Render", new[] { "Component_Render.Pos", "Component_Render.Bounds", "Component_Render.Name", "Component_Render.Rotation", "Component_Render.RotationRadians", "StringHandle.*" }, c => {
 				var render = c.Player.GetComponent<Render>();
 				if ( !IsValid(render) ) return Outcome.Fail("no Render component");
 				c.That(IsFinite(render.Position), $"Position {render.Position} is not finite");
@@ -397,6 +410,18 @@ namespace AtE {
 				c.Note($"{skills.Count} skills: {string.Join(", ", skills.Select(s => s.DisplayName))}");
 				c.Golden("actor.skills", string.Join("|", skills.Select(s => $"{s.Id:X}:{s.InternalName}:{s.DisplayName}").OrderBy(s => s)));
 				c.Note($"ActionFlags={actor.ActionFlags}"); // WashedUp while lying on the beach, so not a golden
+				return c.Result();
+			}, new[] { "A3.PlayerEntity" });
+
+			yield return Check("A4.Passives", new[] { "InGameState_Data.ServerData", "ServerData.ptrPassives", "ServerData_Passives.AllocatedPassives" }, c => {
+				var data = c.Game.Data.Value;
+				c.That(Offsets.IsValid(data.ServerData), "ServerData is not a pointer");
+				if ( PoEMemory.TryRead(data.ServerData, out Offsets.ServerData server) ) {
+					c.That(Offsets.IsValid(server.ptrPassives), "ptrPassives is not a pointer");
+					if ( PoEMemory.TryRead(server.ptrPassives, out Offsets.ServerData_Passives passives ) ) c.That(passives.AllocatedPassives.Head == passives.AllocatedPassives.Tail || Offsets.IsValid(passives.AllocatedPassives), "AllocatedPassives is not a valid array (neither empty nor two pointers)");
+					else c.That(false, "could not read the ServerData_Passives");
+				} else c.That(false, "could not read the ServerData");
+				c.Eq("allocated passives of a new character", c.Game.AllocatedPassives.Length, 0);
 				return c.Result();
 			}, new[] { "A3.PlayerEntity" });
 

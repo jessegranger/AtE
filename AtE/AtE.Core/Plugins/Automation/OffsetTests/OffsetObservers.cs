@@ -57,7 +57,8 @@ namespace AtE {
 				Covers = new[] {
 					"Component_Life.MaxHP", "Component_Life.CurHP", "Component_Life.MaxMana", "Component_Life.CurMana", "Component_Life.MaxES", "Component_Life.CurES",
 					"Component_Life.ReservedFlatHP", "Component_Life.ReservedPercentHP", "Component_Monster.ptrMonsterData", "Component_ObjectMagicProperties.Rarity",
-					"Component_ObjectMagicProperties.Mods", "Component_Targetable.IsTargetable", "Component_Targetable.IsHighlightable", "Component_Positioned.Reaction" },
+					"Component_ObjectMagicProperties.Mods", "Component_Targetable.IsTargetable", "Component_Targetable.IsHighlightable", "Component_Positioned.Reaction",
+					"Component_Monster.entOwner", "Component_ObjectMagicProperties.entOwner", "Component_Targetable.entOwner" },
 				Matches = e => (e.Path?.StartsWith("Metadata/Monsters/") ?? false) && Has(e, "Life") && Has(e, "Positioned") && Has(e, "Render"),
 				Key = e => After(e.Path, "Metadata/Monsters/"),
 				Run = (c, ents) => {
@@ -81,6 +82,7 @@ namespace AtE {
 					c.That(IsFinite(render.Position) && IsFinite(render.Bounds) && render.Bounds.X > 0 && render.Bounds.Y > 0 && render.Bounds.Z >= 0, $"Render {render.Position} / {render.Bounds} is not sane");
 					c.That(!string.IsNullOrEmpty(render.Name), "Render.Name did not read");
 					c.That(Offsets.IsValid(e.GetComponent<Monster>()?.Cache.ptrMonsterData ?? IntPtr.Zero), "Monster.ptrMonsterData is not a pointer");
+					OffsetChecks.Owners(c, e, "Monster", "ObjectMagicProperties", "Targetable");
 					var targetable = e.GetComponent<Targetable>();
 					if ( IsValid(targetable) ) c.Note($"targetable {targetable.IsTargetable}");
 					var stats = e.GetComponent<Stats>()?.GetStats();
@@ -135,7 +137,7 @@ namespace AtE {
 
 			yield return new ObserverSpec {
 				Id = "B.NPC",
-				Covers = new[] { "Component_NPC.Hidden", "Component_NPC.VisibleOnMinimap", "Component_NPC.Icon", "Component_Targetable.IsTargetable", "Component_Positioned.Reaction" },
+				Covers = new[] { "Component_NPC.Hidden", "Component_NPC.VisibleOnMinimap", "Component_NPC.Icon", "Component_Targetable.IsTargetable", "Component_Positioned.Reaction", "Component_NPC.entOwner" },
 				Matches = e => (e.Path?.StartsWith("Metadata/NPC/") ?? false) && Has(e, "NPC"),
 				Key = e => After(e.Path, "Metadata/NPC/"),
 				Run = (c, ents) => {
@@ -144,6 +146,7 @@ namespace AtE {
 					var render = e.GetComponent<Render>();
 					var pos = e.GetComponent<Positioned>();
 					if ( !IsValid(npc) || !IsValid(render) || !IsValid(pos) ) return Outcome.NotYet("its components have not read yet");
+					OffsetChecks.Owners(c, e, "NPC");
 					c.That(npc.Cache.Hidden <= 1 && npc.Cache.VisibleOnMinimap <= 1, $"Hidden {npc.Cache.Hidden} / VisibleOnMinimap {npc.Cache.VisibleOnMinimap} are not bytes of 0 or 1");
 					c.That(!string.IsNullOrEmpty(render.Name), "Render.Name did not read");
 					var targetable = e.GetComponent<Targetable>();
@@ -198,7 +201,7 @@ namespace AtE {
 
 			yield return new ObserverSpec {
 				Id = "B.Chest",
-				Covers = new[] { "Component_Chest.IsOpened", "Component_Chest.IsLocked", "Component_Chest.Quality", "Component_Chest.IsStrongbox", "Component_Chest.ptrToStrongboxDetails", "StrongboxDetails.IsLarge" },
+				Covers = new[] { "Component_Chest.IsOpened", "Component_Chest.IsLocked", "Component_Chest.Quality", "Component_Chest.IsStrongbox", "Component_Chest.ptrToStrongboxDetails", "StrongboxDetails.IsLarge", "Component_Chest.entOwner" },
 				Matches = e => Has(e, "Chest"),
 				Key = e => After(e.Path, "Metadata/"),
 				Run = (c, ents) => {
@@ -206,6 +209,7 @@ namespace AtE {
 					var chest = e.GetComponent<Chest>();
 					if ( !IsValid(chest) ) return Outcome.NotYet("the Chest has not read yet");
 					var cache = chest.Cache;
+					OffsetChecks.Owners(c, e, "Chest");
 					c.That(chest.Quality <= 30, $"Quality is {chest.Quality}");
 					c.That(!(chest.IsOpened && chest.IsLocked), "it is both opened and locked");
 					c.Note($"opened {chest.IsOpened}, locked {chest.IsLocked}, large {chest.IsLarge}, strongbox {chest.IsStrongbox}, targetable {e.GetComponent<Targetable>()?.IsTargetable}");
@@ -272,7 +276,8 @@ namespace AtE {
 				Id = "B.Item",
 				Covers = new[] { "Component_Base.ptrToBaseInfo", "Component_Base_Info.ItemCellSizeX", "Component_Base_Info.ItemCellSizeY", "Component_Base_Info.Name", "Component_Mods.ItemRarity",
 					"Component_Mods.ItemLevel", "Component_Mods.RequiredLevel", "Component_Weapon.Details", "WeaponDetails.DamageMin", "WeaponDetails.DamageMax", "WeaponDetails.AttackTime",
-					"WeaponDetails.CritChance", "Component_Sockets.Links", "Component_Stack.CurSize", "Component_Stack_Details.MaxSize", "Component_Charges.NumCharges" },
+					"WeaponDetails.CritChance", "Component_Sockets.Links", "Component_Stack.CurSize", "Component_Stack_Details.MaxSize", "Component_Charges.NumCharges",
+					"Component_Base.entOwner", "Component_Mods.entOwner", "Component_Weapon.entOwner", "Component_Sockets.entOwner", "Component_Stack.entOwner", "Component_Stack.ptrStackDetails" },
 				Source = HeldItems,
 				Matches = e => Has(e, "Base"),
 				Key = e => After(e.Path, "Metadata/Items/"),
@@ -281,6 +286,7 @@ namespace AtE {
 					var b = e.GetComponent<Base>();
 					if ( !IsValid(b) ) return Outcome.NotYet("the Base component has not read yet");
 					c.That(b.CellSizeX >= 1 && b.CellSizeX <= 2 && b.CellSizeY >= 1 && b.CellSizeY <= 4, $"the item is {b.CellSizeX}x{b.CellSizeY} cells");
+					OffsetChecks.Owners(c, e, "Base", "Mods", "Weapon", "Sockets", "Stack");
 					string name = Equipment.ItemName(e);
 					c.That(name != null, "the item's name did not read");
 					c.GoldenAny($"item.{After(e.Path, "Metadata/Items/")}.name", name);

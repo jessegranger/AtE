@@ -67,7 +67,7 @@ namespace AtE {
 		// ---------------------------------------------------------------- A6: the UI elements
 
 		private static IEnumerable<OffsetCheck> UI() {
-			yield return Check("A6.UIElements", UICovers(), c => {
+			yield return Check("A6.UIElements", UICovers().Concat(new[] { "Element.Width", "Element.Height", "Element.X", "Element.Y" }).ToArray(), c => {
 				var game = c.Game;
 				var root = game.UIRoot;
 				if ( !IsValid(root) ) return Outcome.Fail("no UI root");
@@ -115,7 +115,7 @@ namespace AtE {
 			}, new[] { "A2.InGameStatePointers" });
 
 			// 2 life flasks, 2 empty slots, 1 mana flask on a fresh character
-			yield return Check("A6.Flasks", new[] { "InGameState_UIElements.Flasks", "Element_InventoryItem.entItem", "Component_Charges.NumCharges", "Component_Charges.ptrToChargeDetails", "ChargeDetails.Max", "ChargeDetails.PerUse" }, c => {
+			yield return Check("A6.Flasks", new[] { "InGameState_UIElements.Flasks", "Element_InventoryItem.entItem", "Component_Charges.NumCharges", "Component_Charges.ptrToChargeDetails", "ChargeDetails.Max", "ChargeDetails.PerUse", "Component_Charges.entOwner", "Component_Flask.entOwner" }, c => {
 				var panel = GetUI()?.Flasks;
 				if ( !IsValid(panel) ) return Outcome.Fail("no flask panel");
 				var layout = new List<string>();
@@ -129,6 +129,7 @@ namespace AtE {
 					if ( path.Contains("FlaskLife") ) life++;
 					else if ( path.Contains("FlaskMana") ) mana++;
 					layout.Add(kind);
+					Owners(c, ent.realEnt, "Charges", "Flask");
 					var ch = ent.realEnt.GetComponent<Charges>();
 					charges.Add(IsValid(ch) ? $"{ch.Current}/{ch.Max}/{ch.PerUse}" : "no Charges");
 					c.That(IsValid(ch) && ch.Max > 0 && ch.PerUse > 0 && ch.Current >= 0 && ch.Current <= ch.Max, $"flask {i} charges {charges.Last()} are not sane");
@@ -138,6 +139,109 @@ namespace AtE {
 				c.Eq("empty slots", empty, 2);
 				c.Golden("flasks.layout", string.Join(",", layout));
 				c.Golden("flasks.charges", string.Join(",", charges));
+				return c.Result();
+			}, new[] { "A2.InGameStatePointers" });
+
+			// the equipment slots of the inventory panel: the ones that matter are Elements, and which fields are Elements is a golden (the stale
+			// fields past the real slots read as garbage that changes, so what they hold is only noted)
+			yield return Check("A6.Inventory", new[] { "InGameState_UIElements.InventoryPanel", "Element_InventoryRoot.InventoryList", "InventoryArray.*" }, c => {
+				var panel = GetUI()?.InventoryPanel;
+				if ( !IsValid(panel) ) return Outcome.Fail("no inventory panel");
+				object boxed = panel.Inventories.Value;
+				var elements = new List<string>();
+				var nulls = new List<string>();
+				var other = new List<string>();
+				foreach ( var f in typeof(Offsets.InventoryArray).GetFields(BindingFlags.Public | BindingFlags.Instance).Where(f => f.FieldType == typeof(IntPtr)) ) {
+					var ptr = (IntPtr)f.GetValue(boxed);
+					if ( ptr == IntPtr.Zero ) nulls.Add(f.Name);
+					else if ( ElementAt(ptr) != null ) elements.Add(f.Name);
+					else other.Add(f.Name);
+				}
+				foreach ( var slot in new[] { "Backpack", "Helm", "Amulet", "Chest", "LWeapon", "RWeapon", "LRing", "RRing", "Belt", "Boots", "Gloves" } ) {
+					c.That(elements.Contains(slot), $"the {slot} slot is not an Element ({(nulls.Contains(slot) ? "empty" : "something else")})");
+				}
+				c.Note($"{elements.Count} slots are Elements, {nulls.Count} empty, {other.Count} hold something else");
+				// only the Elements are a golden: past the real slots the struct reads whatever is in memory, which differs from run to run
+				c.Golden("inventory.elements", Joined(elements));
+				return c.Result();
+			}, new[] { "A2.InGameStatePointers" });
+
+			// the skill bar: 13 slots, each with the key the game's config binds, and Default Attack on the left mouse button
+			yield return Check("A6.SkillBar", new[] { "InGameState_UIElements.SkillBar", "Offsets.Element_SkillCell_Skill", "Offsets.Element_SkillCell_SkillId", "Offsets.Element_SkillKeyLabel_VKey" }, c => {
+				var slots = SkillBar.GetSlots();
+				c.Eq("slots", slots.Count, SkillBar.SlotCount);
+				var config = new Dictionary<int, int>();
+				try {
+					foreach ( var line in File.ReadAllLines(configPath).Where(l => l.StartsWith("use_bound_skill")) ) {
+						var parts = line.Substring("use_bound_skill".Length).Split('=');
+						if ( parts.Length == 2 && int.TryParse(parts[0], out int n) && int.TryParse(parts[1].Trim().Split(' ')[0], out int code) ) config[n - 1] = code;
+					}
+				} catch ( Exception ) { }
+				foreach ( var slot in slots ) {
+					if ( config.TryGetValue(slot.Index, out int code) ) c.That((int)slot.KeyCode == code, $"slot {slot.Index} says key {(int)slot.KeyCode}, the config binds {code}");
+				}
+				var first = slots.FirstOrDefault();
+				c.That(first != null && first.Skill != null && first.Skill.Id == 0x4000, $"slot 0 holds {(first?.Skill == null ? "nothing" : $"skill {first.Skill.Id:X}")}, expected Default Attack (0x4000)");
+				if ( first?.Element != null && PoEMemory.TryRead(first.Element.Address + Offsets.Element_SkillCell_SkillId, out ushort id) ) c.Eq("slot 0 SkillId", (int)id, 0x4000);
+				c.Golden("skillbar.slots", string.Join(",", slots.Select(s => $"{s.Index}:{(int)s.KeyCode}:{(s.Skill == null ? "-" : SkillBar.SkillName(s.Skill))}")));
+				return c.Result();
+			}, new[] { "A2.InGameStatePointers" });
+
+			// the hidden skill bar, the list of skills to choose from, only has its cells while it is open: click an empty slot to open it, read
+			// the cells (Default Attack, Movement and Clear are always there), then Escape
+			{
+				Rectangle slotRect = Rectangle.Empty;
+				long lastClick = 0;
+				int clicks = 0;
+				var chooser = Check("A6.SkillChooser", new[] { "InGameState_UIElements.HiddenSkillBar", "Offsets.Element_SkillCell_Skill", "Offsets.Element_SkillCell_Icon", "Offsets.SkillCellIcon_Name" }, c => {
+					int phase = c.Scratch.TryGetValue("phase", out object p) ? (int)p : 0;
+					if ( phase == 0 ) {
+						var available = SkillBar.IsChoosing ? SkillBar.GetAvailable() : new List<AvailableSkill>();
+						if ( available.Count == 0 ) {
+							long now = Time.ElapsedMilliseconds;
+							if ( clicks < 4 && now - lastClick >= (clicks == 0 ? 250 : 1500) && slotRect.Width > 0 ) {
+								SkillBar.ClickAt(new RectangleF(slotRect.X, slotRect.Y, slotRect.Width, slotRect.Height));
+								clicks++;
+								lastClick = now;
+							}
+							return Outcome.NotYet("waiting for the skill list to open");
+						}
+						c.That(available.Any(a => a.IsMovement), "the skill list has no Movement cell (Element_SkillCell_Icon / SkillCellIcon_Name)");
+						c.That(available.Any(a => a.IsClear), "the skill list has no Clear cell");
+						c.That(available.Any(a => a.Skill != null && a.Skill.Id == 0x4000), "the skill list has no Default Attack cell");
+						c.Golden("skillbar.available", string.Join(",", available.Select(a => a.Name)));
+						c.Scratch["failure"] = c.Result();
+						c.Scratch["phase"] = 1;
+						c.Scratch["pressedAt"] = c.Elapsed;
+						Press(VKey.Escape);
+						return Outcome.NotYet("closing the skill list");
+					}
+					if ( SkillBar.IsChoosing ) {
+						if ( c.Elapsed - (long)c.Scratch["pressedAt"] > 1500 ) { c.Scratch["pressedAt"] = c.Elapsed; Press(VKey.Escape); }
+						return Outcome.NotYet("waiting for the skill list to close");
+					}
+					return (Outcome)c.Scratch["failure"];
+				}, new[] { "A6.SkillBar" }, timeoutMs: 12000);
+				chooser.Setup = () => {
+					// an empty slot (Q, the 4th): opening the list for it changes nothing, and Escape closes it
+					var slot = SkillBar.GetSlot(3);
+					if ( slot == null ) return;
+					var r = slot.Rect;
+					slotRect = new Rectangle((int)r.X, (int)r.Y, (int)r.Width, (int)r.Height);
+					SkillBar.MouseTo(new Vector2(r.X + (r.Width / 2), r.Y + (r.Height / 2)));
+					lastClick = Time.ElapsedMilliseconds;
+					clicks = 0;
+				};
+				chooser.Teardown = () => { if ( SkillBar.IsChoosing ) Press(VKey.Escape); };
+				yield return chooser;
+			}
+
+			// the clock shown in the corner (show_clock in the game's config): the text of an element
+			yield return Check("A6.ElementText", new[] { "Offsets.Element_Text", "InGameState_UIElements.CurrentTime" }, c => {
+				var clock = UIElement("CurrentTime");
+				if ( clock == null ) return Outcome.Fail("CurrentTime is not an Element");
+				string text = clock.Children.Select(ch => ch?.Text).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? clock.Text;
+				c.That(text != null && System.Text.RegularExpressions.Regex.IsMatch(text.Trim(), @"^\d{1,2}:\d{2}"), $"the clock reads \"{text}\", not a time");
 				return c.Result();
 			}, new[] { "A2.InGameStatePointers" });
 		}

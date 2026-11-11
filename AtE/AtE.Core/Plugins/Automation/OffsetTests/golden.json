@@ -24,7 +24,22 @@
     "Confirmed": true,
     "Version": "3.29.3"
   },
+  "chest.Chests/Crate1.kind": {
+    "Value": "strongbox False large False destroy True",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "chest.Chests/Crate2.kind": {
+    "Value": "strongbox False large False destroy True",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
   "chest.Chests/ProdWounded3.kind": {
+    "Value": "strongbox False large False destroy True",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "chest.Chests/ProdWounded4.kind": {
     "Value": "strongbox False large False destroy True",
     "Confirmed": true,
     "Version": "3.29.3"
@@ -210,7 +225,7 @@
     "Version": "3.29.3"
   },
   "transition.QuestObjects/SouthBeachTownEntrance.destination": {
-    "Value": "Lioneye\u0027s Watch",
+    "Value": "Lioneye's Watch",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -225,7 +240,7 @@
     "Version": "3.29.3"
   },
   "Witch.area.connections": {
-    "Value": "Lioneye\u0027s Watch",
+    "Value": "Lioneye's Watch",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -254,6 +269,11 @@
     "Confirmed": true,
     "Version": "3.29.3"
   },
+  "Witch.inventory.elements": {
+    "Value": "Amulet,Apparition,Backpack,Belt,BodyAttachment,BodySkin,Boots,BootsSkin,CharacterEffect,Chest,Flask,Footprints,Gloves,GlovesSkin,GraftOne,Helm,HelmAttachment,HelmAttachment1,HelmSkin,LeagueBackpack,LRing,LWeapon,LWeaponSwap,Pet1,Pet2,Portal,Portrait,PortraitFrame,RRing,RWeapon,RWeaponAddedEffect,RWeaponEffect,RWeaponSwap,Trinket",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
   "Witch.life.maxHP": {
     "Value": "57",
     "Confirmed": true,
@@ -265,17 +285,17 @@
     "Version": "3.29.3"
   },
   "Witch.map.defaultShift": {
-    "Value": "\u003C0, -20\u003E",
+    "Value": "<0, -20>",
     "Confirmed": true,
     "Version": "3.29.3"
   },
   "Witch.map.miniDefaultShift": {
-    "Value": "\u003C0, 0\u003E",
+    "Value": "<0, 0>",
     "Confirmed": true,
     "Version": "3.29.3"
   },
   "Witch.map.miniSize": {
-    "Value": "\u003C402, 402\u003E",
+    "Value": "<402, 402>",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -300,12 +320,22 @@
     "Version": "3.29.3"
   },
   "Witch.render.bounds": {
-    "Value": "\u003C41.304348, 41.304348, 80.559875\u003E",
+    "Value": "<41.304348, 41.304348, 80.559875>",
     "Confirmed": true,
     "Version": "3.29.3"
   },
   "Witch.render.name": {
     "Value": "Witch",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.skillbar.available": {
+    "Value": "Default Attack,Movement,Clear",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.skillbar.slots": {
+    "Value": "0:1:Default Attack,1:6:-,2:2:-,3:81:-,4:87:-,5:69:-,6:82:-,7:84:-,8:81:-,9:88:-,10:65:-,11:68:-,12:70:-",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -320,7 +350,7 @@
     "Version": "3.29.3"
   },
   "Witch.ui.Flasks.size": {
-    "Value": "\u003C340, 136\u003E",
+    "Value": "<340, 136>",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -330,7 +360,7 @@
     "Version": "3.29.3"
   },
   "Witch.ui.LifeBubble.size": {
-    "Value": "\u003C315, 315\u003E",
+    "Value": "<315, 315>",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -340,7 +370,7 @@
     "Version": "3.29.3"
   },
   "Witch.ui.ManaBubble.size": {
-    "Value": "\u003C315, 315\u003E",
+    "Value": "<315, 315>",
     "Confirmed": true,
     "Version": "3.29.3"
   },

@@ -52,13 +52,25 @@ namespace AtE {
 
 		private static string QueueFile => Path.Combine(GoldenStore.Directory, "queue.json");
 
-		public void Start() {
+		// a run of only some checks (see Start): no observers, and no routine at the end
+		private bool sequenceOnly;
+
+		/// <summary>
+		/// Start testing. With only (comma separated ids, groups, or id prefixes: "A6", "A4.Life,A8"), just those checks run, with no
+		/// observers and no routine afterwards: to try some checks again without playing the beach.
+		/// </summary>
+		public void Start(string only = null) {
 			var queued = LoadQueue();
 			checks = OffsetChecks.All();
+			sequenceOnly = !string.IsNullOrWhiteSpace(only);
+			if ( sequenceOnly ) {
+				var parts = only.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+				checks = checks.Where(c => parts.Any(p => c.Id == p || c.Group == p || c.Id.StartsWith(p, StringComparison.Ordinal))).ToList();
+			}
 			foreach ( var c in checks ) {
 				if ( queued.Contains(c.Id) ) { c.Status = CheckStatus.Queued; c.Detail = "queued for a fix"; }
 			}
-			observers = OffsetObservers.All();
+			observers = sequenceOnly ? new List<ObserverSpec>() : OffsetObservers.All();
 			aliveWatched.Clear();
 			observed.Clear();
 			foreach ( var spec in observers.Where(o => o.Key == null) ) AddRow(spec, null, queued);
@@ -78,6 +90,7 @@ namespace AtE {
 		/// (Not during the checks: both would be using the mouse.)
 		/// </summary>
 		private void StartClassRoutine() {
+			if ( sequenceOnly ) return;
 			var combat = GetPlugin<AutomationPlugin>()?.Combat;
 			string cls = GetPlayer()?.GetComponent<Render>()?.Name;
 			var routine = combat?.Routines.FirstOrDefault(r => r.Key == $"{cls}Start");
