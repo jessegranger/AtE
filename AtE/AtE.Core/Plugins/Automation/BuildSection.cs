@@ -50,7 +50,56 @@ namespace AtE {
 			if ( Gems != null ) RenderGems(Gems);
 			ImGui.Checkbox("Show item scores", ref ShowItemScores);
 			ImGui.InputText("Defence priority", ref DefencePriority, 200);
-			if ( Gems != null && PoEMemory.IsAttached ) RenderScores();
+			if ( Gems != null && PoEMemory.IsAttached ) {
+				RenderChanges();
+				RenderScores();
+			}
+		}
+
+		// putting on better items, and arranging the gems (see InventoryPlans): each as a plan, run, or shown in an Object Browser
+		private void RenderChanges() {
+			var best = BestUpgrade();
+			if ( best.item == null ) ImGui.TextDisabled("No better item in the backpack");
+			else {
+				if ( ImGui.Button($"Put on {best.info.Name} ({best.slot}, {best.gain:+0})") ) Start(PlanPutOn(best.item, best.slot));
+				ImGui.SameLine();
+				if ( ImGui.Button("Preview Plan") ) Preview($"Put on {best.info.Name}", PlanPutOn(best.item, best.slot));
+			}
+			if ( ImGui.Button("Arrange gems") ) Start(InventoryPlans.PlanSocketGems(Gems));
+			ImGui.SameLine();
+			if ( ImGui.Button("Preview Plan##gems") ) Preview("Arrange gems (the next move)", InventoryPlans.PlanOneGemMove(Gems, GemPlan.CharacterLevel(), null));
+			ImGui.TextDisabled("(closing the inventory, eg with Escape, stops a plan)");
+		}
+
+		/// <summary>Wear item (in the backpack) in slot, then arrange the gems.</summary>
+		public IState PlanPutOn(InventoryItem item, string slot) => InventoryPlans.PlanEquip(slot, item, InventoryPlans.PlanSocketGems(Gems));
+
+		private static void Start(IState plan) {
+			if ( plan == null ) Notify("Nothing to do (or it can't be done: see the notices).");
+			else Run(plan);
+		}
+
+		private static void Preview(string label, IState plan) {
+			if ( plan == null ) Notify($"{label}: nothing to do.");
+			else Run_ObjectBrowser(label, new { Steps = InventoryPlans.Steps(plan).Select(st => st.Name).ToArray(), Plan = plan });
+		}
+
+		/// <summary>
+		/// The item in the backpack that would most improve the loadout (identified, usable, and better by more than 0.5),
+		/// with the slot to put it in; or nulls. (The scores are as drawn: see ItemScorer.)
+		/// </summary>
+		public (InventoryItem item, ItemInfo info, string slot, double gain) BestUpgrade() {
+			(InventoryItem, ItemInfo, string, double) best = (null, null, null, 0.5);
+			var (loadout, _) = WornLoadout();
+			var ctx = Context(loadout);
+			foreach ( var element in BackpackItems() ) {
+				if ( !(element.Entity is Entity e) || ItemInfo.KindOf(e.Path) == ItemKind.None ) continue;
+				var info = Info(e, null, out _);
+				if ( info == null || !info.Identified || ItemScorer.Unusable(ctx, info) != null ) continue;
+				var (slot, _, gain) = ItemScorer.Candidate(ctx, loadout, info);
+				if ( slot != null && gain > best.Item4 ) best = (element, info, slot, gain);
+			}
+			return best.Item1 == null ? (null, null, null, 0) : best;
 		}
 
 		private IList<string> Priority() => DefencePriority.Split(',').Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
@@ -253,7 +302,11 @@ namespace AtE {
 				ImGui.TextUnformatted($"Gems needed: {(needed.Count == 0 ? "(none)" : string.Join(", ", needed.Select(g => g.ItemName)))}");
 				RenderSockets(plan, level);
 			}
-			ImGui.TextUnformatted($"Gems wanted (any stage): {string.Join(", ", plan.AllGems.Select(g => g.Name))}");
+			var wanted = plan.AllGems.Select(g => g.Name).ToList();
+			if ( ImGui.TreeNode($"Gems wanted (any stage): {wanted.Count}###gemsWanted") ) {
+				foreach ( var name in wanted ) ImGui.BulletText(name);
+				ImGui.TreePop();
+			}
 			foreach ( var set in plan.Stages ) {
 				string label = $"{set}{(set == active ? " (now)" : "")}###set{set.Title}";
 				if ( !ImGui.TreeNode(label) ) continue;

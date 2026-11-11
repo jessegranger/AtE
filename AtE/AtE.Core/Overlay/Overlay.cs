@@ -48,6 +48,8 @@ namespace AtE {
 		}
 
 		public static bool HasFocus => Platform.Current.Window.HasFocus;
+		/// <summary>True while clicks go through the overlay to the game (see IOverlayWindow.IsClickThrough).</summary>
+		public static bool IsClickThrough => Platform.Current.Window.IsClickThrough;
 
 		public static int Height => Platform.Current.Window.Height;
 		public static int Width => Platform.Current.Window.Width;

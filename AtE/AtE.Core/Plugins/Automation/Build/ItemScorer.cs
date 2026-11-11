@@ -131,7 +131,8 @@ namespace AtE {
 			ItemKind.Belt => new[] { "Belt" },
 			ItemKind.Boots => new[] { "Boots" },
 			ItemKind.Ring => new[] { "LRing", "RRing" },
-			ItemKind.OneHand => new[] { "LWeapon" },
+			// (either hand: dual wielding, or in place of the off hand)
+			ItemKind.OneHand => new[] { "LWeapon", "RWeapon" },
 			ItemKind.TwoHand => new[] { "LWeapon" },
 			ItemKind.OffHand => new[] { "RWeapon" },
 			_ => Array.Empty<string>(),
@@ -213,12 +214,12 @@ namespace AtE {
 			return best;
 		}
 
-		/// <summary>The loadout with item worn in slot. A two handed weapon empties the off hand; an off hand takes a two handed weapon's place.</summary>
+		/// <summary>The loadout with item worn in slot. A two handed weapon empties the off hand; anything in the off hand takes a two handed weapon's place.</summary>
 		public static Dictionary<string, ItemInfo> WithItem(IReadOnlyDictionary<string, ItemInfo> loadout, ItemInfo item, string slot) {
 			var with = loadout.ToDictionary(kv => kv.Key, kv => kv.Value);
 			with[slot] = item;
 			if ( item.Kind == ItemKind.TwoHand ) with["RWeapon"] = null;
-			if ( item.Kind == ItemKind.OffHand && with.TryGetValue("LWeapon", out var main) && main?.Kind == ItemKind.TwoHand ) with["LWeapon"] = null;
+			if ( slot == "RWeapon" && with.TryGetValue("LWeapon", out var main) && main?.Kind == ItemKind.TwoHand ) with["LWeapon"] = null;
 			return with;
 		}
 

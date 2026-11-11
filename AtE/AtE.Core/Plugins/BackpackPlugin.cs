@@ -7,6 +7,7 @@ using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 using static AtE.Globals;
+using static AtE.InventoryPlans;
 
 namespace AtE.Plugins {
 	public class BackpackPlugin : PluginBase {
@@ -40,11 +41,6 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("Show Debug Markers", ref ShowDebugMarkers);
 		}
 
-		private uint InputLatency => (uint)GetPlugin<CoreSettings>().InputLatency;
-
-		private IState RightClickItem(InventoryItem item, IState next = null) => IsValid(item) ? new RightClickAt(Center(item.GetClientRect()), InputLatency, next) : null;
-		private IState LeftClickItem(InventoryItem item, uint count = 1, IState next = null) => IsValid(item) ? new LeftClickAt(Center(item.GetClientRect()), InputLatency, count, next) : null;
-
 		public IState PlanUseItemFromBackpack(string usePath, IState next = null, IState fail = null) {
 			var useItem = BackpackItems().Where(i => i.Entity?.Path?.Equals(usePath) ?? false).FirstOrDefault();
 			if ( !IsValid(useItem) ) {
@@ -53,9 +49,6 @@ namespace AtE.Plugins {
 			}
 			return OnlyIfBackpackIsOpen(RightClickItem(useItem, next), ifClosed: fail);
 		}
-
-		private IState OnlyIfStashIsOpen(IState ifOpen, IState ifClosed = null) => NewState("CheckStashIsOpen", (self, dt) => BackpackIsOpen() && StashIsOpen() ? ifOpen : ifClosed, next: ifOpen);
-		private IState OnlyIfBackpackIsOpen(IState ifOpen, IState ifClosed = null) => NewState("CheckBackpackIsOpen", (self, dt) => BackpackIsOpen() ? ifOpen : ifClosed, next: ifOpen);
 
 		private IEnumerable<InventoryItem> ItemsToIdentify() => BackpackItems().Where(e => {
 			if( ! ShouldIdentify ) {
@@ -172,89 +165,8 @@ namespace AtE.Plugins {
 			return head;
 		}
 
-		/// <summary>
-		/// ExpectedItem is a filler item used to mark backpack slots as full,
-		/// when we know they are or will be very soon (concurrency is hard without locks)
-		/// </summary>
-		private class ExpectedItem : InventoryItem {
-			public ExpectedItem(int x, int y, int w, int h):base() {
-				_x = x; _y = y; _w = w; _h = h;
-				Address = IntPtr.Zero;
-			}
-			private int _x; public override int X => _x;
-			private int _y; public override int Y => _y;
-			private int _w; public override int Width => _w;
-			private int _h; public override int Height => _h;
-		}
-		private const uint BACKPACK_WIDTH = 12;
-		private const uint BACKPACK_HEIGHT = 5;
-		// This 2D array tracks which InventoryItem is located where
-		private static InventoryItem[,] inventoryMap = new InventoryItem[BACKPACK_WIDTH,BACKPACK_HEIGHT];
-		// Fill the inventory map with references in the right slots for this one item
-		private static void MarkOccupied(InventoryItem item) {
-			if ( item == null ) return; // dont use IsValid here because we pass in fake items on purpose
-			int x = item.X;
-			int y = item.Y;
-			int w = item.Width;
-			int h = item.Height;
-			if ( x < 0 || x >= BACKPACK_WIDTH || y < 0 || y >= BACKPACK_HEIGHT || w > 5 || h > 5 ) return;
-			for(uint i = 0; i < w; i++ ) {
-				for(uint j = 0; j < h; j++ ) {
-					inventoryMap[x + i, y + j] = item;
-				}
-			}
-		}
-
-		private static void RefreshBackpack() {
-			inventoryMap = new InventoryItem[BACKPACK_WIDTH, BACKPACK_HEIGHT];
-			foreach ( var item in BackpackItems() ) {
-				MarkOccupied(item);
-			}
-		}
-		public bool IsOccupied(int x, int y, int w, int h) {
-			if ( x < 0 || x >= BACKPACK_WIDTH || y < 0 || y >= BACKPACK_HEIGHT ) {
-				return true; // anything out of bounds is occupied
-			}
-			int ex = x + w;
-			int ey = y + h;
-			if ( ex > BACKPACK_WIDTH|| ey > BACKPACK_HEIGHT ) { // any rect that overflows the edge is occupied
-				return true;
-			}
-			for ( int dy = y; dy < ey; dy++ ) {
-				for ( int dx = x; dx < ex; dx++ ) {
-					if ( inventoryMap[dx, dy] != null ) {
-						return true;
-					}
-				}
-			}
-			return false;
-		}
-		private static Vector2 GetSlotPositionAbsolute(int x, int y) {
-			var elem = GetUI()?.InventoryPanel?.Backpack;
-			if( !IsValid(elem) ) {
-				return Vector2.Zero;
-			}
-			RectangleF rect = elem.GetClientRect(); // applies zoom/scale from UI settings
-			Vector2 topLeft = new Vector2(rect.X, rect.Y);
-			float tileWidth = rect.Width / BACKPACK_WIDTH;
-			float tileHeight = rect.Height / BACKPACK_HEIGHT;
-			return topLeft + new Vector2(tileWidth * (x + 0.5f), tileHeight * (y + 0.5f));
-		}
-		// returns an {X, Y} vector of slot indices
-		// so, X is 0-11 and Y is 0-5
-		public Vector2 GetFreeSlot(int w, int h) {
-			for( int x = 0; x < BACKPACK_WIDTH; x++ ) {
-				for( int y = 0; y < BACKPACK_HEIGHT; y++ ) {
-					if( !IsOccupied(x, y, w, h) ) {
-						return new Vector2(x, y);
-					}
-				}
-			}
-			return new Vector2(-1, -1);
-		}
-		public Vector2 GetSlotCenter(Offsets.Vector2i slot) {
-			return GetSlotPositionAbsolute(slot.X, slot.Y);
-		}
+		// which backpack cells are taken (see BackpackGrid), read again before each plan that needs free space
+		private BackpackGrid grid = new BackpackGrid();
 
 		private IState PlanOpenDeck(InventoryItem deckItem, IState next) {
 			var deckPos = deckItem.GetClientRect();
@@ -270,7 +182,7 @@ namespace AtE.Plugins {
 				Log("OpenOneDeck: canceled, backpack is not open.");
 				return next;
 			}
-			RefreshBackpack();
+			grid = BackpackGrid.Read();
 			// var freeSlot = GetFreeSlot(1, 1);
 			// if ( freeSlot == Vector2.Zero ) {
 			// return next; // no more free slots
@@ -284,17 +196,16 @@ namespace AtE.Plugins {
 			IState head = new State.Empty();
 			IState tail = head.Tail();
 			while ( stackSize > 0 ) {
-				var freeSlot = GetFreeSlot(1, 1);
-				if ( freeSlot.X < 0 || freeSlot.Y < 0 || freeSlot.X >= BACKPACK_WIDTH || freeSlot.Y >= BACKPACK_HEIGHT ) {
+				if ( !grid.TryFindFree(1, 1, out int freeX, out int freeY) ) {
 					Log($"OpenOneDeck: no more free slots");
 					tail.Next = next;
 					return head;
 				}
-				Log($"OpenOneDeck: marking occupied {freeSlot.X},{freeSlot.Y}");
-				// mark it so future calls to GetFreeSlot dont return the same slot
-				MarkOccupied(new ExpectedItem((int)freeSlot.X, (int)freeSlot.Y, 1, 1));
+				Log($"OpenOneDeck: marking occupied {freeX},{freeY}");
+				// mark it so later searches for free space dont return the same slot
+				grid.Reserve(freeX, freeY, 1, 1);
 				// get the screen position to click the free slot
-				var slotPos = GetSlotPositionAbsolute((int)freeSlot.X, (int)freeSlot.Y);
+				var slotPos = BackpackGrid.CellCenter(freeX, freeY);
 				if ( slotPos != Vector2.Zero ) {
 					Log($"OpenOneDeck: appending one step to the plan");
 					// append one step: right click, left click
@@ -329,7 +240,6 @@ namespace AtE.Plugins {
 			// right click the deck, left click the free slot
 			// repeat
 			return NewState((nextDeck, dt) => {
-				RefreshBackpack();
 				// find a deck
 				var deckItem = BackpackItems().FirstOrDefault(i =>
 					i.Entity?.Path?.Equals(Offsets.PATH_STACKED_DECK) ?? false);
@@ -424,17 +334,15 @@ namespace AtE.Plugins {
 			if( Enabled && !Paused && PoEMemory.IsAttached ) {
 
 				if( ShowDebugMarkers ) {
-					RefreshBackpack();
+					var debugGrid = BackpackGrid.Read();
 					if ( BackpackIsOpen() ) {
-						for ( int x = 0; x < BACKPACK_WIDTH; x++ ) {
-							for ( int y = 0; y < BACKPACK_HEIGHT; y++ ) {
-								DrawCircle(GetSlotPositionAbsolute(x, y), 6,
-									IsOccupied(x, y, 1, 1) ? Color.Red : Color.Gray);
+						for ( int x = 0; x < BackpackGrid.Width; x++ ) {
+							for ( int y = 0; y < BackpackGrid.Height; y++ ) {
+								DrawCircle(BackpackGrid.CellCenter(x, y), 6,
+									debugGrid.IsOccupied(x, y, 1, 1) ? Color.Red : Color.Gray);
 							}
 						}
-						var freeSlot = GetFreeSlot(1, 1);
-						freeSlot = GetSlotPositionAbsolute((int)freeSlot.X, (int)freeSlot.Y);
-						DrawCircle(freeSlot, 8, Color.Yellow);
+						if ( debugGrid.TryFindFree(1, 1, out int freeX, out int freeY) ) DrawCircle(BackpackGrid.CellCenter(freeX, freeY), 8, Color.Yellow);
 
 					}
 

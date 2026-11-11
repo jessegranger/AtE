@@ -261,6 +261,16 @@ namespace AtE {
 				return ImGui.TreeNode($"{prefix} as {type.Name} @ {Describe(((MemoryObject)value).Address)}");
 			}
 
+			// a State shows its Name (which can change, eg a Delay's time left: the ### keeps the node's id the same)
+			if ( value is IState state ) {
+				bool open = ImGui.TreeNode($"{prefix} \"{state.Name}\" as {type.Name}###{prefix} as {type.Name}");
+				// hovering a MoveMouse shows where it moves to
+				if ( value is MoveMouse move && ImGui.IsItemHovered() ) {
+					DrawFrame(new Vector2(move.X - 6, move.Y - 6), new Vector2(move.X + 6, move.Y + 6), Color.Yellow, 2);
+				}
+				return open;
+			}
+
 			return ImGui.TreeNode($"{prefix} as {type.Name}");
 
 		}

@@ -50,6 +50,9 @@ namespace AtE {
 		/// </summary>
 		void SetClickThrough(bool enabled);
 
+		/// <summary>True while click-through is on (mouse and keyboard events go to the game, not the overlay).</summary>
+		bool IsClickThrough => true;
+
 		/// <summary>Keep the window above all others (Windows: <c>WS_EX_TOPMOST</c>).</summary>
 		void SetTopmost(bool enabled);
 

@@ -148,6 +148,16 @@ namespace AtE.Tests {
 		}
 
 		[Fact]
+		public void A_one_handed_weapon_replaces_the_weaker_of_two() {
+			var ctx = Witch();
+			var strong = Item(ItemKind.OneHand, "B-B", ("spell_damage_+%", 20));
+			var weak = Item(ItemKind.OneHand, "B", ("spell_damage_+%", 5));
+			var better = Item(ItemKind.OneHand, "B-B-B", ("spell_damage_+%", 10));
+			Assert.Equal("RWeapon", ItemScorer.Candidate(ctx, Loadout(("LWeapon", strong), ("RWeapon", weak)), better).slot);
+			Assert.Equal("LWeapon", ItemScorer.Candidate(ctx, Loadout(("LWeapon", weak), ("RWeapon", strong)), better).slot);
+		}
+
+		[Fact]
 		public void Added_damage_to_spells_and_attacks_counts_for_a_spell() {
 			var ctx = Witch();
 			var wand = Item(ItemKind.OneHand, "B-B");

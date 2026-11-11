@@ -186,6 +186,10 @@ namespace AtE {
 			X = x; Y = y;
 		}
 		public MoveMouse(Vector2 pos, IState next = null) : this(pos.X , pos.Y, next) { }
+		public override string Name => $"MoveMouse({X:F0}, {Y:F0})";
+		/// <summary>Where the last MoveMouse moved to, and whether the overlay had the mouse then (so the game did not see the move).</summary>
+		public static Vector2 LastPos;
+		public static bool LastMoveTakenByOverlay;
 		// public MoveMouse(Element label, IState next = null) : this(label?.GetClientRect().Center ?? Vector2.Zero, next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
@@ -197,15 +201,48 @@ namespace AtE {
 				Log($"Warn: MoveMouse to (0,0) attempted, skipped.");
 				return Next;
 			}
-			// Log($"MoveMouse to (#{X},#{Y})");
 			Platform.Current.Input.MouseMove(new Vector2(X, Y));
+			LastPos = new Vector2(X, Y);
+			// (the overlay had the mouse: the game was not told of this move, see MouseDownState)
+			LastMoveTakenByOverlay = !Overlay.IsClickThrough;
 			return Next;
 		}
 	}
-	class LeftMouseDown : InputState {
+	/// <summary>
+	/// A mouse button press, held back (up to MaxWaitMs) until clicks go through the overlay to the game. The overlay takes
+	/// the mouse while it is over one of its windows, and gives it back a frame or two after the mouse leaves (ImGui's
+	/// WantCaptureMouse is a frame behind): so a click right after the mouse moves away from an overlay button (eg, the
+	/// first click of a plan started from one) would land on the overlay.
+	/// </summary>
+	abstract class MouseDownState : InputState {
+		public const long MaxWaitMs = 500;
+		private long waited;
+		private int removes; // moves sent again, after the overlay let the mouse through
+		protected MouseDownState(IState next) : base(next) { }
+		// true while it should wait: for the overlay to let the click through, and then (if the overlay had the mouse when
+		// it was moved, so the game did not see the move) for the move to be sent again: next to the spot, then on it
+		protected bool WaitForClickThrough(long dt) {
+			if ( !Overlay.IsClickThrough ) {
+				if ( (waited += dt) <= MaxWaitMs ) return true;
+				Log($"Warn: the overlay still takes the mouse after {MaxWaitMs} ms: clicking anyway.");
+				return false;
+			}
+			if ( MoveMouse.LastMoveTakenByOverlay && removes < 2 ) {
+				var at = MoveMouse.LastPos + (removes == 0 ? new Vector2(1, 1) : Vector2.Zero);
+				Platform.Current.Input.MouseMove(at);
+				Log($"{Name}: moving the mouse again to {at.X:F0}, {at.Y:F0} (the game did not see the move)");
+				if ( ++removes == 2 ) MoveMouse.LastMoveTakenByOverlay = false;
+				return true;
+			}
+			return false;
+		}
+	}
+
+	class LeftMouseDown : MouseDownState {
 		public LeftMouseDown(IState next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
+			if ( WaitForClickThrough(dt) ) return this;
 			if ( !(Overlay.HasFocus || PoEMemory.TargetHasFocus) ) {
 				Log($"Warn: MouseDown attempted while not focused, skipped.");
 				return Next;
@@ -234,6 +271,7 @@ namespace AtE {
 	}
 
 	class LeftClickAt : InputState {
+		public override string Name => $"LeftClickAt({(Next as MoveMouse)?.X ?? 0}, {(Next as MoveMouse)?.Y ?? 0})";
 		public LeftClickAt(RectangleF rect, uint duration, uint count, IState next = null) : this(Center(rect), duration, count, next) { }
 		public LeftClickAt(Vector2 pos, uint duration, uint count, IState next = null) : this(pos.X, pos.Y, duration, count, next) { }
 		public LeftClickAt(float x, float y, uint duration, uint count, IState next = null) : base(
@@ -241,11 +279,12 @@ namespace AtE {
 			: new MoveMouse(x, y, new Delay(duration, new LeftClick(duration, count, next)))) { }
 	}
 
-	class RightMouseDown : InputState {
+	class RightMouseDown : MouseDownState {
 		public RightMouseDown(IState next = null) : base(next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			if ( !PoEMemory.TargetHasFocus ) return Next;
+			if ( WaitForClickThrough(dt) ) return this;
+			if ( !PoEMemory.TargetHasFocus ) { Log("Warn: right MouseDown while the game is not focused, skipped."); return Next; }
 			Platform.Current.Input.MouseButton(MouseBtn.Right, true);
 			return Next;
 		}
@@ -268,6 +307,7 @@ namespace AtE {
 	}
 
 	class RightClickAt : InputState {
+		public override string Name => $"RightClickAt({(Next as MoveMouse)?.X ?? 0}, {(Next as MoveMouse)?.Y ?? 0})";
 		public RightClickAt(RectangleF rect, uint duration, IState next = null) : this(Center(rect), duration, next) { }
 		public RightClickAt(Vector2 pos, uint duration, IState next = null) : this(pos.X, pos.Y, duration, next) { }
 		public RightClickAt(float x, float y, uint duration, IState next = null) : base(
@@ -275,6 +315,7 @@ namespace AtE {
 				new MoveMouse(x, y, new Delay(duration, new RightMouseDown(new Delay(duration, new RightMouseUp(next)))))) { }
 	}
 	class CtrlRightClickAt : InputState {
+		public override string Name => $"CtrlRightClickAt({(Next as MoveMouse)?.X ?? 0}, {(Next as MoveMouse)?.Y ?? 0})";
 		// public CtrlRightClickAt(Element item, uint duration, IState next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
 		public CtrlRightClickAt(Vector2 pos, uint duration, IState next = null) : this(pos.X, pos.Y, duration, next) { }
 		public CtrlRightClickAt(float x, float y, uint duration, IState next = null) : base(
@@ -286,6 +327,7 @@ namespace AtE {
 								new KeyUp(VKey.LControlKey, next)))))))))) { }
 	}
 	class CtrlLeftClickAt : InputState {
+		public override string Name => $"CtrlLeftClickAt({(Next as MoveMouse)?.X ?? 0}, {(Next as MoveMouse)?.Y ?? 0})";
 		// public CtrlLeftClickAt(Element item, uint duration, IState next = null) : this(item?.GetClientRect().Center ?? Vector2.Zero, duration, next) { }
 		public CtrlLeftClickAt(Vector2 pos, uint duration, IState next = null) : this(pos.X, pos.Y, duration, next) { }
 		public CtrlLeftClickAt(float x, float y, uint duration, IState next = null) : base(

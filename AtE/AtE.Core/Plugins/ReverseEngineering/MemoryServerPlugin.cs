@@ -154,6 +154,11 @@ namespace AtE {
 		}
 
 		private string Dispatch(string path, System.Collections.Specialized.NameValueCollection q) {
+			// the overlay's recent log lines (Log), the last n (default 100); matching filter, if given
+			if ( path == "/log" ) {
+				var lines = RecentLog.ToArray().Where(l => q["filter"] == null || l.Contains(q["filter"], StringComparison.OrdinalIgnoreCase));
+				return string.Join(NL, lines.TakeLast(ParseInt(q["n"], 100))) + NL;
+			}
 			if ( !PoEMemory.IsAttached && path != "/help" ) {
 				return "error: not attached to the game\n";
 			}
@@ -274,6 +279,7 @@ namespace AtE {
   /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
   /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
   /items                        the worn, backpack and purchase window items: name, rarity, and each mod's stats (Stats.dat ids) with their values
+  /log?n=100&filter=            the overlay's last log lines (the last n, matching filter)
   /info?id=<entity id>&skill=<owner skill name>   ground truth: buffs (timer/max), animation time, duration-ish stats, owner skill MinionDuration
   /scan?id=<entity id>&value=1.5,3000&tol=0.01&kind=f32|i32|both&depth=1&len=0x400   find values in all components (and the animated object's) + pointees
   /gsnap?id=<entity id>&name=a&depth=1&len=0x400    snapshot all components + pointees (+ animated object) under a label

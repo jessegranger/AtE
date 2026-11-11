@@ -90,7 +90,16 @@ namespace AtE {
 				 .GetCustomAttribute<FieldOffsetAttribute>()
 				 .Value;
 
-		public static void Log(params string[] line) => Debug.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}:{Time.Elapsed}] " + string.Join(" ", line));
+		public static void Log(params string[] line) {
+			string text = $"[{Thread.CurrentThread.ManagedThreadId}:{Time.Elapsed}] " + string.Join(" ", line);
+			Debug.WriteLine(text);
+			RecentLog.Enqueue(text);
+			while ( RecentLog.Count > RecentLogSize ) RecentLog.TryDequeue(out _);
+		}
+
+		/// <summary>The last RecentLogSize lines given to Log (eg, for the memory server's /log).</summary>
+		public static readonly System.Collections.Concurrent.ConcurrentQueue<string> RecentLog = new System.Collections.Concurrent.ConcurrentQueue<string>();
+		public const int RecentLogSize = 500;
 
 		public static EventHandler<string> OnAreaChange;
 

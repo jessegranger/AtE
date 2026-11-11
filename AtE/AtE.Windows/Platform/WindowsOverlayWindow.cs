@@ -61,6 +61,7 @@ namespace AtE {
 		// SetClickThrough maps to the OverlayForm.IsTransparent style toggle (the WS_EX_TRANSPARENT
 		// bit); the setter there already guards against redundant SetWindowLong calls.
 		public void SetClickThrough(bool enabled) => Form.IsTransparent = enabled;
+		public bool IsClickThrough => Form.IsTransparent;
 
 		public void SetTopmost(bool enabled) => Form.TopMost = enabled;
 
