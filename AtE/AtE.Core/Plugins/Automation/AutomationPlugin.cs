@@ -17,12 +17,13 @@ namespace AtE {
 	}
 
 	/// <summary>
-	/// Playing the game by itself: finding the way (Navigation), spending passive points (Passive Tree), and fighting
-	/// through areas (Combat).
+	/// Playing the game by itself: the PoB build to follow (Build), finding the way (Navigation), spending passive points
+	/// (Passive Tree), fighting through areas (Combat), and town (Town).
 	/// </summary>
 	public class AutomationPlugin : PluginBase {
 		public override string Name => "Automation";
 
+		public readonly BuildSection Build = new BuildSection();
 		public readonly NavigationSection Navigation = new NavigationSection();
 		public readonly PassiveTreeSection PassiveTree = new PassiveTreeSection();
 		public readonly CombatSection Combat = new CombatSection();
@@ -32,7 +33,7 @@ namespace AtE {
 		/// <summary>Draw a small expanding circle where each mouse click is sent (see ClickMarks).</summary>
 		public bool ShowClicks = true;
 
-		private IEnumerable<AutomationSection> Sections => new AutomationSection[] { Navigation, PassiveTree, Combat, Town, OffsetTests };
+		private IEnumerable<AutomationSection> Sections => new AutomationSection[] { Build, Navigation, PassiveTree, Combat, Town, OffsetTests };
 
 		public override void Render() {
 			base.Render();
@@ -66,7 +67,7 @@ namespace AtE {
 
 		public override string[] Save() =>
 			// (the sections are saved below, by field)
-			FieldLines(this).Where(line => !new[] { nameof(Navigation), nameof(PassiveTree), nameof(Combat), nameof(Town), nameof(OffsetTests) }.Any(f => line.StartsWith($"{f}=")))
+			FieldLines(this).Where(line => !new[] { nameof(Build), nameof(Navigation), nameof(PassiveTree), nameof(Combat), nameof(Town), nameof(OffsetTests) }.Any(f => line.StartsWith($"{f}=")))
 				.Concat(SettingsTargets.SelectMany(t => FieldLines(t.target, t.prefix)))
 				.ToArray();
 
@@ -74,6 +75,11 @@ namespace AtE {
 			// each routine had its own on / off key: keep the chosen routine's
 			if ( key == $"{Combat.Key}.{Combat.Routine}.ToggleKey" && Combat.ToggleKey.Key == VKey.None ) {
 				TrySetField(Combat, "ToggleKey", value);
+				return true;
+			}
+			// the build was chosen in the Passive Tree section
+			if ( key == $"{PassiveTree.Key}.BuildFile" ) {
+				if ( string.IsNullOrEmpty(Build.BuildFile) ) Build.BuildFile = value;
 				return true;
 			}
 			// the longest prefix first: CombatSection.WitchStart.EngageRadius is a routine's, not the section's

@@ -619,9 +619,31 @@ namespace AtE {
 		public static bool GemInBackpack(string name) =>
 			GetUI()?.InventoryPanel?.Backpack?.Items.Any(i => IsGem(i.Entity, name)) ?? false;
 
-		/// <summary>Is the gem called name (see IsGem) in the backpack, or socketed in the main hand weapon.</summary>
-		public static bool HasGem(string name) => GemInBackpack(name)
-			|| (GetUI()?.InventoryPanel?.LWeapon?.Items.Any(i => i.Entity?.GetComponent<Sockets>() is Sockets s && IsValid(s) && s.IndexOfGem(e => IsGem(e, name)) >= 0) ?? false);
+		/// <summary>Is the gem called name (see IsGem) in the backpack, or socketed in a worn item.</summary>
+		public static bool HasGem(string name) => GemInBackpack(name) || SocketedGems().Any(e => IsGem(e, name));
+
+		/// <summary>The worn items' inventories (not the weapon swap, flasks or backpack).</summary>
+		public static IEnumerable<Inventory> WornInventories() => WornSlots().Select(s => s.inventory);
+
+		/// <summary>The worn items' inventories, with their names (eg, "Helm", "LWeapon").</summary>
+		public static IEnumerable<(string name, Inventory inventory)> WornSlots() {
+			var p = GetUI()?.InventoryPanel;
+			if ( p == null ) return Enumerable.Empty<(string, Inventory)>();
+			return new[] { ("Helm", p.Helm), ("Amulet", p.Amulet), ("Chest", p.Chest), ("LWeapon", p.LWeapon), ("RWeapon", p.RWeapon),
+				("LRing", p.LRing), ("RRing", p.RRing), ("Gloves", p.Gloves), ("Belt", p.Belt), ("Boots", p.Boots) }.Where(s => s.Item2 != null);
+		}
+
+		/// <summary>The worn items.</summary>
+		public static IEnumerable<InventoryItem> WornItems() => WornInventories().SelectMany(i => i.Items).Where(i => i?.Entity != null);
+
+		/// <summary>The gems socketed in worn items.</summary>
+		public static IEnumerable<Entity> SocketedGems() => WornItems()
+			.Select(i => i.Entity.GetComponent<Sockets>()).Where(s => IsValid(s))
+			.SelectMany(s => Enumerable.Range(0, s.Count).Select(s.Gem)).Where(e => e != null);
+
+		/// <summary>The gems in the backpack.</summary>
+		public static IEnumerable<Entity> BackpackGemEntities() => (GetUI()?.InventoryPanel?.Backpack?.Items ?? Enumerable.Empty<InventoryItem>())
+			.Select(i => i.Entity).Where(e => e?.Path?.Contains("/Gems/") ?? false);
 
 		/// <summary>The gems in the backpack, as "name (path)", for status lines.</summary>
 		public static string BackpackGems() => string.Join(", ", (GetUI()?.InventoryPanel?.Backpack?.Items ?? Enumerable.Empty<InventoryItem>())

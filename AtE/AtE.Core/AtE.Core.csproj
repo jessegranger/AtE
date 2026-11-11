@@ -75,4 +75,12 @@
     </Content>
   </ItemGroup>
 
+  <!-- Example Path of Building builds, offered in the Automation plugin's Build section beside the user's own
+       (Documents/Path of Building/Builds). Copied to Builds/ beside the exe (Content items propagate to the hosts). -->
+  <ItemGroup>
+    <Content Include="Builds\*.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

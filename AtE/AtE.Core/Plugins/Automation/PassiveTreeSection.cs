@@ -10,14 +10,12 @@ using static AtE.Globals;
 namespace AtE {
 
 	/// <summary>
-	/// Follow a Path of Building build's passive tree: pick a saved build (and which of its trees to end with), and see
-	/// the order its points would be taken in (see PassivePlan). Nothing is allocated in the game yet.
+	/// Follow the passive trees of the build chosen in the Build section: pick which of its trees to end with, see the
+	/// order its points would be taken in (see PassivePlan), and spend points on it.
 	/// </summary>
 	public class PassiveTreeSection : AutomationSection {
 		public override string Name => "Passive Tree";
 
-		/// <summary>The build, relative to PobBuild.DefaultFolder (or a full path).</summary>
-		public string BuildFile = "";
 		/// <summary>The tree to end with (an index into the build's trees); -1 for the one selected in PoB.</summary>
 		public int TargetTree = -1;
 		/// <summary>Another folder to look in for TreeData/&lt;version&gt;/tree.lua (eg, one with a newer tree than PoB has).</summary>
@@ -31,24 +29,20 @@ namespace AtE {
 		[NoPersist]
 		public readonly PassiveAllocator Allocator = new PassiveAllocator();
 
-		public PobBuild Build { get; private set; }
+		/// <summary>The build (chosen in the Build section).</summary>
+		public PobBuild Build => BuildSection?.Build;
 		public PassivePlan Plan { get; private set; }
 		private string error;
-		private string[] buildFiles;
+		private int buildVersion = -1;
+		private static BuildSection BuildSection => GetPlugin<AutomationPlugin>()?.Build;
 		private readonly Dictionary<string, PassiveTree> trees = new Dictionary<string, PassiveTree>();
 
 		public override void Render() {
 			base.Render();
-			buildFiles ??= FindBuildFiles();
-			int current = Array.IndexOf(buildFiles, BuildFile);
-			if ( ImGui.Combo("Build", ref current, buildFiles, buildFiles.Length) ) {
-				BuildFile = buildFiles[current];
-				TargetTree = -1;
-				Reload();
-			}
+			EnsurePlan();
+			ImGui.TextUnformatted($"Build: {Build?.Name ?? "(none chosen in the Build section)"}");
 			ImGui.SameLine();
-			if ( ImGui.Button("Refresh") ) { buildFiles = FindBuildFiles(); trees.Clear(); Reload(); }
-			if ( Plan == null && error == null && !string.IsNullOrEmpty(BuildFile) ) Reload();
+			if ( ImGui.Button("Reload tree data") ) { trees.Clear(); Reload(); }
 
 			if ( Build != null && Build.Specs.Count > 0 ) {
 				var titles = new[] { $"(selected in PoB: {Build.Specs[Build.ActiveSpec]})" }
@@ -119,7 +113,7 @@ namespace AtE {
 
 		public override IState OnTick(long dt) {
 			// (load the build without waiting for the console to be opened: the combat routines spend points on it)
-			if ( Plan == null && error == null && !string.IsNullOrEmpty(BuildFile) ) Reload();
+			EnsurePlan();
 			if ( Allocator.IsActive && PoEMemory.IsAttached ) {
 				Allocator.Tick(Plan);
 				DrawBottomLeftText($"Passive Tree: {Allocator.Status}", System.Drawing.Color.Orange);
@@ -148,12 +142,21 @@ namespace AtE {
 			}
 		}
 
+		// a new plan when the Build section has loaded another build (the tree to end with goes back to PoB's)
+		private void EnsurePlan() {
+			var section = BuildSection;
+			if ( section == null ) return;
+			section.EnsureLoaded();
+			if ( section.Version == buildVersion ) return;
+			if ( buildVersion >= 0 ) TargetTree = -1;
+			buildVersion = section.Version;
+			Reload();
+		}
+
 		private void Reload() {
-			Build = null; Plan = null; error = null;
-			if ( string.IsNullOrEmpty(BuildFile) ) return;
+			Plan = null; error = null;
+			if ( Build == null ) return;
 			try {
-				var path = Path.IsPathRooted(BuildFile) ? BuildFile : Path.Combine(PobBuild.DefaultFolder, BuildFile);
-				Build = PobBuild.Load(path);
 				if ( Build.Specs.Count == 0 ) { error = "The build has no passive tree."; return; }
 				var stages = PassivePlan.DefaultStages(Build, TargetTree);
 				var version = Build.Specs[stages[stages.Count - 1]].TreeVersion;
@@ -161,7 +164,7 @@ namespace AtE {
 				if ( tree == null ) { error = $"No tree data (TreeData/{version}/tree.lua) in: {string.Join("; ", Folders())}"; return; }
 				Plan = PassivePlan.Make(tree, Build, stages);
 			} catch ( Exception e ) {
-				error = $"{BuildFile}: {e.Message}";
+				error = $"{Build.Name}: {e.Message}";
 				Log($"{Name}: {error}");
 			}
 		}
@@ -176,15 +179,6 @@ namespace AtE {
 			if ( file == null ) return null;
 			if ( !trees.TryGetValue(found, out var tree) ) trees[found] = tree = PassiveTree.Load(file, found);
 			return tree;
-		}
-
-		private static string[] FindBuildFiles() {
-			var root = PobBuild.DefaultFolder;
-			if ( !Directory.Exists(root) ) return Array.Empty<string>();
-			return Directory.GetFiles(root, "*.xml", SearchOption.AllDirectories)
-				.Select(f => Path.GetRelativePath(root, f))
-				.OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-				.ToArray();
 		}
 
 		// not ImGui.TextColored: that is printf-style, and node names have '%' in them
