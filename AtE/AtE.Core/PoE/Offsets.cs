@@ -1025,7 +1025,7 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GemEffects {
 			[FieldOffset(0x00)] public readonly IntPtr ptrSkillGem; // ptr to SkillGem
 			[FieldOffset(0x10)] public readonly int Level;
-			[FieldOffset(0x14)] public readonly int RequiredLevel;
+			// 3.29.3: 0x14 reads the float 1.0 for both Default Attack and Fireball: not a level requirement, so RequiredLevel is removed
 			[FieldOffset(0x18)] public readonly int EffectivenessOfAddedDamage;
 			[FieldOffset(0x20)] public readonly int Cooldown;
 			[FieldOffset(0x24)] public readonly int StatsCount; // ?
@@ -1080,7 +1080,8 @@ namespace AtE {
 			[FieldOffset(0x38)] public readonly IntPtr CastTypes; // ptr to int array
 			[FieldOffset(0x40)] public readonly int SkillTagCount;
 			[FieldOffset(0x48)] public readonly IntPtr SkillTags; // ptr to array of SkillTagEntry
-			[FieldOffset(0x58)] public readonly IntPtr LongDescription; // ptr to string unicode
+			// 3.29.3: was at 0x58 (null now); the long description ("Tapping into the...") is 8 bytes further on, and 0x68 is a ptr to a video url
+			[FieldOffset(0x60)] public readonly IntPtr LongDescription; // ptr to string unicode
 			[FieldOffset(0x60)] public readonly ArrayHandle UnknownArray;
 			[FieldOffset(0x68)] public readonly byte UnknownByte;
 			[FieldOffset(0x69)] public readonly IntPtr UnknownArrayPtr;
@@ -1101,8 +1102,9 @@ namespace AtE {
 			[FieldOffset(0x00)] public readonly IntPtr InternalName; // ptr to string unicode
 			[FieldOffset(0x08)] public readonly IntPtr DisplayName; // ptr to string unicode
 			[FieldOffset(0x10)] public readonly IntPtr Description; // ptr to string unicode
-			[FieldOffset(0x18)] public readonly IntPtr SkillName; // ptr to string unicode
-			[FieldOffset(0x20)] public readonly IntPtr IconName; // ptr to string unicode
+			// 3.29.3: SkillName (0x18) and IconName (0x20) are removed: 0x18 is a ptr to something that is not a string, 0x20 a ptr to a data file
+			// object; the icon path ("Art/2DArt/SkillIcons/...") is at 0x28
+			[FieldOffset(0x28)] public readonly IntPtr IconName; // ptr to string unicode
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ActorVaalSkillArrayEntry {
@@ -1401,13 +1403,16 @@ namespace AtE {
 			[FieldOffset(0x28)] public readonly IntPtr strName; // unicode
 		}
 
+		// 3.29.3: each array is (head, tail, capacity) with room for one entry (0x28 bytes) kept inline after it: the first at 0x08, then
+		// the next four at 0x50, 0x90, 0xd0 and 0x110 (8 more than they were). Read from the Driftwood Wand: its implicit "8% increased Spell
+		// Damage" is the one entry of the first; the others are empty (the Explicit one is not checked against an item with an explicit mod yet).
+		// A sixth array, at 0x160 (was FracturedStatsArray at 0x148), holds the same stat line as the first, so it is not fractured stats: removed.
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ModStats {
 			[FieldOffset(0x008)] public readonly ArrayHandle ImplicitStatsArray; // of ItemStatEntry
-			[FieldOffset(0x048)] public readonly ArrayHandle EnchantedStatsArray; // of ItemStatEntry
-			[FieldOffset(0x088)] public readonly ArrayHandle ScourgeStatsArray; // of ItemStatEntry
-			[FieldOffset(0x0C8)] public readonly ArrayHandle ExplicitStatsArray; // of ItemStatEntry
-			[FieldOffset(0x108)] public readonly ArrayHandle CraftedStatsArray; // of ItemStatEntry
-			[FieldOffset(0x148)] public readonly ArrayHandle FracturedStatsArray; // of ItemStatEntry
+			[FieldOffset(0x050)] public readonly ArrayHandle EnchantedStatsArray; // of ItemStatEntry
+			[FieldOffset(0x090)] public readonly ArrayHandle ScourgeStatsArray; // of ItemStatEntry
+			[FieldOffset(0x0D0)] public readonly ArrayHandle ExplicitStatsArray; // of ItemStatEntry
+			[FieldOffset(0x110)] public readonly ArrayHandle CraftedStatsArray; // of ItemStatEntry
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemModEntry {
@@ -1416,11 +1421,11 @@ namespace AtE {
 			[FieldOffset(0x30)] public readonly IntPtr ptrModsDatFile; // ptr to base of "Data/Mods.dat" file in memory
 		}
 
-		// size should be 0x20
+		// 3.29.3: 0x28 bytes. The first field points at the stat's text with its value in ("8% increased Spell Damage"), not at a Stats.dat entry;
+		// the rest (0x08 is 0, 0x10 and 0x18 were 25 and 31, the length of the text and a position in it) is not read.
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemStatEntry {
-			[FieldOffset(0x00)] public readonly IntPtr Pointer0;
-			[FieldOffset(0x08)] public readonly IntPtr Pointer1;
-			[FieldOffset(0x10)] public readonly int Padding;
+			[FieldOffset(0x00)] public readonly IntPtr ptrText; // ptr to unicode
+			[FieldOffset(0x20)] private readonly long unk20; // makes sizeof(ItemStatEntry) == 0x28, so arrays of it read cleanly
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct UniqueNameEntry {
@@ -1610,10 +1615,10 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct SkillGemDetails {
-			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x30)] public readonly uint SocketColor;
-			[FieldOffset(0x48)] public readonly uint MaxLevel;
-			[FieldOffset(0x4c)] public readonly uint LimitLevel;
+			// 3.29.3: SocketColor and MaxLevel were at 0x30 and 0x48 (zeros now): read from Fireball's gem (blue, 3, max level 20, at 0x10 and 0x28)
+			// and Arcane Surge Support's. entOwner (0x08) and LimitLevel (0x4c) are removed: unverified.
+			[FieldOffset(0x10)] public readonly uint SocketColor;
+			[FieldOffset(0x28)] public readonly uint MaxLevel;
 		}
 
 		// 3.29.3, read from the Driftwood Wand (2 linked sockets, Fireball in the first): the socket colors are 4 and 4 (white),
@@ -1791,17 +1796,18 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_Inventory {
-			[FieldOffset(0x260)] public readonly int MoveItemHoverState;
-			[FieldOffset(0x268)] public readonly IntPtr HoverItem; // to InventoryItem Element
-			// [FieldOffset(0x270)] public readonly Vector2i HoveredGridPosition;
-			[FieldOffset(0x270)] public readonly int XFake;
-			[FieldOffset(0x274)] public readonly int YFake;
-			// [FieldOffset(0x278)] public readonly Vector2i HoveredSlotPosition;
-			[FieldOffset(0x278)] public readonly int XReal;
-			[FieldOffset(0x27C)] public readonly int YReal;
-			[FieldOffset(0x288)] public readonly short CursorInInventory;
-			[FieldOffset(0x3E8)] public readonly long ItemCount;
-			[FieldOffset(0x46C)] public readonly Vector2i Size;
+			// 3.29.3: the hover fields are all 0xA0 further on than they were (found by comparing the element with the mouse away and over the
+			// Scroll of Wisdom in the last slot: HoverItem became the item's element, the cell became 11,4 twice, CursorInInventory 1). MoveItemHoverState
+			// (0x300 here) is assumed to have moved the same way: it only changes while an item is carried on the cursor.
+			[FieldOffset(0x300)] public readonly int MoveItemHoverState;
+			[FieldOffset(0x308)] public readonly IntPtr HoverItem; // to InventoryItem Element
+			[FieldOffset(0x310)] public readonly int XFake;
+			[FieldOffset(0x314)] public readonly int YFake;
+			[FieldOffset(0x318)] public readonly int XReal;
+			[FieldOffset(0x31C)] public readonly int YReal;
+			[FieldOffset(0x328)] public readonly short CursorInInventory;
+			// 3.29.3: Size (12, 5) is at 0x5e8 (was 0x46c). ItemCount (was 0x3e8) is removed: 5 items give a 5 at 0x5f0 (and 0x450, 0x490), unverified
+			[FieldOffset(0x5e8)] public readonly Vector2i Size;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_InventoryItem {
 			// [FieldOffset(0x3F0)] public readonly IntPtr incorrectTooltip;
@@ -1819,10 +1825,12 @@ namespace AtE {
 			[FieldOffset(0x440)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
 			// [FieldOffset(0x3D0)] public readonly int unkInt0x3D0;
 			// 3.21.2b: 72 new bytes here?
-			[FieldOffset(0x4cc)] public readonly int Width;
-			[FieldOffset(0x4d0)] public readonly int Height;
+			// 3.29.3: Width and Height (in cells: 1x1 scroll, 1x3 wand, 1x4 sword) were at 0x4cc and 0x4d0, 8 bytes further on than they are
+			[FieldOffset(0x4c4)] public readonly int Width;
+			[FieldOffset(0x4c8)] public readonly int Height;
 			// [FieldOffset(0x3E0)] public readonly int unkInt0x3E0;
-			[FieldOffset(0x4a4)] public readonly Vector2i InventPosition;
+			// 3.29.3: InventPosition (0x4a4) read pointer halves, and no pair of ints holds the grid position of every item: removed. (The position
+			// is Element.Position over the cell size, see InventoryItem.X and Y.)
 			// [FieldOffset(0x3DC)] public readonly byte UnkByte3DC;
 			// [FieldOffset(0x3DD)] public readonly byte UnkByte3DD;
 			// [FieldOffset(0x3DE)] public readonly byte UnkByte3DE;
@@ -1831,12 +1839,11 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct SpriteDetails {
 			[FieldOffset(0x0)] public readonly IntPtr strSpriteFile;
-			[FieldOffset(0x8)] public readonly IntPtr strSpriteFileLong; // always points to enough bytes behind strSpriteFile, and should contain an extra 'path:'
-			// 3.21.2b removed: [FieldOffset(0x10)] public readonly IntPtr elemUnknown; // some helper element, detached from the tree
-			[FieldOffset(0x10)] public readonly IntPtr strSpriteFileAgain;
-			[FieldOffset(0x18)] public readonly int unkFlags;
-			[FieldOffset(0x20)] public readonly int Width;
-			[FieldOffset(0x28)] public readonly int Height;
+			// 3.29.3: the strings are each a ptr and a length now (0x8 holds 47 for "Art/2DItems/Currency/..."): the "path:" form is at 0x10 (length 0x18),
+			// and the size in pixels (80x80 for a scroll) is at 0x48 and 0x4c, the floats 80.0 at 0x58; the others were at 0x8, 0x20 and 0x28
+			[FieldOffset(0x10)] public readonly IntPtr strSpriteFileLong; // the same, with an extra 'path:'
+			[FieldOffset(0x48)] public readonly int Width;
+			[FieldOffset(0x4c)] public readonly int Height;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_SubMap {
@@ -1880,7 +1887,7 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_RecordSet {
 			[FieldOffset(0x00)] public readonly ArrayHandle recordsArray;
-			[FieldOffset(0x40)] public readonly int recordCount;
+			// 3.29.3: recordCount (0x40) is removed: it reads a pointer. The count is the array's length, with the records' size (Mods.dat: 40355 records of 0x28e)
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_StatsDat_Entry {
@@ -1911,7 +1918,7 @@ namespace AtE {
 			[FieldOffset(0x062)] public readonly IntPtr displayName;
 			[FieldOffset(0x06a)] public readonly AffixType AffixType;
 			[FieldOffset(0x06e)] public readonly long Group;
-			[FieldOffset(0x076)] public readonly IntPtr Family; // ptr to ptr to Unicode "Strength"
+			[FieldOffset(0x076)] public readonly IntPtr Family; // 3.29.3: ptr to ptr to ptr to Unicode, "SpellDamage" for the Driftwood Wand's implicit (one more pointer than was said)
 			[FieldOffset(0x07e)] public readonly int Stat0Min;
 			[FieldOffset(0x082)] public readonly int Stat0Max;
 			[FieldOffset(0x086)] public readonly int Stat1Min;
@@ -1977,8 +1984,8 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_ModTypeDat_Entry {
 			[FieldOffset(0x000)] public readonly IntPtr strName; // ptr to unicode
-			[FieldOffset(0x008)] public readonly uint Hash;
-			[FieldOffset(0x010)] public readonly IntPtr SellPrice; // ptr to unicode, like "Medium" or "High"
+			// 3.29.3: Hash (0x08) and SellPrice (0x10) are removed: 0x08 holds 1 and 0x10 a pointer to something that is not a string (the record
+			// is a name followed by (count, ptr) pairs of lists)
 			[FieldOffset(0x018)] public readonly byte Padding; // unknown
 		} 
 

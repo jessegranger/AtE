@@ -2,32 +2,20 @@
 # or be listed here; one listed here that is covered now must be taken off. Format: Struct.Field, with # for comments.
 # Regenerate the gap with  curl "http://127.0.0.1:7788/offsets/coverage?format=unchecked"  (or read the failing test).
 
-# ActiveSkill: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
-ActiveSkill.CastTypeCount
-ActiveSkill.CastTypes
-ActiveSkill.LongDescription
-ActiveSkill.Names
-ActiveSkill.SkillTagCount
-ActiveSkill.SkillTags
+# ActiveSkill: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 ActiveSkill.UnknownArray
 ActiveSkill.UnknownArrayPtr
 ActiveSkill.UnknownByte
 
-# ActorSkill: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
-ActorSkill.CanBeUsed
-ActorSkill.CanBeUsedWithWeapon
-ActorSkill.CooldownMS
+# ActorSkill: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 ActorSkill.SoulsPerUse
-ActorSkill.TotalUses
 ActorSkill.TotalVaalUses
-ActorSkill.UseStage
-ActorSkill.ptrGameStats
 ActorSkill.ptrSelf
 
-# ActorSkillArrayEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+# ActorSkillArrayEntry: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 ActorSkillArrayEntry.Padding
 
-# ActorSkillUIState: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+# ActorSkillUIState: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 ActorSkillUIState.CooldownHigh
 ActorSkillUIState.CooldownLow
 ActorSkillUIState.CooldownMS
@@ -35,7 +23,7 @@ ActorSkillUIState.NumberOfUses
 ActorSkillUIState.Padding
 ActorSkillUIState.SkillId
 
-# ActorVaalSkillArrayEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+# ActorVaalSkillArrayEntry: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 ActorVaalSkillArrayEntry.CurVaalSouls
 ActorVaalSkillArrayEntry.MaxVaalSouls
 ActorVaalSkillArrayEntry.longUnknown
@@ -92,7 +80,7 @@ Component_Actor.AnimationId
 Component_Actor.DeployedObjectsHandle
 Component_Actor.ptrAction
 
-# Component_Actor_Action: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+# Component_Actor_Action: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 Component_Actor_Action.Destination
 Component_Actor_Action.Skill
 Component_Actor_Action.Target
@@ -161,7 +149,7 @@ Component_Empty.entOwner
 # Component_Flask: not exercised yet
 Component_Flask.arrayOfUnknown
 
-# Component_Inventories: inventory item elements (hover, grid position, sprite): need the panel open with items in it (next)
+# Component_Inventories: inventory fields that need an item on the cursor (MoveItemHoverState), or more items than a new character has
 Component_Inventories.UnknownArray
 Component_Inventories.entOwner
 
@@ -189,7 +177,6 @@ Component_Mods.IsMirrored
 Component_Mods.IsSplit
 Component_Mods.IsSynthesised
 Component_Mods.IsUsable
-Component_Mods.ModStats
 Component_Mods.ScourgeModsArray
 Component_Mods.UniqueName
 Component_Mods.ptrIncubator
@@ -226,24 +213,10 @@ Component_RenderItem.strResourceName
 Component_Shrine.IsTaken
 Component_Shrine.entOwner
 
-# Component_SkillGem: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
-Component_SkillGem.Details
-Component_SkillGem.ExperienceMaxLevel
-Component_SkillGem.ExperiencePrevLevel
-Component_SkillGem.Level
-Component_SkillGem.QualityType
-Component_SkillGem.TotalExpGained
-Component_SkillGem.entOwner
-
 # Component_Sockets: not exercised yet
-Component_Sockets.Socket0
-Component_Sockets.Socket1
-Component_Sockets.Socket2
 Component_Sockets.Socket3
 Component_Sockets.Socket4
 Component_Sockets.Socket5
-Component_Sockets.entGem0
-Component_Sockets.entGem1
 Component_Sockets.entGem2
 Component_Sockets.entGem3
 Component_Sockets.entGem4
@@ -268,11 +241,10 @@ Component_Usable.ptrToUnknown
 # Component_WorldItem: not exercised yet
 Component_WorldItem.entOwner
 
-# CostTypeEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+# CostTypeEntry: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 CostTypeEntry.ptrDataFile
-CostTypeEntry.ptrName
 
-# DeployedObjectsArrayEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+# DeployedObjectsArrayEntry: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 DeployedObjectsArrayEntry.EntityId
 DeployedObjectsArrayEntry.SkillId
 DeployedObjectsArrayEntry.intUnknown
@@ -284,28 +256,11 @@ Element.unkArrayHandle
 # Element_EntityLabel: element fields no UI check reads yet (scroll, hover label, label details); the label list itself is covered
 Element_EntityLabel.textHandle
 
-# Element_Inventory: inventory item elements (hover, grid position, sprite): need the panel open with items in it (next)
-Element_Inventory.CursorInInventory
-Element_Inventory.HoverItem
-Element_Inventory.ItemCount
+# Element_Inventory: inventory fields that need an item on the cursor (MoveItemHoverState), or more items than a new character has
 Element_Inventory.MoveItemHoverState
-Element_Inventory.Size
-Element_Inventory.XFake
-Element_Inventory.XReal
-Element_Inventory.YFake
-Element_Inventory.YReal
-
-# Element_InventoryItem: inventory item elements (hover, grid position, sprite): need the panel open with items in it (next)
-Element_InventoryItem.Height
-Element_InventoryItem.InventPosition
-Element_InventoryItem.Width
-Element_InventoryItem.spriteDetails
 
 # Element_ItemsOnGroundLabelRoot: element fields no UI check reads yet (scroll, hover label, label details); the label list itself is covered
 Element_ItemsOnGroundLabelRoot.hoverLabel
-
-# Element_PassiveNode: the passive tree nodes: need the open tree walked (next); AllocatedPassives is covered
-Element_PassiveNode.ptrNodeData
 
 # Entity: unknown, padding or unused fields of structs that are otherwise covered (see each)
 Entity.SeedMaybe
@@ -313,53 +268,67 @@ Entity.SeedMaybe
 # EssenceTypeEntry: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
 EssenceTypeEntry.ptrType
 
-# FileRoot_Ref: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+# FileRoot_Ref: dat files and the file root: FileRoot never resolves (decided not to test it); the records reached from items are covered by B.ItemMods
 FileRoot_Ref.ptrToFileRootPtr
 
-# File_InfoBlock: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+# File_InfoBlock: dat files and the file root: FileRoot never resolves (decided not to test it); the records reached from items are covered by B.ItemMods
 File_InfoBlock.AreaCount
 File_InfoBlock.Capacity
 File_InfoBlock.Count
-File_InfoBlock.Records
-File_InfoBlock.strName
-File_InfoBlock.vtable
 
-# File_ModTypeDat_Entry: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
-File_ModTypeDat_Entry.Hash
+# File_ModTypeDat_Entry: dat files and the file root: FileRoot never resolves (decided not to test it); the records reached from items are covered by B.ItemMods
 File_ModTypeDat_Entry.Padding
-File_ModTypeDat_Entry.SellPrice
-File_ModTypeDat_Entry.strName
 
-# File_ModsDat_TagArray_Entry: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+# File_ModsDat_Entry: Mods.dat record fields that a single-stat implicit mod does not use (further stats, tag chances, essence, display name, domain, group): need an item with explicit mods (next)
+File_ModsDat_Entry.Domain
+File_ModsDat_Entry.Group
+File_ModsDat_Entry.Hash
+File_ModsDat_Entry.IsEssence
+File_ModsDat_Entry.MainTag
+File_ModsDat_Entry.Padding
+File_ModsDat_Entry.Stat1Entry
+File_ModsDat_Entry.Stat1File
+File_ModsDat_Entry.Stat1Max
+File_ModsDat_Entry.Stat1Min
+File_ModsDat_Entry.Stat2Entry
+File_ModsDat_Entry.Stat2File
+File_ModsDat_Entry.Stat2Max
+File_ModsDat_Entry.Stat2Min
+File_ModsDat_Entry.Stat3Entry
+File_ModsDat_Entry.Stat3File
+File_ModsDat_Entry.Stat3Max
+File_ModsDat_Entry.Stat3Min
+File_ModsDat_Entry.TagArray
+File_ModsDat_Entry.TagChanceArray
+File_ModsDat_Entry.TagChanceCount
+File_ModsDat_Entry.UnkTagsArray
+File_ModsDat_Entry.UnkTagsCount
+File_ModsDat_Entry.displayName
+
+# File_ModsDat_TagArray_Entry: dat files and the file root: FileRoot never resolves (decided not to test it); the records reached from items are covered by B.ItemMods
 File_ModsDat_TagArray_Entry.ptrEntry
 File_ModsDat_TagArray_Entry.ptrFileBase
 
-# File_RecordSet: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
-File_RecordSet.recordCount
-File_RecordSet.recordsArray
-
-# File_RootHeader: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+# File_RootHeader: dat files and the file root: FileRoot never resolves (decided not to test it); the records reached from items are covered by B.ItemMods
 File_RootHeader.Capacity
 File_RootHeader.Count
 File_RootHeader.ptrFileNode
 File_RootHeader.unk0x00
 File_RootHeader.unk0x18
 
-# File_RootNode: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+# File_RootNode: dat files and the file root: FileRoot never resolves (decided not to test it); the records reached from items are covered by B.ItemMods
 File_RootNode.ptrFileInfo
 File_RootNode.unk0x00
 File_RootNode.unk0x10
 
-# File_StatsDat_Entry: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+# File_StatsDat_Entry: dat files and the file root: FileRoot never resolves (decided not to test it); the records reached from items are covered by B.ItemMods
 File_StatsDat_Entry.Flag0
-File_StatsDat_Entry.IsLocal
 File_StatsDat_Entry.IsWeaponLocal
 File_StatsDat_Entry.Padding
 File_StatsDat_Entry.Type
 File_StatsDat_Entry.longName
-File_StatsDat_Entry.strName
 
-# File_TagsDat_Entry: dat files and the file root: FileRoot never resolves (decided not to test it), and Stats.dat / Mods.dat are back-filled from items
+# File_TagsDat_Entry: dat files and the file root: FileRoot never resolves (decided not to test it); the records reached from items are covered by B.ItemMods
 File_TagsDat_Entry.Hash
 File_TagsDat_Entry.displayName
 File_TagsDat_Entry.strName
@@ -367,13 +336,7 @@ File_TagsDat_Entry.strName
 # GameStateArrayEntryHandle: unknown, padding or unused fields of structs that are otherwise covered (see each)
 GameStateArrayEntryHandle.Unknown1
 
-# GemEffects: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
-GemEffects.Cooldown
-GemEffects.CostTypesCount
-GemEffects.CostValuesCount
-GemEffects.EffectivenessOfAddedDamage
-GemEffects.Level
-GemEffects.RequiredLevel
+# GemEffects: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 GemEffects.StatsCount
 GemEffects.StatsValue0
 GemEffects.StatsValue1
@@ -385,9 +348,6 @@ GemEffects.StatsValue6
 GemEffects.VaalNumberOfUses
 GemEffects.VaalSoulGainPreventionMS
 GemEffects.VaalSoulsPerUse
-GemEffects.ptrCostTypes
-GemEffects.ptrCostValues
-GemEffects.ptrSkillGem
 
 # InGameState_Data: unknown, padding or unused fields of structs that are otherwise covered (see each)
 InGameState_Data.MapStats
@@ -395,15 +355,13 @@ InGameState_Data.MapStats
 # IncubatorEntry: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
 IncubatorEntry.strName
 
-# InventoryVisual: inventory item elements (hover, grid position, sprite): need the panel open with items in it (next)
+# InventoryVisual: inventory fields that need an item on the cursor (MoveItemHoverState), or more items than a new character has
 InventoryVisual.ptrModel
 InventoryVisual.ptrName
 InventoryVisual.ptrTexture
 
 # ItemStatEntry: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
-ItemStatEntry.Padding
-ItemStatEntry.Pointer0
-ItemStatEntry.Pointer1
+ItemStatEntry.unk20
 
 # ItemsOnGroundLabelEntry: element fields no UI check reads yet (scroll, hover label, label details); the label list itself is covered
 ItemsOnGroundLabelEntry.prevEntry
@@ -416,14 +374,6 @@ LoginGameState.elemRoot
 
 # MapDetails: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
 MapDetails.ptrArea
-
-# ModStats: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
-ModStats.CraftedStatsArray
-ModStats.EnchantedStatsArray
-ModStats.ExplicitStatsArray
-ModStats.FracturedStatsArray
-ModStats.ImplicitStatsArray
-ModStats.ScourgeStatsArray
 
 # MonsterData: unknown, padding or unused fields of structs that are otherwise covered (see each)
 MonsterData.intUnknown
@@ -442,56 +392,23 @@ ObjectMagicProperties_ModEntry.ptrAt10
 ObjectMagicProperties_ModEntry.ptrAt18
 ObjectMagicProperties_ModEntry.ptrAt28
 
-# PassiveNodeData: the passive tree nodes: need the open tree walked (next); AllocatedPassives is covered
-PassiveNodeData.Orbit
-PassiveNodeData.OrbitIndex
-PassiveNodeData.ptrPassiveSkill
-
-# PassiveSkillRow: the passive tree nodes: need the open tree walked (next); AllocatedPassives is covered
-PassiveSkillRow.Id
-
 # PreGameState: states and screens that are not the one being played (login, character select); AreaGameState.elemRoot is the loading screen root
 PreGameState.elemRoot
 
-# SkillGem: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+# SkillGem: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 SkillGem.Padding0
 SkillGem.Padding1
 SkillGem.Padding2
 SkillGem.UnknownPtr
 SkillGem.UnknownPtr3
-SkillGem.ptrActiveSkill
 
-# SkillGemDetails: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
-SkillGemDetails.LimitLevel
-SkillGemDetails.MaxLevel
-SkillGemDetails.SocketColor
-SkillGemDetails.entOwner
-
-# SkillNames: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
-SkillNames.Description
-SkillNames.DisplayName
-SkillNames.IconName
-SkillNames.InternalName
-SkillNames.SkillName
-
-# SkillTagDesc: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
-SkillTagDesc.DisplayName
-SkillTagDesc.InternalName
+# SkillTagDesc: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 SkillTagDesc.ptrDataFile
 
-# SkillTagEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+# SkillTagEntry: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 SkillTagEntry.ptrDataFile
-SkillTagEntry.ptrSkillTagDesc
 
-# SpriteDetails: inventory item elements (hover, grid position, sprite): need the panel open with items in it (next)
-SpriteDetails.Height
-SpriteDetails.Width
-SpriteDetails.strSpriteFile
-SpriteDetails.strSpriteFileAgain
-SpriteDetails.strSpriteFileLong
-SpriteDetails.unkFlags
-
-# StatsArrayEntry: skill and gem details: a new character has Default Attack only; needs a character with gems, minions and vaal skills (next)
+# StatsArrayEntry: skill details the starting Fireball does not have: skill states (only a skill with a cooldown or charges has one), vaal souls, deployed minions and totems, the gem effect stat values: need those skills
 StatsArrayEntry.Padding
 StatsArrayEntry.ptrDataFile
 

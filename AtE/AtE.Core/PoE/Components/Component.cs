@@ -825,7 +825,8 @@ namespace AtE {
 
 	public class SkillGem : Component<Offsets.Component_SkillGem> {
 		public Cached<Offsets.SkillGemDetails> Details;
-		public SkillGem() : base() => Details = CachedStruct<Offsets.SkillGemDetails>(() => Address);
+		// 3.29.3: the details are behind the component's Details pointer (read from there, MaxLevel and SocketColor were zero)
+		public SkillGem() : base() => Details = CachedStruct<Offsets.SkillGemDetails>(() => Cache.Details);
 
 		public uint XP => Cache.TotalExpGained;
 		public uint Level => Cache.Level;

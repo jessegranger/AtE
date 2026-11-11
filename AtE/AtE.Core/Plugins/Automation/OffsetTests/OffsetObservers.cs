@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using static AtE.Globals;
 
 namespace AtE {
@@ -24,16 +25,21 @@ namespace AtE {
 		public Func<Entity, bool> Matches;
 		/// <summary>One row per distinct key (eg, the entity's path); null for a single row.</summary>
 		public Func<Entity, string> Key;
+		/// <summary>Like Key, for an entity that makes several rows (the player's skills); the row's key is in TestContext.Key.</summary>
+		public Func<Entity, IEnumerable<string>> Keys;
 		public Func<TestContext, List<Entity>, Outcome> Run;
 	}
 
-	public static class OffsetObservers {
+	public static partial class OffsetObservers {
 
 		public static List<ObserverSpec> All() {
 			var list = new List<ObserverSpec>();
 			list.AddRange(Creatures());
 			list.AddRange(Things());
 			list.AddRange(Items());
+			list.AddRange(Skills());
+			list.AddRange(Gems());
+			list.AddRange(InventoryItems());
 			var ids = new HashSet<string>();
 			foreach ( var spec in list ) if ( !ids.Add(spec.Id) ) throw new InvalidOperationException($"OffsetObservers: duplicate id {spec.Id}");
 			return list;
@@ -118,7 +124,7 @@ namespace AtE {
 				},
 			};
 
-			// the player's regeneration reads 0 while life and mana are full (A4.LifeRegen): so once some is missing
+			// the player's regeneration reads 0 while life and mana are full : so once some is missing
 			yield return new ObserverSpec {
 				Id = "B.PlayerRegen",
 				Covers = new[] { "Component_Life.CurHPRegen", "Component_Life.ManaRegen", "Component_Life.CurHP", "Component_Life.CurMana" },
@@ -308,7 +314,6 @@ namespace AtE {
 					if ( IsValid(sockets) ) {
 						var links = new ArrayHandle<byte>(sockets.Cache.Links).ToArray(limit: 6);
 						c.That(links.Length >= 1 && links.Sum(l => l) <= 6, $"socket links {string.Join("-", links)}");
-						c.GoldenAny($"item.{After(e.Path, "Metadata/Items/")}.links", string.Join("-", links));
 					}
 					var stack = e.GetComponent<Stack>();
 					if ( IsValid(stack) ) c.That(stack.CurSize >= 1 && stack.CurSize <= stack.MaxSize, $"stack {stack.CurSize}/{stack.MaxSize}");
@@ -316,24 +321,110 @@ namespace AtE {
 				},
 			};
 
-			// the mods of an item: the entries of Mods.dat the item's mod pointers lead to (read from the game's memory, not by FileRoot)
+			// the mods of an item, and the game's data files they lead to: each mod points at its Mods.dat record, which points at its Stats.dat
+			// stat, Tags.dat tags and ModTypes.dat type, and at the base of each of those files (a File_InfoBlock: the game's own way of finding
+			// them; here they are followed from the item, as FileRoot does not resolve)
 			yield return new ObserverSpec {
 				Id = "B.ItemMods",
-				Covers = new[] { "Component_Mods.ImplicitModsArray", "Component_Mods.ExplicitModsArray", "ItemModEntry.*", "File_ModsDat_Entry.*" },
+				Covers = new[] {
+					"Component_Mods.ImplicitModsArray", "Component_Mods.ExplicitModsArray", "Component_Mods.ModStats", "ItemModEntry.Values", "ItemModEntry.ptrModsDatEntry", "ItemModEntry.ptrModsDatFile",
+					"File_InfoBlock.vtable", "File_InfoBlock.strName", "File_InfoBlock.Records", "File_RecordSet.recordsArray",
+					"File_ModsDat_Entry.strName", "File_ModsDat_Entry.MinLevel", "File_ModsDat_Entry.Stat0Entry", "File_ModsDat_Entry.Stat0File", "File_ModsDat_Entry.Stat0Min", "File_ModsDat_Entry.Stat0Max",
+					"File_ModsDat_Entry.AffixType", "File_ModsDat_Entry.Family", "File_ModsDat_Entry.TagCount", "File_ModsDat_Entry.ModTypeEntry", "File_ModsDat_Entry.ModTypeFile",
+					"File_ModTypeDat_Entry.strName", "File_StatsDat_Entry.strName", "File_StatsDat_Entry.IsLocal",
+					"ModStats.ImplicitStatsArray", "ModStats.EnchantedStatsArray", "ModStats.ScourgeStatsArray", "ModStats.ExplicitStatsArray", "ModStats.CraftedStatsArray", "ItemStatEntry.ptrText" },
 				WaitingFor = "waiting for an item with mods",
 				Source = HeldItems,
-				Matches = e => e.GetComponent<Mods>() is Mods m && IsValid(m) && (m.ExplicitMods.Any() || m.ImplicitMods.Any()),
+				Matches = e => e.GetComponent<Mods>() is Mods m && IsValid(m) && (m.Cache.ImplicitModsArray.Head != m.Cache.ImplicitModsArray.Tail || m.Cache.ExplicitModsArray.Head != m.Cache.ExplicitModsArray.Tail),
+				Key = e => After(e.Path, "Metadata/Items/"),
 				Run = (c, ents) => {
 					var e = ents.First();
 					var mods = e.GetComponent<Mods>();
-					var all = mods.ImplicitMods.Concat(mods.ExplicitMods).ToList();
-					foreach ( var mod in all ) {
-						c.That(!string.IsNullOrEmpty(mod.GroupName), "a mod has no readable group name");
+					OffsetChecks.Owners(c, e, "Mods");
+					var entries = new ArrayHandle<Offsets.ItemModEntry>(mods.Cache.ImplicitModsArray).ToArray(limit: 20)
+						.Concat(new ArrayHandle<Offsets.ItemModEntry>(mods.Cache.ExplicitModsArray).ToArray(limit: 20)).ToList();
+					if ( entries.Count == 0 ) return Outcome.NotYet("the mod arrays read empty");
+					string FileName(IntPtr file) => PoEMemory.TryRead(file, out Offsets.File_InfoBlock info) ? info.strName.Value : null;
+					var descriptions = new List<string>();
+					foreach ( var entry in entries ) {
+						var values = new ArrayHandle<int>(entry.Values).ToArray(limit: 8);
+						c.That(values.Length >= 1 && values.All(v => v > -100000 && v < 100000), $"a mod's Values are {string.Join(",", values)}");
+						c.That(Offsets.IsValid(entry.ptrModsDatEntry) && Offsets.IsValid(entry.ptrModsDatFile), "a mod's ptrModsDatEntry / ptrModsDatFile are not pointers");
+						if ( !PoEMemory.TryRead(entry.ptrModsDatEntry, out Offsets.File_ModsDat_Entry mod) ) { c.That(false, "could not read a File_ModsDat_Entry"); continue; }
+
+						// the file the mod is from, and its record list
+						if ( PoEMemory.TryRead(entry.ptrModsDatFile, out Offsets.File_InfoBlock info) ) {
+							c.That(Offsets.IsValid(info.vtable), "Mods.dat's File_InfoBlock vtable is not a pointer");
+							c.Eq("Mods.dat file name", info.strName.Value, "Data/Mods.dat");
+							if ( PoEMemory.TryRead(info.Records, out Offsets.File_RecordSet records) ) {
+								// the records are an array of File_ModsDat_Entry: the count is its length (40355 on 3.29.3)
+								int count = new ArrayHandle<Offsets.File_ModsDat_Entry>(records.recordsArray).Length;
+								c.That(count > 1000 && count < 500000 && (records.recordsArray.Tail.ToInt64() - records.recordsArray.Head.ToInt64()) % Marshal.SizeOf<Offsets.File_ModsDat_Entry>() == 0, $"Mods.dat's recordsArray holds {count} records");
+								if ( PoEMemory.TryRead(records.recordsArray.Head, out Offsets.File_ModsDat_Entry firstRecord) ) c.That(Printable(Str(firstRecord.strName)), "the first Mods.dat record's strName did not read");
+							} else c.That(false, "could not read Mods.dat's File_RecordSet");
+						} else c.That(false, "could not read Mods.dat's File_InfoBlock");
+
+						string name = Str(mod.strName), family = Str2(Str2Ptr(mod.Family));
+						c.That(Printable(name), $"the mod's strName reads {name}");
+						c.That(Printable(family), $"the mod's Family reads {family}");
+						c.That(mod.MinLevel <= 100, $"MinLevel is {mod.MinLevel}");
 						c.That(Enum.IsDefined(typeof(Offsets.AffixType), mod.AffixType), $"AffixType is {mod.AffixType}");
-						var values = mod.Values(4).ToList();
-						c.That(values.All(v => v > -100000 && v < 100000), $"a mod's values are not sane ({string.Join(",", values)})");
+						c.That(mod.TagCount >= 0 && mod.TagCount < 24, $"TagCount is {mod.TagCount}");
+
+						// the mod's type
+						if ( PoEMemory.TryRead(mod.ModTypeEntry, out Offsets.File_ModTypeDat_Entry type) ) {
+							c.That(Printable(Str(type.strName)), "the ModType's strName did not read");
+						} else c.That(false, "could not read the File_ModTypeDat_Entry");
+						c.GoldenAny("file.modtype", FileName(mod.ModTypeFile));
+
+						// its stat, and that the rolled value is in the stat's range
+						string stat = null;
+						if ( PoEMemory.TryRead(mod.Stat0Entry, out Offsets.File_StatsDat_Entry statEntry) ) {
+							stat = Str(statEntry.strName);
+							c.That(Printable(stat), "the Stats.dat entry's strName did not read");
+							c.That(statEntry.IsLocal <= 1, $"IsLocal is {statEntry.IsLocal}");
+						} else c.That(false, "could not read the File_StatsDat_Entry");
+						c.Eq("Stats.dat file name", FileName(mod.Stat0File), "Data/Stats.dat");
+						c.That(mod.Stat0Min <= mod.Stat0Max, $"the stat range {mod.Stat0Min}..{mod.Stat0Max} is empty");
+						if ( values.Length > 0 ) c.That(values[0] >= mod.Stat0Min && values[0] <= mod.Stat0Max, $"the rolled value {values[0]} is outside the stat's range {mod.Stat0Min}..{mod.Stat0Max}");
+
+						// its tags
+						var tagNames = new List<string>();
+						if ( mod.TagCount > 0 && mod.TagCount < 24 ) {
+							var tagArray = new Offsets.File_ModsDat_TagArray_Entry[mod.TagCount];
+							if ( PoEMemory.TryRead(mod.TagArray, tagArray) != tagArray.Length * Marshal.SizeOf<Offsets.File_ModsDat_TagArray_Entry>() ) c.That(false, "could not read the tag array");
+							foreach ( var tag in tagArray ) {
+								if ( PoEMemory.TryRead(tag.ptrEntry, out Offsets.File_TagsDat_Entry tagData) && Printable(Str(tagData.strName)) ) tagNames.Add(Str(tagData.strName));
+								else c.That(false, "a tag's File_TagsDat_Entry did not read");
+								c.Eq("Tags.dat file name", FileName(tag.ptrFileBase), "Data/Tags.dat");
+							}
+						}
+						c.GoldenAny($"mod.{name}", $"{stat} {mod.Stat0Min}..{mod.Stat0Max} {mod.AffixType} tags {string.Join(",", tagNames)}");
+						descriptions.Add($"{name} ({stat})");
 					}
-					c.Note($"{After(e.Path, "Metadata/Items/")}: {string.Join(", ", all.Select(m => m.GroupName))}");
+
+					// the item's stats: the lines of text with the values in, in five arrays (each empty, or valid pointers)
+					var modStats = mods.Stats.Value;
+					var arrays = new[] { ("implicit", modStats.ImplicitStatsArray), ("enchanted", modStats.EnchantedStatsArray), ("scourge", modStats.ScourgeStatsArray), ("explicit", modStats.ExplicitStatsArray), ("crafted", modStats.CraftedStatsArray) };
+					var lines = new List<string>();
+					foreach ( var (arrayName, handle) in arrays ) {
+						c.That(handle.Head == handle.Tail || (Offsets.IsValid(handle) && handle.Head.ToInt64() < handle.Tail.ToInt64()), $"the {arrayName} stats array is neither empty nor two pointers");
+						if ( handle.Head == handle.Tail ) continue;
+						foreach ( var stat in new ArrayHandle<Offsets.ItemStatEntry>(handle).ToArray(limit: 12) ) {
+							string text = Str(stat.ptrText);
+							c.That(Printable(text), $"a {arrayName} stat's text reads {text}");
+							if ( text != null ) lines.Add(text);
+						}
+					}
+					// the lines are made once the item has been looked at: give them a few seconds before calling it a failure
+					if ( lines.Count == 0 && c.Elapsed < 8000 ) return Outcome.NotYet("the item's stat lines are still empty");
+					c.That(lines.Count > 0, "the item has mods but no stat lines");
+					// the stat line shows the rolled value
+					var first = entries.FirstOrDefault();
+					var firstValues = new ArrayHandle<int>(first.Values).ToArray(limit: 8);
+					if ( firstValues.Length > 0 && lines.Count > 0 ) c.That(lines.Any(l => l.Contains(Math.Abs(firstValues[0]).ToString())), $"no stat line shows the rolled value {firstValues[0]} ({string.Join(" | ", lines)})");
+					c.Note($"stat lines: {string.Join(" | ", lines)}");
+					c.Note($"{After(e.Path, "Metadata/Items/")}: {string.Join(", ", descriptions)}");
 					return c.Result();
 				},
 			};

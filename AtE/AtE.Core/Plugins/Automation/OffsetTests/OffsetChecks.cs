@@ -353,16 +353,6 @@ namespace AtE {
 				return c.Result();
 			}, new[] { "A3.PlayerEntity" });
 
-			// regeneration reads 0 while the pool is full: only meaningful once some life or mana is missing
-			yield return Check("A4.LifeRegen", new[] { "Component_Life.CurHPRegen", "Component_Life.ManaRegen" }, c => {
-				var l = c.Player.GetComponent<Life>()?.Cache ?? default;
-				if ( l.MaxHP > 0 && l.CurHP >= l.MaxHP && l.CurMana >= l.MaxMana ) return Outcome.NotYet("life and mana are full: regeneration reads 0");
-				if ( l.CurHP < l.MaxHP ) c.That(l.CurHPRegen > 0 && l.CurHPRegen < 1000, $"CurHPRegen is {l.CurHPRegen} with life missing");
-				if ( l.CurMana < l.MaxMana ) c.That(l.ManaRegen > 0 && l.ManaRegen < 1000, $"ManaRegen is {l.ManaRegen} with mana missing");
-				c.Note($"CurHPRegen={l.CurHPRegen} ManaRegen={l.ManaRegen}");
-				return c.Result();
-			}, new[] { "A4.Life" }, timeoutMs: 1000, optionalTarget: true);
-
 			yield return Check("A4.Positioned", new[] { "Component_Positioned.Reaction", "Component_Positioned.GridPos", "Component_Positioned.Rotation", "Component_Positioned.Scale", "Component_Positioned.Size", "Component_Positioned.WorldPos", "Vector2i.*" }, c => {
 				var pos = c.Player.GetComponent<Positioned>();
 				if ( !IsValid(pos) ) return Outcome.Fail("no Positioned component");

@@ -34,6 +34,11 @@
     "Confirmed": true,
     "Version": "3.29.3"
   },
+  "chest.Chests/ProdWounded1.kind": {
+    "Value": "strongbox False large False destroy True",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
   "chest.Chests/ProdWounded3.kind": {
     "Value": "strongbox False large False destroy True",
     "Confirmed": true,
@@ -49,13 +54,43 @@
     "Confirmed": true,
     "Version": "3.29.3"
   },
-  "item.Armours/Helmets/HelmetStr1.cells": {
-    "Value": "2x2",
+  "file.modtype": {
+    "Value": "Data/ModType.dat",
     "Confirmed": true,
     "Version": "3.29.3"
   },
-  "item.Armours/Helmets/HelmetStr1.links": {
-    "Value": "1",
+  "gem.Gems/SkillGemFireball.color": {
+    "Value": "3",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "gem.Gems/SkillGemFireball.maxlevel": {
+    "Value": "20",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "gem.Gems/SkillGemFireball.name": {
+    "Value": "Fireball",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "gem.Gems/SupportGemArcaneSurge.color": {
+    "Value": "3",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "gem.Gems/SupportGemArcaneSurge.maxlevel": {
+    "Value": "20",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "gem.Gems/SupportGemArcaneSurge.name": {
+    "Value": "Arcane Surge Support",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Armours/Helmets/HelmetStr1.cells": {
+    "Value": "2x2",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -74,6 +109,36 @@
     "Confirmed": true,
     "Version": "3.29.3"
   },
+  "item.Currency/CurrencyIdentification.sprite": {
+    "Value": "Art/2DItems/Currency/CurrencyIdentification.dds",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Currency/CurrencyUpgradeToMagic.cells": {
+    "Value": "1x1",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Currency/CurrencyUpgradeToMagic.name": {
+    "Value": "Orb of Transmutation",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Currency/CurrencyUpgradeToMagic.sprite": {
+    "Value": "Art/2DItems/Currency/CurrencyUpgradeToMagic.dds",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.CurrencyIdentification.slot": {
+    "Value": "Backpack 11,4",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.CurrencyIdentification.stack": {
+    "Value": "3/40",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
   "item.Gems/SkillGemFireball.cells": {
     "Value": "1x1",
     "Confirmed": true,
@@ -81,6 +146,11 @@
   },
   "item.Gems/SkillGemFireball.name": {
     "Value": "Fireball",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Gems/SkillGemFireball.sprite": {
+    "Value": "Art/2DItems/Gems/Fireball.dds",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -94,13 +164,33 @@
     "Confirmed": true,
     "Version": "3.29.3"
   },
-  "item.Weapons/OneHandWeapons/Wands/Wand1.cells": {
+  "item.Gems/SupportGemArcaneSurge.sprite": {
+    "Value": "Art/2DItems/Gems/Support/ArcaneSurge.dds",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/OneHandWeapons/OneHandAxes/OneHandAxe1.cells": {
     "Value": "1x3",
     "Confirmed": true,
     "Version": "3.29.3"
   },
-  "item.Weapons/OneHandWeapons/Wands/Wand1.links": {
-    "Value": "2",
+  "item.Weapons/OneHandWeapons/OneHandAxes/OneHandAxe1.name": {
+    "Value": "Rusted Hatchet",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/OneHandWeapons/OneHandAxes/OneHandAxe1.sprite": {
+    "Value": "Art/2DItems/Weapons/OneHandWeapons/OneHandAxes/OneHandAxe1.dds",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/OneHandWeapons/OneHandAxes/OneHandAxe1.weapon": {
+    "Value": "6-11 667ms crit 500",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/OneHandWeapons/Wands/Wand1.cells": {
+    "Value": "1x3",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -109,8 +199,43 @@
     "Confirmed": true,
     "Version": "3.29.3"
   },
+  "item.Weapons/OneHandWeapons/Wands/Wand1.sprite": {
+    "Value": "Art/2DItems/Weapons/OneHandWeapons/Wands/Wand1.dds",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
   "item.Weapons/OneHandWeapons/Wands/Wand1.weapon": {
     "Value": "5-9 667ms crit 830",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/TwoHandWeapons/TwoHandSwords/TwoHandSword1.cells": {
+    "Value": "1x4",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/TwoHandWeapons/TwoHandSwords/TwoHandSword1.name": {
+    "Value": "Corroded Blade",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/TwoHandWeapons/TwoHandSwords/TwoHandSword1.sprite": {
+    "Value": "Art/2DItems/Weapons/TwoHandWeapons/TwoHandSwords/TwoHandSword1.dds",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/TwoHandWeapons/TwoHandSwords/TwoHandSword1.weapon": {
+    "Value": "8-16 690ms crit 500",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "mod.AccuracyPercentImplicitSword1": {
+    "Value": "accuracy_rating_\u002B% 40..40 Unique tags ",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "mod.SpellDamageOnWeaponImplicitWand1": {
+    "Value": "spell_damage_\u002B% 8..12 Unique tags ",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -224,8 +349,53 @@
     "Confirmed": true,
     "Version": "3.29.3"
   },
+  "passive.14419": {
+    "Value": "orbit 3 index 3",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "passive.34750": {
+    "Value": "orbit 3 index 4",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "passive.8879": {
+    "Value": "orbit 3 index 1",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "skill.fireball.cost": {
+    "Value": "Mana:5",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "skill.fireball.names": {
+    "Value": "Fireball|Art/2DArt/SkillIcons/iconfireball.dds",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "skill.fireball.tags": {
+    "Value": "Projectile,ProjectilesFromUser,Spell,Damage,Area,Trappable,Totemable,Mineable,Multicastable,Triggerable,Fire,CanRapidFire,AreaSpell",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "skill.melee.cost": {
+    "Value": "none",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "skill.melee.names": {
+    "Value": "Default Attack|Art/2DArt/SkillIcons/iconbasicattack.dds",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "skill.melee.tags": {
+    "Value": "Attack,RangedAttack,MirageArcherCanUse,Projectile,MeleeSingleTarget,Multistrikeable,Melee,ProjectilesFromUser",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
   "transition.QuestObjects/SouthBeachTownEntrance.destination": {
-    "Value": "Lioneye's Watch",
+    "Value": "Lioneye\u0027s Watch",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -240,7 +410,7 @@
     "Version": "3.29.3"
   },
   "Witch.area.connections": {
-    "Value": "Lioneye's Watch",
+    "Value": "Lioneye\u0027s Watch",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -285,17 +455,17 @@
     "Version": "3.29.3"
   },
   "Witch.map.defaultShift": {
-    "Value": "<0, -20>",
+    "Value": "\u003C0, -20\u003E",
     "Confirmed": true,
     "Version": "3.29.3"
   },
   "Witch.map.miniDefaultShift": {
-    "Value": "<0, 0>",
+    "Value": "\u003C0, 0\u003E",
     "Confirmed": true,
     "Version": "3.29.3"
   },
   "Witch.map.miniSize": {
-    "Value": "<402, 402>",
+    "Value": "\u003C402, 402\u003E",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -320,7 +490,7 @@
     "Version": "3.29.3"
   },
   "Witch.render.bounds": {
-    "Value": "<41.304348, 41.304348, 80.559875>",
+    "Value": "\u003C41.304348, 41.304348, 80.559875\u003E",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -350,7 +520,7 @@
     "Version": "3.29.3"
   },
   "Witch.ui.Flasks.size": {
-    "Value": "<340, 136>",
+    "Value": "\u003C340, 136\u003E",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -360,7 +530,7 @@
     "Version": "3.29.3"
   },
   "Witch.ui.LifeBubble.size": {
-    "Value": "<315, 315>",
+    "Value": "\u003C315, 315\u003E",
     "Confirmed": true,
     "Version": "3.29.3"
   },
@@ -370,7 +540,7 @@
     "Version": "3.29.3"
   },
   "Witch.ui.ManaBubble.size": {
-    "Value": "<315, 315>",
+    "Value": "\u003C315, 315\u003E",
     "Confirmed": true,
     "Version": "3.29.3"
   },

@@ -173,9 +173,11 @@ namespace AtE {
 				case "/skillbar":
 					return RunOnMain(SkillBarText);
 				case "/offsets/run":
-					return RunOnMain(() => { var t = OffsetTests(); t.Start(q["only"]); return "started\n" + t.Summary() + "\n"; });
+					return RunOnMain(() => { var t = OffsetTests(); t.Start(q["only"], q["observers"] == "1"); return "started\n" + t.Summary() + "\n"; });
 				case "/offsets/stop":
 					return RunOnMain(() => { OffsetTests().Stop(); return "stopped\n"; });
+				case "/offsets/observe": // the observers only, on the character as it is (no checks, no routine)
+					return RunOnMain(() => { var t = OffsetTests(); t.Start("-", true); return "observing\n" + t.Summary() + "\n"; });
 				case "/offsets/routine":
 					return RunOnMain(() => q["cmd"] == "start" ? OffsetTests().ResumeRoutine() : q["cmd"] == "stop" ? OffsetTests().HoldRoutine("stopped by request") : "error: cmd=start or cmd=stop\n");
 				case "/offsets/coverage":
@@ -229,7 +231,7 @@ namespace AtE {
 		private const string Help =
 @"MemoryServer (read-only, loopback only)
   /status
-  /offsets/run[?only=A6,A4.Life] | /offsets/stop | /offsets/report     the Offsets tests (Automation > Offset Tests): start, stop, the results with details
+  /offsets/run[?only=A6,A4.Life[&observers=1]] | /offsets/observe (observers only, no checks) | /offsets/stop | /offsets/report     the Offsets tests (Automation > Offset Tests): start, stop, the results with details
   /offsets/routine?cmd=start|stop                    start or stop just the class routine testing mode runs after its checks (it is held when Hillock dies)
   /offsets/coverage[?format=unchecked]               which Offsets the checks cover (the ratchet against unchecked.txt); format=unchecked lists the gaps as an unchecked.txt
   /offsets/queue?ids=failed|clear|A2.Terrain,A4      queue checks for fixing (shown on screen as FIX)

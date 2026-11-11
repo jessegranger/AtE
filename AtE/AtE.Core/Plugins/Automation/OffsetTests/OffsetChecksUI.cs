@@ -275,6 +275,13 @@ namespace AtE {
 			/// <summary>After the key: null if all is as it should be, else what is wrong.</summary>
 			public Func<TestContext, string> Verify;
 			public Action<TestContext> OnOpen;
+			/// <summary>
+			/// Looked at while it is open, before the second key closes it: called each frame until it passes or fails (NotYet: not ready, ask again,
+			/// for up to HoldMs). It uses its own context, so it returns that context's Result when it is done.
+			/// </summary>
+			public Func<TestContext, Outcome> While;
+			public int HoldMs = 8000;
+			public int TimeoutMs = 6000;
 		}
 
 		private static OffsetCheck KeyToggle(Toggle t) {
@@ -292,11 +299,27 @@ namespace AtE {
 						var changed = shownNow.Except(shownBefore).Select(n => "+" + n).Concat(shownBefore.Except(shownNow).Select(n => "-" + n));
 						c.Scratch["failure"] = $"pressing {key} did not change {t.TargetName} ({now}); the pointers that did change: {(changed.Any() ? Joined(changed) : "none")}";
 					} else {
-						string wrong = t.Verify?.Invoke(c);
-						if ( wrong != null ) c.Scratch["failure"] = wrong;
-						var extra = shownNow.Except(shownBefore).Where(n => n != t.TargetName).ToList();
-						c.Note($"{key} toggled {t.TargetName} ({before} -> {now}){(extra.Count > 0 ? $", also showed {Joined(extra)}" : "")}");
-						t.OnOpen?.Invoke(c);
+						if ( !c.Scratch.ContainsKey("opened") ) {
+							c.Scratch["opened"] = c.Elapsed;
+							string wrong = t.Verify?.Invoke(c);
+							if ( wrong != null ) c.Scratch["failure"] = wrong;
+							var extra = shownNow.Except(shownBefore).Where(n => n != t.TargetName).ToList();
+							c.Scratch["note"] = $"{key} toggled {t.TargetName} ({before} -> {now}){(extra.Count > 0 ? $", also showed {Joined(extra)}" : "")}";
+							t.OnOpen?.Invoke(c);
+						}
+						// while it is open: whatever there is to look at in it
+						if ( t.While != null && !c.Scratch.ContainsKey("held") ) {
+							var held = t.While(c);
+							if ( held.Result == Outcome.Kind.NotYet ) {
+								if ( c.Elapsed - (long)c.Scratch["opened"] < t.HoldMs ) return Outcome.NotYet(held.Detail);
+								c.Scratch["failure"] = $"{(c.Scratch.TryGetValue("failure", out object f0) ? f0 + "; " : "")}timed out inside {t.TargetName}: {held.Detail}";
+							} else if ( held.Result == Outcome.Kind.Fail ) {
+								c.Scratch["failure"] = $"{(c.Scratch.TryGetValue("failure", out object f1) ? f1 + "; " : "")}{held.Detail}";
+							} else {
+								c.Scratch["heldNote"] = held.Detail;
+							}
+							c.Scratch["held"] = true;
+						}
 					}
 					c.Scratch["phase"] = 1;
 					c.Scratch["pressedAt"] = c.Elapsed;
@@ -308,9 +331,11 @@ namespace AtE {
 					if ( since < 2000 ) return Outcome.NotYet("waiting for the UI to be as it was");
 					c.That(false, $"after a second {key} the UI is not as it was ({Joined(shownNow.Except(shownBefore).Select(n => "+" + n).Concat(shownBefore.Except(shownNow).Select(n => "-" + n)))})");
 				}
+				if ( c.Scratch.TryGetValue("note", out object n0) ) c.Note((string)n0);
+				if ( c.Scratch.TryGetValue("heldNote", out object n1) ) c.Note((string)n1);
 				if ( c.Scratch.TryGetValue("failure", out object f) ) c.That(false, (string)f);
 				return c.Result();
-			}, new[] { "A2.InGameStatePointers" }, timeoutMs: 6000);
+			}, new[] { "A2.InGameStatePointers" }, timeoutMs: t.TimeoutMs);
 			check.Setup = () => {
 				key = ConfigKey(t.Action, t.Fallback);
 				before = t.State();
@@ -323,6 +348,40 @@ namespace AtE {
 				if ( check.Status == CheckStatus.Running && t.State() != before ) Press(key);
 			};
 			return check;
+		}
+
+		// the passive tree's nodes, while its panel is open: canvas > groups > nodes, each node an element that leads to its passive
+		private static void CollectNodes(IntPtr address, int depth, List<(int id, int orbit, int index)> nodes) {
+			if ( !PoEMemory.TryRead(address, out Offsets.Element e) || e.elemSelf != address ) return;
+			var children = new ArrayHandle<IntPtr>(e.Children);
+			if ( children.Length > 0 ) {
+				if ( depth < 2 ) foreach ( var child in children ) CollectNodes(child, depth + 1, nodes);
+			} else if ( PoEMemory.TryRead(address, out Offsets.Element_PassiveNode node) && Offsets.IsValid(node.ptrNodeData)
+				&& PoEMemory.TryRead(node.ptrNodeData, out Offsets.PassiveNodeData data) && Offsets.IsValid(data.ptrPassiveSkill)
+				&& PoEMemory.TryRead(data.ptrPassiveSkill, out Offsets.PassiveSkillRow row) && row.Id != 0 ) {
+				nodes.Add((row.Id, data.Orbit, data.OrbitIndex));
+			}
+		}
+
+		private static Outcome PassiveTreeNodes(TestContext c) {
+			var canvas = PassiveTreePanel.Canvas;
+			if ( !IsValid(canvas) ) return Outcome.NotYet("the tree has no canvas yet");
+			var nodes = new List<(int id, int orbit, int index)>();
+			foreach ( var group in new ArrayHandle<IntPtr>(canvas.Cache.Children) ) CollectNodes(group, 0, nodes);
+			if ( nodes.Count < 500 ) return Outcome.NotYet($"{nodes.Count} passive nodes read so far");
+			var distinct = nodes.Select(n => n.id).Distinct().Count();
+			c.That(distinct >= nodes.Count * 0.98, $"{nodes.Count} nodes lead to only {distinct} passive ids");
+			var odd = nodes.Where(n => n.orbit < 0 || n.orbit > 9 || n.index < 0 || n.index >= 100).ToList();
+			// a few elements of the canvas are no passive (decorations whose pointers lead elsewhere): a stale offset would break nearly all of them
+			c.That(odd.Count <= nodes.Count * 0.01, $"{odd.Count} of {nodes.Count} nodes have an orbit or orbit index that is not one, eg id {odd.FirstOrDefault().id} orbit {odd.FirstOrDefault().orbit} index {odd.FirstOrDefault().index}");
+			// the Witch's first nodes: found on a Witch (ids 8879, 14419, 34750, at orbit 3, indexes 1, 3 and 4)
+			foreach ( var id in new[] { 8879, 14419, 34750 } ) {
+				var node = nodes.FirstOrDefault(n => n.id == id);
+				c.That(node.id == id, $"the Witch's passive {id} is not among the nodes");
+				if ( node.id == id ) c.GoldenAny($"passive.{id}", $"orbit {node.orbit} index {node.index}");
+			}
+			c.Note($"{nodes.Count} passive nodes, {distinct} ids");
+			return c.Result();
 		}
 
 		private static string ElementState(string name) => IsShown(UIPointer(name)) ? "shown" : "hidden";
@@ -338,9 +397,15 @@ namespace AtE {
 			};
 			foreach ( var (name, action, fallback) in panels ) {
 				string target = name;
+				bool tree = target == "SkillTree";
 				yield return KeyToggle(new Toggle {
 					Id = $"A7.{target}", Action = action, Fallback = fallback, TargetName = target,
-					Covers = new[] { $"InGameState_UIElements.{target}", "Element.IsVisibleByte", "Element.elemParent" },
+					Covers = tree
+						? new[] { $"InGameState_UIElements.{target}", "Element.IsVisibleByte", "Element.elemParent", "Element_PassiveNode.ptrNodeData", "PassiveNodeData.ptrPassiveSkill", "PassiveNodeData.Orbit",
+							"PassiveNodeData.OrbitIndex", "PassiveSkillRow.Id" }
+						: new[] { $"InGameState_UIElements.{target}", "Element.IsVisibleByte", "Element.elemParent" },
+					While = tree ? PassiveTreeNodes : (Func<TestContext, Outcome>)null,
+					TimeoutMs = tree ? 16000 : 6000,
 					State = () => ElementState(target),
 					Verify = c => {
 						var e = UIElement(target);
@@ -443,9 +508,82 @@ namespace AtE {
 			return check;
 		}
 
+		// open the inventory and put the mouse over an item (the new character's Scrolls of Wisdom); the backpack element's hover fields are read
+		// with the offsets there are now (as notes), and its memory is written to offsettests/ with the mouse away and over the item, so the
+		// fields can be found by comparing the two
+		private static OffsetCheck InventoryHover() {
+			VKey key = VKey.None;
+			var check = Check("A8.InventoryHover", new[] { "Element_Inventory.HoverItem", "Element_Inventory.XFake", "Element_Inventory.YFake", "Element_Inventory.XReal", "Element_Inventory.YReal", "Element_Inventory.CursorInInventory" }, c => {
+				int phase = c.Scratch.TryGetValue("phase", out object p) ? (int)p : 0;
+				var panelShown = IsShown(UIPointer("InventoryPanel"));
+				var backpack = GetUI()?.InventoryPanel?.Backpack;
+				var size = WindowSize.Value;
+				if ( phase == 2 ) {
+					if ( panelShown && c.Elapsed - (long)c.Scratch["closedAt"] < 2500 ) return Outcome.NotYet("waiting for the inventory to close");
+					c.That(!panelShown, "the inventory did not close");
+					var hover = (Outcome)c.Scratch["failure"];
+					if ( hover.Result == Outcome.Kind.Fail ) c.That(false, hover.Detail);
+					if ( c.Scratch.TryGetValue("note", out object n) ) c.Note((string)n);
+					return c.Result();
+				}
+				if ( !panelShown || !IsValid(backpack) ) return c.Elapsed > 4000 ? Outcome.Fail("the inventory panel did not open") : Outcome.NotYet("waiting for the inventory to open");
+				var item = backpack.Items.FirstOrDefault(i => i.Entity?.Path?.EndsWith("CurrencyIdentification") ?? false) ?? backpack.Items.FirstOrDefault();
+				if ( item == null ) return Outcome.Fail("the backpack holds no item to put the mouse over");
+				void Dump(string name) {
+					var buffer = new byte[0x600];
+					if ( PoEMemory.TryRead(backpack.Address + 0x200, buffer) == buffer.Length ) {
+						Directory.CreateDirectory(GoldenStore.Directory);
+						File.WriteAllBytes(Path.Combine(GoldenStore.Directory, $"backpack-{name}.bin"), buffer);
+						File.WriteAllText(Path.Combine(GoldenStore.Directory, $"backpack-{name}.txt"), $"backpack 0x{backpack.Address.ToInt64():X} dumped from +0x200; the item element is 0x{item.Address.ToInt64():X} at {item.X},{item.Y}");
+					}
+				}
+				var mouse = c.Game.Cache.MousePos;
+				if ( phase == 0 ) {
+					var away = new Vector2((int)(size.X * 0.1f), (int)(size.Y * 0.5f));
+					if ( Math.Abs(mouse.X - away.X) > 2 || Math.Abs(mouse.Y - away.Y) > 2 ) { SkillBar.MouseTo(away); return Outcome.NotYet("moving the mouse away"); }
+					if ( !c.Scratch.ContainsKey("awayAt") ) { c.Scratch["awayAt"] = c.Elapsed; return Outcome.NotYet("the mouse is away"); }
+					if ( c.Elapsed - (long)c.Scratch["awayAt"] < 400 ) return Outcome.NotYet("the mouse is away");
+					Dump("away");
+					// with the mouse away from the inventory's items nothing is hovered
+					var inAway = PoEMemory.TryRead(backpack.Address, out Offsets.Element_Inventory readAway) ? readAway : default;
+					c.Scratch["awayFailure"] = inAway.HoverItem == IntPtr.Zero && inAway.CursorInInventory == 0 ? null : $"with the mouse away HoverItem is {inAway.HoverItem} and CursorInInventory {inAway.CursorInInventory}";
+					c.Scratch["phase"] = 1;
+					return Outcome.NotYet("over the item next");
+				}
+				var rect = item.GetClientRect();
+				var target = new Vector2((int)(rect.X + (rect.Width / 2)), (int)(rect.Y + (rect.Height / 2)));
+				if ( Math.Abs(mouse.X - target.X) > 2 || Math.Abs(mouse.Y - target.Y) > 2 ) { SkillBar.MouseTo(target); return Outcome.NotYet($"moving the mouse to the item at {target}"); }
+				if ( !c.Scratch.ContainsKey("overAt") ) { c.Scratch["overAt"] = c.Elapsed; return Outcome.NotYet("the mouse is over the item"); }
+				if ( c.Elapsed - (long)c.Scratch["overAt"] < 700 ) return Outcome.NotYet("the mouse is over the item");
+				Dump("over");
+				var inv = PoEMemory.TryRead(backpack.Address, out Offsets.Element_Inventory read) ? read : default;
+				if ( c.Scratch.TryGetValue("awayFailure", out object af) && af != null ) c.That(false, (string)af);
+				c.Eq("HoverItem", inv.HoverItem, item.Address);
+				c.Eq("XReal", inv.XReal, item.X);
+				c.Eq("YReal", inv.YReal, item.Y);
+				c.Eq("XFake", inv.XFake, item.X);
+				c.Eq("YFake", inv.YFake, item.Y);
+				c.Eq("CursorInInventory", (int)inv.CursorInInventory, 1);
+				c.Scratch["failure"] = c.Result();
+				c.Scratch["note"] = $"over the item at {item.X},{item.Y} ({item.Address}): HoverItem {inv.HoverItem}, MoveItemHoverState {inv.MoveItemHoverState}, Fake {inv.XFake},{inv.YFake}, Real {inv.XReal},{inv.YReal}, CursorInInventory {inv.CursorInInventory}";
+				c.Scratch["phase"] = 2;
+				c.Scratch["closedAt"] = c.Elapsed;
+				Press(key);
+				return Outcome.NotYet("closing the inventory");
+			}, new[] { "A2.InGameStatePointers" }, timeoutMs: 20000);
+			check.Setup = () => {
+				key = ConfigKey("open_inventory_panel", VKey.I);
+				Press(key);
+			};
+			check.SettleMs = 400;
+			check.Teardown = () => { if ( IsShown(UIPointer("InventoryPanel")) ) Press(key); };
+			return check;
+		}
+
 		private static IEnumerable<OffsetCheck> Pointer() {
 			yield return Hover("A8.HoverFlasks", "Flasks");
 			yield return Hover("A8.HoverSkillBar", "SkillBar", 0);
+			yield return InventoryHover();
 
 			yield return KeyToggle(new Toggle {
 				Id = "A8.EscapeMenu", Action = "", Fallback = VKey.Escape, TargetName = "EscapeState.elemMenu",

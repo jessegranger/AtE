@@ -59,7 +59,7 @@ namespace AtE {
 		/// Start testing. With only (comma separated ids, groups, or id prefixes: "A6", "A4.Life,A8"), just those checks run, with no
 		/// observers and no routine afterwards: to try some checks again without playing the beach.
 		/// </summary>
-		public void Start(string only = null) {
+		public void Start(string only = null, bool withObservers = false) {
 			var queued = LoadQueue();
 			checks = OffsetChecks.All();
 			sequenceOnly = !string.IsNullOrWhiteSpace(only);
@@ -70,10 +70,10 @@ namespace AtE {
 			foreach ( var c in checks ) {
 				if ( queued.Contains(c.Id) ) { c.Status = CheckStatus.Queued; c.Detail = "queued for a fix"; }
 			}
-			observers = sequenceOnly ? new List<ObserverSpec>() : OffsetObservers.All();
+			observers = sequenceOnly && !withObservers ? new List<ObserverSpec>() : OffsetObservers.All();
 			aliveWatched.Clear();
 			observed.Clear();
-			foreach ( var spec in observers.Where(o => o.Key == null) ) AddRow(spec, null, queued);
+			foreach ( var spec in observers.Where(o => o.Key == null && o.Keys == null) ) AddRow(spec, null, queued);
 			index = 0;
 			running = true;
 			finished = false;
@@ -182,12 +182,17 @@ namespace AtE {
 				var matched = source.Where(e => { try { return spec.Matches(e); } catch ( Exception ) { return false; } }).ToList();
 				if ( spec == observers[0] ) HoldAfterBoss(everything);
 				if ( matched.Count == 0 ) continue;
-				if ( spec.Key == null ) {
+				if ( spec.Key == null && spec.Keys == null ) {
 					Observe(observed.First(o => o.Spec == spec && o.Key == null), matched);
 				} else {
-					foreach ( var group in matched.GroupBy(e => { try { return spec.Key(e); } catch ( Exception ) { return null; } }).Where(g => g.Key != null) ) {
+					// one row per key; with Keys an entity can be in several
+					var pairs = matched.SelectMany(e => {
+						try { return spec.Keys != null ? spec.Keys(e).Select(k => (key: k, ent: e)).ToList() : new List<(string key, Entity ent)> { (spec.Key(e), e) }; }
+						catch ( Exception ) { return new List<(string key, Entity ent)>(); }
+					}).Where(p => p.key != null);
+					foreach ( var group in pairs.GroupBy(p => p.key) ) {
 						var row = observed.FirstOrDefault(o => o.Spec == spec && o.Key == group.Key) ?? AddRow(spec, group.Key, queued);
-						Observe(row, group.ToList());
+						Observe(row, group.Select(p => p.ent).ToList());
 					}
 				}
 			}
@@ -213,7 +218,7 @@ namespace AtE {
 			var check = row.Check;
 			if ( check.Status == CheckStatus.Passed || check.Status == CheckStatus.Failed ) return;
 			try {
-				var outcome = row.Spec.Run(new TestContext(check, Time.ElapsedMilliseconds - row.Since), entities);
+				var outcome = row.Spec.Run(new TestContext(check, Time.ElapsedMilliseconds - row.Since) { Key = row.Key }, entities);
 				switch ( outcome.Result ) {
 					case Outcome.Kind.Pass: check.Status = CheckStatus.Passed; check.Detail = outcome.Detail; break;
 					case Outcome.Kind.Fail: check.Status = CheckStatus.Failed; check.Detail = outcome.Detail; break;
@@ -226,7 +231,7 @@ namespace AtE {
 		}
 
 		public override IState OnTick(long dt) {
-			if ( checks.Count == 0 ) return this;
+			if ( checks.Count == 0 && observers.Count == 0 ) return this;
 			if ( ShowList && (running || finished) ) DrawList();
 			if ( (running || finished) && PoEMemory.IsAttached ) TickObservers();
 			if ( !running ) return this;

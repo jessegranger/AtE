@@ -68,6 +68,8 @@ namespace AtE {
 	public class TestContext {
 		public readonly OffsetCheck Check;
 		public readonly long Elapsed;
+		/// <summary>For an observer row made for a key (eg, one skill of several): the key.</summary>
+		public string Key;
 		private readonly List<string> failures = new List<string>();
 		private readonly List<string> notes = new List<string>();
 
