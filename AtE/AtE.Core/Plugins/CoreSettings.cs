@@ -49,9 +49,6 @@ namespace AtE {
 			ImGui.SliderInt("Input Latency", ref InputLatency, 10, 100);
 			ImGui.Text($"Keys work in the background: {Platform.Current.Input.CanSendInBackground(VKey.I)}");
 			ImGui.SameLine();
-			if ( ImGui.Button("Test (toggles inventory twice)") ) {
-				Run(new PressKey(VKey.I, 30, new Delay(500, new PressKey(VKey.I, 30))));
-			}
 			// ImGui.Text($"Overlay IsTransparent: {Overlay.RenderForm.IsTransparent}");
 			ImGui.Text($"Offsets: {Offsets.VersionMajor}.{Offsets.VersionMinor} for PoE {Offsets.PoEVersion}");
 			ImGui.AlignTextToFramePadding();

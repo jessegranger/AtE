@@ -23,6 +23,12 @@
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="Plugins\CombatRoutines\**" />
+    <EmbeddedResource Remove="Plugins\CombatRoutines\**" />
+    <None Remove="Plugins\CombatRoutines\**" />
+  </ItemGroup>
+
   <!-- The portable plugins and ImGui draw helpers call ImGui.* directly; the
        ImGui.NET managed bindings are platform-neutral. The GPU upload/present
        backend that consumes the draw data stays behind IRenderer per platform. -->
@@ -67,9 +73,6 @@
     <Content Include="Native\linux-x64\libooz.so" Link="libooz.so" Condition="Exists('Native\linux-x64\libooz.so')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Plugins\CombatRoutines\" />
   </ItemGroup>
 
 </Project>
