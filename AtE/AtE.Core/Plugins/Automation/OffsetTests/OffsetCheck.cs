@@ -105,6 +105,12 @@ namespace AtE {
 			if ( ok ) notes.Add(note); else failures.Add(note);
 		}
 
+		/// <summary>Like Golden, for things that do not depend on the character class (a monster's life, an NPC's name): the key is used as given.</summary>
+		public void GoldenAny(string key, object observed) {
+			string note = GoldenStore.Compare(key, observed?.ToString() ?? "null", out bool ok);
+			if ( ok ) notes.Add(note); else failures.Add(note);
+		}
+
 		public Outcome Result() => failures.Count > 0
 			? Outcome.Fail(string.Join("; ", failures))
 			: Outcome.Pass(string.Join(", ", notes));

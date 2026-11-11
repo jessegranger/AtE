@@ -18,7 +18,6 @@ namespace AtE {
 		public Offsets.Vector2i GridPos;
 		/// <summary>True once the AreaTransition entity has been seen.</summary>
 		public bool Seen;
-		public Offsets.AreaTransitionType TransitionType;
 		/// <summary>The .tdt the exit tiles were cut from, or null if it was only found as an entity.</summary>
 		public string TileFile;
 		/// <summary>The bounds of the transition tiles, in tile coordinates (inclusive).</summary>
@@ -147,7 +146,6 @@ namespace AtE {
 				exit.Seen = true;
 				exit.GridPos = grid;
 				exit.Destination = destination;
-				exit.TransitionType = transition.TransitionType;
 			}
 		}
 

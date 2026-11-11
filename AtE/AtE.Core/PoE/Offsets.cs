@@ -1149,20 +1149,10 @@ namespace AtE {
 			[FieldOffset(0x1E8)] public readonly float CreationTime;
 		}
 
+		// 3.29.3: the component is only 0x30 bytes (owner, two pointers, a pointer into itself) and the rest is zero. WorldAreaId (0x28), TransitionType (0x2A)
+		// and ptrToWorldArea (0x40) read garbage (a piece of that pointer, 100, 0): removed. The destination is the entity's Render.Name (eg, "Lioneye's Watch").
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_AreaTransition {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x28)] public readonly ushort WorldAreaId;
-			[FieldOffset(0x2A)] public readonly AreaTransitionType TransitionType;
-			[FieldOffset(0x40)] public readonly IntPtr ptrToWorldArea;
-		}
-
-		public enum AreaTransitionType : byte {
-			Normal = 0,
-			Local = 1,
-			NormalToCorrupted = 2,
-			CorruptedToNormal = 3,
-			Unknown4 = 4,
-			Labyrinth = 5
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Armour {

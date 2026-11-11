@@ -326,7 +326,6 @@ namespace AtE {
 
 
 	public class AreaTransition : Component<Offsets.Component_AreaTransition> {
-		public Offsets.AreaTransitionType TransitionType => Cache.TransitionType;
 	}
 
 	public class Armour : Component<Offsets.Component_Armour> {

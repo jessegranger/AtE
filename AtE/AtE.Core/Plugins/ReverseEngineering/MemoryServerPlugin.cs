@@ -176,6 +176,8 @@ namespace AtE {
 					return RunOnMain(() => { var t = OffsetTests(); t.Start(); return "started\n" + t.Summary() + "\n"; });
 				case "/offsets/stop":
 					return RunOnMain(() => { OffsetTests().Stop(); return "stopped\n"; });
+				case "/offsets/routine":
+					return RunOnMain(() => q["cmd"] == "start" ? OffsetTests().ResumeRoutine() : q["cmd"] == "stop" ? OffsetTests().HoldRoutine("stopped by request") : "error: cmd=start or cmd=stop\n");
 				case "/offsets/report":
 					return RunOnMain(() => OffsetTests().Report());
 				case "/offsets/queue":
@@ -226,6 +228,7 @@ namespace AtE {
 @"MemoryServer (read-only, loopback only)
   /status
   /offsets/run | /offsets/stop | /offsets/report     the Offsets tests (Automation > Offset Tests): start, stop, the results with details
+  /offsets/routine?cmd=start|stop                    start or stop just the class routine testing mode runs after its checks (it is held when Hillock dies)
   /offsets/queue?ids=failed|clear|A2.Terrain,A4      queue checks for fixing (shown on screen as FIX)
   /offsets/golden | /offsets/confirm?key=<contains> | /offsets/forget?key=<contains>   the values a fresh character is known to have
   /ents?filter=<path substring>&comp=<ComponentName>&id=<entity id>&limit=30

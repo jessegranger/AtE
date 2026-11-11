@@ -1,4 +1,219 @@
 {
+  "chest.Chests/Barrel1old.kind": {
+    "Value": "strongbox False large False destroy True",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "chest.Chests/Barrel2old.kind": {
+    "Value": "strongbox False large False destroy True",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "chest.Chests/Barrel3old.kind": {
+    "Value": "strongbox False large False destroy True",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "chest.Chests/Barrel4old.kind": {
+    "Value": "strongbox False large False destroy True",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "chest.Chests/Barrel5old.kind": {
+    "Value": "strongbox False large False destroy True",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "chest.Chests/ProdWounded3.kind": {
+    "Value": "strongbox False large False destroy True",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "chest.Chests/TutorialSupportGemChest.kind": {
+    "Value": "strongbox True large True destroy False",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Armours/Helmets/HelmetStr1.cells": {
+    "Value": "2x2",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Armours/Helmets/HelmetStr1.links": {
+    "Value": "1",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Armours/Helmets/HelmetStr1.name": {
+    "Value": "Iron Hat",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Currency/CurrencyIdentification.cells": {
+    "Value": "1x1",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Currency/CurrencyIdentification.name": {
+    "Value": "Scroll of Wisdom",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Gems/SkillGemFireball.cells": {
+    "Value": "1x1",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Gems/SkillGemFireball.name": {
+    "Value": "Fireball",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Gems/SupportGemArcaneSurge.cells": {
+    "Value": "1x1",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Gems/SupportGemArcaneSurge.name": {
+    "Value": "Arcane Surge Support",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/OneHandWeapons/Wands/Wand1.cells": {
+    "Value": "1x3",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/OneHandWeapons/Wands/Wand1.links": {
+    "Value": "2",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/OneHandWeapons/Wands/Wand1.name": {
+    "Value": "Driftwood Wand",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "item.Weapons/OneHandWeapons/Wands/Wand1.weapon": {
+    "Value": "5-9 667ms crit 830",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.SandSpitters/SandSpitter12@1.name": {
+    "Value": "Sand Spitter",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.SandSpitters/SandSpitter12@1.White.level1.life": {
+    "Value": "15/46/0",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieBoss/ZombieBossHillockNormal@1.name": {
+    "Value": "Hillock",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieBoss/ZombieBossHillockNormal@1.Unique.level1.life": {
+    "Value": "311/46/0",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrand1@1.name": {
+    "Value": "Drowned",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrand1@1.White.level1.life": {
+    "Value": "23/46/0",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrand2@1.name": {
+    "Value": "Drowned",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrand2@1.White.level1.life": {
+    "Value": "23/46/0",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrand3@1.name": {
+    "Value": "Drowned",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrand3@1.White.level1.life": {
+    "Value": "23/46/0",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrandWake1@1.name": {
+    "Value": "Drowned",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrandWake1@1.White.level1.life": {
+    "Value": "23/46/0",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrandWake2@1.name": {
+    "Value": "Drowned",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrandWake2@1.White.level1.life": {
+    "Value": "23/46/0",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrandWake3@1.name": {
+    "Value": "Drowned",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.ZombieDismember/ZombieDrownedStrandWake3@1.White.level1.life": {
+    "Value": "23/46/0",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.Zombies/ZombieBite@1.name": {
+    "Value": "Hungry Corpse",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "monster.Zombies/ZombieBite@1.White.level1.life": {
+    "Value": "15/46/0",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "npc.Act1/Bestel.name": {
+    "Value": "Bestel",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "npc.Act1/Nessa.name": {
+    "Value": "Nessa",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "npc.Act1/WoundedExile.name": {
+    "Value": "Dying Exile",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "npc.Info/BeachEncampmentNotes.name": {
+    "Value": "Letters of Exile",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "transition.QuestObjects/SouthBeachTownEntrance.destination": {
+    "Value": "Lioneye\u0027s Watch",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
   "Witch.actor.flags": {
     "Value": "WashedUp",
     "Confirmed": true,
