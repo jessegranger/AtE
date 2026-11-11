@@ -122,8 +122,21 @@ namespace AtE {
 			public string Version { get; set; }
 		}
 
+		/// <summary>Where the run's own files go (results, the fix queue): next to the exe, not in the repo.</summary>
 		public static string Directory => Path.Combine(AppContext.BaseDirectory, "offsettests");
-		private static string FileName => Path.Combine(Directory, "golden.json");
+
+		/// <summary>
+		/// The goldens are kept in the repo (beside these checks), found by walking up from the exe to AtE.sln, so they are committed
+		/// with the code; without a repo around the exe, next to it with the rest.
+		/// </summary>
+		private static string FileName {
+			get {
+				for ( var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent ) {
+					if ( File.Exists(Path.Combine(dir.FullName, "AtE.sln")) ) return Path.Combine(dir.FullName, "AtE.Core", "Plugins", "Automation", "OffsetTests", "golden.json");
+				}
+				return Path.Combine(Directory, "golden.json");
+			}
+		}
 		private static SortedDictionary<string, Entry> entries;
 
 		private static SortedDictionary<string, Entry> Entries {
@@ -142,7 +155,7 @@ namespace AtE {
 
 		private static void Save() {
 			try {
-				System.IO.Directory.CreateDirectory(Directory);
+				System.IO.Directory.CreateDirectory(Path.GetDirectoryName(FileName));
 				File.WriteAllText(FileName, JsonSerializer.Serialize(Entries, new JsonSerializerOptions { WriteIndented = true }));
 			} catch ( Exception e ) { Log($"GoldenStore: could not write {FileName}: {e.Message}"); }
 		}

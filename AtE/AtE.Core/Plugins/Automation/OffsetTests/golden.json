@@ -1,0 +1,142 @@
+{
+  "Witch.actor.flags": {
+    "Value": "WashedUp",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.actor.skills": {
+    "Value": "4000:melee:Default Attack",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.area.connections": {
+    "Value": "Lioneye\u0027s Watch",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.area.id": {
+    "Value": "1_1_1",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.area.monsterLevel": {
+    "Value": "1",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.area.worldAreaId": {
+    "Value": "61450",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.flasks.charges": {
+    "Value": "21/21/7,21/21/7,-,-,24/24/6",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.flasks.layout": {
+    "Value": "FlaskLife1,FlaskLife1,-,-,FlaskMana1",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.life.maxHP": {
+    "Value": "57",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.life.maxMana": {
+    "Value": "56",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.map.defaultShift": {
+    "Value": "\u003C0, -20\u003E",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.map.miniDefaultShift": {
+    "Value": "\u003C0, 0\u003E",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.map.miniSize": {
+    "Value": "\u003C402, 402\u003E",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.player.dex": {
+    "Value": "14",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.player.int": {
+    "Value": "32",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.player.path": {
+    "Value": "Metadata/Characters/Int/Int",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.player.str": {
+    "Value": "14",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.render.bounds": {
+    "Value": "\u003C41.304348, 41.304348, 80.559875\u003E",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.render.name": {
+    "Value": "Witch",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.terrain.tiles": {
+    "Value": "78x42",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.ui.Flasks.scale": {
+    "Value": "0.75",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.ui.Flasks.size": {
+    "Value": "\u003C340, 136\u003E",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.ui.LifeBubble.scale": {
+    "Value": "0.75",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.ui.LifeBubble.size": {
+    "Value": "\u003C315, 315\u003E",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.ui.ManaBubble.scale": {
+    "Value": "0.75",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.ui.ManaBubble.size": {
+    "Value": "\u003C315, 315\u003E",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.ui.null": {
+    "Value": "OpenLeftPanel,OpenRightPanel",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  },
+  "Witch.ui.visible": {
+    "Value": "ChatBoxRoot,CurrentTime,ExperienceBar,Flasks,GameUI,GemLvlUpPanel,GreenShopButton,HelpPanelButton,ItemsOnGroundLabelElement,LifeBubble,ManaBubble,Map,Mouse,OpenMenuPopoutButton,RootBuffPanel,SkillBar,SkipAllTutorials",
+    "Confirmed": true,
+    "Version": "3.29.3"
+  }
+}
