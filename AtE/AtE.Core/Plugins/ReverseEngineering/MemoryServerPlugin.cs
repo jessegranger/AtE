@@ -196,6 +196,8 @@ namespace AtE {
 					return RunOnMain(RoutineText);
 				case "/backpack":
 					return RunOnMain(Backpack);
+				case "/items":
+					return RunOnMain(Items);
 				case "/info":
 					return RunOnMain(() => Info(ParseInt(q["id"], 0), q["skill"]));
 				case "/dump":
@@ -226,6 +228,36 @@ namespace AtE {
 			}
 		}
 
+		// the worn and backpack items' mods, as stat ids and values (what item scoring reads)
+		private static string Items() {
+			var sb = new StringBuilder();
+			var slots = Equipment.WornSlots().Select(s => (s.name, s.inventory)).ToList();
+			if ( GetUI()?.InventoryPanel?.Backpack is Inventory backpack ) slots.Add(("Backpack", backpack));
+			var lists = slots.Select(s => (s.name, items: s.inventory.Items.Cast<InventoryItem>())).ToList();
+			if ( Town.IsOpen(Town.PurchaseWindow) ) lists.Add(("Purchase", BuildSection.ItemElements(Town.PurchaseWindow, 12)));
+			foreach ( var (name, items) in lists ) {
+				foreach ( var item in items ) {
+					var e = item?.Entity;
+					if ( e == null ) continue;
+					var mods = e.GetComponent<Mods>();
+					var baseInfo = e.GetComponent<Base>();
+					sb.Append($"{name}: {Equipment.ItemName(e) ?? "?"} ({e.Path}) base info 0x{(IsValid(baseInfo) ? baseInfo.Cache.ptrToBaseInfo.ToInt64() : 0):X} needs level {ItemInfo.From(e)?.ReqLevel.ToString() ?? "-"}{(IsValid(mods) ? $" {mods.Rarity}{(mods.IsIdentified ? "" : " unidentified")} ilvl {mods.Level} req {mods.ReqLevel}" : "")}{NL}");
+					if ( e.GetComponent<Armour>() is Armour armour && IsValid(armour) ) {
+						var v = armour.ArmourValues.Value;
+						sb.Append($"    armour {v.ArmourMin}-{v.ArmourMax}, evasion {v.EvasionMin}-{v.EvasionMax}, energy shield {v.ESMin}-{v.ESMax}, ward {v.WardMin}-{v.WardMax}{NL}");
+					}
+					if ( e.GetComponent<Weapon>() is Weapon weapon && IsValid(weapon) ) sb.Append($"    weapon {weapon.DamageMin}-{weapon.DamageMax}, attack time {weapon.AttackTime} ms, crit {weapon.CritChance}{NL}");
+					if ( !IsValid(mods) ) continue;
+					foreach ( var (kind, list) in new[] { ("implicit", mods.ImplicitMods), ("explicit", mods.ExplicitMods), ("enchant", mods.EnchantedMods) } ) {
+						foreach ( var mod in list ) {
+							sb.Append($"    {kind} {mod.GroupName}: {string.Join(", ", mod.Stats.Select(st => $"{st.stat}={st.value}{(st.local ? " (local)" : "")}"))}{NL}");
+						}
+					}
+				}
+			}
+			return sb.ToString();
+		}
+
 		private static OffsetTestSection OffsetTests() => GetPlugin<AutomationPlugin>().OffsetTests;
 
 		private const string Help =
@@ -241,6 +273,7 @@ namespace AtE {
   /skillbar                     the skill bar's slots: key, skill name, internal name, id
   /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
   /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
+  /items                        the worn, backpack and purchase window items: name, rarity, and each mod's stats (Stats.dat ids) with their values
   /info?id=<entity id>&skill=<owner skill name>   ground truth: buffs (timer/max), animation time, duration-ish stats, owner skill MinionDuration
   /scan?id=<entity id>&value=1.5,3000&tol=0.01&kind=f32|i32|both&depth=1&len=0x400   find values in all components (and the animated object's) + pointees
   /gsnap?id=<entity id>&name=a&depth=1&len=0x400    snapshot all components + pointees (+ animated object) under a label

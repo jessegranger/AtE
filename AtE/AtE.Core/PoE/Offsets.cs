@@ -1200,6 +1200,9 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Base_Info {
 			[FieldOffset(0x10)] public readonly byte ItemCellSizeX;
 			[FieldOffset(0x11)] public readonly byte ItemCellSizeY;
+			// 3.29.3: the base type's drop level: Goat's Horn 6, Chain Belt 2, Coral Ring 4, Small / Medium Mana Flask 1 / 3, Driftwood
+			// Wand and Iron Greaves 1. Not the level requirement (a Coral Ring requires level 1): that is Component_Mods.RequiredLevel.
+			[FieldOffset(0x12)] public readonly byte DropLevel;
 			// 3.29.3: read from a Chance to Poison Support gem in the backpack (Metadata/Items/Gems/SupportGemLesserPoison):
 			// +0x48 is a StringHandle: u"Chance to Poison" (gems are named without " Support"); a short name is kept in it,
 			// not pointed at (a Cleave reward: u"Cleave" in place, Length 6, Capacity 7). +0x90 points at its description
@@ -1371,17 +1374,18 @@ namespace AtE {
 			[FieldOffset(0x210)] public readonly IntPtr ModStats;
 			// Crucible: some new 32 bytes added in here
 			// 3.24: 8 new bytes here
-			[FieldOffset(0x248)] public readonly uint ItemLevel;
-			[FieldOffset(0x24c)] public readonly uint RequiredLevel;
+			// 3.29: 112 new bytes here
+			[FieldOffset(0x2b8)] public readonly uint ItemLevel;
+			[FieldOffset(0x2bc)] public readonly uint RequiredLevel;
 			// 3.22.1c: 8 new bytes here
-			[FieldOffset(0x258)] public readonly IntPtr ptrIncubator; // ptr to IncubatorEntry
-			[FieldOffset(0x268)] public readonly short IncubatorKillCount;
+			[FieldOffset(0x2c8)] public readonly IntPtr ptrIncubator; // ptr to IncubatorEntry
+			[FieldOffset(0x2d8)] public readonly short IncubatorKillCount;
 			// 3.22.1c: 1 new bytes here
-			[FieldOffset(0x26e)] public readonly byte IsMirrored;
-			[FieldOffset(0x26f)] public readonly byte IsSplit;
-			[FieldOffset(0x270)] public readonly byte IsUsable;
+			[FieldOffset(0x2de)] public readonly byte IsMirrored;
+			[FieldOffset(0x2df)] public readonly byte IsSplit;
+			[FieldOffset(0x2e0)] public readonly byte IsUsable;
 			// 3.22.1c: 1 new bytes here
-			[FieldOffset(0x273)] public readonly byte IsSynthesised;
+			[FieldOffset(0x2e3)] public readonly byte IsSynthesised;
 
 			// public const int ItemModRecordSize = 0x38;
 			// public const int NameOffset = 0x04;

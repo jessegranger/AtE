@@ -687,6 +687,23 @@ namespace AtE {
 
 		public Offsets.AffixType AffixType => ModsDatEntry.Value.AffixType;
 
+		/// <summary>
+		/// The mod's stats (Stats.dat ids, eg "base_maximum_life") with their rolled values, in order: Values holds one
+		/// value per stat (eg, "Adds 2 to 4 Fire Damage" is local_minimum_added_fire_damage 2, local_maximum_added_fire_damage 4).
+		/// </summary>
+		public IEnumerable<(string stat, int value, bool local)> Stats {
+			get {
+				var mod = ModsDatEntry.Value;
+				var values = Values(4).ToArray();
+				var entries = new[] { mod.Stat0Entry, mod.Stat1Entry, mod.Stat2Entry, mod.Stat3Entry };
+				for ( int i = 0; i < entries.Length && i < values.Length; i++ ) {
+					if ( !IsValid(entries[i]) || !PoEMemory.TryRead(entries[i], out Offsets.File_StatsDat_Entry stat) ) break;
+					if ( !PoEMemory.TryReadString(stat.strName, Encoding.Unicode, out string name) || string.IsNullOrEmpty(name) ) break;
+					yield return (name, values[i], stat.IsLocal != 0);
+				}
+			}
+		}
+
 		public string[] GetAllTags() {
 			var mod = ModsDatEntry.Value;
 			if ( mod.TagCount > 0 && mod.TagCount < 24 ) {

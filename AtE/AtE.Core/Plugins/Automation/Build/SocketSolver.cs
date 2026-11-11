@@ -81,6 +81,8 @@ namespace AtE {
 		public readonly List<List<GemPlacement>> Groups = new List<List<GemPlacement>>();
 		/// <summary>Points, as in item scores: see SocketSolver.</summary>
 		public double Score;
+		/// <summary>Each group's points (the main group's is scaled by damage in item scores).</summary>
+		public readonly List<double> GroupScores = new List<double>();
 
 		/// <summary>The gem for a socket of an item, or null.</summary>
 		public PobGem GemAt(SocketItem item, int socket) => Placements.FirstOrDefault(p => p.Item == item && p.Socket == socket)?.Gem;
@@ -176,13 +178,16 @@ namespace AtE {
 		/// <summary>The points of an arrangement (see SocketSolver).</summary>
 		public static double Score(SocketArrangement a, IList<PobSkillGroup> groups) {
 			double total = 0;
+			a.GroupScores.Clear();
 			for ( int g = 0; g < a.Groups.Count; g++ ) {
 				var placed = a.Groups[g];
+				a.GroupScores.Add(0);
 				if ( placed.Count == 0 || placed[0].Gem.IsSupport ) continue;
 				double value = g == 0 ? MainPoints : UtilityPoints;
 				// the skill's own factor is relative: a matching colour adds ColorFactor / GemFactor
 				if ( placed[0].ColorMatches ) value *= ColorFactor / GemFactor;
 				foreach ( var p in placed.Skip(1) ) value *= p.ColorMatches ? ColorFactor : GemFactor;
+				a.GroupScores[g] = value;
 				total += value;
 			}
 			return total;

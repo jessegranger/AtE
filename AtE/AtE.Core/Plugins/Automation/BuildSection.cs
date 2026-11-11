@@ -1,5 +1,7 @@
 using ImGuiNET;
 using System;
+using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -20,6 +22,10 @@ namespace AtE {
 
 		/// <summary>The build: relative to PobBuild.DefaultFolder (or a full path), or ExamplePrefix and a file in ExamplesFolder.</summary>
 		public string BuildFile = "";
+		/// <summary>Draw each item's score on it, in the inventory and the purchase window (see ItemScorer).</summary>
+		public bool ShowItemScores = true;
+		/// <summary>The defences that matter most, first (see ItemScorer.DefenceWeights).</summary>
+		public string DefencePriority = string.Join(", ", ItemScorer.DefaultDefencePriority);
 
 		public PobBuild Build { get; private set; }
 		public GemPlan Gems { get; private set; }
@@ -42,6 +48,148 @@ namespace AtE {
 			if ( Build == null ) return;
 			ImGui.TextUnformatted($"{Build.ClassName} {Build.AscendClassName}, level {Build.Level}: {Build.Specs.Count} trees, {Build.SkillSets.Count} skill sets");
 			if ( Gems != null ) RenderGems(Gems);
+			ImGui.Checkbox("Show item scores", ref ShowItemScores);
+			ImGui.InputText("Defence priority", ref DefencePriority, 200);
+			if ( Gems != null && PoEMemory.IsAttached ) RenderScores();
+		}
+
+		private IList<string> Priority() => DefencePriority.Split(',').Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
+
+		// the worn items: each one's score, and the loadout's
+		private void RenderScores() {
+			if ( !ImGui.TreeNode("Item scores (worn)") ) return;
+			var (loadout, _) = WornLoadout();
+			var ctx = Context(loadout);
+			ImGui.TextUnformatted($"Cached: {infos.Count} items, {scores.Count} scores");
+			ImGui.TextUnformatted($"Main skill tags: {string.Join(", ", ctx.MainTags)}; base resistances: {string.Join(", ", ctx.BaseResist.Select(r => $"{r.Key} {r.Value:F0}"))}");
+			ImGui.TextUnformatted($"Loadout: {ItemScorer.Score(ctx, loadout)}");
+			foreach ( var (slot, item) in loadout ) {
+				if ( item == null ) continue;
+				ImGui.TextUnformatted($"  {slot}: {item.Name}{(item.Identified ? "" : " (unidentified)")}: {ItemScorer.ItemScore(ctx, loadout, slot):F1}");
+			}
+			ImGui.TreePop();
+		}
+
+		/// <summary>The worn items, by slot, and their elements (to draw on).</summary>
+		public (Dictionary<string, ItemInfo> loadout, Dictionary<string, InventoryItem> elements) WornLoadout() {
+			var loadout = new Dictionary<string, ItemInfo>();
+			var elements = new Dictionary<string, InventoryItem>();
+			wornKey = "";
+			foreach ( var (name, inventory) in Equipment.WornSlots() ) {
+				var item = inventory.Items.FirstOrDefault(i => i?.Entity != null);
+				if ( item == null ) { loadout[name] = null; continue; }
+				loadout[name] = Info(item.Entity, name, out string key);
+				elements[name] = item;
+				wornKey += $"{name}={key};";
+			}
+			return (loadout, elements);
+		}
+
+		// Caches, cleared on area change (the game makes new item entities then, and their addresses can be reused):
+		// item info by item key (see ItemKey), and each candidate's label, for as long as the context (worn items, level,
+		// build, defence priority) stays the same
+		private readonly Dictionary<string, ItemInfo> infos = new Dictionary<string, ItemInfo>();
+		private readonly Dictionary<string, (string text, Color color)> scores = new Dictionary<string, (string, Color)>();
+		private string wornKey = "", contextKey;
+		private ScoringContext context;
+		private bool areaHooked;
+
+		private void ClearCaches() { infos.Clear(); scores.Clear(); contextKey = null; context = null; }
+
+		/// <summary>
+		/// A key for an item while in this area: its entity's address, and what changes when it is crafted on (where its
+		/// mods are kept, whether it is identified, its sockets' colours and links).
+		/// </summary>
+		public static string ItemKey(Entity e) {
+			var mods = e.GetComponent<Mods>();
+			var sockets = e.GetComponent<Sockets>();
+			string m = IsValid(mods) ? $"{mods.Cache.ImplicitModsArray.Head.ToInt64():X}.{mods.Cache.ExplicitModsArray.Head.ToInt64():X}.{mods.Cache.ExplicitModsArray.Tail.ToInt64():X}.{mods.IsIdentified}" : "";
+			string sk = IsValid(sockets) ? string.Concat(Enumerable.Range(0, Sockets.Max).Select(i => (int)sockets.Color(i))) + "." + string.Join("", sockets.LinkGroups) : "";
+			return $"{e.Address.ToInt64():X}/{m}/{sk}";
+		}
+
+		private ItemInfo Info(Entity e, string slot, out string key) {
+			key = ItemKey(e);
+			string k = $"{slot}/{key}";
+			if ( !infos.TryGetValue(k, out var info) ) infos[k] = info = ItemInfo.From(e, slot);
+			return info;
+		}
+
+		// the scoring context, made again (and the scores forgotten) when the worn items, level, build or priority change
+		private ScoringContext Context(Dictionary<string, ItemInfo> loadout) {
+			string key = $"{wornKey}|{GemPlan.CharacterLevel()}|{Version}|{DefencePriority}";
+			if ( key != contextKey || context == null ) {
+				contextKey = key;
+				scores.Clear();
+				context = ScoringContext.FromGame(Gems, loadout.Values, Priority());
+			}
+			return context;
+		}
+
+		// the scores to draw, worked out every so often (each one solves the sockets a few times)
+		private readonly List<(RectangleF rect, string text, Color color)> labels = new List<(RectangleF, string, Color)>();
+		private long labelsTime;
+
+		private void DrawItemScores() {
+			var panel = GetUI()?.InventoryPanel;
+			bool inventory = IsValid(panel) && panel.IsVisible;
+			bool purchase = Town.IsOpen(Town.PurchaseWindow);
+			if ( !inventory && !purchase ) { labels.Clear(); return; }
+			if ( Time.ElapsedMilliseconds - labelsTime > 500 ) {
+				labelsTime = Time.ElapsedMilliseconds;
+				labels.Clear();
+				try {
+					MakeLabels(inventory, purchase);
+				} catch ( Exception e ) {
+					Log($"{Name}: scoring items: {e.Message}");
+				}
+			}
+			foreach ( var (rect, text, color) in labels ) DrawTextAt(new Vector2(rect.X + 2, rect.Y + 2), text, color);
+		}
+
+		private void MakeLabels(bool inventory, bool purchase) {
+			var (loadout, elements) = WornLoadout();
+			var ctx = Context(loadout);
+			if ( inventory ) {
+				foreach ( var (slot, element) in elements ) {
+					if ( loadout[slot] == null ) continue;
+					string key = $"worn {slot}";
+					if ( !scores.TryGetValue(key, out var label) ) scores[key] = label = ($"{ItemScorer.ItemScore(ctx, loadout, slot):F0}", Color.White);
+					labels.Add((element.GetClientRect(), label.text, label.color));
+				}
+				foreach ( var item in GetUI()?.InventoryPanel?.Backpack?.Items ?? Enumerable.Empty<InventoryItem>() ) Label(ctx, loadout, item);
+			}
+			if ( purchase ) {
+				foreach ( var item in ItemElements(Town.PurchaseWindow, 12) ) Label(ctx, loadout, item);
+			}
+		}
+
+		// a candidate's score: green if wearing it would be better, gray if not; 0 in red if it cannot be used (level or attributes)
+		private void Label(ScoringContext ctx, Dictionary<string, ItemInfo> loadout, InventoryItem element) {
+			if ( !(element?.Entity is Entity e) || ItemInfo.KindOf(e.Path) == ItemKind.None ) return;
+			var info = Info(e, null, out string key);
+			if ( info == null ) return;
+			if ( !scores.TryGetValue(key, out var label) ) {
+				// (one the character cannot use scores 0, in red)
+				if ( ItemScorer.Unusable(ctx, info) != null ) label = ("0", Color.IndianRed);
+				else {
+					var (_, score, gain) = ItemScorer.Candidate(ctx, loadout, info);
+					label = ($"{score:F0}{(info.Identified ? "" : "?")}", gain > 0.5 ? Color.LimeGreen : Color.Gray);
+				}
+				scores[key] = label;
+			}
+			labels.Add((element.GetClientRect(), label.text, label.color));
+		}
+
+		/// <summary>The visible item elements under root (eg, the purchase window's items).</summary>
+		public static IEnumerable<InventoryItem> ItemElements(Element root, int depth) {
+			if ( !IsValid(root) || !root.IsVisibleLocal ) yield break;
+			var item = new InventoryItem(root.Address);
+			if ( item.Entity != null ) { yield return item; yield break; }
+			if ( depth <= 0 ) yield break;
+			foreach ( var child in root.Children ) {
+				foreach ( var found in ItemElements(child, depth - 1) ) yield return found;
+			}
 		}
 
 		private void RenderGems(GemPlan plan) {
@@ -88,7 +236,9 @@ namespace AtE {
 		}
 
 		public override IState OnTick(long dt) {
+			if ( !areaHooked ) { areaHooked = true; OnAreaChange += (_, __) => ClearCaches(); }
 			EnsureLoaded();
+			if ( ShowItemScores && Gems != null && PoEMemory.IsAttached ) DrawItemScores();
 			return this;
 		}
 

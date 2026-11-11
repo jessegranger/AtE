@@ -77,7 +77,8 @@ namespace AtE {
 				Log($"INI Line did not reference a Plugin field: {key}");
 				return false;
 			}
-			// skip loading any fields marked as NoPersist
+			// skip loading any fields marked as NoPersist, and constants (they used to be saved)
+			if ( field.IsLiteral ) return false;
 			if ( field.GetCustomAttribute<NoPersist>() != null ) {
 				Log($"INI Line skipping NoPersist field: {key}");
 				return false;
@@ -111,9 +112,9 @@ namespace AtE {
 			return true;
 		}
 
-		/// <summary>The INI lines for target's public fields (but not NoPersist ones), each key starting with prefix.</summary>
+		/// <summary>The INI lines for target's public fields (but not NoPersist ones, or constants), each key starting with prefix.</summary>
 		internal static IEnumerable<string> FieldLines(object target, string prefix = "") =>
-			target.GetType().GetFields().Where(field => field.GetCustomAttribute<NoPersist>() == null)
+			target.GetType().GetFields().Where(field => !field.IsLiteral && field.GetCustomAttribute<NoPersist>() == null)
 				.Select(field => $"{prefix}{field.Name}={field.GetValue(target)}");
 
 		private static void ReapplyIniToAllPlugins() {

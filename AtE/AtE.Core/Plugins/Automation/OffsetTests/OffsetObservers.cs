@@ -280,7 +280,7 @@ namespace AtE {
 		private static IEnumerable<ObserverSpec> Items() {
 			yield return new ObserverSpec {
 				Id = "B.Item",
-				Covers = new[] { "Component_Base.ptrToBaseInfo", "Component_Base_Info.ItemCellSizeX", "Component_Base_Info.ItemCellSizeY", "Component_Base_Info.Name", "Component_Mods.ItemRarity",
+				Covers = new[] { "Component_Base.ptrToBaseInfo", "Component_Base_Info.ItemCellSizeX", "Component_Base_Info.ItemCellSizeY", "Component_Base_Info.Name", "Component_Base_Info.DropLevel", "Component_Mods.ItemRarity",
 					"Component_Mods.ItemLevel", "Component_Mods.RequiredLevel", "Component_Weapon.Details", "WeaponDetails.DamageMin", "WeaponDetails.DamageMax", "WeaponDetails.AttackTime",
 					"WeaponDetails.CritChance", "Component_Sockets.Links", "Component_Stack.CurSize", "Component_Stack_Details.MaxSize", "Component_Charges.NumCharges",
 					"Component_Base.entOwner", "Component_Mods.entOwner", "Component_Weapon.entOwner", "Component_Sockets.entOwner", "Component_Stack.entOwner", "Component_Stack.ptrStackDetails" },
@@ -297,6 +297,10 @@ namespace AtE {
 					c.That(name != null, "the item's name did not read");
 					c.GoldenAny($"item.{After(e.Path, "Metadata/Items/")}.name", name);
 					c.GoldenAny($"item.{After(e.Path, "Metadata/Items/")}.cells", $"{b.CellSizeX}x{b.CellSizeY}");
+					// the base type's level: the same for every item of a base (eg, Goat's Horn 6)
+					int dropLevel = b.Info.Value.DropLevel;
+					c.That(dropLevel >= 1 && dropLevel <= 100, $"DropLevel is {dropLevel}");
+					c.GoldenAny($"item.{After(e.Path, "Metadata/Items/")}.droplevel", dropLevel);
 					var mods = e.GetComponent<Mods>();
 					if ( IsValid(mods) ) {
 						c.That(Enum.IsDefined(typeof(Offsets.ItemRarity), mods.Rarity), $"ItemRarity is {mods.Rarity}");
