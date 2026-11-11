@@ -59,6 +59,13 @@ namespace AtE {
 		/// </summary>
 		bool TryGetTargetWindowRect(out int left, out int top, out int width, out int height);
 
+		/// <summary>
+		/// Bring the target's window to the foreground, so injected keys and clicks reach it. True if it has the focus afterwards.
+		/// (Windows: SetForegroundWindow, with the foreground thread's input queue attached for the call, which Windows requires.
+		/// Backends that can't do this keep the default, false.)
+		/// </summary>
+		bool TryFocusTarget() => false;
+
 		/// <summary>The bytes of the target's main module image (cached after the first read).</summary>
 		bool TryReadImage(out byte[] image);
 

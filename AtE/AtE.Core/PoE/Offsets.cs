@@ -327,9 +327,10 @@ namespace AtE {
 			[FieldOffset(0x934)] public readonly float GameTimeSec; // float32, == GameTimeMs / 1000, 1.0/s
 			[FieldOffset(0x93a)] public readonly bool IsRunning;
 			// 3.28.0: 40 new bytes here
-			[FieldOffset(0x5b8)] public readonly Vector2 MousePos;
-			[FieldOffset(0x5b8)] public readonly int MousePosX;
-			[FieldOffset(0x5bc)] public readonly int MousePosY;
+			// 3.29.3: the mouse position, in client pixels (two int32; found by recording InGameState while the mouse was put over the
+			// flasks, (467,1138), and the skill bar, (1509,1125)). The Vector2 of floats at 0x5b8 that was here is stale: it
+			// holds a position (153, 863.25) that does not follow the mouse.
+			[FieldOffset(0x640)] public readonly Vector2i MousePos;
 			// 3.28.0: removed
 			// [FieldOffset(0x5a0)] public readonly Vector2 UIHoverOffset; // mouse position offset in hovered UI element
 		}
@@ -538,21 +539,15 @@ namespace AtE {
 
 			// 3.22.1b: 28 bytes removed here
 			// 3.24.3b: 8 bytes removed here
-			[FieldOffset(0x110)] public readonly uint CurrentAreaHash;
+			// 3.29.3: WorldData.ptrToWorldAreaRef points at this very struct (WorldAreaRef overlaps InGameState_Data), so this is
+			// the same memory as WorldAreaRef.areaHash. It was at 0x110 until then (0x110 now holds unrelated bytes).
+			[FieldOffset(0x11c)] public readonly uint CurrentAreaHash;
 			[FieldOffset(0x120)] public readonly IntPtr MapStats;
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
 
 			// 16 new bytes here
 			// 3.27: 8 new bytes here
-			// IsPaused: there are three pointers:
-			//  0x8f8 = Running ptr
-			//  0x8a0 = Current ptr
-			//  0x8a8 = Paused ptr
-			// When Paused, the Current ptr is equal to the Paused ptr
-			// When Running, the Current ptr is equal to the Running ptr
-			[FieldOffset(0x8b8)] public readonly IntPtr RunningPtr;
-			[FieldOffset(0x8c0)] public readonly IntPtr CurrentPtr;
-			[FieldOffset(0x8c8)] public readonly IntPtr PausedPtr;
+			// 3.29.3: the Running / Current / Paused pointers (0x8b8, 0x8c0, 0x8c8) read 0, and IsPaused is its own byte (below): removed.
 
 			// Crucible: 8 new bytes here
 			// 3.22: 120 new bytes here
@@ -570,7 +565,12 @@ namespace AtE {
 
 			// 3.29.3: confirmed with MemoryServer /track: int32 tick counter, ~9.5/s in steps (96% flat sampling at 20ms),
 			// FREEZES while the game is paused (read 16322 constant while paused, resumed from there). Simulation tick, not real time.
-			[FieldOffset(0xB18)] public readonly int SimulationTicks;
+			// 3.29.3: SimulationTicks (0xB18, a server tick counter) is removed: it read 218 (330 in another session) and never changed,
+			// standing, walking 12 cells, or over 60 s of sampling, and no other slot of this struct, InGameState, WorldData or ServerData
+			// counts like it. (The MemoryServer's /hunt and /dump still read 0xB18 by address, for their research.)
+			// 3.29.3: found while looking for it: a plain 60 Hz counter (59.95/s, r2=1.0000 over 45 s) that runs while walking.
+			// Not known whether it stops while the game is paused.
+			[FieldOffset(0x14A0)] public readonly int FrameCount;
 			// 3.29.3 tentative: bytes at 0xB9C and 0xB9D read 1,1 while paused and 0 while running (single observation each)
 			[FieldOffset(0xB9C)] public readonly bool IsPaused;
 
@@ -700,9 +700,8 @@ namespace AtE {
 			// [FieldOffset(0x620)] public readonly IntPtr AtlasSkillPanel;
 			// [FieldOffset(0x650)] public readonly IntPtr WorldMap;
 			[FieldOffset(0x670)] public readonly IntPtr CharacterPanel;
-			[FieldOffset(0x680)] public readonly IntPtr OptionsPanel;
-			// 3.28.0: moved elsewhere
-			// [FieldOffset(0x670)] public readonly IntPtr ChallengesPanel;
+			[FieldOffset(0x678)] public readonly IntPtr OptionsPanel;
+			[FieldOffset(0x680)] public readonly IntPtr ChallengesPanel;
 			[FieldOffset(0x688)] public readonly IntPtr PantheonPanel;
 			[FieldOffset(0x690)] public readonly IntPtr PvPPanel;
 			[FieldOffset(0x698)] public readonly IntPtr AreaInstanceUi;
@@ -1522,9 +1521,9 @@ namespace AtE {
 			[FieldOffset(0x190)] public readonly uint Strength;
 			[FieldOffset(0x194)] public readonly uint Dexterity;
 			[FieldOffset(0x198)] public readonly uint Intelligence;
-			[FieldOffset(0x19c)] public readonly byte AllocatedLootId;
-			[FieldOffset(0x1a0)] public readonly PantheonGod PantheonMinor;
-			[FieldOffset(0x1a1)] public readonly PantheonGod PantheonMajor;
+			// 3.29.3: AllocatedLootId (0x19c) and PantheonMinor / PantheonMajor (0x1a0 / 0x1a1) read 14 / 14 / 0 on a fresh Witch:
+			// they land on a second copy of Strength, Dexterity, Intelligence (14, 14, 32 at 0x19c..0x1a4), so they are stale.
+			// Not found yet: a character with a pantheon (and a party, for the loot id) is needed to tell where they went.
 			[FieldOffset(0x1AC)] public readonly byte Level;
 		}
 
@@ -1562,7 +1561,7 @@ namespace AtE {
 			[FieldOffset(0x294)] public readonly Vector2i GridPos;
 			[FieldOffset(0x29c)] public readonly float Rotation;
 			[FieldOffset(0x2ac)] public readonly float Scale;
-			[FieldOffset(0x2b0)] public readonly int Size;
+			[FieldOffset(0x2b0)] public readonly float Size; // 3.29.3: a float (1.0 on the player), it was declared int
 			[FieldOffset(0x2b8)] public readonly Vector2 WorldPos;
 		}
 

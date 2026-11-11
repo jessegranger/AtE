@@ -27,11 +27,12 @@ namespace AtE {
 		public readonly PassiveTreeSection PassiveTree = new PassiveTreeSection();
 		public readonly CombatSection Combat = new CombatSection();
 		public readonly TownSection Town = new TownSection();
+		public readonly OffsetTestSection OffsetTests = new OffsetTestSection();
 
 		/// <summary>Draw a small expanding circle where each mouse click is sent (see ClickMarks).</summary>
 		public bool ShowClicks = true;
 
-		private IEnumerable<AutomationSection> Sections => new AutomationSection[] { Navigation, PassiveTree, Combat, Town };
+		private IEnumerable<AutomationSection> Sections => new AutomationSection[] { Navigation, PassiveTree, Combat, Town, OffsetTests };
 
 		public override void Render() {
 			base.Render();
@@ -65,7 +66,7 @@ namespace AtE {
 
 		public override string[] Save() =>
 			// (the sections are saved below, by field)
-			FieldLines(this).Where(line => !new[] { nameof(Navigation), nameof(PassiveTree), nameof(Combat), nameof(Town) }.Any(f => line.StartsWith($"{f}=")))
+			FieldLines(this).Where(line => !new[] { nameof(Navigation), nameof(PassiveTree), nameof(Combat), nameof(Town), nameof(OffsetTests) }.Any(f => line.StartsWith($"{f}=")))
 				.Concat(SettingsTargets.SelectMany(t => FieldLines(t.target, t.prefix)))
 				.ToArray();
 

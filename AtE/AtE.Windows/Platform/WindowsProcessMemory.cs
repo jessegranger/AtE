@@ -51,6 +51,21 @@ namespace AtE {
 			return true;
 		}
 
+		public bool TryFocusTarget() {
+			if ( !IsValid(Target) ) return false;
+			IntPtr hWnd = Target.MainWindowHandle;
+			if ( hWnd == IntPtr.Zero ) return false;
+			if ( Win32.GetForegroundWindow() == hWnd ) return true;
+			if ( Win32.IsIconic(hWnd) ) Win32.ShowWindow(hWnd, Win32.SW_RESTORE);
+			// Windows lets only the foreground thread hand the foreground to another window: share its input queue for the call
+			uint foregroundThread = Win32.GetWindowThreadProcessId(Win32.GetForegroundWindow(), out _);
+			uint thisThread = Win32.GetCurrentThreadId();
+			bool attached = foregroundThread != 0 && foregroundThread != thisThread && Win32.AttachThreadInput(thisThread, foregroundThread, true);
+			bool ok = Win32.SetForegroundWindow(hWnd);
+			if ( attached ) Win32.AttachThreadInput(thisThread, foregroundThread, false);
+			return ok;
+		}
+
 		public bool TryAttach(out int pid) {
 			pid = 0;
 			if ( IsAttached ) {

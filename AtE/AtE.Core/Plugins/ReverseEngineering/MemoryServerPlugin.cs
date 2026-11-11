@@ -172,6 +172,20 @@ namespace AtE {
 				}
 				case "/skillbar":
 					return RunOnMain(SkillBarText);
+				case "/offsets/run":
+					return RunOnMain(() => { var t = OffsetTests(); t.Start(); return "started\n" + t.Summary() + "\n"; });
+				case "/offsets/stop":
+					return RunOnMain(() => { OffsetTests().Stop(); return "stopped\n"; });
+				case "/offsets/report":
+					return RunOnMain(() => OffsetTests().Report());
+				case "/offsets/queue":
+					return RunOnMain(() => OffsetTests().Queue(q["ids"] ?? ""));
+				case "/offsets/golden":
+					return RunOnMain(() => string.Join("", GoldenStore.All.Select(g => $"{(g.Value.Confirmed ? "confirmed  " : "UNCONFIRMED")} {g.Key} = {g.Value.Value}\n")));
+				case "/offsets/confirm":
+					return RunOnMain(() => $"confirmed {GoldenStore.Confirm(q["key"] ?? "")} golden values\n");
+				case "/offsets/forget":
+					return RunOnMain(() => string.IsNullOrEmpty(q["key"]) ? "error: key= is required\n" : $"forgot {GoldenStore.Forget(q["key"])} golden values\n");
 				case "/routine":
 					return RunOnMain(RoutineText);
 				case "/backpack":
@@ -206,9 +220,14 @@ namespace AtE {
 			}
 		}
 
+		private static OffsetTestSection OffsetTests() => GetPlugin<AutomationPlugin>().OffsetTests;
+
 		private const string Help =
 @"MemoryServer (read-only, loopback only)
   /status
+  /offsets/run | /offsets/stop | /offsets/report     the Offsets tests (Automation > Offset Tests): start, stop, the results with details
+  /offsets/queue?ids=failed|clear|A2.Terrain,A4      queue checks for fixing (shown on screen as FIX)
+  /offsets/golden | /offsets/confirm?key=<contains> | /offsets/forget?key=<contains>   the values a fresh character is known to have
   /ents?filter=<path substring>&comp=<ComponentName>&id=<entity id>&limit=30
   /tree?at=EXPR&depth=3         an element and its children: path of child indexes, address, visible, text, and the item if it is an InventoryItem
   /skillbar                     the skill bar's slots: key, skill name, internal name, id

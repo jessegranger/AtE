@@ -775,7 +775,6 @@ namespace AtE {
 		public uint Dex => Cache.Dexterity;
 		public uint Int => Cache.Intelligence;
 		public byte Level => Cache.Level;
-		public byte LootAllocationId => Cache.AllocatedLootId;
 	}
 
 	public class Portal : Component<Offsets.Component_Portal> {
@@ -788,7 +787,7 @@ namespace AtE {
 		public Vector2 WorldPos => Cache.WorldPos;
 		public float Rotation => Cache.Rotation;
 		public float Scale => Cache.Scale;
-		public int Size => Cache.Size;
+		public float Size => Cache.Size;
 		public byte Reaction => Cache.Reaction;
 		public bool IsHostile => Cache.IsHostile;
 	}
