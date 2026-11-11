@@ -62,9 +62,11 @@ namespace AtE {
 		public double Damage = 1;
 		public double Defence;
 		public readonly Dictionary<string, double> DefenceParts = new Dictionary<string, double>();
-		public double Total => Main * Damage + Utility + Defence;
+		/// <summary>Points for movement speed (ItemScorer.MovementPointsPerPercent each 1%).</summary>
+		public double Movement;
+		public double Total => Main * Damage + Utility + Defence + Movement;
 		public override string ToString() =>
-			$"{Total:F0} = main {Main:F0} x damage {Damage:F2} + utility {Utility:F0} + defence {Defence:F0} ({string.Join(", ", DefenceParts.Where(d => Math.Abs(d.Value) >= 0.5).Select(d => $"{d.Key} {d.Value:F0}"))})";
+			$"{Total:F0} = main {Main:F0} x damage {Damage:F2} + utility {Utility:F0} + movement {Movement:F0} + defence {Defence:F0} ({string.Join(", ", DefenceParts.Where(d => Math.Abs(d.Value) >= 0.5).Select(d => $"{d.Key} {d.Value:F0}"))})";
 	}
 
 	/// <summary>
@@ -112,6 +114,10 @@ namespace AtE {
 		public static double UnarmedHit = 4, UnarmedAttackTimeMs = 1200;
 		/// <summary>Each matching "+1 to level of ... skill gems".</summary>
 		public static double LevelFactor = 1.15;
+		/// <summary>Points for each 1% increased movement speed (boots with 10% get 50).</summary>
+		public static double MovementPointsPerPercent = 5;
+		/// <summary>The stats that give movement speed.</summary>
+		public static readonly string[] MovementStats = { "base_movement_velocity_+%", "movement_velocity_+%" };
 
 		private static readonly string[] Elements = { "fire", "cold", "lightning" };
 		private static readonly string[] DamageTypes = { "physical", "fire", "cold", "lightning", "chaos" };
@@ -150,6 +156,7 @@ namespace AtE {
 			loadout.TryGetValue("LWeapon", out var weapon);
 			result.Damage = DamageMultiplier(ctx, items, weapon);
 			Defence(ctx, items, result);
+			result.Movement = items.Sum(i => MovementStats.Sum(i.Stat)) * MovementPointsPerPercent;
 			return result;
 		}
 

@@ -131,6 +131,13 @@ namespace AtE.Tests {
 		}
 
 		[Fact]
+		public void Movement_speed_is_worth_MovementPointsPerPercent_a_percent() {
+			var ctx = Witch();
+			var shoes = Item(ItemKind.Boots, null, ("base_movement_velocity_+%", 10));
+			Assert.Equal(10 * ItemScorer.MovementPointsPerPercent, ItemScorer.ItemScore(ctx, Loadout(("Boots", shoes)), "Boots"), 6);
+		}
+
+		[Fact]
 		public void Added_damage_to_spells_and_attacks_counts_for_a_spell() {
 			var ctx = Witch();
 			var wand = Item(ItemKind.OneHand, "B-B");
