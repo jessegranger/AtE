@@ -175,6 +175,8 @@ namespace AtE {
 					int depth = ParseInt(q["depth"], 3);
 					return RunOnMain(() => TryResolve(at, out long addr, out string err) ? ElementTree(new IntPtr(addr), depth) : $"error: {err}" + NL);
 				}
+				case "/waypoints":
+					return RunOnMain(WaypointsText);
 				case "/labels":
 					return RunOnMain(LabelsText);
 				case "/skillbar":
@@ -277,6 +279,7 @@ namespace AtE {
   /offsets/golden | /offsets/confirm?key=<contains> | /offsets/forget?key=<contains>   the values a fresh character is known to have
   /ents?filter=<path substring>&comp=<ComponentName>&id=<entity id>&limit=30
   /tree?at=EXPR&depth=3         an element and its children: path of child indexes, address, visible, text, and the item if it is an InventoryItem
+  /waypoints                    the destinations on the open waypoint panel (WaypointPanel.Destinations): name, element, screen rect
   /labels                       the labels on the ground: entity id and path, text, screen rect, and the entity's screen position
   /skillbar[?stats=1]           the skill bar's slots: key, skill name, internal name, id, use time (stats=1: each skill's stats)
   /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
@@ -310,6 +313,13 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 		}
 
 		private const string NL = "\n";
+
+		private string WaypointsText() {
+			if ( WaypointPanel.Panel() == null ) return "(the waypoint panel is not open)" + NL;
+			var sb = new StringBuilder();
+			foreach ( var (e, name) in WaypointPanel.Destinations() ) sb.Append($"{name}  element={e.Address} rect={e.GetClientRect()} visible={e.IsVisible}" + NL);
+			return sb.Length == 0 ? "(no destinations found)" + NL : sb.ToString();
+		}
 
 		private string LabelsText() {
 			var sb = new StringBuilder();

@@ -398,6 +398,9 @@ namespace AtE {
 			[FieldOffset(0x268)] public readonly float Width;
 			[FieldOffset(0x26c)] public readonly float Height;
 
+			// For elements used as Waypoint destination clicks on the AreaInstanceUI, this holds a link to the destination
+			// [FieldOffset(0x300)] public readonly Vector2 AreaInstanceElementDestination;
+
 			// everything below here is wrong I think
 			// [FieldOffset(0x190)] public readonly uint TextBoxBorderColor;
 			// [FieldOffset(0x190)] public readonly uint TextBoxBackgroundColor;
@@ -430,6 +433,20 @@ namespace AtE {
 		/// </summary>
 		// 3.28.0: 136 bytes above here (inherited from Element)
 		public static readonly int Element_Text = 0x338;
+
+		public static readonly int Element_AreaInstanceDestination_Offset = 0x300;
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct AreaInstanceDestination_Details {
+			[FieldOffset(0x0)] public readonly IntPtr ptrAreaCodeName; // ptr to string like "1_town"
+			[FieldOffset(0x8)] public readonly UInt16 intUnknown08; // int like "08 01 00 00"
+			[FieldOffset(0xC)] public readonly UInt16 intUnknown0C; // int like "09 01 00 00"
+			[FieldOffset(0x10)] public readonly IntPtr ptrNameCodePair; // ptr to { str, str } like { "1_1_town", "Lioneye's Watch" }
+			[FieldOffset(0x18)] public readonly IntPtr ptrWorldAreasData; // ptr to an entry(?) in WorldAreas.dat
+			[FieldOffset(0x20)] public readonly UInt32 intUnknown20; // int like "01 00 00 00 00 00 00 00"
+			[FieldOffset(0x28)] public readonly IntPtr ptrUnknown28; // ptr to a { ptr, ptr } struct, unknown
+			[FieldOffset(0x30)] public readonly IntPtr ptrName; // ptr to string like "Lioneye's Watch"
+			[FieldOffset(0x38)] public readonly IntPtr ptrDesc; // ptr to string like "Cold, dank and reeking..."
+		}
 
 		// 3.29.3: the skill bar (UIElements.SkillBar): children [0..12] are the 13 skill slots, in the order of
 		// use_bound_skill1..13 in production_Config.ini. A slot's child [0][0] is its key label, and the hidden

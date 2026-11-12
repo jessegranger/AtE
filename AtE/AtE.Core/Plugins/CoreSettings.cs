@@ -15,7 +15,7 @@ namespace AtE {
 
 		public override int SortIndex => 0;
 
-		public int InputLatency = 30; // number of ms per input, in situtations where many inputs must be sent
+		public int InputLatency = 40; // number of ms per input, in situations where many inputs must be sent
 
 		public bool ShowFPS = false;
 		public bool ShowPerformanceWindow = false;
