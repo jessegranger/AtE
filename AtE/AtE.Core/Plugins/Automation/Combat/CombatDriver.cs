@@ -85,7 +85,11 @@ namespace AtE {
 			var player = GetPlayer();
 			var pos = player?.GetComponent<Positioned>();
 			if ( game == null || terrain == null || !IsValid(pos) ) return Wait("no terrain or player");
-			if ( !IsAlive(player) ) { Stop("the player died"); return this; }
+			if ( !IsAlive(player) ) {
+				if ( !OnPlayerDead() ) Stop("the player died");
+				DrawBottomLeftText($"{Name}: {Status}", Color.Orange);
+				return this;
+			}
 			if ( game.IsPaused ) return Wait("the game is paused");
 			if ( game.HasInputFocus ) return Wait("typing in the game");
 			if ( PoEMemory.GameRoot?.EscapeState?.Menu != null ) return Wait("escape menu");
@@ -153,6 +157,11 @@ namespace AtE {
 		}
 		private bool spending;
 		private long lastTreeClose;
+
+		/// <summary>
+		/// Called each frame while the driver is on and the player is dead: true to stay on (eg, resurrecting), false to stop.
+		/// </summary>
+		protected virtual bool OnPlayerDead() => false;
 
 		/// <summary>
 		/// Called each frame while the driver is on (and the game is ready for input): decide what to do, by calling

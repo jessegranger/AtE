@@ -42,6 +42,8 @@ namespace AtE {
 		public virtual bool UsesInventory => false;
 		/// <summary>Also done when this is true (eg, any weapon is equipped, for picking up the starting weapon).</summary>
 		public Func<bool> DoneWhen;
+		/// <summary>Walk past the monsters: no fighting, and no picking up items (which fights the monsters near them) while on this.</summary>
+		public bool IgnoreMonsters;
 
 		/// <summary>
 		/// Where to look for what it is after (eg, Search.TheOnlyExit, for a boss in the way out): walk there, past the
@@ -423,7 +425,7 @@ namespace AtE {
 			var next = route[1];
 			var exit = ctx.Terrain.Exits.FirstOrDefault(e => e.Seen && e.Destination == next.Name);
 			if ( exit == null ) {
-				if ( ctx.Driver.TryRetreat(ctx) || ctx.Driver.TryFight(ctx) ) { Detail = "fighting on the way"; return; }
+				if ( !IgnoreMonsters && (ctx.Driver.TryRetreat(ctx) || ctx.Driver.TryFight(ctx)) ) { Detail = "fighting on the way"; return; }
 				Detail = $"looking for the way to {next.Name}";
 				if ( !ctx.Driver.TryExplore(ctx) ) Detail = $"explored everything without finding the way to {next.Name}";
 				return;
@@ -443,6 +445,33 @@ namespace AtE {
 			if ( label != null ? Ground.TryClickLabel(label) : Ground.TryClickGrid(exit.GridPos, ctx.Z) ) {
 				lastClick = Time.ElapsedMilliseconds;
 			}
+		}
+	}
+
+	/// <summary>
+	/// Walk to the area's waypoint (Terrain.Waypoint: known from the tiles when the area loads, exact once its entity is
+	/// in range), close enough for it to be discovered. Done once within Reach of it (sticky: walking away later does not undo it).
+	/// </summary>
+	public class GoToWaypoint : Objective {
+		/// <summary>Done when within this many cells of the waypoint.</summary>
+		public float Reach = 12;
+		public override string Name => "Walk to the waypoint";
+
+		public override bool CheckDone(CombatContext ctx) =>
+			ctx.Terrain.Waypoint is AreaFeature wp && wp.Seen && Combat.Distance(ctx.Grid, wp.GridPos) <= Reach;
+
+		public override void Tick(CombatContext ctx) {
+			var wp = ctx.Terrain.Waypoint;
+			if ( wp == null ) {
+				// not in the tiles: look for it
+				if ( !IgnoreMonsters && (ctx.Driver.TryRetreat(ctx) || ctx.Driver.TryFight(ctx)) ) { Detail = "fighting on the way"; return; }
+				Detail = "looking for the waypoint";
+				if ( !ctx.Driver.TryExplore(ctx) ) Detail = "explored everything without finding the waypoint";
+				return;
+			}
+			float d = Combat.Distance(ctx.Grid, wp.GridPos);
+			Detail = $"at {wp}, {d:F0} cells away";
+			ctx.Driver.WalkTo(Approach(ctx, wp.GridPos), "walking to the waypoint");
 		}
 	}
 

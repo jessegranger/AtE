@@ -58,6 +58,7 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( PoEMemory.IsAttached ) {
 				ForgetOnNewArea();
+				RestartAfterResurrect();
 				if ( !IsActive ) UpdateCompletion(); // (while on, Decide does this)
 				if ( ShowObjectives ) DrawObjectives();
 			}
@@ -153,12 +154,64 @@ namespace AtE {
 				}
 				return;
 			}
-			if ( !Current.UsesInventory && TryLoot(ctx) ) return;
+			if ( !Current.UsesInventory && !Current.IgnoreMonsters && TryLoot(ctx) ) return;
 			Current.Tick(ctx);
 			if ( !string.IsNullOrEmpty(Current.Detail) ) SetStatus($"{Current.Name}: {Current.Detail}");
 		}
 
 		private long lastInventoryClose;
+
+		public const string ResurrectText = "Resurrect at Checkpoint";
+		private long lastResurrectClick;
+		private bool resurrecting;
+
+		// dead: click "Resurrect at Checkpoint" (back at the area's entrance), and once alive, start the area's objectives over
+		protected override bool OnPlayerDead() {
+			resurrecting = true;
+			var button = FindResurrectButton();
+			if ( button == null ) { SetStatus($"dead: no \"{ResurrectText}\" button"); return true; }
+			SetStatus($"dead: clicking \"{ResurrectText}\"");
+			if ( Time.ElapsedMilliseconds - lastResurrectClick > 1500 && PoEMemory.TargetHasFocus ) {
+				lastResurrectClick = Time.ElapsedMilliseconds;
+				SkillBar.ClickAt(button.GetClientRect());
+			}
+			return true;
+		}
+
+		// after resurrecting (the same area instance): start this area's objectives over
+		private void RestartAfterResurrect() {
+			if ( !resurrecting || !IsAlive(GetPlayer()) ) return;
+			resurrecting = false;
+			Log($"{Name}: resurrected, starting the objectives for {GetCurrentArea()?.DisplayName} over");
+			Current = null;
+			lastProven = -1;
+			lastProvenCheck = 0;
+			Looter.Reset();
+			foreach ( var o in CurrentObjectives ?? new List<Objective>() ) o.Reset();
+		}
+
+		/// <summary>The visible "Resurrect at Checkpoint" button (found by its text, in the UI tree), or null.</summary>
+		public static Element FindResurrectButton() {
+			var root = PoEMemory.GameRoot?.InGameState?.UIRoot;
+			if ( !IsValid(root) ) return null;
+			// breadth first through the visible elements: the death panel is shallow, but the UI tree is big
+			var queue = new Queue<(Element e, int depth)>();
+			queue.Enqueue((root, 0));
+			int seen = 0;
+			while ( queue.Count > 0 && seen++ < 20000 ) {
+				var (e, depth) = queue.Dequeue();
+				if ( string.Equals(e.Text?.Trim(), ResurrectText, StringComparison.OrdinalIgnoreCase) ) {
+					// the text may be on a label inside the button: click the label's box (it is inside the button)
+					var rect = e.GetClientRect();
+					if ( rect.Width > 0 && rect.Height > 0 ) return e;
+				}
+				if ( depth >= 12 ) continue;
+				foreach ( var child in e.Children ) {
+					if ( IsValid(child) && child.IsVisibleLocal ) queue.Enqueue((child, depth + 1));
+				}
+			}
+			return null;
+		}
 
 		// pick up an item, if there is one; true if doing so, or fighting the monsters near it (or near the player) first.
 		// (so an item comes before walking on to the next objective: walking away from the monsters, then coming back

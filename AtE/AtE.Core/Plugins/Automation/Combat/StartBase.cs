@@ -41,7 +41,20 @@ namespace AtE {
 				new Orbit("Hillock", "Hillock", StartingSkill) { SearchAt = Search.TheOnlyExit },
 				new GoToArea("Lioneye's Watch"));
 			var rewards = QuestRewards;
-			if ( rewards.Count > 0 ) Area("Lioneye's Watch", new TakeQuestRewards(rewards));
+			Area("Lioneye's Watch", rewards.Count > 0
+				? new Objective[] { new TakeQuestRewards(rewards), new GoToArea("The Coast") }
+				: new Objective[] { new GoToArea("The Coast") });
+			AfterTheStart();
+		}
+
+		/// <summary>
+		/// The objectives every class shares, from The Coast on (the classes only differ in the first two areas).
+		/// </summary>
+		private void AfterTheStart() {
+			// the waypoint is near the exits, whose names are known once there: walk past the monsters, then out
+			Area("The Coast",
+				new GoToWaypoint() { IgnoreMonsters = true },
+				new GoToArea("The Mud Flats") { IgnoreMonsters = true });
 		}
 
 		public override void Render() {

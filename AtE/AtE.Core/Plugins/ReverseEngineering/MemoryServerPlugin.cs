@@ -176,7 +176,7 @@ namespace AtE {
 					return RunOnMain(() => TryResolve(at, out long addr, out string err) ? ElementTree(new IntPtr(addr), depth) : $"error: {err}" + NL);
 				}
 				case "/skillbar":
-					return RunOnMain(SkillBarText);
+					return RunOnMain(() => SkillBarText(q["stats"] == "1"));
 				case "/offsets/run":
 					return RunOnMain(() => { var t = OffsetTests(); t.Start(q["only"], q["observers"] == "1"); return "started\n" + t.Summary() + "\n"; });
 				case "/offsets/stop":
@@ -275,7 +275,7 @@ namespace AtE {
   /offsets/golden | /offsets/confirm?key=<contains> | /offsets/forget?key=<contains>   the values a fresh character is known to have
   /ents?filter=<path substring>&comp=<ComponentName>&id=<entity id>&limit=30
   /tree?at=EXPR&depth=3         an element and its children: path of child indexes, address, visible, text, and the item if it is an InventoryItem
-  /skillbar                     the skill bar's slots: key, skill name, internal name, id
+  /skillbar[?stats=1]           the skill bar's slots: key, skill name, internal name, id, use time (stats=1: each skill's stats)
   /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
   /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
   /items                        the worn, backpack and purchase window items: name, rarity, and each mod's stats (Stats.dat ids) with their values
@@ -308,10 +308,13 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 
 		private const string NL = "\n";
 
-		private string SkillBarText() {
+		private string SkillBarText(bool stats) {
 			var sb = new StringBuilder();
 			foreach ( var slot in SkillBar.GetSlots() ) {
-				sb.AppendLine($"{slot}  internal={slot.Skill?.InternalName} display={slot.Skill?.DisplayName} id={slot.Skill?.Id} visible={slot.IsVisible}");
+				sb.AppendLine($"{slot}  internal={slot.Skill?.InternalName} display={slot.Skill?.DisplayName} id={slot.Skill?.Id} visible={slot.IsVisible} useTime={SkillBar.CastTimeMs(slot.Skill)}ms");
+				if ( stats && slot.Skill != null ) {
+					foreach ( var s in slot.Skill.GetAllStats().OrderBy(s => s.Key.ToString()) ) sb.AppendLine($"    {s.Key} = {s.Value}");
+				}
 			}
 			return sb.Length == 0 ? "(no skill bar)\n" : sb.ToString();
 		}

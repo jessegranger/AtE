@@ -6,28 +6,37 @@ using static AtE.Globals;
 namespace AtE {
 
 	/// <summary>
+	/// Something in the current area that is found two ways: when the area loads, from the tiles cut from its .tdt
+	/// (position is approximate), and exactly once its entity comes into network range.
+	/// </summary>
+	public class AreaFeature {
+		/// <summary>Exact once Seen, otherwise the walkable cell of the feature's tiles closest to their center.</summary>
+		public Offsets.Vector2i GridPos;
+		/// <summary>True once the entity has been seen.</summary>
+		public bool Seen;
+		/// <summary>The .tdt the tiles were cut from, or null if it was only found as an entity.</summary>
+		public string TileFile;
+		/// <summary>The bounds of the tiles, in tile coordinates (inclusive).</summary>
+		public int TileMinX, TileMinY, TileMaxX, TileMaxY;
+
+		public override string ToString() => $"{GridPos}{(Seen ? "" : " (approx)")}";
+	}
+
+	/// <summary>
 	/// A way out of the current area.
 	/// Exits are found two ways:
 	///  - when the area loads, from tiles cut from a "transition" .tdt (position is approximate, destination unknown)
 	///  - when an AreaTransition entity comes into network range (exact position and destination)
 	/// </summary>
-	public class AreaExit {
+	public class AreaExit : AreaFeature {
 		/// <summary>The label on the door, eg "The Mud Flats"; null until the entity has been seen.</summary>
 		public string Destination;
-		/// <summary>Exact once Seen, otherwise the walkable cell of the transition tiles closest to their center.</summary>
-		public Offsets.Vector2i GridPos;
-		/// <summary>True once the AreaTransition entity has been seen.</summary>
-		public bool Seen;
-		/// <summary>The .tdt the exit tiles were cut from, or null if it was only found as an entity.</summary>
-		public string TileFile;
-		/// <summary>The bounds of the transition tiles, in tile coordinates (inclusive).</summary>
-		public int TileMinX, TileMinY, TileMaxX, TileMaxY;
 
 		/// <summary>The area on the other side, if the destination is known and is a neighbor of the current area.</summary>
 		public WorldArea DestinationArea => Destination == null ? null :
 			GetCurrentArea()?.Connections.FirstOrDefault(a => a.Name == Destination);
 
-		public override string ToString() => $"{Destination ?? "(unknown exit)"} at {GridPos}{(Seen ? "" : " (approx)")}";
+		public override string ToString() => $"{Destination ?? "(unknown exit)"} at {base.ToString()}";
 	}
 
 	public static class AreaExits {
@@ -36,10 +45,22 @@ namespace AtE {
 			tilePath != null && tilePath.IndexOf("transition", StringComparison.OrdinalIgnoreCase) >= 0;
 
 		/// <summary>
+		/// 3.29.3, The Coast: the waypoint stands on the only tile cut from "Metadata/Terrain/Beach/Features/beach_waypoint_v01_01.tdt",
+		/// at the center of that tile (exactly the Waypoint entity's GridPos).
+		/// </summary>
+		public static bool IsWaypointTile(string tilePath) =>
+			tilePath != null && tilePath.IndexOf("waypoint", StringComparison.OrdinalIgnoreCase) >= 0;
+
+		/// <summary>
 		/// Find exit candidates from the area's tiles: each connected group of tiles cut from the same "transition" .tdt.
 		/// </summary>
-		public static List<AreaExit> FromTiles(Offsets.TerrainData data, Terrain terrain) {
-			var result = new List<AreaExit>();
+		public static List<AreaExit> FromTiles(Offsets.TerrainData data, Terrain terrain) => FromTiles<AreaExit>(data, terrain, IsTransitionTile);
+
+		/// <summary>
+		/// Find features from the area's tiles: each connected group of tiles cut from the same .tdt, whose path is wanted.
+		/// </summary>
+		public static List<T> FromTiles<T>(Offsets.TerrainData data, Terrain terrain, Func<string, bool> wanted) where T : AreaFeature, new() {
+			var result = new List<T>();
 			int tilesX = (int)data.TilesX, tilesY = (int)data.TilesY;
 			int count = tilesX * tilesY;
 			if ( count <= 0 || data.TileDetails.ItemCount(Offsets.TileDetails.Size) != count ) return result;
@@ -63,8 +84,8 @@ namespace AtE {
 				visited[i] = true;
 				IntPtr file = tiles[i].ptrTileFile;
 				string path = PathOf(file);
-				if ( !IsTransitionTile(path) ) continue;
-				var exit = new AreaExit() {
+				if ( !wanted(path) ) continue;
+				var exit = new T() {
 					TileFile = path,
 					TileMinX = int.MaxValue, TileMinY = int.MaxValue,
 					TileMaxX = int.MinValue, TileMaxY = int.MinValue,
@@ -149,12 +170,30 @@ namespace AtE {
 			}
 		}
 
+		public const string PATH_WAYPOINT = "Metadata/MiscellaneousObjects/Waypoint";
+
+		/// <summary>
+		/// The waypoint (as found in the tiles, or null), made exact from the Waypoint entity if it is in range now.
+		/// </summary>
+		public static AreaFeature UpdateWaypoint(AreaFeature waypoint) {
+			foreach ( var ent in GetEntities() ) {
+				if ( !IsValid(ent) || ent.Path != PATH_WAYPOINT ) continue;
+				var pos = ent.GetComponent<Positioned>();
+				if ( !IsValid(pos) ) continue;
+				waypoint ??= new AreaFeature();
+				waypoint.Seen = true;
+				waypoint.GridPos = pos.GridPos;
+				break;
+			}
+			return waypoint;
+		}
+
 		private static float Distance(Offsets.Vector2i a, Offsets.Vector2i b) {
 			float dx = a.X - b.X, dy = a.Y - b.Y;
 			return MathF.Sqrt((dx * dx) + (dy * dy));
 		}
 
-		private static bool TileBoundsContain(AreaExit exit, Offsets.Vector2i grid, int marginTiles) {
+		private static bool TileBoundsContain(AreaFeature exit, Offsets.Vector2i grid, int marginTiles) {
 			int tx = grid.X / Offsets.TerrainData.CellsPerTile, ty = grid.Y / Offsets.TerrainData.CellsPerTile;
 			return tx >= exit.TileMinX - marginTiles && tx <= exit.TileMaxX + marginTiles
 				&& ty >= exit.TileMinY - marginTiles && ty <= exit.TileMaxY + marginTiles;

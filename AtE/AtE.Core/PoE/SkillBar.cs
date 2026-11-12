@@ -241,9 +241,17 @@ namespace AtE {
 		/// <summary>True if left click only moves (and interacts), rather than using some other skill.</summary>
 		public static bool LeftClickIsMovement() => IsMovement(GetSlots().FirstOrDefault(s => s.Index == LeftClickSlot)?.Skill);
 
-		/// <summary>How long a skill takes to use, in ms (the VirtualBaseSpellCastTimeMs stat); 0 if unknown.</summary>
-		public static int CastTimeMs(ActorSkill skill) =>
-			skill != null && skill.TryGetStat(Offsets.GameStat.VirtualBaseSpellCastTimeMs, out int ms) ? ms : 0;
+		/// <summary>
+		/// How long a skill takes to use, in ms; 0 if unknown. From the rate the game works out (attack or cast speed
+		/// included): HundredTimesAttacksPerSecond for an attack (Galvanic Arrow: 172, ie 581 ms, the tooltip's 0.58),
+		/// HundredTimesCastsPerSecond for a spell; else the base cast time (VirtualBaseSpellCastTimeMs, which is 1000 for attacks too).
+		/// </summary>
+		public static int CastTimeMs(ActorSkill skill) {
+			if ( skill == null ) return 0;
+			if ( skill.TryGetStat(Offsets.GameStat.HundredTimesAttacksPerSecond, out int rate) && rate > 0 ) return 100_000 / rate;
+			if ( skill.TryGetStat(Offsets.GameStat.HundredTimesCastsPerSecond, out rate) && rate > 0 ) return 100_000 / rate;
+			return skill.TryGetStat(Offsets.GameStat.VirtualBaseSpellCastTimeMs, out int ms) ? ms : 0;
+		}
 
 		/// <summary>True if skill is a melee skill: it has the Melee tag (or the stat that says so).</summary>
 		public static bool IsMelee(ActorSkill skill) {

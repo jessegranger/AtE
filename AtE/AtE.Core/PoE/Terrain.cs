@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using static AtE.Globals;
 
 namespace AtE {
@@ -30,10 +31,12 @@ namespace AtE {
 
 		private List<AreaExit> exits = new List<AreaExit>();
 		private List<AreaDoor> doors = new List<AreaDoor>();
+		private AreaFeature waypoint;
 		private long entitiesUpdated = 0;
 		private void UpdateFromEntities() {
 			if ( IsLoaded && Time.ElapsedMilliseconds - entitiesUpdated > 500 ) {
 				AreaExits.UpdateFromEntities(exits);
+				if ( waypoint == null || !waypoint.Seen ) waypoint = AreaExits.UpdateWaypoint(waypoint);
 				if ( AreaDoors.UpdateFromEntities(this, doors) ) DoorGeneration += 1;
 				entitiesUpdated = Time.ElapsedMilliseconds;
 			}
@@ -46,6 +49,16 @@ namespace AtE {
 			get {
 				UpdateFromEntities();
 				return exits;
+			}
+		}
+
+		/// <summary>
+		/// The area's waypoint: approximate from the tiles at first, exact once its entity is seen; null if none is known.
+		/// </summary>
+		public AreaFeature Waypoint {
+			get {
+				UpdateFromEntities();
+				return waypoint;
 			}
 		}
 
@@ -75,6 +88,7 @@ namespace AtE {
 
 		public void Clear() {
 			exits = new List<AreaExit>();
+			waypoint = null;
 			doors = new List<AreaDoor>();
 			DoorGeneration += 1;
 			walkable = projectile = null;
@@ -111,7 +125,9 @@ namespace AtE {
 			SetGrids(width, height, bytesPerRow, walk, proj);
 			loadedFrom = data.WalkableGrid.Head;
 			exits = AreaExits.FromTiles(data, this);
-			Log($"Terrain: loaded {Width}x{Height} cells ({size} bytes per grid), {exits.Count} exits in the tiles");
+			waypoint = AreaExits.FromTiles<AreaFeature>(data, this, AreaExits.IsWaypointTile).FirstOrDefault();
+			Log($"Terrain: loaded {Width}x{Height} cells ({size} bytes per grid), {exits.Count} exits in the tiles, "
+				+ (waypoint == null ? "no waypoint" : $"waypoint at {waypoint.GridPos} ({waypoint.TileFile})"));
 			return true;
 		}
 

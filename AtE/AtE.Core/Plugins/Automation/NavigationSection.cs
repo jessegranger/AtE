@@ -26,7 +26,7 @@ namespace AtE {
 		public bool ShowDoors = false;
 		public string RouteGoal = "";
 
-		public HotKey FollowKey = new HotKey(VKey.End);
+		public HotKey FollowKey = new HotKey(VKey.None);
 		public HotKey MoveOnlyKey = new HotKey(VKey.None);
 		public int AimAhead = 18;
 		private bool followingExplore = false; // keep going to the next exploration target after arriving
@@ -143,6 +143,15 @@ namespace AtE {
 			if ( !string.IsNullOrWhiteSpace(RouteGoal) ) {
 				ImGui.TextWrapped(route == null ? "Route: not found" : $"Route: {string.Join(" -> ", route.Select(a => a.DisplayName))}");
 			}
+			if ( terrain.Waypoint is AreaFeature waypoint ) {
+				if ( ImGui.Button("Path##waypoint") ) {
+					ShowPathToCursor = true;
+					targetPinned = true;
+					pinnedTarget = waypoint.GridPos;
+				}
+				ImGui.SameLine();
+				ImGui.Text($"Waypoint at {waypoint}");
+			} else ImGui.Text("Waypoint: none found");
 			int i = 0;
 			foreach ( var exit in terrain.Exits ) {
 				if ( ImGui.Button($"Path##exit{i++}") ) {
@@ -172,6 +181,11 @@ namespace AtE {
 				Color color = exit == next ? Color.Gold : exit.Seen ? Color.White : Color.Orange;
 				DrawCircle(screen, 10, color);
 				DrawTextAt(screen + new Vector2(12, -6), exit.Destination ?? "exit?", color);
+			}
+			if ( terrain.Waypoint is AreaFeature waypoint && TryGridToScreen(waypoint.GridPos, z, out Vector2 at) ) {
+				Color color = waypoint.Seen ? Color.SkyBlue : Color.Orange;
+				DrawCircle(at, 10, color);
+				DrawTextAt(at + new Vector2(12, -6), "Waypoint", color);
 			}
 		}
 
