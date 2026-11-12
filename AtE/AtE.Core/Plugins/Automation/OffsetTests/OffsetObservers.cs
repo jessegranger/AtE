@@ -224,6 +224,28 @@ namespace AtE {
 				},
 			};
 
+			// the Large Chest's IsOpened: seen closed (0), then 1 once the routine clicks it
+			yield return new ObserverSpec {
+				Id = "B.ChestOpens",
+				Covers = new[] { "Component_Chest.IsOpened" },
+				WaitingFor = "waiting for a Large Chest to be seen closed, then opened",
+				Matches = e => Has(e, "Chest") && ((e.Path?.Contains("Large") ?? false) || (e.GetComponent<Chest>() is Chest ch && IsValid(ch) && ch.IsLarge)),
+				Key = e => After(e.Path, "Metadata/"),
+				Run = (c, ents) => {
+					var chest = ents.First().GetComponent<Chest>();
+					if ( !IsValid(chest) ) return Outcome.NotYet("the Chest has not read yet");
+					bool opened = chest.IsOpened;
+					if ( !c.Scratch.ContainsKey("closed") ) {
+						if ( opened ) return Outcome.NotYet("first seen already open: waiting for another Large Chest");
+						c.Scratch["closed"] = true;
+						return Outcome.NotYet("seen closed (IsOpened 0): waiting for it to be clicked");
+					}
+					if ( !opened ) return Outcome.NotYet("closed (IsOpened 0): waiting for it to be clicked");
+					c.Note("IsOpened went 0 -> 1");
+					return Outcome.Pass("IsOpened went 0 -> 1");
+				},
+			};
+
 			// the exit's label (Render.Name) is where it leads: one of the areas the current area connects to
 			yield return new ObserverSpec {
 				Id = "B.AreaTransition",
