@@ -72,6 +72,17 @@ namespace AtE {
 		protected static Offsets.Vector2i Approach(CombatContext ctx, Offsets.Vector2i pos) =>
 			DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, pos, out var spot) ? spot : pos;
 
+		/// <summary>
+		/// Is the player near enough to pos to click it: within reach cells, or at (within 3 cells of) the nearest cell
+		/// that can be walked to (eg, a wall set into a cliff, whose nearest walkable cell is further than reach).
+		/// approach is where to walk otherwise, and distance how far pos is.
+		/// </summary>
+		protected static bool IsNear(CombatContext ctx, Offsets.Vector2i pos, float reach, out Offsets.Vector2i approach, out float distance) {
+			approach = Approach(ctx, pos);
+			distance = Combat.Distance(ctx.Grid, pos);
+			return distance <= reach || Combat.Distance(ctx.Grid, approach) <= 3;
+		}
+
 		/// <summary>Look for what, not in sight yet: walk toward SearchAt, or explore (see SearchAt).</summary>
 		protected void Search(CombatContext ctx, string what, string skill = null) {
 			var at = SearchAt?.Invoke(ctx);

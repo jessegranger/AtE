@@ -62,6 +62,23 @@ namespace AtE {
 			}
 		}
 
+		private Offsets.TerrainData lastData;
+		private readonly Dictionary<string, List<AreaFeature>> features = new Dictionary<string, List<AreaFeature>>();
+
+		/// <summary>
+		/// The groups of tiles cut from a .tdt whose path contains pathPart (eg, "rhoanest": The Mud Flats' three Rhoa
+		/// Nests), each at the walkable cell nearest its center; found once per area. Empty if there are none (or no terrain yet).
+		/// </summary>
+		public IReadOnlyList<AreaFeature> TileFeatures(string pathPart) {
+			if ( !IsLoaded ) return new List<AreaFeature>();
+			if ( !features.TryGetValue(pathPart, out var found) ) {
+				found = AreaExits.FromTiles<AreaFeature>(lastData, this, p => p != null && p.IndexOf(pathPart, StringComparison.OrdinalIgnoreCase) >= 0);
+				features[pathPart] = found;
+				Log($"Terrain: {found.Count} tile groups from \"{pathPart}\": {string.Join(", ", found.Select(f => f.GridPos))}");
+			}
+			return found;
+		}
+
 		/// <summary>
 		/// The doors seen so far in this area (doors are only known once they come into range).
 		/// </summary>
@@ -89,6 +106,7 @@ namespace AtE {
 		public void Clear() {
 			exits = new List<AreaExit>();
 			waypoint = null;
+			features.Clear();
 			doors = new List<AreaDoor>();
 			DoorGeneration += 1;
 			walkable = projectile = null;
@@ -124,6 +142,8 @@ namespace AtE {
 			}
 			SetGrids(width, height, bytesPerRow, walk, proj);
 			loadedFrom = data.WalkableGrid.Head;
+			lastData = data;
+			features.Clear();
 			exits = AreaExits.FromTiles(data, this);
 			waypoint = AreaExits.FromTiles<AreaFeature>(data, this, AreaExits.IsWaypointTile).FirstOrDefault();
 			Log($"Terrain: loaded {Width}x{Height} cells ({size} bytes per grid), {exits.Count} exits in the tiles, "

@@ -191,6 +191,13 @@ namespace AtE {
 			return Target != null && Engage(ctx, Target, skill);
 		}
 
+		/// <summary>Fight the monsters within radius cells (that can be walked to), instead of EngageRadius; true if fighting.</summary>
+		public bool TryFight(CombatContext ctx, float radius, string skill = null) {
+			var near = Combat.GetHostiles(ctx.Grid, radius).Where(h => DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, h.GridPos)).ToList();
+			Target = ChooseTarget(near);
+			return Target != null && Engage(ctx, Target, skill);
+		}
+
 		/// <summary>
 		/// Fight target: if it is within range (and in sight, if needed), attack it, with skill if given (see UseSkill),
 		/// else with Attack; otherwise walk to a spot where it would be. False if there is no such spot.
