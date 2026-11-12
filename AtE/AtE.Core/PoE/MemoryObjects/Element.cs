@@ -43,14 +43,32 @@ namespace AtE {
 			}
 		}
 
-		internal IntPtr GetChildPtr(int index) {
+		private IntPtr GetOwnChildPtr(int index) {
 			if ( lastKnownChildren == null || lastKnownChildrenUpdated < Time.ElapsedMilliseconds + lastKnownChildrenInterval ) {
 				lastKnownChildren = new ArrayHandle<IntPtr>(Cache.Children);
 				lastKnownChildrenUpdated = Time.ElapsedMilliseconds;
 			}
 			return index < 0 ? IntPtr.Zero : lastKnownChildren[index];
 		}
-		public Element GetChild(int index) => ElementCache.TryGetElement(GetChildPtr(index), out Element child) ? child : null;
+
+		/// <summary>
+		/// Follows a path of child indices: GetChildPtr(2, 0, 1) is the pointer to
+		/// GetChild(2)?.GetChild(0)?.GetChild(1). Returns IntPtr.Zero if any step is missing.
+		/// </summary>
+		internal IntPtr GetChildPtr(params int[] indices) {
+			if ( indices == null || indices.Length == 0 ) {
+				return IsValid(Address) ? Address : IntPtr.Zero;
+			}
+			IntPtr ptr = GetOwnChildPtr(indices[0]);
+			for ( int i = 1; i < indices.Length; i++ ) {
+				if ( !ElementCache.TryGetElement(ptr, out Element elem) ) {
+					return IntPtr.Zero;
+				}
+				ptr = elem.GetOwnChildPtr(indices[i]);
+			}
+			return ptr;
+		}
+		public Element GetChild(params int[] indices) => ElementCache.TryGetElement(GetChildPtr(indices), out Element child) ? child : null;
 
 
 		public Vector2 Position => Cache.Position;
