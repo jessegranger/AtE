@@ -43,6 +43,16 @@ namespace AtE {
 			}
 		}
 
+		private static readonly Color[] childFrameColors = { Color.Red, Color.Blue, Color.Green };
+		internal static void DrawChildFrames(Element parent, int level) {
+			if ( level > 3 ) return;
+			foreach ( var child in parent.Children ) {
+				if ( !IsValid(child) ) continue;
+				DrawFrame(child.GetClientRect(), childFrameColors[level - 1], 1);
+				DrawChildFrames(child, level + 1);
+			}
+		}
+
 		private void Resample() {
 			ViewAddress = new IntPtr(Convert.ToInt64(InputAddress, 16));
 			sample = new byte[8 * LineCount];
@@ -268,7 +278,11 @@ namespace AtE {
 										Run_ObjectBrowser($"Unknown Element {longValue:X}", elem);
 									} else if ( ImGui.IsItemHovered() ) {
 										DrawFrame(elem.GetClientRect(), Color.Yellow, 2);
+										if ( ImGui.GetIO().KeyShift ) DrawChildFrames(elem, 1);
 									}
+										if ( elem.IsVisibleLocal ) {
+										ImGui.GetWindowDrawList().AddRect(ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), (uint)ToRGBA(Color.Yellow), 0f, ImDrawFlags.None, 1f);
+										}
 								// Use the EntityCache to match ptrs to known Entities
 								} else if ( EntityCache.TryGetEntity(ptr, out Entity ent) ) {
 									ImGui.AlignTextToFramePadding();

@@ -190,10 +190,24 @@ namespace AtE {
 			foreach ( var o in CurrentObjectives ?? new List<Objective>() ) o.Reset();
 		}
 
-		/// <summary>The visible "Resurrect at Checkpoint" button (found by its text, in the UI tree), or null.</summary>
+		/// <summary>
+		/// The visible "Resurrect at Checkpoint" button, or null. 3.29.3: the "You have died" panel is UIRoot.Children[1].Children[142]:
+		/// [0] is the text "You have died!", [1] resurrect in town, [2] spectate (hidden), [3] resurrect at checkpoint
+		/// (each button's label is its child). The panel is found by its first child's text (index 142 first), else the
+		/// button by its text anywhere in the UI tree.
+		/// </summary>
 		public static Element FindResurrectButton() {
 			var root = PoEMemory.GameRoot?.InGameState?.UIRoot;
 			if ( !IsValid(root) ) return null;
+			var panels = root.GetChild(1);
+			if ( IsValid(panels) ) {
+				static bool IsDeathPanel(Element p) => IsValid(p) && p.IsVisibleLocal
+					&& string.Equals(p.GetChild(0)?.Text?.Trim(), "You have died!", StringComparison.OrdinalIgnoreCase);
+				var panel = panels.GetChild(142);
+				if ( !IsDeathPanel(panel) ) panel = panels.Children.FirstOrDefault(IsDeathPanel);
+				var button = panel?.GetChild(3);
+				if ( IsValid(button) && button.IsVisible ) return button;
+			}
 			// breadth first through the visible elements: the death panel is shallow, but the UI tree is big
 			var queue = new Queue<(Element e, int depth)>();
 			queue.Enqueue((root, 0));

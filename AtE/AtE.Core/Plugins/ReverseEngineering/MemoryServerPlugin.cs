@@ -287,7 +287,7 @@ namespace AtE {
   /read?at=EXPR&len=0x80&depth=0        annotated hexdump; depth>0 also dumps what valid pointers point at
   /track?at=EXPR&len=0x40&ms=100&dur=5000    sample, then report only the slots that change (i32/i64/f32/f64)
   /record?at=EXPR[&at=EXPR2]&len=0x40[&len=0x100]&ms=100&dur=5000&name=label    writes memdumps/<name>-<time>.jsonl
-EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID,Name). steps: +N -N *
+EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID,Name) ui(1,142,3) (UIRoot children by index). steps: +N -N *
   e.g. ingame+0x920   comp(1234,DiesAfterTime)+0x20*   (use %2B for + in URLs, or curl -G --data-urlencode)\n";
 
 		// ---------------------------------------------------------------- status / entities
@@ -323,6 +323,10 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			var driver = GetPlugin<AutomationPlugin>()?.Combat.Current;
 			if ( !(driver is CombatRoutine routine) ) return $"the routine is {driver?.Name ?? "(none)"}, which has no objectives\n";
 			var sb = new StringBuilder($"{routine.Name}: {(routine.IsActive ? "on" : "off")}, {routine.Status}\n");
+			if ( !IsAlive(GetPlayer()) ) {
+				var button = CombatRoutine.FindResurrectButton();
+				sb.AppendLine(button == null ? "dead: no resurrect button found" : $"dead: resurrect button at {button.GetClientRect()} ({button.Address})");
+			}
 			var game = PoEMemory.GameRoot?.InGameState;
 			var terrain = GetTerrain();
 			var player = GetPlayer();
@@ -718,6 +722,14 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 				case "gameroot": addr = PoEMemory.GameRoot?.Address.ToInt64() ?? 0; break;
 				case "ingame": addr = igs?.Address.ToInt64() ?? 0; break;
 				case "player": addr = IsValid(igs) ? igs.Player.Address.ToInt64() : 0; break;
+				case "ui": { // ui(1,142,3): UIRoot.Children[1].Children[142].Children[3]; ui() is UIRoot
+					Element e = igs?.UIRoot;
+					foreach ( var a in args.Where(a => a.Length > 0) ) {
+						e = IsValid(e) ? e.GetChild(ParseInt(a, -1)) : null;
+					}
+					addr = IsValid(e) ? e.Address.ToInt64() : 0;
+					break;
+				}
 				case "ent":
 				case "comp": {
 					if ( args.Length < 1 || !EntityCache.TryGetEntity((uint)ParseInt(args[0], 0), out Entity ent) || !IsValid(ent) ) {

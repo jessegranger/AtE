@@ -207,6 +207,7 @@ namespace AtE {
 				// only if its not toggled open, hover should highlight the element's rect
 				if ( IsValid(elem) && ImGui.IsItemHovered() && (r.Width * r.Height) > 0 ) {
 					DrawFrame(r, Color.Yellow, 3);
+						if ( ImGui.GetIO().KeyShift ) Debugger.DrawChildFrames(elem, 1);
 				}
 				return false;
 			}
