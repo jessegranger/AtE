@@ -36,15 +36,8 @@ namespace AtE {
 	/// </summary>
 	public class Explorer {
 
-		/// <summary>Walkable cells within this many cells of the player count as explored (at least; see ScreenRevealRadius).</summary>
-		public int RevealRadius = 45;
-		/// <summary>
-		/// If true, the reveal radius is how far the screen reaches from the player (the smaller of the distances to the
-		/// top and bottom edges), like the minimap, which shows what has been on screen. Never less than RevealRadius.
-		/// </summary>
-		public bool RevealToScreenEdge = true;
-		/// <summary>The radius used for the last Update.</summary>
-		public int CurrentRevealRadius { get; private set; }
+		/// <summary>Walkable cells within this many cells of the player count as explored.</summary>
+		public const int RevealRadius = 80;
 		/// <summary>A region (one connected part of an 8x8 block) is worth visiting if it has this many unexplored cells (or half its cells, if smaller).</summary>
 		public int MinUnexplored = 16;
 		/// <summary>Hostile monsters within this many cells (straight line) are targets before exploring.</summary>
@@ -85,8 +78,7 @@ namespace AtE {
 		/// Mark the cells around the player as explored. Cheap when the player has not moved much; call every frame.
 		/// </summary>
 		/// <param name="exploreAll">True to count the whole area as explored at once (eg, a town or hideout).</param>
-		/// <param name="screenRadius">How far the screen reaches from the player, in cells (0 if unknown).</param>
-		public void Update(Terrain terrain, uint areaHash, Offsets.Vector2i player, bool exploreAll = false, int screenRadius = 0) {
+		public void Update(Terrain terrain, uint areaHash, Offsets.Vector2i player, bool exploreAll = false) {
 			if ( terrain == null || !terrain.IsLoaded ) return;
 			if ( current == null || currentArea != areaHash || current.Width != terrain.Width || current.Height != terrain.Height ) {
 				Select(terrain, areaHash);
@@ -99,8 +91,7 @@ namespace AtE {
 			int dx0 = player.X - current.LastMarked.X, dy0 = player.Y - current.LastMarked.Y;
 			if ( (dx0 * dx0) + (dy0 * dy0) < 9 ) return; // moved less than 3 cells
 			current.LastMarked = player;
-			int r = RevealToScreenEdge ? Math.Max(RevealRadius, Math.Min(screenRadius, 200)) : RevealRadius;
-			CurrentRevealRadius = r;
+			const int r = RevealRadius;
 			for ( int dy = -r; dy <= r; dy++ ) {
 				int y = player.Y + dy;
 				if ( y < 0 || y >= current.Height ) continue;
