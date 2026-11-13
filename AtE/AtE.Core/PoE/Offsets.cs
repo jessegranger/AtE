@@ -115,6 +115,9 @@ namespace AtE {
 			/// <summary>
 			/// Record Size is usually something like, Marshal.SizeOf(typeof(T)) where T is the contained type.
 			/// </summary>
+			/// <summary>The most entries GetRecordPtrs will walk: a longer array is garbage (and yields nothing).</summary>
+			public const long MaxEnumerated = 200000;
+
 			public int ItemCount(int recordSize) => (int)((Tail.ToInt64() - Head.ToInt64()) / recordSize);
 
 			/// <summary>
@@ -143,6 +146,11 @@ namespace AtE {
 
 				long head = Head.ToInt64();
 				long tail = Tail.ToInt64();
+				// a garbage handle (two valid pointers a terabyte apart, from a stale offset) would loop for hours on the game's thread:
+				// no real array in the game has this many entries
+				if ( recordSize <= 0 || tail < head || (tail - head) / recordSize > MaxEnumerated ) {
+					yield break;
+				}
 				while(head < tail) {
 					yield return new IntPtr(head);
 					head += recordSize;
@@ -256,21 +264,21 @@ namespace AtE {
 
 		// GameRoot members:
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct GameRoot {
-			[FieldOffset(0x08)] public readonly ArrayHandle CurrentGameStates;
-			[FieldOffset(0x20)] public readonly ArrayHandle ActiveGameStates;
-			[FieldOffset(0x48)] public readonly GameStateArrayEntry AreaLoadingState;
-			[FieldOffset(0x58)] public readonly GameStateArrayEntry WaitingState;
-			[FieldOffset(0x68)] public readonly GameStateArrayEntry CreditsState;
-			[FieldOffset(0x78)] public readonly GameStateArrayEntry EscapeState;
-			[FieldOffset(0x88)] public readonly GameStateArrayEntry InGameState;
-			[FieldOffset(0x98)] public readonly GameStateArrayEntry ChangePasswordState;
-			[FieldOffset(0xa8)] public readonly GameStateArrayEntry LoginState;
-			[FieldOffset(0xb8)] public readonly GameStateArrayEntry PreGameState;
-			[FieldOffset(0xc8)] public readonly GameStateArrayEntry CreateCharacterState;
-			[FieldOffset(0xd8)] public readonly GameStateArrayEntry SelectCharacterState;
-			[FieldOffset(0xe8)] public readonly GameStateArrayEntry DeleteCharacterState;
-			[FieldOffset(0xf8)] public readonly GameStateArrayEntry LoadingState;
-			[FieldOffset(0x108)] public readonly GameStateArrayEntry ProbeState; // not a real state, put here to probe for the game adding new kinds of states
+			[FieldOffset(0x10)] public readonly ArrayHandle CurrentGameStates;
+			[FieldOffset(0x28)] public readonly ArrayHandle ActiveGameStates;
+			[FieldOffset(0x50)] public readonly GameStateArrayEntry AreaLoadingState;
+			[FieldOffset(0x60)] public readonly GameStateArrayEntry WaitingState;
+			[FieldOffset(0x70)] public readonly GameStateArrayEntry CreditsState;
+			[FieldOffset(0x80)] public readonly GameStateArrayEntry EscapeState;
+			[FieldOffset(0x90)] public readonly GameStateArrayEntry InGameState;
+			[FieldOffset(0xa0)] public readonly GameStateArrayEntry ChangePasswordState;
+			[FieldOffset(0xb0)] public readonly GameStateArrayEntry LoginState;
+			[FieldOffset(0xc0)] public readonly GameStateArrayEntry PreGameState;
+			[FieldOffset(0xd0)] public readonly GameStateArrayEntry CreateCharacterState;
+			[FieldOffset(0xe0)] public readonly GameStateArrayEntry SelectCharacterState;
+			[FieldOffset(0xf0)] public readonly GameStateArrayEntry DeleteCharacterState;
+			[FieldOffset(0x100)] public readonly GameStateArrayEntry LoadingState;
+			[FieldOffset(0x110)] public readonly GameStateArrayEntry ProbeState; // not a real state, put here to probe for the game adding new kinds of states
 			// if you look up the ProbeState in the Game UI and find that it has a real GameStateArrayEntry (instead of a terminating 0x00)
 			// then a new GameState has been added to the game
 		}
@@ -318,19 +326,20 @@ namespace AtE {
 			// 3.22: 248 new bytes here?
 			// 3.23: 128 new bytes here?
 			// 3.29: 136 new bytes here
-			[FieldOffset(0x5a0)] public readonly IntPtr elemRoot;
-			[FieldOffset(0x5b0)] public readonly IntPtr elemInputFocus; // which element has input focus or null
-			[FieldOffset(0x5d8)] public readonly IntPtr elemHover; // element which is currently hovered
+			[FieldOffset(0x800)] public readonly IntPtr elemRoot;
+			[FieldOffset(0x810)] public readonly IntPtr elemInputFocus; // which element has input focus or null
+			[FieldOffset(0x838)] public readonly IntPtr elemHover; // element which is currently hovered
 			// 3.29.3: confirmed with MemoryServer /track over 10s (r2=1.0000, no flat intervals)
-			[FieldOffset(0x92c)] public readonly int GameTimeMs; // int32 counter, 1000/s (999.98 measured), ~52 million = 14.6 hours at test time
-			[FieldOffset(0x930)] public readonly float FrameDeltaSec; // jitters 0.016-0.019, last frame duration
-			[FieldOffset(0x934)] public readonly float GameTimeSec; // float32, == GameTimeMs / 1000, 1.0/s
-			[FieldOffset(0x93a)] public readonly bool IsRunning;
+			// 3.29.4: the four clock fields moved +4 (/track: 1000/s at 0xb90, 0.017 at 0xb94, seconds at 0xb98, then the bytes 1,1,1 at 0xb9c..0xb9e)
+			[FieldOffset(0xb90)] public readonly int GameTimeMs; // int32 counter, 1000/s (999.98 measured), ~52 million = 14.6 hours at test time
+			[FieldOffset(0xb94)] public readonly float FrameDeltaSec; // jitters 0.016-0.019, last frame duration
+			[FieldOffset(0xb98)] public readonly float GameTimeSec; // float32, == GameTimeMs / 1000, 1.0/s
+			[FieldOffset(0xb9e)] public readonly bool IsRunning; // moved with them (+4); one of three bytes that read 1 (unverified which is which)
 			// 3.28.0: 40 new bytes here
 			// 3.29.3: the mouse position, in client pixels (two int32; found by recording InGameState while the mouse was put over the
 			// flasks, (467,1138), and the skill bar, (1509,1125)). The Vector2 of floats at 0x5b8 that was here is stale: it
 			// holds a position (153, 863.25) that does not follow the mouse.
-			[FieldOffset(0x640)] public readonly Vector2i MousePos;
+			[FieldOffset(0x8a0)] public readonly Vector2i MousePos;
 			// 3.28.0: removed
 			// [FieldOffset(0x5a0)] public readonly Vector2 UIHoverOffset; // mouse position offset in hovered UI element
 		}
@@ -339,8 +348,10 @@ namespace AtE {
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct EscapeGameState {
 			// 3.29: 136 new bytes here
-			[FieldOffset(0x408)] public readonly IntPtr elemRoot;
-			[FieldOffset(0x440)] public readonly IntPtr elemMenu;
+			// 3.29.4: both moved +0x260: elemRoot (0x668) is the 2560x1600 "root"; elemMenu (0x6a0) is null until Escape is pressed, then the "escape_menu" element
+			// (found by diffing the state's pointers while the check pressed Escape)
+			[FieldOffset(0x668)] public readonly IntPtr elemRoot;
+			[FieldOffset(0x6a0)] public readonly IntPtr elemMenu;
 		}
 
 		// members of AreaLoadingState
@@ -350,13 +361,13 @@ namespace AtE {
 			// 3.29: 128 new bytes here
 			[FieldOffset(0x3c8)] public readonly long IsLoading;
 			// 3.29: 8 new bytes here
-			[FieldOffset(0x408)] public readonly IntPtr elemRoot;
+			[FieldOffset(0x668)] public readonly IntPtr elemRoot;
 			// 3.22: 24 new bytes here
 			// 3.24.3: 8 new bytes here
 			// 3.25: 256 new bytes here
 			// 3.28: 8 fewer bytes here
 			// 3.29: 16 new bytes here
-			[FieldOffset(0x7e8)] public readonly IntPtr strAreaName;
+			[FieldOffset(0xa50)] public readonly IntPtr strAreaName;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LoginGameState {
 			[FieldOffset(0x2D0)] public readonly IntPtr elemRoot;
@@ -377,15 +388,22 @@ namespace AtE {
 			// 3.23.1: 128 more bytes here
 			// 3.24.3: 12 fewer bytes here
 			// 3.29: 4 new bytes here
-			[FieldOffset(0x198)] public readonly float Scale; // should always be 0.75f? or is that just at my resolution?
+			// 3.29.4: Scale, elemParent, the flags and Size moved by 8 bytes (Scale up, the rest down); checked over a tree of 120 live elements
+			// 3.29.4: the element's id ("root", "login_frame", "username_textbox"...), a unicode std::wstring; most elements have none (length 0)
+			[FieldOffset(0x1b0)] public readonly StringHandle strName;
+			// 3.29.4: most elements now store 1.0 here, meaning "the same as the parent" (the orbs, the experience bar and the panels read 1.0 under the HUD's
+			// 0.75: that only puts them in the window if they are drawn at 0.75). Element.Scale resolves it; this is the raw value.
+			[FieldOffset(0x1a0)] public readonly float Scale; // should always be 0.75f? or is that just at my resolution?
 			// 3.24.3: 8 new bytes here
-			[FieldOffset(0x1e0)] public readonly IntPtr elemParent; // ptr to Element
+			[FieldOffset(0x1d8)] public readonly IntPtr elemParent; // ptr to Element
 
-			[FieldOffset(0x150)] public readonly Vector2 Position;
-			[FieldOffset(0x150)] public readonly float X;
-			[FieldOffset(0x154)] public readonly float Y;
+			// 3.29.4: Position moved 0x150 -> 0x144 (-0xc): life_orb (18, 1285), mana_orb (2229, 1285) and experience_bar (816, 1570) read as the
+			// orbs' and the bar's places in the 2560x1600 layout. 0x150 still holds a float (18, 16, 816) that is not the position.
+			[FieldOffset(0x144)] public readonly Vector2 Position;
+			[FieldOffset(0x144)] public readonly float X;
+			[FieldOffset(0x148)] public readonly float Y;
 			// 3.23: 32 fewer bytes here again
-			[FieldOffset(0x1e9)] public readonly byte IsVisibleByte;
+			[FieldOffset(0x1e1)] public readonly byte IsVisibleByte; // 3.29.4: bit 8 varies between elements here (0x2e vs 0x26), not yet checked against one known to be shown or hidden
 			public bool IsVisibleLocal => (IsVisibleByte & 8) == 8;
 
 			// [FieldOffset(0x160)] public readonly uint ElementBorderColor;
@@ -394,9 +412,9 @@ namespace AtE {
 
 			// 3.23: 16 new bytes (+ the 64 prior) added here
 			// 3.26: 56 new bytes here
-			[FieldOffset(0x268)] public readonly Vector2 Size;
-			[FieldOffset(0x268)] public readonly float Width;
-			[FieldOffset(0x26c)] public readonly float Height;
+			[FieldOffset(0x260)] public readonly Vector2 Size;
+			[FieldOffset(0x260)] public readonly float Width;
+			[FieldOffset(0x264)] public readonly float Height;
 
 			// For elements used as Waypoint destination clicks on the AreaInstanceUI, this holds a link to the destination
 			// [FieldOffset(0x300)] public readonly Vector2 AreaInstanceElementDestination;
@@ -432,7 +450,8 @@ namespace AtE {
 		/// A StringHandle, offset from Element Address.
 		/// </summary>
 		// 3.28.0: 136 bytes above here (inherited from Element)
-		public static readonly int Element_Text = 0x338;
+		// 3.29.4: moved 0x338 -> 0x358 (+0x20): the clock's label reads "13:56" there. The same text is also at 0x490 and 0x538 (and "Fontin", the font, at 0x310 and 0x570): not placed.
+		public static readonly int Element_Text = 0x358;
 
 		public static readonly int Element_AreaInstanceDestination_Offset = 0x300;
 
@@ -452,18 +471,21 @@ namespace AtE {
 		// use_bound_skill1..13 in production_Config.ini. A slot's child [0][0] is its key label, and the hidden
 		// skill bar's children [1..] are the skills to choose from (child [0] is the "Always Attack Without Moving" option).
 		/// <summary>ptr to the ActorSkill shown in a skill bar (or hidden skill bar) cell; 0 when empty.</summary>
-		public static readonly int Element_SkillCell_Skill = 0x328;
+		// 3.29.4: the skill cell and key label fields moved +0x28 (checked on all 13 cells: SkillId 0x4000 at 0x358 in slot 0, the keys 1, 6, 2, 81... at 0x2c0 of each label)
+		public static readonly int Element_SkillCell_Skill = 0x350;
 		/// <summary>ushort, the id of the ActorSkill in a skill cell (0x4000 Default Attack, ...); 0 when there is none.</summary>
-		public static readonly int Element_SkillCell_SkillId = 0x330;
+		public static readonly int Element_SkillCell_SkillId = 0x358;
 		/// <summary>
 		/// ptr to a skill cell's icon. The hidden skill bar's Movement and Clear cells have no skill, only an icon:
 		/// its name (SkillCellIcon_Name) ends with "SkillMoveOnly" or "SkillClear".
 		/// </summary>
-		public static readonly int Element_SkillCell_Icon = 0x238;
+		public static readonly int Element_SkillCell_Icon = 0x230; // 3.29.4: was 0x238 (-8); checked on the open hidden skill bar: Default Attack's icon is "Art/2DArt/SkillIcons/iconbasicattack.dds"
 		/// <summary>ptr to a unicode string, the name of a skill cell's icon (eg, "Art/2DArt/UIImages/InGame/SkillMoveOnly").</summary>
-		public static readonly int SkillCellIcon_Name = 0x10;
+		// 3.29.4: moved 0x10 -> 0x08. The Movement and Clear cells' icons are no longer named ("SkillMoveOnly", "SkillClear"): they are rectangles of one atlas,
+		// "Art/Textures/Interface/2D/2DArt/UIImages/InGame/16.dds|1be,5b7,1fe,5f7|0" (Movement) and "...16.dds|2ff,1d8,35f,238|0" (Clear), see SkillBar.MoveIconSprite
+		public static readonly int SkillCellIcon_Name = 0x08;
 		/// <summary>int, the Windows virtual key code (1 = left mouse, 0x51 = Q, ...) on a skill slot's key label; the modifier is not here.</summary>
-		public static readonly int Element_SkillKeyLabel_VKey = 0x298;
+		public static readonly int Element_SkillKeyLabel_VKey = 0x2c0;
 
 		[StructLayout(LayoutKind.Explicit)] public struct ChildrenArrayEntry {
 			[FieldOffset(0x0)] public readonly IntPtr ptrChild;
@@ -474,7 +496,9 @@ namespace AtE {
 			[FieldOffset(0xA0)] public readonly IntPtr ptrToWorldAreaRef;
 			// 3.12.2b: some new bytes here
 			// 3.32.2: 16 fewer bytes here?
-			[FieldOffset(0x1A8)] public readonly Camera Camera;
+			// 3.29.4: moved 0x1A8 -> 0x198 (-0x10): the 1920x1200 window size is at +0x170 of it, the player projects to (960,484) with the matrix, and
+			// Position (+0x270) is 502 behind the player on both x and y. The struct itself is unchanged.
+			[FieldOffset(0x198)] public readonly Camera Camera;
 			// Note to self: when trying to find the right Camera offset,
 			// use the fact (seen below in Camera struct) that the Width and Height
 			// are integers that are easy to spot in memory, and come after the end
@@ -487,10 +511,11 @@ namespace AtE {
 			// 3.24.3b: 8 bytes removed here
 			// 3.27: 8 new bytes here
 			// 3.29: 8 new bytes here
-			[FieldOffset(0xb0)] public readonly IntPtr ptrToWorldAreaDetails;
-			[FieldOffset(0xb8)] public readonly IntPtr ptrUnk90;
+			// 3.29.4: 16 new bytes here (found in the data struct this overlaps: the pointer to "1_1_1" / "The Twilight Strand" moved 0xb0 -> 0xc0)
+			[FieldOffset(0xc0)] public readonly IntPtr ptrToWorldAreaDetails;
+			[FieldOffset(0xc8)] public readonly IntPtr ptrUnk90; // moved with it (+0x10), unchecked
 			// 3.24.3b: 8 bytes added here
-			[FieldOffset(0x11c)] public readonly uint areaHash;
+			[FieldOffset(0x124)] public readonly uint areaHash; // 3.29.4: see InGameState_Data.CurrentAreaHash: 0x124 is a guess, 0x128 is the other candidate
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct WorldAreaDetails {
@@ -552,13 +577,17 @@ namespace AtE {
 			// 3.22.1b: 4 new bytes here
 			// 3.23: 40 new bytes here
 			// 3.24: 8 fewer bytes here
-			[FieldOffset(0x0D4)] public readonly byte CurrentAreaLevel;
+			// 3.29.4: moved 0xD4 -> 0xE4 (+0x10, like WorldAreaRef.ptrToWorldAreaDetails): reads 1 on The Twilight Strand, next to a 60 and a 1
+			[FieldOffset(0x0E4)] public readonly byte CurrentAreaLevel;
 
 			// 3.22.1b: 28 bytes removed here
 			// 3.24.3b: 8 bytes removed here
 			// 3.29.3: WorldData.ptrToWorldAreaRef points at this very struct (WorldAreaRef overlaps InGameState_Data), so this is
 			// the same memory as WorldAreaRef.areaHash. It was at 0x110 until then (0x110 now holds unrelated bytes).
-			[FieldOffset(0x11c)] public readonly uint CurrentAreaHash;
+			// 3.29.4: the hash is no longer at 0x11c (reads 0). 0x124 and 0x128 both hold a different random-looking uint in each area
+			// instance and are constant within one (0x12c holds 0x21 in every instance): 0x124 is a guess between them, NOT confirmed. Check it
+			// in a second area instance: the one that is stable, nonzero and differs between instances (the other may be a seed).
+			[FieldOffset(0x124)] public readonly uint CurrentAreaHash;
 			[FieldOffset(0x120)] public readonly IntPtr MapStats;
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
 
@@ -574,11 +603,13 @@ namespace AtE {
 			// 3.24.3b: 24 bytes removed here
 			// 3.27: 8 new bytes here
 			// 3.29: 128 new bytes here
-			[FieldOffset(0x968)] public readonly IntPtr ServerData;
-			[FieldOffset(0x970)] public readonly IntPtr entPlayer; // ptr Entity
+			// 3.30: 16 new bytes here
+			[FieldOffset(0x978)] public readonly IntPtr ServerData;
+			[FieldOffset(0x980)] public readonly IntPtr entPlayer; // ptr Entity
 			// 3.27: 16 new bytes here
-			[FieldOffset(0xa28)] public readonly IntPtr EntityListHead; // ptr EntityListNode
-			[FieldOffset(0xa30)] public readonly long EntitiesCount;
+			// 3.30: 48 new bytes here?
+			[FieldOffset(0xa58)] public readonly IntPtr EntityListHead; // ptr EntityListNode
+			[FieldOffset(0xa60)] public readonly long EntitiesCount;
 
 			// 3.29.3: confirmed with MemoryServer /track: int32 tick counter, ~9.5/s in steps (96% flat sampling at 20ms),
 			// FREEZES while the game is paused (read 16322 constant while paused, resumed from there). Simulation tick, not real time.
@@ -587,13 +618,15 @@ namespace AtE {
 			// counts like it. (The MemoryServer's /hunt and /dump still read 0xB18 by address, for their research.)
 			// 3.29.3: found while looking for it: a plain 60 Hz counter (59.95/s, r2=1.0000 over 45 s) that runs while walking.
 			// Not known whether it stops while the game is paused.
-			[FieldOffset(0x14A0)] public readonly int FrameCount;
+			// 3.29.4: moved 0x14A0 -> 0x1520 (+0x80; /track over 4 s: 57.6/s, r2=1.0000, the only slot that changed in 0x1400..0x1700)
+			[FieldOffset(0x1520)] public readonly int FrameCount;
 			// 3.29.3 tentative: bytes at 0xB9C and 0xB9D read 1,1 while paused and 0 while running (single observation each)
 			[FieldOffset(0xB9C)] public readonly bool IsPaused;
 
 			// 3.29.3: confirmed with MemoryServer in Oriath Docks (vtable at +0x0, 37x37 tiles, two 426x851 nibble grids),
 			// and by drawing both grids in The Coast (blocked/projectile cells line up with walls and water)
-			[FieldOffset(0xBF0)] public readonly TerrainData Terrain;
+			// 3.29.4: moved 0xBF0 -> 0xC48 (+0x58); the struct itself is unchanged (found by the TilesX/TilesY pair 96x30 followed by an array of 96*30*0x38 bytes)
+			[FieldOffset(0xC48)] public readonly TerrainData Terrain;
 		}
 
 		// 3.29.3, InGameState_Data.ServerData. Found by searching ServerData's pointees for arrays of passive ids, and
@@ -614,7 +647,9 @@ namespace AtE {
 		// and angle checked on group 141). Each node leads to its passive id, eg Witch nodes near her start, ids 8879 14419
 		// 34750 at orbit 3 index 1, 3, 4.
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_PassiveNode {
-			[FieldOffset(0x298)] public readonly IntPtr ptrNodeData; // ptr PassiveNodeData
+			// 3.29.4: moved 0x298 -> 0x2c0 (+0x28): over 377 nodes the Witch's ids 8879, 14419 and 34750 read orbit 3 at indexes 1, 3 and 4 (as their goldens say); PassiveNodeData
+			// and PassiveSkillRow are unchanged. The canvas (child 1 of the tree) has about 700 groups, so its children array is over 5 KB.
+			[FieldOffset(0x2c0)] public readonly IntPtr ptrNodeData; // ptr PassiveNodeData
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct PassiveNodeData {
 			[FieldOffset(0x08)] public readonly IntPtr ptrPassiveSkill; // a row of PassiveSkills.dat (rows are packed: unaligned)
@@ -683,51 +718,53 @@ namespace AtE {
 			// 3.26: 8 fewer bytes here
 			// 3.28: 136 new bytes here (inherited from Element)
 			// 3.29: 24 new bytes here
-			[FieldOffset(0x338)] public readonly IntPtr GameUI;
-			[FieldOffset(0x350)] public readonly IntPtr LifeBubble;
-			[FieldOffset(0x358)] public readonly IntPtr ManaBubble;
-			[FieldOffset(0x378)] public readonly IntPtr Flasks;
-			[FieldOffset(0x380)] public readonly IntPtr ExperienceBar;
-			[FieldOffset(0x398)] public readonly IntPtr OpenMenuPopoutButton ;
-			[FieldOffset(0x3b0)] public readonly IntPtr CurrentTime;
+			// 3.29.4: every field from GameUI to RootBuffPanel moved +0x28 (checked by Element.strName and sizes: GameUI is "HUD", LifeBubble "life_orb" 315x315, Flasks "flask_bar" 340x136,
+			// SkillBar "skills_bar", HiddenSkillBar "skills_list", ...). The fields after RootBuffPanel (NpcDialog...) are NOT shifted by the same amount (four item selectors were inserted) and are unverified.
+			[FieldOffset(0x360)] public readonly IntPtr GameUI;
+			[FieldOffset(0x378)] public readonly IntPtr LifeBubble;
+			[FieldOffset(0x380)] public readonly IntPtr ManaBubble;
+			[FieldOffset(0x3a0)] public readonly IntPtr Flasks;
+			[FieldOffset(0x3a8)] public readonly IntPtr ExperienceBar;
+			[FieldOffset(0x3c0)] public readonly IntPtr OpenMenuPopoutButton ;
+			[FieldOffset(0x3d8)] public readonly IntPtr CurrentTime;
 			// 3.23.2: 8 fewer bytes here
 			// 3.27: 8 new bytes here
-			[FieldOffset(0x448)] public readonly IntPtr GreenShopButton;
-			[FieldOffset(0x450)] public readonly IntPtr HelpPanelButton;
-			[FieldOffset(0x460)] public readonly IntPtr SkipAllTutorials;
-			[FieldOffset(0x488)] public readonly IntPtr Mouse;
+			[FieldOffset(0x470)] public readonly IntPtr GreenShopButton;
+			[FieldOffset(0x478)] public readonly IntPtr HelpPanelButton;
+			[FieldOffset(0x488)] public readonly IntPtr SkipAllTutorials;
+			[FieldOffset(0x4b0)] public readonly IntPtr Mouse;
 			// 3.29.3: the level-up button (GameUI[3][0]), shown while there are passive points to spend: Child[1].Text is
 			// how many ("1" with one point). +0x3D0 has another element with the same text, in a hidden panel.
-			[FieldOffset(0x518)] public readonly IntPtr PassivePointsButton;
-			[FieldOffset(0x490)] public readonly IntPtr SkillBar;
-			[FieldOffset(0x498)] public readonly IntPtr HiddenSkillBar;
+			[FieldOffset(0x540)] public readonly IntPtr PassivePointsButton;
+			[FieldOffset(0x4b8)] public readonly IntPtr SkillBar;
+			[FieldOffset(0x4c0)] public readonly IntPtr HiddenSkillBar;
 			// Crucible: 8 new bytes here
 			// 3.26: 8 new bytes here
-			[FieldOffset(0x540)] public readonly IntPtr ChatBoxRoot;
+			[FieldOffset(0x568)] public readonly IntPtr ChatBoxRoot;
 
-			[FieldOffset(0x570)] public readonly IntPtr QuestTracker;
-			[FieldOffset(0x5f8)] public readonly IntPtr OpenLeftPanel;
-			[FieldOffset(0x600)] public readonly IntPtr OpenRightPanel;
-			[FieldOffset(0x628)] public readonly IntPtr InventoryPanel;
-			[FieldOffset(0x630)] public readonly IntPtr StashElement;
-			[FieldOffset(0x638)] public readonly IntPtr GuildStashElement;
-			[FieldOffset(0x648)] public readonly IntPtr SocialPanel;
-			[FieldOffset(0x650)] public readonly IntPtr SkillTree;
+			[FieldOffset(0x598)] public readonly IntPtr QuestTracker;
+			[FieldOffset(0x620)] public readonly IntPtr OpenLeftPanel;
+			[FieldOffset(0x628)] public readonly IntPtr OpenRightPanel;
+			[FieldOffset(0x650)] public readonly IntPtr InventoryPanel;
+			[FieldOffset(0x658)] public readonly IntPtr StashElement;
+			[FieldOffset(0x660)] public readonly IntPtr GuildStashElement;
+			[FieldOffset(0x670)] public readonly IntPtr SocialPanel;
+			[FieldOffset(0x678)] public readonly IntPtr SkillTree;
 			// [FieldOffset(0x618)] public readonly IntPtr AtlasPanel;
 			// [FieldOffset(0x620)] public readonly IntPtr AtlasSkillPanel;
 			// [FieldOffset(0x650)] public readonly IntPtr WorldMap;
-			[FieldOffset(0x670)] public readonly IntPtr CharacterPanel;
-			[FieldOffset(0x678)] public readonly IntPtr OptionsPanel;
-			[FieldOffset(0x680)] public readonly IntPtr ChallengesPanel;
-			[FieldOffset(0x688)] public readonly IntPtr PantheonPanel;
-			[FieldOffset(0x690)] public readonly IntPtr PvPPanel;
-			[FieldOffset(0x698)] public readonly IntPtr AreaInstanceUi;
+			[FieldOffset(0x698)] public readonly IntPtr CharacterPanel;
+			[FieldOffset(0x6a0)] public readonly IntPtr OptionsPanel;
+			[FieldOffset(0x6a8)] public readonly IntPtr ChallengesPanel;
+			[FieldOffset(0x6b0)] public readonly IntPtr PantheonPanel;
+			[FieldOffset(0x6b8)] public readonly IntPtr PvPPanel;
+			[FieldOffset(0x6c0)] public readonly IntPtr AreaInstanceUi;
 
-			[FieldOffset(0x6d8)] public readonly IntPtr RelicPanel;
-			[FieldOffset(0x6e0)] public readonly IntPtr Map;
-			[FieldOffset(0x6e8)] public readonly IntPtr ItemsOnGroundLabelElement;
+			[FieldOffset(0x700)] public readonly IntPtr RelicPanel;
+			[FieldOffset(0x708)] public readonly IntPtr Map;
+			[FieldOffset(0x710)] public readonly IntPtr ItemsOnGroundLabelElement;
 			//[FieldOffset(0x628)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
-			[FieldOffset(0x768)] public readonly IntPtr RootBuffPanel;
+			[FieldOffset(0x790)] public readonly IntPtr RootBuffPanel;
 			[FieldOffset(0x790)] public readonly IntPtr NpcDialog;
 			[FieldOffset(0x798)] public readonly IntPtr NpcOptions;
 			// [FieldOffset(0x728)] public readonly IntPtr LeagueInteractButtonPanel;
@@ -1004,9 +1041,13 @@ namespace AtE {
 			// [FieldOffset(0x0C)] public readonly byte KeyBindFlags; // unknown how this works but it changes when you change your skill key binds in the UI
 			[FieldOffset(0x48)] public readonly IntPtr ptrSelf;
 			[FieldOffset(0x50)] public readonly ushort Id;
-			[FieldOffset(0x58)] public readonly IntPtr ptrGemEffects;
-			[FieldOffset(0xc0)] public readonly byte CanBeUsedWithWeapon;
-			[FieldOffset(0xc2)] public readonly byte CanBeUsed;
+			// 3.29.4: ptrGemEffects moved 0x58 -> 0x68 (+0x10): the only ptr of Default Attack that leads (ptr, then ptr again, then a string) to "PlayerMelee".
+			// 0x58 now points into a table of action names ("Melee", "SandSpitterProjectile"...) and is what the other 12 skills of a character (Move, Dance...) have
+			[FieldOffset(0x68)] public readonly IntPtr ptrGemEffects;
+			// 3.29.4: these two read 1 and 1 at 0xe8 and 0xea for Default Attack (0xe8 is 1 and 0xea 0 for the 12 other skills): moved +0x28, tentative.
+			// The fields below them (TotalUses...) are not checked yet and have probably moved too.
+			[FieldOffset(0xe8)] public readonly byte CanBeUsedWithWeapon;
+			[FieldOffset(0xea)] public readonly byte CanBeUsed;
 			// 3.25: 56 new bytes added here
 			[FieldOffset(0xcc)] public readonly int TotalUses;
 			[FieldOffset(0xd0)] public readonly int CooldownMS;
@@ -1754,7 +1795,9 @@ namespace AtE {
 			// 3.26: 8 fewer bytes here
 			// 3.28: 136 new bytes here (inherited from Element)
 			// 3.29: 16 new bytes here
-			[FieldOffset(0x430)] public readonly InventoryArray InventoryList;
+			// 3.29.4: moved 0x430 -> 0x458 (+0x28): the slots follow in the same order, with the sizes of their cells (Helm 156x156, Amulet 78x78, Chest 156x234,
+			// the Backpack 936x390 = 12x5, the Flask slot 390x156 = 5x2)
+			[FieldOffset(0x458)] public readonly InventoryArray InventoryList;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InventoryArray {
@@ -1820,15 +1863,17 @@ namespace AtE {
 			// 3.29.3: the hover fields are all 0xA0 further on than they were (found by comparing the element with the mouse away and over the
 			// Scroll of Wisdom in the last slot: HoverItem became the item's element, the cell became 11,4 twice, CursorInInventory 1). MoveItemHoverState
 			// (0x300 here) is assumed to have moved the same way: it only changes while an item is carried on the cursor.
-			[FieldOffset(0x300)] public readonly int MoveItemHoverState;
-			[FieldOffset(0x308)] public readonly IntPtr HoverItem; // to InventoryItem Element
-			[FieldOffset(0x310)] public readonly int XFake;
-			[FieldOffset(0x314)] public readonly int YFake;
-			[FieldOffset(0x318)] public readonly int XReal;
-			[FieldOffset(0x31C)] public readonly int YReal;
-			[FieldOffset(0x328)] public readonly short CursorInInventory;
+			// 3.29.4: all of them moved another +0x30 (backpack with the mouse away vs over the item at 11,4: HoverItem 0x338, the cell twice at 0x340 and 0x348, CursorInInventory 0x358 = 1,
+			// Size (12, 5) at 0x618). MoveItemHoverState moved with them, unchecked.
+			[FieldOffset(0x330)] public readonly int MoveItemHoverState;
+			[FieldOffset(0x338)] public readonly IntPtr HoverItem; // to InventoryItem Element
+			[FieldOffset(0x340)] public readonly int XFake;
+			[FieldOffset(0x344)] public readonly int YFake;
+			[FieldOffset(0x348)] public readonly int XReal;
+			[FieldOffset(0x34c)] public readonly int YReal;
+			[FieldOffset(0x358)] public readonly short CursorInInventory;
 			// 3.29.3: Size (12, 5) is at 0x5e8 (was 0x46c). ItemCount (was 0x3e8) is removed: 5 items give a 5 at 0x5f0 (and 0x450, 0x490), unverified
-			[FieldOffset(0x5e8)] public readonly Vector2i Size;
+			[FieldOffset(0x618)] public readonly Vector2i Size;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_InventoryItem {
 			// [FieldOffset(0x3F0)] public readonly IntPtr incorrectTooltip;
@@ -1837,18 +1882,20 @@ namespace AtE {
 			// 3.26: 8 fewer byte here
 			// 3.28: 136 new bytes here (inherited from Element)
 			// 3.29: 16 new bytes here
-			[FieldOffset(0x420)] public readonly IntPtr entItem;
+			// 3.29.4: the four fields below moved +0x28 (the flask slots: entItem at 0x448 leads to Metadata/Items/Flasks/FlaskLife1 and FlaskMana1,
+			// Width and Height read 1 and 2 at 0x4ec and 0x4f0). spriteDetails moved with them, unchecked.
+			[FieldOffset(0x448)] public readonly IntPtr entItem;
 			// [FieldOffset(0x378)] public readonly IntPtr unkNearPtr0x378;
 			// [FieldOffset(0x380)] public readonly int unkInt0x380;
 			// [FieldOffset(0x384)] public readonly short unkShort0x384;
 			// [FieldOffset(0x386)] public readonly short unkShort0x386;
 			// [FieldOffset(0x388)] public readonly IntPtr unkFarPtr0x388;
-			[FieldOffset(0x440)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
+			[FieldOffset(0x468)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
 			// [FieldOffset(0x3D0)] public readonly int unkInt0x3D0;
 			// 3.21.2b: 72 new bytes here?
 			// 3.29.3: Width and Height (in cells: 1x1 scroll, 1x3 wand, 1x4 sword) were at 0x4cc and 0x4d0, 8 bytes further on than they are
-			[FieldOffset(0x4c4)] public readonly int Width;
-			[FieldOffset(0x4c8)] public readonly int Height;
+			[FieldOffset(0x4ec)] public readonly int Width;
+			[FieldOffset(0x4f0)] public readonly int Height;
 			// [FieldOffset(0x3E0)] public readonly int unkInt0x3E0;
 			// 3.29.3: InventPosition (0x4a4) read pointer halves, and no pair of ints holds the grid position of every item: removed. (The position
 			// is Element.Position over the cell size, see InventoryItem.X and Y.)
@@ -1874,9 +1921,11 @@ namespace AtE {
 			// 3.26: 8 fewer bytes here
 			// 3.28: 136 new bytes here (inherited from Element)
 			// 3.29: 16 new bytes here
-			[FieldOffset(0x320)] public readonly Vector2 Shift;
-			[FieldOffset(0x328)] public readonly Vector2 DefaultShift; // historically, always < 0, -20 >
-			[FieldOffset(0x360)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
+			// 3.29.4: all three moved +0x28. DefaultShift at 0x350 reads <0, 0> on the small map and <0, -20> on the large one, as their goldens say; Zoom (0.5 on the small
+			// map) is at 0x388; Shift is placed next to DefaultShift as it was, unchecked (it reads <0, 0>). The vector at 0x320 (3320.65, 6798.91) is the player's world position.
+			[FieldOffset(0x348)] public readonly Vector2 Shift;
+			[FieldOffset(0x350)] public readonly Vector2 DefaultShift; // historically, always < 0, -20 >
+			[FieldOffset(0x388)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_RootHeader {

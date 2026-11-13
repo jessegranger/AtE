@@ -72,7 +72,28 @@ namespace AtE {
 
 
 		public Vector2 Position => Cache.Position;
-		public float Scale => Address == IntPtr.Zero ? 1.0f : Cache.Scale;
+		/// <summary>The element's id in the game's UI layout (eg "login_button"), or null when it has none</summary>
+		public string Name => Address == IntPtr.Zero || string.IsNullOrEmpty(Cache.strName.Value) ? null : Cache.strName.Value;
+		/// <summary>
+		/// The scale the element is drawn at. The game stores 1.0 for "the same as the parent" (3.29.4), so a 1.0 takes the nearest
+		/// ancestor's that is not 1.0 (the UI root's 0.75 at the top).
+		/// </summary>
+		public float Scale {
+			get {
+				if ( Address == IntPtr.Zero ) return 1.0f;
+				float own = Cache.Scale;
+				if ( own != 1.0f ) return own;
+				var cursor = this;
+				for ( int hops = 0; hops < 40; hops++ ) {
+					var parent = cursor.Parent;
+					if ( parent == null || parent.Address == cursor.Address ) break;
+					float s = parent.Cache.Scale;
+					if ( s != 1.0f ) return s;
+					cursor = parent;
+				}
+				return 1.0f;
+			}
+		}
 
 		public Vector2 ScrollOffset => Address == IntPtr.Zero ? Vector2.Zero : Cache.ScrollOffset;
 
@@ -165,7 +186,10 @@ namespace AtE {
 
 		public IEnumerable<LabelOnGround> GetAllLabels() {
 			IntPtr cursor = Details.Value.labelsOnGroundHead;
+			// a stale offset can lead into a cycle of valid pointers that never comes back to the head: stop at a repeat, or after a sane number
+			var visited = new HashSet<IntPtr>();
 			do {
+				if ( !visited.Add(cursor) || visited.Count > 5000 ) break;
 				if ( PoEMemory.TryRead(cursor, out Offsets.ItemsOnGroundLabelEntry entry) ) {
 					var label = new LabelOnGround(entry);
 					if ( IsValid(label.Label) && label.Label.IsVisibleLocal ) {

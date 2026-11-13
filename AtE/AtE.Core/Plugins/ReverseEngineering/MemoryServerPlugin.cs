@@ -432,7 +432,7 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			sb.AppendLine($"attached pid={PoEMemory.Memory.Pid} base=0x{PoEMemory.Memory.BaseAddress.ToInt64():X} size=0x{PoEMemory.Memory.ModuleSize:X}");
 			sb.AppendLine($"gameroot=0x{gr?.Address.ToInt64() ?? 0:X}");
 			sb.AppendLine($"ingame=0x{igs?.Address.ToInt64() ?? 0:X} valid={IsValid(igs)}");
-			sb.AppendLine($"player=0x{(IsValid(igs) ? igs.Player.Address.ToInt64() : 0):X}");
+			sb.AppendLine($"player=0x{(IsValid(igs) ? igs.Player?.Address.ToInt64() ?? 0 : 0):X}");
 			sb.AppendLine($"entities={EntityCache.IdCount}");
 			sb.AppendLine($"time_ms={Time.ElapsedMilliseconds}");
 			return sb.ToString();

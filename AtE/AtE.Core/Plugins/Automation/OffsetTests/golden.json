@@ -104,6 +104,11 @@
     "Confirmed": true,
     "Version": "3.29.3"
   },
+  "item.Currency/CurrencyIdentification.droplevel": {
+    "Value": "1",
+    "Confirmed": false,
+    "Version": "3.29.3"
+  },
   "item.Currency/CurrencyIdentification.name": {
     "Value": "Scroll of Wisdom",
     "Confirmed": true,
@@ -550,7 +555,7 @@
     "Version": "3.29.3"
   },
   "Witch.ui.visible": {
-    "Value": "ChatBoxRoot,CurrentTime,ExperienceBar,Flasks,GameUI,GemLvlUpPanel,GreenShopButton,HelpPanelButton,ItemsOnGroundLabelElement,LifeBubble,ManaBubble,Map,Mouse,OpenMenuPopoutButton,RootBuffPanel,SkillBar,SkipAllTutorials",
+    "Value": "ChatBoxRoot,CurrentTime,ExperienceBar,Flasks,GameUI,GreenShopButton,HelpPanelButton,ItemsOnGroundLabelElement,LifeBubble,ManaBubble,Map,Mouse,OpenMenuPopoutButton,RootBuffPanel,SkillBar,SkipAllTutorials",
     "Confirmed": true,
     "Version": "3.29.3"
   }

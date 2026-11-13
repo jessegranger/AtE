@@ -20,6 +20,16 @@ namespace AtE {
 		private static readonly FieldInfo[] uiFields = typeof(Offsets.InGameState_UIElements).GetFields(BindingFlags.Public | BindingFlags.Instance)
 			.Where(f => f.FieldType == typeof(IntPtr)).ToArray();
 
+		/// <summary>
+		/// 3.29.4: the table's fields after RootBuffPanel have not been placed yet: the early part of the table moved +0x28 (checked by the elements'
+		/// names and sizes), the item selectors inserted around 0x7a0 moved the rest by an amount not known (no names to go by), and the real
+		/// positions need the windows open (talking to an NPC, a vendor, the crafting bench...). Until then these are not read as elements, so the
+		/// table's other fields can be checked. Take a name off this list when its offset is found.
+		/// </summary>
+		private static readonly HashSet<string> unplaced = new HashSet<string>(new[] {
+			"NpcDialog", "NpcOptions", "QuestRewardWindow", "PurchaseWindow", "SellWindow", "TradeWindow", "CardTradePanel", "CraftBench", "UnveilWindow",
+			"BuffsPanel", "DelveDarkness", "GemLvlUpPanel", "ItemOnGroundTooltip" });
+
 		private static string[] UICovers() => uiFields.Select(f => $"InGameState_UIElements.{f.Name}").ToArray();
 
 		private static Dictionary<string, IntPtr> UIPointers() {
@@ -27,7 +37,7 @@ namespace AtE {
 			var result = new Dictionary<string, IntPtr>();
 			if ( ui == null ) return result;
 			object boxed = ui.Cache;
-			foreach ( var f in uiFields ) result[f.Name] = (IntPtr)f.GetValue(boxed);
+			foreach ( var f in uiFields ) if ( !unplaced.Contains(f.Name) ) result[f.Name] = (IntPtr)f.GetValue(boxed);
 			return result;
 		}
 
@@ -67,7 +77,7 @@ namespace AtE {
 		// ---------------------------------------------------------------- A6: the UI elements
 
 		private static IEnumerable<OffsetCheck> UI() {
-			yield return Check("A6.UIElements", UICovers().Concat(new[] { "Element.Width", "Element.Height", "Element.X", "Element.Y" }).ToArray(), c => {
+			yield return Check("A6.UIElements", UICovers().Concat(new[] { "Element.Width", "Element.Height", "Element.X", "Element.Y", "Element.strName" }).ToArray(), c => {
 				var game = c.Game;
 				var root = game.UIRoot;
 				if ( !IsValid(root) ) return Outcome.Fail("no UI root");
@@ -85,9 +95,12 @@ namespace AtE {
 					c.That(float.IsFinite(e.Scale) && e.Scale > 0.05f && e.Scale < 10f, $"{pair.Key} Scale is {e.Scale}");
 					c.That(float.IsFinite(e.Size.X) && float.IsFinite(e.Size.Y) && e.Size.X >= 0 && e.Size.Y >= 0 && e.Size.X < 20000 && e.Size.Y < 20000, $"{pair.Key} Size is {e.Size}");
 					c.That(float.IsFinite(e.Position.X) && float.IsFinite(e.Position.Y), $"{pair.Key} Position is {e.Position}");
+					// the name is empty or an identifier ("life_bubble")
+					string name = e.Name;
+					c.That(name == null || name.All(ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '-' || ch == ' ' || ch == '.'), $"{pair.Key} name reads {name}");
 					if ( e.IsVisible ) shown.Add(pair.Key);
 				}
-				c.Note($"{pointers.Count - nulls.Count} of {pointers.Count} found");
+				c.Note($"{pointers.Count - nulls.Count} of {pointers.Count} found; not read, offsets not placed since 3.29.4: {Joined(unplaced)}");
 				c.Golden("ui.null", Joined(nulls));
 				c.Golden("ui.visible", Joined(shown));
 				return c.Result();

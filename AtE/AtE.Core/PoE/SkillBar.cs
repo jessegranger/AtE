@@ -57,6 +57,9 @@ namespace AtE {
 		public const string MovementName = "Movement";
 		/// <summary>The name of the hidden skill bar's cell that empties a slot.</summary>
 		public const string ClearName = "Clear";
+		// 3.29.4: the icons of those two cells are rectangles of an atlas, not named files (the names ended "SkillMoveOnly" and "SkillClear")
+		public const string MoveIconSprite = "UIImages/InGame/16.dds|1be,5b7,1fe,5f7|";
+		public const string ClearIconSprite = "UIImages/InGame/16.dds|2ff,1d8,35f,238|";
 		/// <summary>The left mouse button's slot; it should hold Movement, so a left click only moves or interacts.</summary>
 		public const int LeftClickSlot = 0;
 
@@ -104,8 +107,8 @@ namespace AtE {
 					// Movement and Clear have no skill in their cell, only their icon tells them apart
 					var skill = SkillAt(cell, actor);
 					string icon = skill == null ? IconName(cell) : null;
-					bool isMovement = icon?.EndsWith("SkillMoveOnly") ?? false;
-					bool isClear = icon?.EndsWith("SkillClear") ?? false;
+					bool isMovement = icon?.Contains(MoveIconSprite) ?? false;
+					bool isClear = icon?.Contains(ClearIconSprite) ?? false;
 					if ( skill != null || isMovement || isClear ) {
 						result.Add(new AvailableSkill() {
 							Index = i, Skill = skill, IsMovement = isMovement, IsClear = isClear,
@@ -297,7 +300,7 @@ namespace AtE {
 		// (not Actor.Skills, which leaves out the skills without a gem, like Movement)
 		private static Actor PlayerActor() => GetPlayer()?.GetComponent<Actor>();
 
-		// eg, "Art/2DArt/UIImages/InGame/SkillMoveOnly"
+		// eg, "Art/Textures/Interface/2D/2DArt/UIImages/InGame/16.dds|1be,5b7,1fe,5f7|0"
 		private static string IconName(Element cell) =>
 			PoEMemory.TryRead(cell.Address + Offsets.Element_SkillCell_Icon, out IntPtr icon) && IsValid(icon)
 			&& PoEMemory.TryRead(icon + Offsets.SkillCellIcon_Name, out IntPtr name)

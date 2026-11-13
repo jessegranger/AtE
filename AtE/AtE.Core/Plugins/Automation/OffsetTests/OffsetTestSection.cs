@@ -50,10 +50,32 @@ namespace AtE {
 		public bool IsRunning => running;
 		public IReadOnlyList<OffsetCheck> Checks => checks;
 
+		// checks set aside until what they need exists (eg, a character with allocated passives): offsettests/parked.txt, one "id # why" per line.
+		// They are listed as queued but not run, so the checks after them are reached; delete the line to run one again.
+		private static string ParkedFile => Path.Combine(GoldenStore.Directory, "parked.txt");
+		private Dictionary<string, string> parked = new Dictionary<string, string>();
+		private static Dictionary<string, string> LoadParked() {
+			var result = new Dictionary<string, string>();
+			try {
+				if ( File.Exists(ParkedFile) )
+					foreach ( var line in File.ReadAllLines(ParkedFile) ) {
+						var t = line.Trim();
+						if ( t.Length == 0 || t.StartsWith("#") ) continue;
+						int hash = t.IndexOf('#');
+						result[(hash < 0 ? t : t.Substring(0, hash)).Trim()] = hash < 0 ? "" : t.Substring(hash + 1).Trim();
+					}
+			} catch ( Exception ) { }
+			return result;
+		}
+
 		private static string QueueFile => Path.Combine(GoldenStore.Directory, "queue.json");
 
 		// a run of only some checks (see Start): no observers, and no routine at the end
 		private bool sequenceOnly;
+		// the run stopped at its first failure (the list stays on the screen; the observers stop too)
+		private bool halted;
+		// a failure the observers found while the scripted checks were still going: those say more about a bad root than the observers (which follow its pointers), so it waits for them
+		private OffsetCheck pendingObserverFailure;
 
 		/// <summary>
 		/// Start testing. With only (comma separated ids, groups, or id prefixes: "A6", "A4.Life,A8"), just those checks run, with no
@@ -73,6 +95,10 @@ namespace AtE {
 			observers = sequenceOnly && !withObservers ? new List<ObserverSpec>() : OffsetObservers.All();
 			aliveWatched.Clear();
 			observed.Clear();
+			halted = false;
+			parked = LoadParked();
+			pendingObserverFailure = null;
+			OffsetFailureLog.Reset();
 			foreach ( var spec in observers.Where(o => o.Key == null && o.Keys == null) ) AddRow(spec, null, queued);
 			index = 0;
 			running = true;
@@ -82,6 +108,8 @@ namespace AtE {
 			version = Offsets.PoEVersion;
 			status = "running";
 			Log($"OffsetTests: starting {checks.Count} checks (Offsets for PoE {version})");
+			// the console window would be in the way of the clicks and the screen the checks look at
+			AtE.Console.CollapseNext = true;
 		}
 
 		/// <summary>
@@ -124,6 +152,24 @@ namespace AtE {
 			var combat = GetPlugin<AutomationPlugin>()?.Combat;
 			if ( combat != null && previousRoutine != null ) combat.Routine = previousRoutine;
 			startedRoutine = null;
+		}
+
+		/// <summary>
+		/// At the first failure: queue it for a fix, write failure.log (what to look at to find where the offset went), and stop everything.
+		/// Going on would follow the bad pointers of the failed offsets into the checks that depend on them (and has locked the overlay up).
+		/// </summary>
+		private void HaltOnFailure(OffsetCheck failed) {
+			if ( halted ) return;
+			halted = true;
+			var queue = LoadQueue();
+			queue.Add(failed.Id);
+			SaveQueue(queue);
+			failed.Status = CheckStatus.Queued;
+			failed.Detail = "queued for a fix: " + failed.Detail;
+			string file = OffsetFailureLog.WriteFailure(failed, AllRows);
+			SaveResults();
+			Stop($"stopped at the first failure: {failed.Id} (queued for a fix; see {file})");
+			Log($"OffsetTests: {status}");
 		}
 
 		public void Stop(string why = "stopped") {
@@ -175,10 +221,14 @@ namespace AtE {
 			List<Entity> everything = null;
 			var queued = LoadQueue();
 			foreach ( var spec in observers ) {
+				if ( halted ) return;
+				OffsetFailureLog.Progress($"observer {spec.Id}: reading its entities", "src:" + spec.Id);
+				OffsetFailureLog.Mark($"observer {spec.Id}: Source");
 				List<Entity> source;
 				try {
 					source = spec.Source != null ? spec.Source().ToList() : (everything ?? (everything = GetEntities().Where(e => IsValid(e)).ToList()));
 				} catch ( Exception ) { continue; }
+				OffsetFailureLog.Mark($"observer {spec.Id}: Matches");
 				var matched = source.Where(e => { try { return spec.Matches(e); } catch ( Exception ) { return false; } }).ToList();
 				if ( spec == observers[0] ) HoldAfterBoss(everything);
 				if ( matched.Count == 0 ) continue;
@@ -218,6 +268,8 @@ namespace AtE {
 			var check = row.Check;
 			if ( check.Status == CheckStatus.Passed || check.Status == CheckStatus.Failed ) return;
 			try {
+				OffsetFailureLog.Progress($"observer {check.Id}", "run:" + check.Id);
+				OffsetFailureLog.Mark($"observer {check.Id}: Run");
 				var outcome = row.Spec.Run(new TestContext(check, Time.ElapsedMilliseconds - row.Since) { Key = row.Key }, entities);
 				switch ( outcome.Result ) {
 					case Outcome.Kind.Pass: check.Status = CheckStatus.Passed; check.Detail = outcome.Detail; break;
@@ -228,12 +280,13 @@ namespace AtE {
 				check.Status = CheckStatus.Failed;
 				check.Detail = $"threw {e.GetType().Name}: {e.Message}";
 			}
+			if ( check.Status == CheckStatus.Failed ) { OffsetFailureLog.Progress($"observer {check.Id}: Failed {check.Detail}"); if ( running ) { pendingObserverFailure = pendingObserverFailure ?? check; } else HaltOnFailure(check); }
 		}
 
 		public override IState OnTick(long dt) {
 			if ( checks.Count == 0 && observers.Count == 0 ) return this;
-			if ( ShowList && (running || finished) ) DrawList();
-			if ( (running || finished) && PoEMemory.IsAttached ) TickObservers();
+			if ( ShowList && (running || finished || halted) ) DrawList();
+			if ( (running || finished) && !halted && PoEMemory.IsAttached ) { TickObservers(); OffsetFailureLog.Mark(null); }
 			if ( !running ) return this;
 			if ( !PoEMemory.IsAttached ) { status = "waiting for the game"; return this; }
 
@@ -241,6 +294,7 @@ namespace AtE {
 			for ( int steps = 0; steps < 60 && running; steps++ ) {
 				var check = Current;
 				if ( check == null ) {
+					if ( pendingObserverFailure != null ) { HaltOnFailure(pendingObserverFailure); return this; }
 					running = false;
 					finished = true;
 					status = "done: " + Summary();
@@ -254,8 +308,16 @@ namespace AtE {
 			return this;
 		}
 
+		
 		/// <summary>Work on the current check; true if it is finished (and the next is to be started).</summary>
 		private bool Step(OffsetCheck check) {
+			if ( check.Status != CheckStatus.Running && parked.TryGetValue(check.Id, out string parkedWhy) ) {
+				check.Status = CheckStatus.Queued;
+				check.Detail = "parked, not run: " + parkedWhy;
+				OffsetFailureLog.Progress($"check {check.Id}: parked");
+				index++;
+				return true;
+			}
 			if ( check.Status != CheckStatus.Running ) {
 				var unmet = check.DependsOn.Select(id => checks.FirstOrDefault(c => c.Id == id)).FirstOrDefault(d => d != null && d.Status != CheckStatus.Passed);
 				if ( unmet != null ) {
@@ -280,10 +342,11 @@ namespace AtE {
 				check.Status = CheckStatus.Running;
 				check.StartedAt = Time.ElapsedMilliseconds;
 				status = check.Id;
+				OffsetFailureLog.Progress($"check {check.Id}");
 			}
 			if ( !check.SetupDone ) {
 				check.SetupDone = true;
-				try { check.Setup?.Invoke(); } catch ( Exception e ) { return Finish(check, CheckStatus.Failed, $"Setup threw {e.GetType().Name}: {e.Message}"); }
+				try { OffsetFailureLog.Mark($"check {check.Id}: Setup"); check.Setup?.Invoke(); OffsetFailureLog.Mark(null); } catch ( Exception e ) { return Finish(check, CheckStatus.Failed, $"Setup threw {e.GetType().Name}: {e.Message}"); }
 			}
 			long elapsed = Time.ElapsedMilliseconds - check.StartedAt;
 			if ( elapsed < check.SettleMs ) return false;
@@ -291,7 +354,9 @@ namespace AtE {
 			Outcome outcome;
 			var ctx = new TestContext(check, elapsed);
 			try {
+				OffsetFailureLog.Mark($"check {check.Id}: Run");
 				outcome = check.Run(ctx);
+				OffsetFailureLog.Mark(null);
 			} catch ( Exception e ) {
 				return Finish(check, CheckStatus.Failed, $"threw {e.GetType().Name}: {e.Message}");
 			}
@@ -311,7 +376,9 @@ namespace AtE {
 			SafeTeardown(check);
 			check.Status = result;
 			check.Detail = detail ?? "";
+			OffsetFailureLog.Progress($"check {check.Id}: {result} {check.Detail}");
 			index++;
+			if ( result == CheckStatus.Failed ) HaltOnFailure(check);
 			return true;
 		}
 

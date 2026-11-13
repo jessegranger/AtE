@@ -333,22 +333,23 @@ namespace AtE {
 
 
 		/// <summary>
-		/// True if ptr looks like a live GameRoot: the array of GameStateArrayEntry has the engine's
-		/// invariant that every entry's handle pointer is exactly 16 bytes before its state pointer.
-		/// Eleven entries all satisfying that by chance is effectively impossible.
+		/// True if ptr looks like a live GameRoot: the GameStateArrayEntry array has the engine's
+		/// invariant that every entry's handle pointer is exactly 16 bytes before its state pointer,
+		/// AND the state each entry points at reports the Kind that its slot is supposed to hold.
+		/// The handle check alone is not enough: any array of small make_shared heap objects satisfies
+		/// it, and an array shifted by one entry still passes. The Kind check catches both.
 		/// </summary>
 		private static bool LooksLikeGameRoot(IntPtr ptr) {
 			if ( !TryRead(ptr, out Offsets.GameRoot root) ) return false;
-			if ( !root.InGameState.IsValid || root.InGameState.ptrToGameState == IntPtr.Zero ) return false;
-			if ( !root.AreaLoadingState.IsValid || root.AreaLoadingState.ptrToGameState == IntPtr.Zero ) return false;
-			if ( !root.EscapeState.IsValid || root.EscapeState.ptrToGameState == IntPtr.Zero ) return false;
-			int valid = 0;
-			foreach ( var entry in new[] { root.AreaLoadingState, root.WaitingState, root.CreditsState, root.EscapeState, root.InGameState,
+			var entries = new[] { root.AreaLoadingState, root.WaitingState, root.CreditsState, root.EscapeState, root.InGameState,
 				root.ChangePasswordState, root.LoginState, root.PreGameState, root.CreateCharacterState, root.SelectCharacterState,
-				root.DeleteCharacterState, root.LoadingState } ) {
-				if ( entry.ptrToGameState != IntPtr.Zero && entry.IsValid ) valid++;
+				root.DeleteCharacterState, root.LoadingState };
+			// Offsets.GameStateType lists the states in the same order as the array
+			for ( int i = 0; i < entries.Length; i++ ) {
+				if ( entries[i].ptrToGameState == IntPtr.Zero || !entries[i].IsValid ) return false;
+				if ( !TryRead(entries[i].ptrToGameState + Offsets.GameState_Kind, out byte kind) || kind != i ) return false;
 			}
-			return valid >= 8;
+			return true;
 		}
 
 		/// <summary>

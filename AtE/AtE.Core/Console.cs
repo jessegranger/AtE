@@ -14,6 +14,9 @@ namespace AtE {
 
 		private int selectedIndex = 0;
 
+		/// <summary>Set to collapse the console window to its title bar at the next frame (eg, when the offset tests start, so it is not in the way).</summary>
+		public static volatile bool CollapseNext;
+
 		private void ImGui_SelectableProfile(CoreSettings settings, string profile) {
 			bool selected = settings.SelectedProfile?.Equals(profile) ?? false;
 			if ( ImGui.Selectable(profile, selected) && !selected ) {
@@ -26,6 +29,10 @@ namespace AtE {
 			if( settings.ConsoleKey.IsReleased ) {
 				Show = !Show;
 				if ( !Show ) { PluginBase.SaveIniFile(); }
+			}
+			if ( CollapseNext ) {
+				CollapseNext = false;
+				if ( Show ) ImGui.SetNextWindowCollapsed(true, ImGuiCond.Always);
 			}
 			if ( Show && ImGui.Begin("Assistant to the Exile", ref Show, ImGuiWindowFlags.AlwaysAutoResize) ) {
 				try {
