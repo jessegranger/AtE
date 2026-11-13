@@ -18,8 +18,15 @@ namespace AtE {
 		/// <summary>Time after a click for the game to show what it did.</summary>
 		public static uint Settle = 300;
 
-		public static IState RightClickItem(InventoryItem item, IState next = null) => IsValid(item) ? new RightClickAt(item.GetClientRect(), InputLatency, next) : null;
-		public static IState LeftClickItem(InventoryItem item, uint count = 1, IState next = null) => IsValid(item) ? new LeftClickAt(item.GetClientRect(), InputLatency, count, next) : null;
+		// (clicks go through Inputs, which add the game window's offset on the screen: a client rect clicked as is misses
+		// when the window is not at the top left of the screen)
+		public static IState RightClickItem(InventoryItem item, IState next = null) => IsValid(item) ? Inputs.RightClick(item.GetClientRect(), next) : null;
+		public static IState LeftClickItem(InventoryItem item, uint count = 1, IState next = null) {
+			if ( !IsValid(item) ) return null;
+			var rect = item.GetClientRect();
+			for ( uint i = 0; i < Math.Max(1u, count); i++ ) next = Inputs.Click(rect, next);
+			return next;
+		}
 
 		public static IState OnlyIfBackpackIsOpen(IState ifOpen, IState ifClosed = null) => State.NewState("CheckBackpackIsOpen", (self, dt) => BackpackIsOpen() ? ifOpen : ifClosed, next: ifOpen);
 		public static IState OnlyIfStashIsOpen(IState ifOpen, IState ifClosed = null) => State.NewState("CheckStashIsOpen", (self, dt) => BackpackIsOpen() && StashIsOpen() ? ifOpen : ifClosed, next: ifOpen);
@@ -56,7 +63,7 @@ namespace AtE {
 		/// <summary>Right click the gem in a socket of item (it comes onto the cursor).</summary>
 		public static IState RightClickSocketedGem(InventoryItem item, int socket, IState next = null) {
 			var rect = SocketRect(item, socket);
-			return rect.IsEmpty ? null : Named($"RightClickSocketedGem({socket})", new RightClickAt(rect, InputLatency, new Delay(Settle, next)));
+			return rect.IsEmpty ? null : Named($"RightClickSocketedGem({socket})", Inputs.RightClick(rect, new Delay(Settle, next)));
 		}
 
 		/// <summary>Take the gem out of a socket of item (onto the cursor), and put it in the first free cell of the backpack.</summary>
@@ -66,7 +73,7 @@ namespace AtE {
 		/// <summary>Left click a socket of item (with a gem on the cursor: it goes in).</summary>
 		public static IState LeftClickSocket(InventoryItem item, int socket, IState next = null) {
 			var rect = SocketRect(item, socket);
-			return rect.IsEmpty ? null : Named($"LeftClickSocket({socket})", new LeftClickAt(rect, InputLatency, 1, new Delay(Settle, next)));
+			return rect.IsEmpty ? null : Named($"LeftClickSocket({socket})", Inputs.Click(rect, new Delay(Settle, next)));
 		}
 
 		/// <summary>Put a w x h item on the cursor in the first free space of the backpack (found when this step is reached).</summary>
@@ -75,7 +82,7 @@ namespace AtE {
 				Notify($"No room in the backpack for a {w}x{h} item (it is on the cursor).");
 				return null;
 			}
-			return new LeftClickAt(BackpackGrid.SpaceRect(x, y, w, h), InputLatency, 1, new Delay(Settle, next));
+			return Inputs.Click(BackpackGrid.SpaceRect(x, y, w, h), new Delay(Settle, next));
 		}, next);
 
 		/// <summary>
@@ -96,7 +103,7 @@ namespace AtE {
 			}
 			// from the end backwards: put the old item away, swap, pick up the new one, and before that, each gem out
 			IState plan = OnlyIfBackpackIsOpen(PutHeldInBackpack(w, h, next));
-			plan = OnlyIfBackpackIsOpen(Named("ClickWornItem", new LeftClickAt(oldItem.GetClientRect(), InputLatency, 1, new Delay(Settle, plan))));
+			plan = OnlyIfBackpackIsOpen(Named("ClickWornItem", Inputs.Click(oldItem.GetClientRect(), new Delay(Settle, plan))));
 			plan = OnlyIfBackpackIsOpen(Named("PickUpNewItem", LeftClickItem(newItem, 1, new Delay(Settle, plan))));
 			foreach ( int socket in gems.AsEnumerable().Reverse() ) {
 				var step = UnsocketToBackpack(oldItem, socket, plan);
@@ -113,7 +120,7 @@ namespace AtE {
 			var rect = GemArrangement.SlotRect(slot);
 			if ( rect.IsEmpty || !IsValid(newItem) ) return null;
 			return TryFocusGame(OpenBackpack(OnlyIfBackpackIsOpen(Named("PickUpNewItem", LeftClickItem(newItem, 1, new Delay(Settle,
-				OnlyIfBackpackIsOpen(Named($"ClickSlot({slot})", new LeftClickAt(rect, InputLatency, 1, new Delay(Settle, next))))))))));
+				OnlyIfBackpackIsOpen(Named($"ClickSlot({slot})", Inputs.Click(rect, new Delay(Settle, next))))))))));
 		}
 
 		// will there be room for the gems and the w x h item, once newItem is picked up (the gems go in the first free cells)?

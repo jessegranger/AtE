@@ -31,9 +31,7 @@ namespace AtE {
 
 		/// <summary>Close the purchase, sell, and quest reward windows: a click at the top left corner of the screen.</summary>
 		public static void CloseWindows() {
-			Platform.Current.Input.MouseMove(new Vector2(1, 1));
-			Platform.Current.Input.MouseButton(MouseBtn.Left, true);
-			Platform.Current.Input.MouseButton(MouseBtn.Left, false);
+			Run(Inputs.Click(new Vector2(1, 1)));
 		}
 
 		/// <summary>The first visible element under root (or root) whose Text is text, depth first; null if none.</summary>
@@ -106,6 +104,21 @@ namespace AtE {
 				if ( found != null ) return found;
 			}
 			return null;
+		}
+
+		/// <summary>The names of the quests shown in the quest tracker (each an element with its name at .Children[0].Children[0] and its step at .Children[1].Children[0].Children[1]).</summary>
+		public static List<string> QuestNames() {
+			var names = new List<string>();
+			void Walk(Element e, int depth) {
+				if ( !IsValid(e) || !e.IsVisibleLocal ) return;
+				var name = e.GetChild(0)?.GetChild(0)?.Text?.Trim();
+				var step = e.GetChild(1)?.GetChild(0)?.GetChild(1)?.Text?.Trim();
+				if ( !string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(step) ) { names.Add(name); return; }
+				if ( depth <= 0 ) return;
+				foreach ( var child in e.Children ) Walk(child, depth - 1);
+			}
+			Walk(QuestTracker, 6);
+			return names;
 		}
 
 		/// <summary>The current step of the quest called name (eg, "Talk to Tarkleigh for your reward"), or null.</summary>
@@ -181,7 +194,7 @@ namespace AtE {
 					return false;
 				}
 				Status = $"clicking {Option}";
-				SkillBar.ClickAt(option.GetClientRect());
+				Run(Inputs.Click(option.GetClientRect()));
 				optionClickTime = now;
 				return true;
 			}
@@ -216,85 +229,12 @@ namespace AtE {
 
 		// its name label, if it shows one, else the NPC itself
 		private static bool ClickNpc(Entity npc) {
-			var label = GetUI()?.LabelsOnGround?.GetAllLabels()?.FirstOrDefault(l => l.Item?.Address == npc.Address);
-			if ( label != null && Ground.TryClickLabel(label) ) return true;
-			var pos = Position(npc);
-			if ( !TryWorldToScreen(pos, out Vector2 at) || !PathFollower.IsSafeToClick(at) ) return false;
-			SkillBar.ClickAt(new RectangleF(at.X, at.Y, 0, 0));
+			var click = Ground.ClickEntity(npc);
+			if ( click == null ) return false;
+			Run(click);
 			return true;
 		}
+
 	}
 
-	/// <summary>
-	/// Take the rewards of finished quests: for each quest (by name, eg "Enemy at the Gate") whose step in the quest tracker
-	/// is "Talk to [NPC] for your reward", talk to that NPC, choose its option ending in "Reward" (eg, Tarkleigh's
-	/// "Hillock Reward"), and Ctrl+click the reward named for that quest in the quest reward window. Done when none of
-	/// the quests shows that step.
-	/// </summary>
-	public class TakeQuestRewards : Objective {
-		/// <summary>The reward to take for each quest: quest name => reward (eg, a gem's name).</summary>
-		public readonly IReadOnlyDictionary<string, string> Rewards;
-		private NpcInteraction talk;
-		private long lastClick, retryAt;
-		private int clicks;
-		private string clickedQuest;
-		public TakeQuestRewards(IReadOnlyDictionary<string, string> rewards) { Rewards = rewards; }
-
-		public override string Name => $"Take quest rewards ({string.Join(", ", Rewards.Values)})";
-		public override bool Sticky => false;
-		// the quest reward window opens the inventory beside it: the routine must not close that (it cancels the reward)
-		public override bool UsesInventory => true;
-		public override void Reset() { base.Reset(); talk = null; clicks = 0; retryAt = 0; clickedQuest = null; }
-
-		// the first quest waiting for its reward, and who has it
-		private (string quest, string npc) Pending() {
-			foreach ( var quest in Rewards.Keys ) {
-				if ( Town.RewardNpc(quest) is string npc ) return (quest, npc);
-			}
-			return (null, null);
-		}
-
-		public override bool CheckDone(CombatContext ctx) => Pending().quest == null;
-
-		public override void Tick(CombatContext ctx) {
-			long now = Time.ElapsedMilliseconds;
-			var (quest, npc) = Pending();
-			if ( quest == null ) return;
-			string reward = Rewards[quest];
-			if ( quest != clickedQuest ) { clickedQuest = quest; clicks = 0; }
-			if ( Town.IsOpen(Town.QuestRewardWindow) ) {
-				ctx.Driver.StopWalking("taking a quest reward");
-				if ( now - lastClick < 800 ) return;
-				var element = Town.FindQuestReward(reward);
-				if ( element == null ) { Detail = $"no {reward} among the rewards for {quest} ({Town.RewardNames()})"; return; }
-				if ( clicks >= 3 ) { Detail = $"clicked {reward} {clicks} times, but it was not taken"; return; }
-				Detail = $"taking {reward} for {quest}";
-				// with Ctrl held, the game takes it at once
-				Platform.Current.Input.KeyDown(VKey.LControlKey);
-				SkillBar.ClickAt(element.GetClientRect());
-				Platform.Current.Input.KeyUp(VKey.LControlKey);
-				lastClick = now;
-				clicks += 1;
-				return;
-			}
-			if ( Town.AnyWindowOpen ) {
-				// eg, the purchase window, from the wrong option
-				ctx.Driver.StopWalking("closing a window");
-				if ( now - lastClick > 700 ) { lastClick = now; Town.CloseWindows(); }
-				return;
-			}
-			if ( now < retryAt ) return;
-			if ( talk == null || talk.IsDone || talk.Npc != npc ) {
-				talk = new NpcInteraction(npc, $"{quest} reward", goal => ctx.Driver.WalkTo(goal, $"walking to {npc}"), () => ctx.Driver.StopWalking($"talking to {npc}")) {
-					IsOption = text => text.EndsWith(" Reward", StringComparison.OrdinalIgnoreCase),
-				};
-			}
-			talk.Tick();
-			Detail = talk.Status;
-			if ( talk.IsFailed ) {
-				talk = null;
-				retryAt = now + 2000;
-			}
-		}
-	}
 }

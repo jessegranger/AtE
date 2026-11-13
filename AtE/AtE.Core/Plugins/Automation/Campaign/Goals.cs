@@ -6,133 +6,27 @@ using static AtE.Globals;
 
 namespace AtE {
 
-	/// <summary>
-	/// One step of a CombatRoutine in an area (eg, "Kill Hillock"). The routine works on the first one that is not
-	/// complete: each frame it asks CheckDone, and if not done, calls Tick to work on it.
-	///
-	/// Done-ness is read from the game where possible (the skill is on the bar, the area is the one we wanted), so a
-	/// routine picks up where it left off. Some things can't be read back (a monster that was killed and is gone): those
-	/// objectives are Sticky, once CheckDone says true they stay complete until the routine leaves the area instance.
-	/// The others are checked again every time, so they are redone if undone (eg, the skill was taken off the bar).
-	///
-	/// An objective that is done shows that the ones before it were done too (Fireball on the bar: it was picked up
-	/// and socketed), so CombatRoutine marks them complete without asking them.
-	/// </summary>
-	public abstract class Objective {
-		/// <summary>What it is, for the on-screen list (eg, "Kill Hillock").</summary>
-		public abstract string Name { get; }
-		/// <summary>What it is doing right now (eg, "looking for Hillock"); shown next to the Name.</summary>
-		public string Detail = "";
-		public bool IsComplete { get; internal set; }
-		/// <summary>True if, once done, it stays done (its done-ness can't be read back later); false to check it every time.</summary>
-		public virtual bool Sticky => true;
-		/// <summary>True if this being done shows the objectives before it are done (see CombatRoutine).</summary>
-		public virtual bool ProvesEarlier => true;
-		/// <summary>
-		/// True if a later objective being done shows this one was done (see ProvesEarlier); false if this must be checked
-		/// itself, eg, a skill bound to a slot: socketing a support later says nothing about where the skill is on the bar.
-		/// </summary>
-		public virtual bool ProvenBy(IEnumerable<Objective> later) => true;
-		/// <summary>
-		/// True if it no longer matters, the routine having got past it to a later objective (all those after it, given in
-		/// order, are complete up to one that undoes it): eg, Default Attack on a slot, once Fireball goes on that slot.
-		/// </summary>
-		public virtual bool SupersededBy(IEnumerable<Objective> later) => false;
-		/// <summary>True if it works in the inventory panel; while working on any other objective the routine closes it.</summary>
-		public virtual bool UsesInventory => false;
-		/// <summary>Also done when this is true (eg, any weapon is equipped, for picking up the starting weapon).</summary>
-		public Func<bool> DoneWhen;
-		/// <summary>Walk past the monsters: no fighting, and no picking up items (which fights the monsters near them) while on this.</summary>
-		public bool IgnoreMonsters;
-
-		/// <summary>
-		/// Where to look for what it is after (eg, Search.TheOnlyExit, for a boss in the way out): walk there, past the
-		/// monsters, without fighting. Null (or a null answer): explore the area, fighting on the way.
-		/// </summary>
-		public Func<CombatContext, Offsets.Vector2i?> SearchAt;
-
-		/// <summary>CheckDone, or DoneWhen.</summary>
-		public bool IsDone(CombatContext ctx) => CheckDone(ctx) || (DoneWhen?.Invoke() ?? false);
-
-		/// <summary>Is it done? Called each frame until it says true.</summary>
-		public abstract bool CheckDone(CombatContext ctx);
-		/// <summary>Work on it for one frame (walk, attack, click...), using ctx.Driver.</summary>
-		public abstract void Tick(CombatContext ctx);
-		/// <summary>Forget any progress (when entering a new area instance).</summary>
-		public virtual void Reset() {
-			IsComplete = false;
-			Detail = "";
-		}
-		public override string ToString() => Name;
-
-		/// <summary>
-		/// Where to walk to reach pos: the nearest cell to it that can be walked to from the player (pos itself may be
-		/// blocked, eg a door or transition set into a wall, and the nearest walkable cell may be on the far side).
-		/// </summary>
-		protected static Offsets.Vector2i Approach(CombatContext ctx, Offsets.Vector2i pos) =>
-			DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, pos, out var spot) ? spot : pos;
-
-		/// <summary>
-		/// Is the player near enough to pos to click it: within reach cells, or at (within 3 cells of) the nearest cell
-		/// that can be walked to (eg, a wall set into a cliff, whose nearest walkable cell is further than reach).
-		/// approach is where to walk otherwise, and distance how far pos is.
-		/// </summary>
-		protected static bool IsNear(CombatContext ctx, Offsets.Vector2i pos, float reach, out Offsets.Vector2i approach, out float distance) {
-			approach = Approach(ctx, pos);
-			distance = Combat.Distance(ctx.Grid, pos);
-			return distance <= reach || Combat.Distance(ctx.Grid, approach) <= 3;
-		}
-
-		/// <summary>Look for what, not in sight yet: walk toward SearchAt, or explore (see SearchAt).</summary>
-		protected void Search(CombatContext ctx, string what, string skill = null) {
-			var at = SearchAt?.Invoke(ctx);
-			if ( at.HasValue ) {
-				Detail = $"looking for {what} on the way to {at.Value}";
-				ctx.Driver.WalkTo(Approach(ctx, at.Value), $"looking for {what}");
-				return;
-			}
-			if ( ctx.Driver.TryRetreat(ctx) || ctx.Driver.TryFight(ctx, skill) ) { Detail = "fighting on the way"; return; }
-			Detail = $"looking for {what}";
-			if ( !ctx.Driver.TryExplore(ctx) ) Detail = $"explored everything without finding {what}";
-		}
-	}
-
-	/// <summary>Places to look, for Objective.SearchAt.</summary>
-	public static class Search {
-		/// <summary>The way out, when the area has only one (eg, The Twilight Strand, with Hillock in front of it); else null.</summary>
-		public static Offsets.Vector2i? TheOnlyExit(CombatContext ctx) {
-			var exits = ctx.Terrain.Exits;
-			return exits.Count == 1 ? exits[0].GridPos : (Offsets.Vector2i?)null;
-		}
-	}
-
 	/// <summary>Fight everything near and explore the whole area.</summary>
-	public class ClearArea : Objective {
+	public class ClearArea : Goal {
 		public string Skill;
 		/// <param name="skill">The skill to fight with, eg "Fireball"; null uses the driver's Attack.</param>
 		public ClearArea(string skill = null) => Skill = skill;
 		public override string Name => "Clear the area";
 		public override bool ProvesEarlier => false; // a cleared area says nothing about what was picked up or bound
 		public override bool CheckDone(CombatContext ctx) => ctx.Driver.ExploreDone && ctx.Hostiles.Count == 0;
-		public override void Tick(CombatContext ctx) {
-			if ( ctx.Driver.TryRetreat(ctx) || ctx.Driver.TryFight(ctx, Skill) ) {
-				Detail = "fighting";
-			} else if ( ctx.Driver.TryExplore(ctx) ) {
-				Detail = $"exploring ({DefaultExplorer.ExploredFraction:P0})";
-			} else {
-				Detail = "";
-			}
-		}
+		protected override IState Step(CombatContext ctx) => FightFirst(ctx, 0, Skill) ?? Call(new Explore(null) { FightSkill = Skill });
 	}
 
 	/// <summary>
-	/// Kill a particular monster, found by a part of its metadata path (eg, "Metadata/Monsters/...Hillock"):
-	/// explore (fighting whatever is in the way) until it is seen, then fight it.
+	/// Kill a particular monster (by a part of its metadata path, or any test): explore (fighting whatever is in the
+	/// way) until it is seen, then fight it.
 	/// </summary>
-	public class Kill : Objective {
+	public class Kill : Goal {
 		public readonly string Label;
 		public readonly Func<Entity, bool> Match;
-		public string Skill;
+		/// <summary>The skill to use on it, asked when it is used (eg, the campaign's main skill); null uses the driver's Attack.</summary>
+		public Func<string> SkillOf;
+		public string Skill => SkillOf?.Invoke();
 		public float Range;
 		public bool? NeedsLineOfSight;
 		private bool killed;
@@ -144,13 +38,14 @@ namespace AtE {
 		/// <param name="skill">The skill to use on it (eg, "Fireball", "Default Attack"); null uses the driver's Attack.</param>
 		/// <param name="range">How close to get, in cells; 0 uses the driver's AttackRange.</param>
 		public Kill(string label, string pathContains, string skill = null, float range = 0, bool? needsLineOfSight = null)
-			: this(label, e => e.Path?.Contains(pathContains) ?? false, skill, range, needsLineOfSight) { }
+			: this(label, e => e.Path?.Contains(pathContains) ?? false, skill == null ? null : () => skill, range, needsLineOfSight) { }
 
-		/// <param name="match">Which entities are the monster (eg, by path and whether it is hostile).</param>
-		public Kill(string label, Func<Entity, bool> match, string skill = null, float range = 0, bool? needsLineOfSight = null) {
-			Label = label; Match = match; Skill = skill; Range = range; NeedsLineOfSight = needsLineOfSight;
+		/// <param name="match">Which entities are the monster (eg, by path and name).</param>
+		public Kill(string label, Func<Entity, bool> match, Func<string> skill = null, float range = 0, bool? needsLineOfSight = null) {
+			Label = label; Match = match; SkillOf = skill; Range = range; NeedsLineOfSight = needsLineOfSight;
 		}
 		public override string Name => $"Kill {Label}{(Skill == null ? "" : $" with {Skill}")}";
+		public override bool ProvesEarlier => true;
 		public override void Reset() { base.Reset(); killed = seen = false; }
 
 		private IEnumerable<Entity> Matches() => GetEntities()?.Where(e => e != null && Match(e)) ?? Empty<Entity>();
@@ -164,7 +59,7 @@ namespace AtE {
 			return false;
 		}
 
-		public override void Tick(CombatContext ctx) {
+		protected override IState Step(CombatContext ctx) {
 			var ent = Matches().FirstOrDefault(e => IsAlive(e));
 			if ( ent != null ) {
 				var target = Combat.ToHostile(ent, ctx.Grid);
@@ -176,20 +71,19 @@ namespace AtE {
 						Detail = "waiting for it to be targetable";
 						if ( target.Distance > 20 ) ctx.Driver.WalkTo(Approach(ctx, target.GridPos), $"walking to {Label}");
 						else ctx.Driver.StopWalking("waiting");
-						return;
+						return this;
 					}
 					Fight(ctx, target);
-					return;
+					return this;
 				}
 			}
 			// not in sight: go back to where it was last seen, else keep looking
 			if ( seen ) {
-				if ( SearchAt == null && (ctx.Driver.TryRetreat(ctx) || ctx.Driver.TryFight(ctx, Skill)) ) { Detail = "fighting on the way"; return; }
-				Detail = $"going back to where it was last seen";
-				ctx.Driver.WalkTo(Approach(ctx, lastSeen), $"looking for {Label}");
-				return;
+				if ( SearchAt == null && FightFirst(ctx, 0, Skill) is IState fight ) { Detail = "fighting on the way"; return fight; }
+				Detail = "going back to where it was last seen";
+				return Call(new Navigate(Label, _ => lastSeen, 5) { FightRadius = -1, LegMs = 1000 });
 			}
-			Search(ctx, Label, Skill);
+			return Search(ctx, Label, Skill);
 		}
 
 		/// <summary>Fight it, in sight and targetable: attack it from where it is in range.</summary>
@@ -204,9 +98,8 @@ namespace AtE {
 	/// <summary>
 	/// Kill a boss by circling it (eg, Hillock): use the skill at it (standing still until the cast is out), walk to the
 	/// next of four points around it (north, west, south, east on screen, counter-clockwise, Radius cells from it), use
-	/// the skill again, and so on round. If the walk
-	/// takes longer than MaxWalkMs, it uses the skill on the way and then goes on to the same point. A point that can't be
-	/// walked to, or can't see the boss, is skipped.
+	/// the skill again, and so on round. If the walk takes longer than MaxWalkMs, it uses the skill on the way and then
+	/// goes on to the same point. A point that can't be walked to, or can't see the boss, is skipped.
 	/// </summary>
 	public class Orbit : Kill {
 		public float Radius;
@@ -224,19 +117,24 @@ namespace AtE {
 		private const string CardinalNames = "NWSE";
 
 		/// <param name="radius">How far from it to circle, in cells; 0 for MeleeRadius with a melee skill, else 60% of the driver's AttackRange.</param>
-		public Orbit(string label, string pathContains, string skill, float radius = 0)
-			: base(label, pathContains, skill) => Radius = radius;
+		public Orbit(string label, string pathContains, Func<string> skill, float radius = 0)
+			: base(label, e => e.Path?.Contains(pathContains) ?? false, skill) => Radius = radius;
+
+		/// <param name="match">Which entities are the monster (eg, by its name).</param>
+		public Orbit(string label, Func<Entity, bool> match, Func<string> skill, float radius = 0)
+			: base(label, match, skill) => Radius = radius;
 
 		public override string Name => $"Kill {Label} with {Skill}, circling it";
 		public override void Reset() { base.Reset(); point = -1; castDue = true; castUntil = aimSince = 0; }
 
 		protected override void Fight(CombatContext ctx, Hostile target) {
+			string skill = Skill;
 			float radius = Radius > 0 ? Radius
-				: SkillBar.IsMelee(SkillBar.FindSlot(Skill)?.Skill) ? MeleeRadius
+				: SkillBar.IsMelee(SkillBar.FindSlot(skill)?.Skill) ? MeleeRadius
 				: ctx.Driver.AttackRange * .6f;
 			if ( Time.ElapsedMilliseconds < castUntil ) {
 				ctx.Driver.StopWalking("casting");
-				Detail = $"casting {Skill}";
+				Detail = $"casting {skill}";
 				return;
 			}
 			var dirs = GridDirections(target.GridPos, ctx.Z);
@@ -247,23 +145,23 @@ namespace AtE {
 					// (Engage walks to within 80% of the range given, which is inside the 1.5 above)
 					aimSince = 0;
 					Detail = $"getting near it, {target.Distance:F0} cells away";
-					if ( !ctx.Driver.Engage(ctx, target, Skill, radius * 1.4f, true) ) base.Fight(ctx, target);
+					if ( !ctx.Driver.Engage(ctx, target, skill, radius * 1.4f, true) ) base.Fight(ctx, target);
 					return;
 				}
 				ctx.Driver.StopWalking("using a skill");
 				// the cast goes where the cursor is when it starts: stop, and keep the cursor on it for a moment first
-				SkillBar.MouseTo(screen);
+				ctx.Driver.Send(Inputs.MoveTo(screen));
 				if ( aimSince == 0 ) aimSince = Time.ElapsedMilliseconds;
 				if ( Time.ElapsedMilliseconds - aimSince < AimMs ) { Detail = "aiming at it"; return; }
-				Detail = $"using {Skill} at it";
-				if ( !ctx.Driver.UseSkillPaced(Skill, screen) ) return;
+				Detail = $"using {skill} at it";
+				if ( !ctx.Driver.UseSkillPaced(skill, screen) ) return;
 				aimSince = 0;
 				castDue = false;
 				// a click to walk too soon would cancel the cast: stand still until it is out (CastFraction of the cast time,
 				// plus a little for the key press, which goes out on the next frame)
-				int castMs = Math.Max(300, SkillBar.CastTimeMs(SkillBar.FindSlot(Skill)?.Skill));
+				int castMs = Math.Max(300, SkillBar.CastTimeMs(SkillBar.FindSlot(skill)?.Skill));
 				castUntil = Time.ElapsedMilliseconds + (long)(castMs * CastFraction) + 50;
-				Log($"Orbit: {Skill} at {Label}, {target.Distance:F0} cells away, holding still {castUntil - Time.ElapsedMilliseconds} ms");
+				Log($"Orbit: {skill} at {Label}, {target.Distance:F0} cells away, holding still {castUntil - Time.ElapsedMilliseconds} ms");
 				walkStart = castUntil;
 				if ( point < 0 ) point = NextPoint(ctx.Grid, target.GridPos, dirs);
 				return;
@@ -334,11 +232,15 @@ namespace AtE {
 	}
 
 	/// <summary>
-	/// Pick up an item from the ground, found by the text of its label (eg, "Driftwood Wand"); or click any other label
-	/// on the ground (eg, an NPC's). Done once a label it clicked is gone.
+	/// Pick up an item from the ground, or click any other label on the ground (eg, an NPC's): found by the text of its
+	/// label (eg, "Large Chest"), or by a test of the item (eg, any weapon). Done once a label it clicked is gone.
 	/// </summary>
-	public class PickUp : Objective {
+	public class PickUp : Goal {
+		/// <summary>The label text to look for; null when found by ItemMatch.</summary>
 		public readonly string LabelText;
+		/// <summary>A test of the item (the item a WorldItem holds, else the label's entity), when not found by text.</summary>
+		public readonly Func<Entity, bool> ItemMatch;
+		public readonly string What;
 		public readonly string Verb;
 		/// <summary>Click the label when within this many cells of the item.</summary>
 		public float Reach = 12;
@@ -347,50 +249,60 @@ namespace AtE {
 		private bool clicked;
 
 		/// <param name="verb">For the on-screen list: "Pick up", or eg "Click" for a label that is not an item.</param>
-		public PickUp(string labelText, string verb = "Pick up") { LabelText = labelText; Verb = verb; }
-		public override string Name => $"{Verb} {LabelText}";
+		public PickUp(string labelText, string verb = "Pick up") { LabelText = labelText; What = labelText; Verb = verb; }
+		/// <param name="what">What it is, for the on-screen list (eg, "a weapon").</param>
+		/// <param name="itemMatch">Which items (eg, e => e.Path.Contains("/Weapons/")).</param>
+		public PickUp(string what, Func<Entity, bool> itemMatch, string verb = "Pick up") { What = what; ItemMatch = itemMatch; Verb = verb; }
+		public override string Name => $"{Verb} {What}";
 		public override void Reset() { base.Reset(); pickedUp = clicked = false; }
 
-		private LabelOnGround Find() => GetUI()?.LabelsOnGround?.GetAllLabels()
-			.FirstOrDefault(l => (Ground.LabelText(l.Label)?.IndexOf(LabelText, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0);
+		/// <summary>Is this label one it is after?</summary>
+		public bool Matches(LabelOnGround l) {
+			if ( LabelText != null ) return (Ground.LabelText(l.Label)?.IndexOf(LabelText, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0;
+			var ground = l.Item;
+			var item = ground?.GetComponent<WorldItem>()?.Item ?? ground;
+			return item != null && ItemMatch(item);
+		}
+
+		private LabelOnGround Find() => GetUI()?.LabelsOnGround?.GetAllLabels().FirstOrDefault(Matches);
 
 		// a label we clicked on that is gone now was picked up
 		public override bool CheckDone(CombatContext ctx) => pickedUp || (pickedUp = clicked && Find() == null);
 
-		public override void Tick(CombatContext ctx) {
+		protected override IState Step(CombatContext ctx) {
 			var label = Find();
-			var item = label?.Item;
-			var pos = item?.GetComponent<Positioned>();
-			if ( label == null || !IsValid(pos) ) {
-				Search(ctx, LabelText);
-				return;
-			}
-			float d = Combat.Distance(ctx.Grid, pos.GridPos);
-			if ( d > Reach ) {
+			var pos = label?.Item?.GetComponent<Positioned>();
+			if ( label == null || !IsValid(pos) ) return Search(ctx, What);
+			if ( !IsNear(ctx, pos.GridPos, Reach, out _, out float d) ) {
 				Detail = $"{d:F0} cells away";
-				ctx.Driver.WalkTo(Approach(ctx, pos.GridPos), $"walking to {LabelText}");
-				return;
+				return Call(new Navigate(What, _ => pos.GridPos, Reach) { FightRadius = IgnoreMonsters || SearchAt != null ? -1 : 0, LegMs = 1000 });
 			}
 			ctx.Driver.StopWalking(Verb);
 			Detail = "clicking it";
-			if ( Time.ElapsedMilliseconds - lastClick > 600 && Ground.TryClickLabel(label) ) {
+			if ( Time.ElapsedMilliseconds - lastClick > 600 && Ground.ClickLabel(label, this) is IState click ) {
 				lastClick = Time.ElapsedMilliseconds;
 				clicked = true;
+				return click;
 			}
+			return this;
 		}
 	}
 
 	/// <summary>Put a skill on the skill bar (on slot, or the first free slot if slot is -1).</summary>
-	public class BindSkill : Objective {
-		public readonly string Skill;
+	public class BindSkill : Goal {
+		private readonly Func<string> skill;
+		public string Skill => skill();
 		public readonly int Slot;
-		public BindSkill(string skill, int slot = -1) { Skill = skill; Slot = slot; }
-		public override string Name => Slot < 0 ? $"Put {Skill} on the skill bar" : $"Put {Skill} on slot {Slot}";
+		public BindSkill(string skill, int slot = -1) : this(() => skill, slot) { }
+		/// <param name="skill">The skill, asked when it is needed (eg, the build's starting skill).</param>
+		public BindSkill(Func<string> skill, int slot = -1) { this.skill = skill; Slot = slot; }
+		public override string Name => Slot < 0 ? $"Put {Skill} on the skill bar" : $"Put {Skill} on slot {GemPlan.SlotLabels.ElementAtOrDefault(Slot) ?? Slot.ToString()}";
 		public override bool Sticky => false;
+		public override bool ProvesEarlier => true;
 		// only by a later one putting something else on the same slot (eg, Fireball in place of Default Attack)
-		public override bool ProvenBy(IEnumerable<Objective> later) => Slot >= 0 && later.OfType<BindSkill>().Any(b => b.Slot == Slot);
+		public override bool ProvenBy(IEnumerable<Goal> later) => Slot >= 0 && later.OfType<BindSkill>().Any(b => b.Slot == Slot);
 		// reached a later one putting something else on the same slot: don't put this back over it
-		public override bool SupersededBy(IEnumerable<Objective> later) {
+		public override bool SupersededBy(IEnumerable<Goal> later) {
 			if ( Slot < 0 ) return false;
 			foreach ( var o in later ) {
 				if ( o is BindSkill b && b.Slot == Slot ) return true;
@@ -398,15 +310,20 @@ namespace AtE {
 			}
 			return false;
 		}
-		public override bool CheckDone(CombatContext ctx) => Slot < 0
-			? SkillBar.FindSlot(Skill) != null
-			: SkillBar.Holds(SkillBar.GetSlot(Slot), Skill);
-		public override void Tick(CombatContext ctx) {
+		public override bool CheckDone(CombatContext ctx) {
+			string name = Skill;
+			if ( name == null ) return false;
+			return Slot < 0 ? SkillBar.FindSlot(name) != null : SkillBar.Holds(SkillBar.GetSlot(Slot), name);
+		}
+		protected override IState Step(CombatContext ctx) {
+			string name = Skill;
+			if ( name == null ) { Detail = "which skill? (see the Build)"; return this; }
 			int slot = Slot >= 0 ? Slot : SkillBar.FindFreeSlot()?.Index ?? -1;
-			if ( slot < 0 ) { Detail = "no free slot"; return; }
+			if ( slot < 0 ) { Detail = "no free slot"; return this; }
 			ctx.Driver.StopWalking("changing the skill bar");
 			Detail = $"binding to slot {slot}";
-			ctx.Driver.Bind(slot, Skill);
+			ctx.Driver.Bind(slot, name);
+			return this;
 		}
 	}
 
@@ -414,7 +331,7 @@ namespace AtE {
 	/// Go to another area, by the route of area exits (see WorldArea.FindRoute): find the exit to the next area on it
 	/// (exploring until it is seen), walk there, and click it. Done when the current area is the destination.
 	/// </summary>
-	public class GoToArea : Objective {
+	public class GoToArea : Goal {
 		public readonly string Destination;
 		/// <summary>Click the exit when within this many cells of it.</summary>
 		public float Reach = 15;
@@ -425,45 +342,40 @@ namespace AtE {
 		public override string Name => $"Go to {Destination}";
 		public override bool Sticky => false;
 
-		private static bool Is(WorldArea area, string name) => area != null
+		internal static bool Is(WorldArea area, string name) => area != null
 			&& (string.Equals(area.Name, name, StringComparison.OrdinalIgnoreCase) || string.Equals(area.DisplayName, name, StringComparison.OrdinalIgnoreCase));
 
 		public override bool CheckDone(CombatContext ctx) => Is(GetCurrentArea(), Destination);
 
-		public override void Tick(CombatContext ctx) {
+		protected override IState Step(CombatContext ctx) {
 			var route = WorldArea.FindRoute(GetCurrentArea(), Destination);
-			if ( route == null || route.Count < 2 ) { Detail = "no route"; return; }
+			if ( route == null || route.Count < 2 ) { Detail = "no route"; return this; }
 			var next = route[1];
 			var exit = ctx.Terrain.Exits.FirstOrDefault(e => e.Seen && e.Destination == next.Name);
 			if ( exit == null ) {
-				if ( !IgnoreMonsters && (ctx.Driver.TryRetreat(ctx) || ctx.Driver.TryFight(ctx)) ) { Detail = "fighting on the way"; return; }
 				Detail = $"looking for the way to {next.Name}";
-				if ( !ctx.Driver.TryExplore(ctx) ) Detail = $"explored everything without finding the way to {next.Name}";
-				return;
+				return FightFirst(ctx) ?? Call(new Explore($"the way to {next.Name}") { FightRadius = IgnoreMonsters ? -1 : 0 });
 			}
-			// walk to the nearest reachable cell to the exit (the exit itself is often in a wall)
-			var approach = Approach(ctx, exit.GridPos);
-			float d = Combat.Distance(ctx.Grid, exit.GridPos);
-			if ( d > Reach && Combat.Distance(ctx.Grid, approach) > 3 ) {
-				Detail = $"to {next.Name} at {exit.GridPos}, {d:F0} cells away (walking to {approach})";
-				ctx.Driver.WalkTo(approach, $"walking to {next.Name}");
-				return;
+			if ( !IsNear(ctx, exit.GridPos, Reach, out _, out float d) ) {
+				Detail = $"to {next.Name} at {exit.GridPos}, {d:F0} cells away";
+				return GoTo(next.Name, exit.GridPos, Reach);
 			}
 			ctx.Driver.StopWalking("taking the exit");
 			Detail = $"entering {next.Name}";
-			if ( Time.ElapsedMilliseconds - lastClick < 1000 ) return;
+			if ( Time.ElapsedMilliseconds - lastClick < 1000 ) return this;
 			var label = GetUI()?.LabelsOnGround?.GetAllLabels().FirstOrDefault(l => Ground.LabelText(l.Label) == next.Name);
-			if ( label != null ? Ground.TryClickLabel(label) : Ground.TryClickGrid(exit.GridPos, ctx.Z) ) {
-				lastClick = Time.ElapsedMilliseconds;
-			}
+			var click = label != null ? Ground.ClickLabel(label, this) : Ground.ClickGrid(exit.GridPos, ctx.Z, this);
+			if ( click == null ) return this;
+			lastClick = Time.ElapsedMilliseconds;
+			return click;
 		}
 	}
 
 	/// <summary>
 	/// Walk to the area's waypoint (Terrain.Waypoint: known from the tiles when the area loads, exact once its entity is
-	/// in range), close enough for it to be discovered. Done once within Reach of it (sticky: walking away later does not undo it).
+	/// in range), close enough for it to be discovered. Done once within Reach of it (sticky).
 	/// </summary>
-	public class GoToWaypoint : Objective {
+	public class GoToWaypoint : Goal {
 		/// <summary>Done when within this many cells of the waypoint.</summary>
 		public float Reach = 12;
 		public override string Name => "Walk to the waypoint";
@@ -471,23 +383,19 @@ namespace AtE {
 		public override bool CheckDone(CombatContext ctx) =>
 			ctx.Terrain.Waypoint is AreaFeature wp && wp.Seen && Combat.Distance(ctx.Grid, wp.GridPos) <= Reach;
 
-		public override void Tick(CombatContext ctx) {
+		protected override IState Step(CombatContext ctx) {
 			var wp = ctx.Terrain.Waypoint;
 			if ( wp == null ) {
-				// not in the tiles: look for it
-				if ( !IgnoreMonsters && (ctx.Driver.TryRetreat(ctx) || ctx.Driver.TryFight(ctx)) ) { Detail = "fighting on the way"; return; }
 				Detail = "looking for the waypoint";
-				if ( !ctx.Driver.TryExplore(ctx) ) Detail = "explored everything without finding the waypoint";
-				return;
+				return FightFirst(ctx) ?? Call(new Explore("the waypoint") { FightRadius = IgnoreMonsters ? -1 : 0 });
 			}
-			float d = Combat.Distance(ctx.Grid, wp.GridPos);
-			Detail = $"at {wp}, {d:F0} cells away";
-			ctx.Driver.WalkTo(Approach(ctx, wp.GridPos), "walking to the waypoint");
+			Detail = $"at {wp}";
+			return Call(new Navigate("the waypoint", c => c.Terrain.Waypoint?.GridPos, Reach - 2) { FightRadius = IgnoreMonsters ? -1 : 0 });
 		}
 	}
 
 	/// <summary>Click a button in the game's UI until it goes away (eg, "Skip All Tutorials").</summary>
-	public class ClickButton : Objective {
+	public class ClickButton : Goal {
 		private readonly string label;
 		private readonly Func<Element> find;
 		private long lastClick;
@@ -499,64 +407,77 @@ namespace AtE {
 			var button = find();
 			return !IsValid(button) || !button.IsVisible;
 		}
-		public override void Tick(CombatContext ctx) {
+		protected override IState Step(CombatContext ctx) {
 			ctx.Driver.StopWalking("clicking a button");
 			var button = find();
-			if ( !IsValid(button) || Time.ElapsedMilliseconds - lastClick < 1000 ) return;
+			if ( !IsValid(button) || Time.ElapsedMilliseconds - lastClick < 1000 ) return this;
 			Detail = "clicking it";
-			SkillBar.ClickAt(button.GetClientRect());
 			lastClick = Time.ElapsedMilliseconds;
+			return Inputs.Click(button.GetClientRect(), this);
 		}
 	}
 
 	/// <summary>
 	/// Put a gem from the backpack into a socket of the main hand weapon (one linked to another gem's, for a support):
 	/// open the inventory, click the gem (it goes on the cursor), click the socket. Done when the weapon's Sockets have
-	/// the gem (linked as asked). The routine closes the inventory after.
+	/// the gem (linked as asked). The campaign closes the inventory after.
 	///
 	/// Where a socket is drawn: the weapon's item element has the sockets as the children of its first child, in socket
 	/// order, each at the top left of its socket.
 	/// </summary>
-	public class SocketGem : Objective {
-		public readonly string Gem;
-		public readonly string LinkedTo;
+	public class SocketGem : Goal {
+		private readonly Func<string> gem, linkedTo;
+		/// <summary>The gem's name (eg, "Fireball", "Arcane Surge Support").</summary>
+		public string Gem => gem();
+		/// <summary>For a support: the gem (in the weapon) to link it with, eg "Fireball"; null for any socket.</summary>
+		public string LinkedTo => linkedTo?.Invoke();
+		/// <summary>Only if it can be done: also done when the gem is not in the backpack, or there is no empty socket for it.</summary>
+		public bool OnlyIfPossible;
 		private long lastAction;
 		private const long Pace = 700;
 		private const long SocketPace = 1500; // after a click on a socket, time for it to show in the Sockets before the next click
 
-		/// <param name="gem">The gem's name (eg, "Fireball", "Arcane Surge Support").</param>
-		/// <param name="linkedTo">For a support: the gem (in the weapon) to link it with (eg, "Fireball").</param>
-		public SocketGem(string gem, string linkedTo = null) {
-			Gem = gem;
-			LinkedTo = linkedTo;
-		}
+		public SocketGem(string gem, string linkedTo = null) : this(() => gem, linkedTo == null ? null : (Func<string>)(() => linkedTo)) { }
+		/// <param name="gem">The gem, asked when needed (eg, the build's starting skill).</param>
+		/// <param name="linkedTo">For a support: the gem to link it with, asked when needed.</param>
+		public SocketGem(Func<string> gem, Func<string> linkedTo = null) { this.gem = gem; this.linkedTo = linkedTo; }
 
 		public override string Name => LinkedTo == null ? $"Socket {Gem} in the main hand" : $"Socket {Gem} linked to {LinkedTo}";
 		public override void Reset() { base.Reset(); picked = false; }
 		public override bool Sticky => false;
 		public override bool UsesInventory => true;
+		public override bool ProvesEarlier => !OnlyIfPossible;
 
-		private InventoryItem GemInBackpack() => BackpackItems().FirstOrDefault(i => Equipment.IsGem(i.Entity, Gem));
+		private InventoryItem GemInBackpack(string name) => BackpackItems().FirstOrDefault(i => Equipment.IsGem(i.Entity, name));
 		private static InventoryItem Weapon() => GetUI()?.InventoryPanel?.LWeapon?.Items.FirstOrDefault(i => IsValid(i.Entity?.GetComponent<Sockets>()));
 
 		public override bool CheckDone(CombatContext ctx) {
+			string name = Gem, link = LinkedTo;
+			if ( name == null ) return false;
 			var sockets = Weapon()?.Entity?.GetComponent<Sockets>();
 			if ( !IsValid(sockets) ) return false;
-			int i = sockets.IndexOfGem(e => Equipment.IsGem(e, Gem));
-			return i >= 0 && (LinkedTo == null || sockets.LinkedWith(i).Contains(sockets.IndexOfGem(e => Equipment.IsGem(e, LinkedTo))));
+			int i = sockets.IndexOfGem(e => Equipment.IsGem(e, name));
+			if ( i >= 0 && (link == null || sockets.LinkedWith(i).Contains(sockets.IndexOfGem(e => Equipment.IsGem(e, link)))) ) return true;
+			if ( !OnlyIfPossible || picked ) return false; // (picked: it is on the cursor, on its way to a socket)
+			var item = GetUI()?.InventoryPanel?.Backpack?.Items.FirstOrDefault(x => Equipment.IsGem(x.Entity, name));
+			if ( item == null ) return true;
+			string detail = Detail;
+			bool none = TargetSocket(sockets, item.Entity.GetComponent<SkillGem>()?.Color ?? SocketColor.None, link) < 0;
+			Detail = detail;
+			return none;
 		}
 
-		// the empty socket to put it in (linked to LinkedTo's), one of the gem's color if there is one (for +10% quality), or -1
-		private int TargetSocket(Sockets sockets, SocketColor gemColor) {
+		// the empty socket to put it in (linked to link's), one of the gem's color if there is one (for +10% quality), or -1
+		private int TargetSocket(Sockets sockets, SocketColor gemColor, string link) {
 			IEnumerable<int> candidates = Enumerable.Range(0, sockets.Count);
-			if ( LinkedTo != null ) {
-				int other = sockets.IndexOfGem(e => Equipment.IsGem(e, LinkedTo));
-				if ( other < 0 ) { Detail = $"{LinkedTo} is not in the weapon"; return -1; }
+			if ( link != null ) {
+				int other = sockets.IndexOfGem(e => Equipment.IsGem(e, link));
+				if ( other < 0 ) { Detail = $"{link} is not in the weapon"; return -1; }
 				candidates = sockets.LinkedWith(other);
 			}
 			var empty = candidates.Where(i => sockets.Gem(i) == null).ToList();
 			if ( empty.Count == 0 ) {
-				Detail = LinkedTo == null ? "no empty socket" : $"no empty socket linked to {LinkedTo}";
+				Detail = link == null ? "no empty socket" : $"no empty socket linked to {link}";
 				return -1;
 			}
 			return empty.Where(i => sockets.Color(i) == gemColor).DefaultIfEmpty(empty[0]).First();
@@ -564,40 +485,39 @@ namespace AtE {
 		private SocketColor gemColor; // as read while the gem was in the backpack (it has no entity of ours on the cursor)
 		private bool picked; // the gem was found in the backpack, and clicked
 
-		public override void Tick(CombatContext ctx) {
+		protected override IState Step(CombatContext ctx) {
 			ctx.Driver.StopWalking("using the inventory");
-			if ( Time.ElapsedMilliseconds - lastAction < Pace ) return;
+			string name = Gem;
+			if ( name == null ) { Detail = "which gem? (see the Build)"; return this; }
+			if ( Time.ElapsedMilliseconds - lastAction < Pace ) return this;
 			lastAction = Time.ElapsedMilliseconds;
 			if ( !BackpackIsOpen() ) {
 				Detail = "opening the inventory";
-				PressKey(VKey.I);
-				return;
+				return Inputs.Press(VKey.I, this);
 			}
 			var slot = GetUI().InventoryPanel.LWeapon.GetClientRect();
 			var weapon = Weapon();
 			if ( weapon == null ) {
 				// eg, a click that missed the socket picked the weapon up: put it back (with nothing on the cursor, this does nothing)
 				Detail = "putting the weapon back";
-				SkillBar.ClickAt(slot);
-				return;
+				return Inputs.Click(slot, this);
 			}
-			var gem = GemInBackpack();
+			var gem = GemInBackpack(name);
 			if ( gem != null ) gemColor = gem.Entity.GetComponent<SkillGem>()?.Color ?? SocketColor.None;
-			else if ( !picked ) { Detail = $"no {Gem} in the backpack (gems there: {Equipment.BackpackGems()})"; return; }
-			int target = TargetSocket(weapon.Entity.GetComponent<Sockets>(), gemColor);
-			if ( target < 0 ) return;
+			else if ( !picked ) { Detail = $"no {name} in the backpack (gems there: {Equipment.BackpackGems()})"; return this; }
+			int target = TargetSocket(weapon.Entity.GetComponent<Sockets>(), gemColor, LinkedTo);
+			if ( target < 0 ) return this;
 			if ( gem != null ) {
 				Detail = "picking up the gem";
-				SkillBar.ClickAt(gem.GetClientRect());
 				picked = true;
-				return;
+				return Inputs.Click(gem.GetClientRect(), this);
 			}
 			// not in the backpack and not socketed: it is on the cursor
 			var socket = weapon.GetChild(0)?.GetChild(target);
-			if ( !IsValid(socket) ) { Detail = $"can't find socket {target} on screen"; return; }
+			if ( !IsValid(socket) ) { Detail = $"can't find socket {target} on screen"; return this; }
 			Detail = $"putting the gem in socket {target}";
-			SkillBar.ClickAt(SocketRect(socket.GetClientRect(), slot));
 			lastAction += SocketPace - Pace;
+			return Inputs.Click(SocketRect(socket.GetClientRect(), slot), this);
 		}
 
 		/// <summary>The box of a socket, from its element's top left (the element has no size of its own).</summary>
@@ -606,21 +526,6 @@ namespace AtE {
 			return new System.Drawing.RectangleF(socket.X, socket.Y, size, size);
 		}
 
-		internal static void PressKey(VKey key) => Run(new AtE.PressKey(key, 30));
-	}
-
-	/// <summary>An objective made of two functions, for one-off steps.</summary>
-	public class Step : Objective {
-		private readonly string name;
-		private readonly Func<CombatContext, bool> isDone;
-		private readonly Action<Step, CombatContext> tick;
-		public Step(string name, Func<CombatContext, bool> isDone, Action<Step, CombatContext> tick) {
-			this.name = name; this.isDone = isDone; this.tick = tick;
-		}
-		public override string Name => name;
-		public override bool Sticky => false;
-		public override bool CheckDone(CombatContext ctx) => isDone(ctx);
-		public override void Tick(CombatContext ctx) => tick(this, ctx);
 	}
 
 	/// <summary>What the player has on, and carries.</summary>
@@ -634,14 +539,19 @@ namespace AtE {
 			return stats != null && stats.TryGetValue(Offsets.GameStat.MainHandWeaponType, out int type) && type != NoWeapon;
 		}
 
-		/// <summary>Is an item whose path contains all the parts (eg, "/Gems/", "Fireball") in the backpack (open or not).</summary>
+		/// <summary>Is the item a weapon (by its metadata path).</summary>
+		public static bool IsWeapon(Entity item) => item?.Path?.Contains("/Items/Weapons/") ?? false;
+		/// <summary>Is the item a skill gem (not a support).</summary>
+		public static bool IsSkillGem(Entity item) => (item?.Path?.Contains("/Gems/") ?? false) && !item.Path.Contains("/SupportGem");
+		/// <summary>Is the item a support gem.</summary>
+		public static bool IsSupportGem(Entity item) => item?.Path?.Contains("/Gems/SupportGem") ?? false;
+
 		/// <summary>
 		/// Is e the gem called name (eg, "Chance to Poison Support"): by its item name (a support's is without " Support"),
-		/// or, if that cannot be read, by its metadata path (which is not always the name: Chance to Poison Support is
-		/// Metadata/Items/Gems/SupportGemLesserPoison).
+		/// or, if that cannot be read, by its metadata path (which is not always the name).
 		/// </summary>
 		public static bool IsGem(Entity e, string name) {
-			if ( !(e?.Path is string path) || !path.Contains("/Gems/") ) return false;
+			if ( name == null || !(e?.Path is string path) || !path.Contains("/Gems/") ) return false;
 			var itemName = ItemName(e);
 			return itemName != null ? string.Equals(itemName, name, StringComparison.OrdinalIgnoreCase)
 					|| string.Equals($"{itemName} Support", name, StringComparison.OrdinalIgnoreCase)
@@ -655,12 +565,23 @@ namespace AtE {
 			return string.IsNullOrWhiteSpace(name) ? null : name;
 		}
 
+		/// <summary>A gem's name as the campaign uses it: its item name, with " Support" for a support.</summary>
+		public static string GemName(Entity e) {
+			var name = ItemName(e);
+			if ( name == null ) return null;
+			return IsSupportGem(e) && !name.EndsWith(" Support", StringComparison.OrdinalIgnoreCase) ? $"{name} Support" : name;
+		}
+
 		/// <summary>Is the gem called name (see IsGem) in the backpack (open or not).</summary>
 		public static bool GemInBackpack(string name) =>
 			GetUI()?.InventoryPanel?.Backpack?.Items.Any(i => IsGem(i.Entity, name)) ?? false;
 
 		/// <summary>Is the gem called name (see IsGem) in the backpack, or socketed in a worn item.</summary>
 		public static bool HasGem(string name) => GemInBackpack(name) || SocketedGems().Any(e => IsGem(e, name));
+
+		/// <summary>The gems had: in the backpack (open or not) and socketed in worn items.</summary>
+		public static IEnumerable<Entity> OwnedGems() => (GetUI()?.InventoryPanel?.Backpack?.Items ?? Enumerable.Empty<InventoryItem>())
+			.Select(i => i.Entity).Where(e => e?.Path?.Contains("/Gems/") ?? false).Concat(SocketedGems());
 
 		/// <summary>The worn items' inventories (not the weapon swap, flasks or backpack).</summary>
 		public static IEnumerable<Inventory> WornInventories() => WornSlots().Select(s => s.inventory);
@@ -708,18 +629,26 @@ namespace AtE {
 			return null;
 		}
 
-		public static bool TryClickLabel(LabelOnGround label) {
+		/// <summary>A click on a label (as Inputs, then next), or null if it can't be clicked safely (off screen, under a panel).</summary>
+		public static IState ClickLabel(LabelOnGround label, IState next = null) {
 			var rect = label?.Label?.GetClientRect() ?? default;
 			var at = new Vector2(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));
-			if ( rect.Width <= 0 || !PathFollower.IsSafeToClick(at) ) return false;
-			SkillBar.ClickAt(rect);
-			return true;
+			if ( rect.Width <= 0 || !PathFollower.IsSafeToClick(at) ) return null;
+			return Inputs.Click(rect, next);
 		}
 
-		public static bool TryClickGrid(Offsets.Vector2i grid, float z) {
-			if ( !TryGridToScreen(grid, z, out Vector2 at) || !PathFollower.IsSafeToClick(at) ) return false;
-			SkillBar.ClickAt(new System.Drawing.RectangleF(at.X, at.Y, 0, 0));
-			return true;
+		/// <summary>A click on a grid cell (as Inputs, then next), or null if it can't be clicked safely.</summary>
+		public static IState ClickGrid(Offsets.Vector2i grid, float z, IState next = null) {
+			if ( !TryGridToScreen(grid, z, out Vector2 at) || !PathFollower.IsSafeToClick(at) ) return null;
+			return Inputs.Click(at, next);
+		}
+
+		/// <summary>A click on an entity: its label if it shows one, else where it stands; null if neither can be clicked.</summary>
+		public static IState ClickEntity(Entity e, IState next = null) {
+			var label = GetUI()?.LabelsOnGround?.GetAllLabels()?.FirstOrDefault(l => l.Item?.Address == e.Address);
+			if ( label != null && ClickLabel(label, next) is IState click ) return click;
+			if ( !TryWorldToScreen(Position(e), out Vector2 at) || !PathFollower.IsSafeToClick(at) ) return null;
+			return Inputs.Click(at, next);
 		}
 	}
 }

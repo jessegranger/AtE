@@ -76,7 +76,7 @@ namespace AtE {
 				current = 0;
 				return true;
 			}
-			if ( Ground.TryClickLabel(label) ) {
+			if ( Ground.ClickLabel(label) is IState click && ctx.Driver.Send(click) ) {
 				lastClick = Time.ElapsedMilliseconds;
 				clicks[item.Id] = n + 1;
 			}

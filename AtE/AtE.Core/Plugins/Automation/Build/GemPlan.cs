@@ -62,8 +62,24 @@ namespace AtE {
 			return color != SocketColor.None ? color : PobGemData.ColorOf(gem);
 		}
 
-		/// <summary>The best arrangement of the groups for a character level in the worn items' sockets (see SocketSolver).</summary>
-		public SocketArrangement SolveWorn(int level) => SocketSolver.Solve(SocketItem.Worn(), GroupsFor(level).ToList(), ColorOf);
+		/// <summary>
+		/// The best arrangement in the worn items' sockets (see SocketSolver) of the groups for a character level, as far
+		/// as the gems had (in the backpack or socketed) go: a gem not had yet takes no socket (eg, a 3-link planned for a
+		/// support not found yet does not move the other two out of the 2-link they are in).
+		/// </summary>
+		public SocketArrangement SolveWorn(int level) => SocketSolver.Solve(SocketItem.Worn(), OwnedGroups(level), ColorOf);
+
+		/// <summary>The groups for a character level, with only the gems had (in the backpack or socketed); groups left with no skill gem are dropped.</summary>
+		public List<PobSkillGroup> OwnedGroups(int level) {
+			var owned = Equipment.OwnedGems().ToList();
+			var result = new List<PobSkillGroup>();
+			foreach ( var g in GroupsFor(level) ) {
+				var copy = new PobSkillGroup { Label = g.Label, Slot = g.Slot, Enabled = g.Enabled };
+				copy.Gems.AddRange(g.EnabledGems.Where(gem => owned.Any(e => Matches(gem, e))));
+				if ( copy.ActiveGems.Any() ) result.Add(copy);
+			}
+			return result;
+		}
 
 		private static string Identity(PobGem g) => (g.GemId ?? g.Name).ToLowerInvariant();
 

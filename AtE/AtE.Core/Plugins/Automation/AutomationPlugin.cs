@@ -96,8 +96,6 @@ namespace AtE {
 			("PathfindingPlugin", $"{Navigation.Key}."),
 			("PassiveTreePlugin", $"{PassiveTree.Key}."),
 			("SkillAttackDriver", $"{Combat.Key}.SkillAttackDriver."),
-			("TestRoutine", $"{Combat.Key}.TestRoutine."),
-			("WitchStart", $"{Combat.Key}.WitchStart."),
 		};
 	}
 
@@ -108,7 +106,7 @@ namespace AtE {
 		public override string Name => "Combat";
 
 		/// <summary>The class name of the combat driver to run.</summary>
-		public string Routine = nameof(WitchStart);
+		public string Routine = nameof(CampaignRoutine);
 		/// <summary>Starts and stops the chosen routine.</summary>
 		public HotKey ToggleKey = new HotKey(VKey.None);
 
@@ -120,7 +118,8 @@ namespace AtE {
 			.OrderBy(r => r.Name)
 			.ToList();
 
-		public CombatDriver Current => Routines.FirstOrDefault(r => r.Key == Routine);
+		// (a routine that is gone, eg a class's start routine, falls back to the Campaign)
+		public CombatDriver Current => Routines.FirstOrDefault(r => r.Key == Routine) ?? Routines.FirstOrDefault(r => r is CampaignRoutine);
 
 		public override void Render() {
 			var names = Routines.Select(r => r.Name).ToArray();

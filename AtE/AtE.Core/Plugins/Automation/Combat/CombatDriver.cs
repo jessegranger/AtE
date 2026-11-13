@@ -76,7 +76,42 @@ namespace AtE {
 			if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, why);
 		}
 
+		/// <summary>The ms since the last frame (for Decide).</summary>
+		protected long FrameDt { get; private set; }
+
+		/// <summary>
+		/// Input to send (a chain of input states, see Inputs), queued by Send. A driver that runs states itself (the
+		/// Campaign) takes it into its own chain (TakeInput); otherwise it runs on the default Machine.
+		/// </summary>
+		private IState pendingInput;
+		private bool inputRunning;
+		/// <summary>True while input is queued or still going out: Send refuses more until it is done.</summary>
+		public bool InputBusy => pendingInput != null || inputRunning;
+		/// <summary>True if this driver takes the queued input into its own chain (see TakeInput) instead of the default Machine running it.</summary>
+		protected virtual bool TakesInput => false;
+
+		/// <summary>Queue input (eg, Inputs.UseSlot) to go out over the next frames; false (and not queued) if input is still going out.</summary>
+		public bool Send(IState input) {
+			if ( input == null || InputBusy ) return false;
+			inputRunning = true;
+			input.Tail().Next = State.NewState(() => inputRunning = false);
+			pendingInput = input;
+			return true;
+		}
+
+		/// <summary>The queued input (its chain's last state is open: set its Next), or null; it is not queued any more.</summary>
+		protected IState TakeInput() {
+			var input = pendingInput;
+			pendingInput = null;
+			return input;
+		}
+
+		/// <summary>Forget input queued or going out (eg, the chain it was in was cancelled).</summary>
+		protected void ForgetInput() { pendingInput = null; inputRunning = false; }
+
 		public override IState OnTick(long dt) {
+			FrameDt = dt;
+			if ( !TakesInput && pendingInput != null ) Run(TakeInput());
 			if ( !PoEMemory.IsAttached ) return this;
 			if ( !IsActive ) return this;
 
@@ -136,11 +171,7 @@ namespace AtE {
 				if ( !PassiveTreePanel.IsOpen ) return false;
 				StopWalking("closing the passive tree");
 				Status = "monsters near: closing the passive tree";
-				if ( Time.ElapsedMilliseconds - lastTreeClose > 700 ) {
-					lastTreeClose = Time.ElapsedMilliseconds;
-					Platform.Current.Input.KeyDown(VKey.Escape);
-					Platform.Current.Input.KeyUp(VKey.Escape);
-				}
+				if ( Time.ElapsedMilliseconds - lastTreeClose > 700 && Send(Inputs.Press(VKey.Escape)) ) lastTreeClose = Time.ElapsedMilliseconds;
 				return true;
 			}
 			if ( !allocator.IsActive ) {
@@ -277,9 +308,9 @@ namespace AtE {
 				Bind(free.Index, name);
 				return false;
 			}
+			if ( InputBusy ) return false;
 			DefaultFollower.ReleaseMouse(); // (walking holds the left button: let go of it to fight)
-			SkillBar.UseSlot(slot, screenPos, holdMs);
-			return true;
+			return Send(Inputs.UseSlot(slot, screenPos, holdMs));
 		}
 
 		/// <summary>Put name on a slot (see SkillBar.BindSkill); the driver waits until it is done, and stops if it fails.</summary>

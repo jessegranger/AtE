@@ -203,6 +203,8 @@ namespace AtE {
 					return RunOnMain(() => string.IsNullOrEmpty(q["key"]) ? "error: key= is required\n" : $"forgot {GoldenStore.Forget(q["key"])} golden values\n");
 				case "/routine":
 					return RunOnMain(RoutineText);
+				case "/progress":
+					return ProgressScan(q["key"]);
 				case "/backpack":
 					return RunOnMain(Backpack);
 				case "/items":
@@ -283,6 +285,7 @@ namespace AtE {
   /labels                       the labels on the ground: entity id and path, text, screen rect, and the entity's screen position
   /skillbar[?stats=1]           the skill bar's slots: key, skill name, internal name, id, use time (stats=1: each skill's stats)
   /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
+  /progress[?key=U]             PRESSES KEYS: opens the AreaInstanceUI (U), reads the campaign progress (parts, acts), closes it, and reports
   /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
   /items                        the worn, backpack and purchase window items: name, rarity, and each mod's stats (Stats.dat ids) with their values
   /log?n=100&filter=            the overlay's last log lines (the last n, matching filter)
@@ -345,24 +348,67 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			return sb.Length == 0 ? "(no skill bar)\n" : sb.ToString();
 		}
 
+		// the campaign progress scan (see CampaignProgress.Scan): it presses keys in the game (posted to its window when it is not focused) (opens and closes the
+		// AreaInstanceUI), the one thing here that does; asked for by the user. Waits up to 10 s for it.
+		private string ProgressScan(string keyName) {
+			var key = Enum.TryParse(keyName ?? "U", true, out VKey k) ? k : VKey.U;
+			var done = new ManualResetEventSlim(false);
+			string started = RunOnMain(() => { Run(CampaignProgress.Scan(() => done.Set(), key)); return "ok"; });
+			if ( started != "ok" ) return started;
+			bool finished = done.Wait(10000);
+			return RunOnMain(() => {
+				var sb = new StringBuilder();
+				if ( !finished ) sb.AppendLine("timed out (10 s) before the scan finished");
+				sb.AppendLine($"progress: {CampaignProgress.Summary}");
+				sb.AppendLine($"in: {GetCurrentArea()?.DisplayName} (act {CampaignProgress.CurrentAct})");
+				sb.AppendLine($"act 1 done: {CampaignProgress.ActDone(1)}, act 2 done: {CampaignProgress.ActDone(2)}, part 1 done: {CampaignProgress.Part1Done}, campaign done: {CampaignProgress.CampaignDone}");
+				sb.AppendLine($"parts (Child(2,0,0)): {string.Join(" | ", CampaignProgress.PartTexts)}");
+				sb.AppendLine($"acts (under Child(2,0), starting with Act): {string.Join(" | ", CampaignProgress.ActTexts)}");
+				// the quests, and what the campaign's Finish all quests (for the act the player is in, else the first) would do for each
+				var finishers = (GetPlugin<AutomationPlugin>()?.Combat.Routines.OfType<CampaignRoutine>().FirstOrDefault()?.Root.All().OfType<FinishAllQuests>() ?? Enumerable.Empty<FinishAllQuests>()).ToList();
+				var finisher = finishers.FirstOrDefault(f => f.Act == CampaignProgress.CurrentAct) ?? finishers.FirstOrDefault();
+				var quests = Town.QuestNames();
+				sb.AppendLine($"quests ({quests.Count}){(finisher == null ? "" : $", next steps as Finish all quests (Act {finisher.Act}) sees them")}:");
+				foreach ( var quest in quests ) {
+					sb.AppendLine($"  {quest}: {Town.QuestStep(quest)}");
+					if ( finisher != null ) sb.AppendLine($"      next: {finisher.NextFor(quest)}");
+				}
+				return sb.ToString();
+			});
+		}
+
 		private string RoutineText() {
 			var driver = GetPlugin<AutomationPlugin>()?.Combat.Current;
-			if ( !(driver is CombatRoutine routine) ) return $"the routine is {driver?.Name ?? "(none)"}, which has no objectives\n";
+			if ( !(driver is CampaignRoutine routine) ) return $"the routine is {driver?.Name ?? "(none)"}, which has no goals\n";
 			var sb = new StringBuilder($"{routine.Name}: {(routine.IsActive ? "on" : "off")}, {routine.Status}\n");
 			if ( !IsAlive(GetPlayer()) ) {
-				var button = CombatRoutine.FindResurrectButton();
+				var button = CampaignRoutine.FindResurrectButton();
 				sb.AppendLine(button == null ? "dead: no resurrect button found" : $"dead: resurrect button at {button.GetClientRect()} ({button.Address})");
 			}
-			var game = PoEMemory.GameRoot?.InGameState;
-			var terrain = GetTerrain();
-			var player = GetPlayer();
-			var pos = player?.GetComponent<Positioned>();
-			var ctx = game == null || terrain == null || !IsValid(pos) ? null
-				: new CombatContext(routine, game, terrain, player, pos.GridPos, Position(player).Z);
-			foreach ( var o in routine.CurrentObjectives ?? new List<Objective>() ) {
-				string now;
-				try { now = ctx == null ? "?" : o.IsDone(ctx).ToString(); } catch ( Exception e ) { now = e.GetType().Name; }
-				sb.AppendLine($"{(o.IsComplete ? "[x]" : "[ ]")}{(o == routine.Current ? ">" : " ")} {o.Name}  done-now={now} sticky={o.Sticky} proves={o.ProvesEarlier} {o.Detail}");
+			sb.AppendLine($"build: {BuildPlan.Problem() ?? $"starting skill {BuildPlan.StartingSkill()}, support {BuildPlan.StartingSupport()}, main skill {BuildPlan.MainSkill()}"}");
+			sb.AppendLine($"quests: {string.Join("; ", Town.QuestNames().Select(q => $"{q}: {Town.QuestStep(q)}"))}");
+			sb.AppendLine($"area: {GetCurrentArea()?.DisplayName}; progress: {CampaignProgress.Summary}; in act {CampaignProgress.CurrentAct}");
+			var givers = GetEntities()?.Where(e => e?.Path?.StartsWith("Metadata/NPC/") ?? false).Select(e => $"{e.Path.Substring(e.Path.LastIndexOf('/') + 1)}{((e.GetComponent<NPC>()?.HasIconOverhead ?? false) ? " (!)" : "")}");
+			sb.AppendLine($"npcs: {string.Join(", ", givers ?? Enumerable.Empty<string>())}");
+			var rw = Town.QuestRewardWindow;
+			sb.AppendLine($"windows: reward {(Town.IsOpen(rw) ? $"open at 0x{rw.Address.ToInt64():X} ({Town.QuestRewards().Count} rewards: {Town.RewardNames()})" : "closed")}, npc options {(Town.IsOpen(Town.NpcOptions) ? "open" : "closed")}, inventory {(BackpackIsOpen() ? "open" : "closed")}");
+			var gemPlan = BuildPlan.Gems();
+			if ( gemPlan != null ) {
+				int level = GemPlan.CharacterLevel();
+				sb.AppendLine($"gems (level {level}): socketed {string.Join(", ", GemArrangement.SocketedGems().Select(s => $"{s.slot}[{s.socket}]={Equipment.ItemName(s.gem)}"))}; backpack {string.Join(", ", BackpackItems().Where(i => i.Entity?.Path?.Contains("/Gems/") ?? false).Select(i => Equipment.ItemName(i.Entity)))}");
+				sb.AppendLine($"  planned groups: {string.Join(" / ", gemPlan.GroupsFor(level).Select(g => g.ToString()))}");
+				sb.AppendLine($"  solver: {string.Join(", ", gemPlan.SolveWorn(level).Placements.Select(p => p.ToString()))}");
+				sb.AppendLine($"  moves to do: {string.Join(", ", GemArrangement.Targets(gemPlan, level).Select(t => $"{t.gem.Name} -> {t.slot}[{t.socket}]"))}");
+				sb.AppendLine($"  misplaced: {string.Join(", ", GemArrangement.Misplaced(gemPlan, level).Select(m => $"{m.slot}[{m.socket}]={Equipment.ItemName(m.gem)}"))}");
+				sb.AppendLine($"  next move: {InventoryPlans.PlanOneGemMove(gemPlan, level, null)?.Name ?? "(none)"}");
+			}
+			sb.AppendLine($"goal: {routine.CurrentGoal?.Id ?? "(none)"}");
+			foreach ( var s in routine.StackLines() ) sb.AppendLine($"  running: {s}");
+			Sequence shown = null;
+			foreach ( var (parent, goal, depth) in routine.Leaves() ) {
+				if ( parent != shown ) { shown = parent; sb.AppendLine($"{new string(' ', depth * 2)}{parent.Name}{(parent.IsComplete ? " [x]" : "")}"); }
+				string mark = goal.IsComplete ? "[x]" : goal == routine.CurrentGoal ? "[>]" : "[ ]";
+				sb.AppendLine($"  {new string(' ', depth * 2)}{mark} {goal.Name}{(goal.Where == null ? "" : $" @ {goal.Where}")}  proves={goal.Proves ?? goal.ProvesEarlier} {goal.Detail}");
 			}
 			return sb.ToString();
 		}

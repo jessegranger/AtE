@@ -54,17 +54,8 @@ namespace AtE {
 		/// </summary>
 		public static IEnumerable<(Element element, string name)> Destinations() {
 			var root = Panel()?.GetChild(2);
-			if ( !IsValid(root) ) yield break;
-			var stack = new Stack<(Element e, int depth)>();
-			stack.Push((root, 0));
-			int seen = 0;
-			while ( stack.Count > 0 && seen++ < 5000 ) {
-				var (e, depth) = stack.Pop();
+			foreach ( var e in UiSearch.Visible(root, 12, 5000) ) {
 				if ( TryReadDestination(e, out string name) ) yield return (e, name);
-				if ( depth >= 12 ) continue;
-				foreach ( var child in e.Children ) {
-					if ( IsValid(child) && child.IsVisibleLocal ) stack.Push((child, depth + 1));
-				}
 			}
 		}
 
