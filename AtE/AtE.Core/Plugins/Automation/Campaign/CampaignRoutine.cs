@@ -99,11 +99,7 @@ namespace AtE {
 
 		private Sequence Act1() {
 			Func<string> skill = BuildPlan.StartingSkill, support = BuildPlan.StartingSupport, main = BuildPlan.MainSkill;
-			var quests = new FinishAllQuests(1, TownOf(1), Overrides);
-			quests.Upkeep.Add(new UseBooks());
-			quests.Upkeep.Add(new EquipFlask("Quicksilver Flask", 4));
-			quests.Upkeep.Add(new ArrangeGems());
-			quests.Upkeep.Add(new BindPlannedSkills());
+			var quests = Quests(1);
 			quests.Handlers.Add(new QuestHandler("Breaking Some Eggs", new Sequence("Breaking Some Eggs: the glyphs",
 				// each nest drops a glyph: Haliotis (Glyph1), Ammonite (Glyph2), Roseus (Glyph3)
 				new OpenQuestChests("Rhoa Nest", "rhoanest", "QuestChests/Rhoa", 3) { Where = MudFlats, FightRadius = 100, ItemPathPart = "QuestItems/Glyphs/" },
@@ -157,9 +153,21 @@ namespace AtE {
 			) { DoneWhen = () => CampaignProgress.ActDone(1) };
 		}
 
+		// an act's quests, with the gear kept up in town: in town, talk to every NPC with a quest marker over its head, and
+		// to the NPC a quest step "Talk to X" names (eg, The Way Forward's "Talk to Silk"; see Town.RewardNpc)
+		private FinishAllQuests Quests(int act) {
+			var quests = new FinishAllQuests(act, TownOf(act), Overrides);
+			quests.Upkeep.Add(new UseBooks());
+			quests.Upkeep.Add(new EquipFlask("Quicksilver Flask", 4));
+			quests.Upkeep.Add(new ArrangeGems());
+			quests.Upkeep.Add(new BindPlannedSkills());
+			return quests;
+		}
+
 		private Sequence Act2() {
 			Func<string> main = BuildPlan.MainSkill;
 			return new Sequence("Complete Act 2",
+				Quests(2),
 				new Sequence("Route to The Ancient Pyramid",
 					new RouteTo(AncientPyramid),
 					new TakeTransition("Stairs") { Where = AncientPyramid },

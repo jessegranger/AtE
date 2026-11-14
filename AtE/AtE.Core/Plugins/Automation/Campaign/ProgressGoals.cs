@@ -573,7 +573,8 @@ namespace AtE {
 		/// <summary>What it would do next for a quest in the tracker, as text (eg, "talk to Nessa for the reward").</summary>
 		public string NextFor(string quest) {
 			var step = Town.QuestStep(quest);
-			if ( Town.RewardNpc(quest) is string npc ) return $"talk to {npc} in {TownName} for the reward";
+			if ( Town.RewardNpc(quest) is string npc ) return step.EndsWith("for your reward", StringComparison.OrdinalIgnoreCase)
+				? $"talk to {npc} in {TownName} for the reward" : $"talk to {npc} in {TownName}";
 			if ( TravelTarget(step, quest) is string area ) return IsTown(area) ? $"go to {TownName}, and talk to the NPCs with something to say" : $"go to {area}";
 			var h = Handlers.FirstOrDefault(x => x.IsFor(quest));
 			if ( h == null ) return "nothing: no goals known for it yet";
