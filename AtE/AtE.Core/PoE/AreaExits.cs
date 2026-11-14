@@ -81,6 +81,9 @@ namespace AtE {
 			// the door to Merveil's arena: an AreaTransition labelled "Merveil's Lair" at <597, 1141>, on the caveup_exit
 			// tile at <596, 1138> (3.29.4, walked there by hand; not cavedown_boss_exit, which can't be walked to)
 			("Cave/Features/caveup_exit", "Merveil's Lair", "The Cavern of Anger"),
+			// the dock to the camp, at <793, 1520>; the area's other transition tile, Forest/Transitions/forest_caveentrance,
+			// is beside the waypoint where Act 2 starts, the way back to Act 1 (3.29.4, from the tiles alone)
+			("Forest/Transitions/forestcamp_dock", "The Forest Encampment", "The Southern Forest"),
 		};
 
 		/// <summary>The destination a tile names in the current area (see KnownExitTiles), or null.</summary>
