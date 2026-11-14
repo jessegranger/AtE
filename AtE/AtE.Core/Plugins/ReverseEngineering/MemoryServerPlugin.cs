@@ -519,6 +519,10 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 					sb.AppendLine($"buff {b.Name} addr=0x{b.Address.ToInt64():X} MaxTime={b.MaxTime} Timer={b.Timer}");
 				}
 			}
+			var machine = ent.GetComponent<StateMachine>();
+			if ( machine != null ) {
+				foreach ( var (name, value) in machine.States ) sb.AppendLine($"state {name} = {value}");
+			}
 			var animObj = ent.GetComponent<Animated>()?.AnimatedObject;
 			var cac = animObj?.GetComponent<ClientAnimationController>();
 			if ( cac != null ) {

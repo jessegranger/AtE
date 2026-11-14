@@ -571,7 +571,6 @@ namespace AtE {
 		public Entity owner => EntityCache.TryGetEntity(Cache.entOwner, out Entity ent) ? ent : null;
 		public IntPtr unkPtr => Cache.ptrAt0x20;
 	}
-	class StateMachine : Component<Offsets.Component_Empty> { }
 	class Brackets : Component<Offsets.Component_Empty> { }
 	class Flask : Component<Offsets.Component_Empty> { }
 	class Functions : Component<Offsets.Component_Empty> { }
@@ -1006,6 +1005,43 @@ namespace AtE {
 			return parsedValues.TryGetValue(Key, out value);
 		}
 
+	}
+
+	/// <summary>An object's named states and their values (eg, an AuguryCardObject's "card_chosen": 0 until a fate is selected from it).</summary>
+	public class StateMachine : Component<Offsets.Component_StateMachine> {
+		private const int MaxStates = 64;
+
+		/// <summary>The states, by name, with their current values; empty if they can't be read.</summary>
+		public IEnumerable<(string name, long value)> States {
+			get {
+				if ( !IsValid(Address) || !PoEMemory.TryRead(Cache.ptrInfo, out Offsets.StateMachine_Info info) ) yield break;
+				int n = info.States.ItemCount(Offsets.StateMachine_State.Size);
+				int values = Cache.StateValues.ItemCount(sizeof(long));
+				if ( n <= 0 || n > MaxStates || values != n ) yield break;
+				for ( int i = 0; i < n; i++ ) {
+					if ( !PoEMemory.TryRead(info.States.Head + (i * Offsets.StateMachine_State.Size), out Offsets.StateMachine_State state) ) yield break;
+					if ( !PoEMemory.TryRead(Cache.StateValues.Head + (i * sizeof(long)), out long value) ) yield break;
+					yield return (Name(state, info.States.Head + (i * Offsets.StateMachine_State.Size)), value);
+				}
+			}
+		}
+
+		/// <summary>The value of the state called name (eg, "card_chosen"); false if there is none.</summary>
+		public bool TryGetState(string name, out long value) {
+			foreach ( var (n, v) in States ) {
+				if ( string.Equals(n, name, StringComparison.Ordinal) ) { value = v; return true; }
+			}
+			value = 0;
+			return false;
+		}
+
+		// a std::string of single-byte chars: inline (at its own address) while the capacity is under 16, else a pointer
+		private static string Name(Offsets.StateMachine_State state, IntPtr at) {
+			long len = state.NameLength;
+			if ( len <= 0 || len > 256 || state.NameCapacity < len ) return null;
+			IntPtr chars = state.NameCapacity < 16 ? at : state.ptrName;
+			return PoEMemory.TryReadString(chars, System.Text.Encoding.ASCII, out string s, (int)len) ? s : null;
+		}
 	}
 
 	public class Targetable : Component<Offsets.Component_Targetable> {

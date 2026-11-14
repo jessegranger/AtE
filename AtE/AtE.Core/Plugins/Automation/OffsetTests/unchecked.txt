@@ -222,6 +222,19 @@ Component_Sockets.entGem3
 Component_Sockets.entGem4
 Component_Sockets.entGem5
 
+# Component_StateMachine: found 3.29.4 on an AuguryCardObject (card_chosen); no check yet (needs a league object nearby)
+Component_StateMachine.StateValues
+Component_StateMachine.entOwner
+Component_StateMachine.ptrInfo
+StateMachine_Info.Others
+StateMachine_Info.States
+StateMachine_Info.vtable
+StateMachine_State.NameCapacity
+StateMachine_State.NameInline0
+StateMachine_State.NameInline1
+StateMachine_State.NameLength
+StateMachine_State.ptrName
+
 # Component_Targetable: not exercised yet
 Component_Targetable.IsTargeted
 
@@ -445,3 +458,5 @@ AreaInstanceDestination_Details.ptrNameCodePair
 AreaInstanceDestination_Details.ptrUnknown28
 AreaInstanceDestination_Details.ptrWorldAreasData
 Offsets.Element_AreaInstanceDestination_Offset
+Offsets.Element_AreaInstanceDestination_IsCurrentArea
+Offsets.Element_AreaInstanceDestination_Unlocked_Offset

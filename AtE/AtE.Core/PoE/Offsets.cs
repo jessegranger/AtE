@@ -1740,6 +1740,38 @@ namespace AtE {
 			[FieldOffset(0x20)] public readonly IntPtr GameStats; // ptr to GameStatArray
 		}
 
+		/// <summary>
+		/// An object's named states (eg, an AuguryCardObject's "card_chosen"), each a number. Found 3.29.4 on an unused
+		/// AuguryCardObject (the only entity in the area with one): one state, card_chosen = 0.
+		/// </summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_StateMachine {
+			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			/// <summary>The state definitions, shared by all entities of the type (see StateMachine_Info).</summary>
+			[FieldOffset(0x158)] public readonly IntPtr ptrInfo;
+			/// <summary>The current value of each state (long, 8 bytes each), in the order of StateMachine_Info.States.</summary>
+			[FieldOffset(0x160)] public readonly ArrayHandle StateValues;
+		}
+		/// <summary>What Component_StateMachine.ptrInfo points to.</summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct StateMachine_Info {
+			[FieldOffset(0x00)] public readonly IntPtr vtable;
+			/// <summary>The states, StateMachine_State records (0xC0 bytes each).</summary>
+			[FieldOffset(0x10)] public readonly ArrayHandle States;
+			/// <summary>
+			/// Some other named records, 0x48 bytes each, a std::string name first (the AuguryCardObject has one,
+			/// "wildcallout": maybe an event it can trigger). Not a state: StateValues has one value per States entry only.
+			/// </summary>
+			[FieldOffset(0x28)] public readonly ArrayHandle Others;
+		}
+		/// <summary>A state's definition: its name first, a std::string of single-byte chars (inline while Capacity &lt; 16, else a pointer).</summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct StateMachine_State {
+			public const int Size = 0xC0;
+			[FieldOffset(0x00)] public readonly IntPtr ptrName; // the name's chars, if NameCapacity >= 16
+			[FieldOffset(0x00)] public readonly long NameInline0; // else the chars are inline here (16 bytes)
+			[FieldOffset(0x08)] public readonly long NameInline1;
+			[FieldOffset(0x10)] public readonly long NameLength;
+			[FieldOffset(0x18)] public readonly long NameCapacity;
+		}
+
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Targetable {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			// 8 new bytes here
