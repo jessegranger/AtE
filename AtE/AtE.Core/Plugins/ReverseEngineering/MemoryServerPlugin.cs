@@ -43,6 +43,7 @@ namespace AtE {
 		private readonly ConcurrentQueue<Job> jobs = new ConcurrentQueue<Job>();
 		private long requestCount = 0;
 		private string lastError;
+		private long exitAt = 0; // when (Time.ElapsedMilliseconds) to close the overlay, after an /exit request; 0 = not asked
 
 		public MemoryServerPlugin() : base() {
 			Enabled = false; // opt-in; a persisted INI value still overrides this
@@ -58,6 +59,15 @@ namespace AtE {
 		}
 
 		public override IState OnTick(long dt) {
+			// /exit: shut down the way the console's Exit button does, a moment after the request so its response gets sent first
+			if ( exitAt > 0 && Time.ElapsedMilliseconds >= exitAt ) {
+				exitAt = 0;
+				Log("MemoryServer: exiting by request");
+				PluginBase.SaveIniFile();
+				StopListener();
+				Overlay.Close();
+				return this;
+			}
 			if ( Enabled && listener == null ) {
 				StartListener();
 			} else if ( (!Enabled || listeningPort != Port) && listener != null ) {
@@ -158,6 +168,11 @@ namespace AtE {
 			if ( path == "/log" ) {
 				var lines = RecentLog.ToArray().Where(l => q["filter"] == null || l.Contains(q["filter"], StringComparison.OrdinalIgnoreCase));
 				return string.Join(NL, lines.TakeLast(ParseInt(q["n"], 100))) + NL;
+			}
+			// ask the overlay to close itself cleanly (save settings, close the window, end the message loop), attached or not
+			if ( path == "/exit" ) {
+				Interlocked.CompareExchange(ref exitAt, Time.ElapsedMilliseconds + 250, 0);
+				return "exiting\n";
 			}
 			if ( !PoEMemory.IsAttached && path != "/help" ) {
 				return "error: not attached to the game\n";
@@ -292,6 +307,7 @@ namespace AtE {
   /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
   /items                        the worn, backpack and purchase window items: name, rarity, and each mod's stats (Stats.dat ids) with their values
   /log?n=100&filter=            the overlay's last log lines (the last n, matching filter)
+  /exit                         close the overlay cleanly (saves settings, like the console's Exit button); use this instead of killing the process
   /info?id=<entity id>&skill=<owner skill name>   ground truth: buffs (timer/max), animation time, duration-ish stats, owner skill MinionDuration
   /scan?id=<entity id>&value=1.5,3000&tol=0.01&kind=f32|i32|both&depth=1&len=0x400   find values in all components (and the animated object's) + pointees
   /gsnap?id=<entity id>&name=a&depth=1&len=0x400    snapshot all components + pointees (+ animated object) under a label
