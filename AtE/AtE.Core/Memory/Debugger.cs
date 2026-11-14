@@ -44,12 +44,18 @@ namespace AtE {
 		}
 
 		private static readonly Color[] childFrameColors = { Color.Red, Color.Blue, Color.Green };
-		internal static void DrawChildFrames(Element parent, int level) {
+		internal static void DrawChildFrames(Element parent, int level, string path = null) {
 			if ( level > 3 ) return;
+			int index = -1;
 			foreach ( var child in parent.Children ) {
+				index++;
 				if ( !IsValid(child) ) continue;
-				DrawFrame(child.GetClientRect(), childFrameColors[level - 1], 1);
-				DrawChildFrames(child, level + 1);
+				string childPath = path == null ? index.ToString() : path + "." + index;
+				var color = childFrameColors[level - 1];
+				var rect = child.GetClientRect();
+				DrawFrame(rect, color, 1);
+				DrawTextAt(new System.Numerics.Vector2(rect.X + 2, rect.Y + 1), childPath, color);
+				DrawChildFrames(child, level + 1, childPath);
 			}
 		}
 
