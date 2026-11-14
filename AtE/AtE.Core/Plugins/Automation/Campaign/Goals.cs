@@ -392,12 +392,35 @@ namespace AtE {
 		public readonly string Destination;
 		/// <summary>Click the exit when within this many cells of it.</summary>
 		public float Reach = 15;
+		/// <summary>While walking between unnamed exits looking for the right one: fight monsters within this many cells.</summary>
+		public float ExitSearchFightRadius = 75;
+		/// <summary>An unnamed exit this near (cells) that still shows no name is not one (eg, a transition tile with no door): skip it.</summary>
+		public float UnnamedExitReach = 10;
 		private long lastClick;
+		// unnamed exits walked to that never showed a name, in this area's exit list
+		private readonly HashSet<AreaExit> deadExits = new HashSet<AreaExit>();
+		private IReadOnlyList<AreaExit> deadExitsOf;
 
 		/// <param name="destination">An area's name (eg, "Lioneye's Watch"), or a name with its act ("The Sarn Encampment (Act 3)").</param>
 		public GoToArea(string destination) => Destination = destination;
 		public override string Name => $"Go to {Destination}";
 		public override bool Sticky => false;
+		public override void Reset() { base.Reset(); deadExits.Clear(); }
+
+		// the nearest reachable exit found in the tiles whose entity has not been seen yet (so its name is not known)
+		private AreaExit NearestUnnamedExit(CombatContext ctx) {
+			var exits = ctx.Terrain.Exits;
+			if ( !ReferenceEquals(exits, deadExitsOf) ) { deadExits.Clear(); deadExitsOf = exits; } // (a new area)
+			foreach ( var e in exits.Where(e => !e.Seen && !deadExits.Contains(e)).ToList() ) {
+				if ( Combat.Distance(ctx.Grid, e.GridPos) <= UnnamedExitReach ) {
+					deadExits.Add(e);
+					Log($"Campaign: the unnamed exit at {e.GridPos} showed no name from {UnnamedExitReach} cells: skipping it");
+				}
+			}
+			return exits.Where(e => !e.Seen && !deadExits.Contains(e) && DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, e.GridPos))
+				.OrderBy(e => Combat.Distance(ctx.Grid, e.GridPos))
+				.FirstOrDefault();
+		}
 
 		internal static bool Is(WorldArea area, string name) => area != null
 			&& (string.Equals(area.Name, name, StringComparison.OrdinalIgnoreCase) || string.Equals(area.DisplayName, name, StringComparison.OrdinalIgnoreCase));
@@ -410,6 +433,14 @@ namespace AtE {
 			var next = route[1];
 			var exit = ctx.Terrain.Exits.FirstOrDefault(e => e.Seen && e.Destination == next.Name);
 			if ( exit == null ) {
+				// one of the exits not named yet (found in the tiles, its entity not in range yet): walk to the nearest of
+				// them, until its name shows; a wrong one is then Seen, and the next nearest is tried
+				var unnamed = NearestUnnamedExit(ctx);
+				if ( unnamed != null ) {
+					Detail = $"looking for the way to {next.Name}: checking the unnamed exit at {unnamed.GridPos}";
+					return Call(new Navigate($"the unnamed exit at {unnamed.GridPos}", _ => unnamed.GridPos, UnnamedExitReach) {
+						FightRadius = IgnoreMonsters ? -1 : ExitSearchFightRadius, LegMs = 1000 });
+				}
 				Detail = $"looking for the way to {next.Name}";
 				return FightFirst(ctx) ?? Call(new Explore($"the way to {next.Name}") { FightRadius = IgnoreMonsters ? -1 : 0 });
 			}

@@ -80,6 +80,13 @@ namespace AtE {
 		}
 
 		/// <summary>
+		/// Every group of neighboring tiles cut from one .tdt (TileFile set), not cached: for inspecting an area's tiles
+		/// (the memory server's /tiles).
+		/// </summary>
+		public List<AreaFeature> AllTileGroups() =>
+			IsLoaded ? AreaExits.FromTiles<AreaFeature>(lastData, this, p => p != null) : new List<AreaFeature>();
+
+		/// <summary>
 		/// The doors seen so far in this area (doors are only known once they come into range).
 		/// </summary>
 		public IReadOnlyList<AreaDoor> Doors {

@@ -41,8 +41,15 @@ namespace AtE {
 
 	public static class AreaExits {
 
+		/// <summary>
+		/// Tiles whose path has one of these is an exit too, though not a "transition" .tdt: 3.29.4, The Climb's way to
+		/// The Lower Prison is "Metadata/Terrain/Beach/Special/beach_prisonback.tdt" (found with the memory server's /tiles).
+		/// </summary>
+		public static readonly string[] OtherExitTiles = { "/beach_prisonback" };
+
 		public static bool IsTransitionTile(string tilePath) =>
-			tilePath != null && tilePath.IndexOf("transition", StringComparison.OrdinalIgnoreCase) >= 0;
+			tilePath != null && (tilePath.IndexOf("transition", StringComparison.OrdinalIgnoreCase) >= 0
+				|| OtherExitTiles.Any(t => tilePath.IndexOf(t, StringComparison.OrdinalIgnoreCase) >= 0));
 
 		/// <summary>
 		/// 3.29.3, The Coast: the waypoint stands on the only tile cut from "Metadata/Terrain/Beach/Features/beach_waypoint_v01_01.tdt",

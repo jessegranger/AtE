@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using static AtE.Globals;
 
@@ -69,6 +70,21 @@ namespace AtE {
 		public static IEnumerable<(Element element, string name)> DestinationsEvenClosed() {
 			var panel = GetUI()?.AreaInstanceUi;
 			return IsValid(panel) ? DestinationsIn(panel) : Array.Empty<(Element, string)>();
+		}
+
+		/// <summary>
+		/// True if the panel's element tree (open or closed, see DestinationsEvenClosed) shows that the waypoint called
+		/// name (as the panel names it, eg "Merveil's Caverns") can't be taken now: it shows the current act (the current
+		/// area is among its destinations) and name is not an unlocked destination there. False when it can't tell (the
+		/// tree shows another act, or was never built): try the waypoint then. The closed tree is as of when the panel
+		/// was last open, so a waypoint unlocked since may still read as locked (it walks instead, which is only slower).
+		/// </summary>
+		public static bool IsKnownLocked(string name) {
+			string here = GetCurrentArea()?.Name;
+			if ( string.IsNullOrEmpty(here) || string.IsNullOrEmpty(name) ) return false;
+			var list = DestinationsEvenClosed().ToList();
+			if ( !list.Any(d => string.Equals(d.name, here, StringComparison.OrdinalIgnoreCase)) ) return false;
+			return !list.Any(d => string.Equals(d.name, name, StringComparison.OrdinalIgnoreCase) && IsUnlocked(d.element));
 		}
 
 		private static IEnumerable<(Element element, string name)> DestinationsIn(Element panel) {

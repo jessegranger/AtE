@@ -177,6 +177,8 @@ namespace AtE {
 				}
 				case "/waypoints":
 					return RunOnMain(WaypointsText);
+				case "/tiles":
+					return RunOnMain(() => TilesText(q["filter"]));
 				case "/labels":
 					return RunOnMain(LabelsText);
 				case "/skillbar":
@@ -282,6 +284,7 @@ namespace AtE {
   /ents?filter=<path substring>&comp=<ComponentName>&id=<entity id>&limit=30
   /tree?at=EXPR&depth=3         an element and its children: path of child indexes, address, visible, text, and the item if it is an InventoryItem
   /waypoints                    the destinations on the waypoint panel, open or closed (read from its element tree): name, unlocked (visited), element, screen rect
+  /tiles[?filter=]              the current area's tile files (.tdt): groups of neighboring tiles per file and where, and the exits known
   /labels                       the labels on the ground: entity id and path, text, screen rect, and the entity's screen position
   /skillbar[?stats=1]           the skill bar's slots: key, skill name, internal name, id, use time (stats=1: each skill's stats)
   /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
@@ -316,6 +319,23 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 		}
 
 		private const string NL = "\n";
+
+		// the current area's tile files: per .tdt, how many groups of neighboring tiles and where (the walkable cell nearest
+		// each group's center), plus the exits known now; filter keeps the paths containing it
+		private string TilesText(string filter) {
+			var terrain = GetTerrain();
+			if ( terrain == null || !terrain.IsLoaded ) return "(no terrain loaded)" + NL;
+			var sb = new StringBuilder($"area {GetCurrentArea()?.Name}, player at {GetPlayer()?.GetComponent<Positioned>()?.GridPos}" + NL);
+			foreach ( var e in terrain.Exits ) sb.Append($"exit: {e}  tile={e.TileFile}" + NL);
+			var groups = terrain.AllTileGroups()
+				.Where(g => string.IsNullOrEmpty(filter) || (g.TileFile?.IndexOf(filter, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0)
+				.GroupBy(g => g.TileFile)
+				.OrderBy(g => g.Count());
+			foreach ( var file in groups ) {
+				sb.Append($"{file.Count(),4}  {file.Key}  at {string.Join(" ", file.Take(6).Select(g => g.GridPos))}{(file.Count() > 6 ? " ..." : "")}" + NL);
+			}
+			return sb.ToString();
+		}
 
 		private string WaypointsText() {
 			bool open = WaypointPanel.Panel() != null;

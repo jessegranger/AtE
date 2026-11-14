@@ -203,6 +203,10 @@ namespace AtE {
 		protected override IState Step(CombatContext ctx) {
 			if ( waypoint?.Missing ?? false ) { noWaypoint = true; waypoint = null; }
 			var here = GetCurrentArea();
+			if ( Waypoint != null && !noWaypoint && WaypointPanel.IsKnownLocked(Waypoint) ) {
+				noWaypoint = true;
+				Log($"Campaign: the waypoint {Waypoint} is not unlocked (the waypoint panel's tree): walking to {Area}");
+			}
 			if ( Waypoint != null && !noWaypoint && here != null && (here.HasWaypoint || here.IsTown) ) {
 				Detail = $"by the waypoint {Waypoint}";
 				waypoint = new UseWaypoint(Waypoint) { Arrives = Area, GiveUpIfMissing = true, IgnoreMonsters = IgnoreMonsters };

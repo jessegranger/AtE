@@ -303,7 +303,8 @@ namespace AtE {
 			var seen = new HashSet<WorldArea> { target };
 			var frontier = new List<WorldArea> { target };
 			for ( int hops = 0; hops < walk.Count - 2 && frontier.Count > 0; hops++ ) {
-				var found = frontier.FirstOrDefault(a => (a.HasWaypoint || a.IsTown) && !missing.Contains(a.Name) && a.Act == here.Act);
+				var found = frontier.FirstOrDefault(a => (a.HasWaypoint || a.IsTown) && !missing.Contains(a.Name) && a.Act == here.Act
+					&& (a == here || !WaypointPanel.IsKnownLocked(a.Name)));
 				if ( found != null ) return found == here ? null : found.Name;
 				frontier = frontier.SelectMany(a => a.Connections).Where(a => !a.IsHub && seen.Add(a)).ToList();
 			}
@@ -421,7 +422,11 @@ namespace AtE {
 		/// <summary>Is there a monster to fight within radius (0: EngageRadius)?</summary>
 		public static bool AnyNear(CombatContext ctx, float radius) => radius <= 0
 			? ctx.Hostiles.Count > 0 || ctx.MonstersToClick.Count > 0
-			: ctx.Hostiles.Any(h => h.Distance <= radius) || ctx.MonstersToClick.Any(h => h.Distance <= radius);
+			: radius > ctx.Driver.EngageRadius
+				// (ctx.Hostiles only reaches EngageRadius: look further)
+				? Combat.GetHostiles(ctx.Grid, radius).Any(h => DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, h.GridPos))
+					|| ctx.MonstersToClick.Count > 0
+				: ctx.Hostiles.Any(h => h.Distance <= radius) || ctx.MonstersToClick.Any(h => h.Distance <= radius);
 
 		protected override IState Tick(CombatContext ctx, long dt) {
 			if ( ctx.Driver.TryRetreat(ctx) ) { Detail = "retreating"; return this; }
