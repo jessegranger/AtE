@@ -127,7 +127,8 @@ namespace AtE {
 			}
 			// (the augury card selection window pauses the game: it is worked on all the same, see TryAugury)
 			if ( game.IsPaused && !AuguryIsOpen() ) return Wait("the game is paused");
-			if ( game.HasInputFocus ) return Wait("typing in the game");
+			// (the hidden skill bar takes the input focus too: not typing, and a click in it must get to its release)
+			if ( game.HasInputFocus && !SkillBar.IsChoosing ) return Wait("typing in the game");
 			if ( PoEMemory.GameRoot?.EscapeState?.Menu != null ) return Wait("escape menu");
 			if ( !PoEMemory.TargetHasFocus ) return Wait("the game needs focus to use the mouse");
 			if ( binding ) return Wait("changing the skill bar");

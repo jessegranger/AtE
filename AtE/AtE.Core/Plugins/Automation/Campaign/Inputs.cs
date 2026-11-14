@@ -41,6 +41,14 @@ namespace AtE {
 						new LeftMouseUp(new Delay(Latency,
 							new KeyUp(VKey.LControlKey, new Delay(Latency, next))))))))));
 
+		/// <summary>Ctrl + right click the middle of a client rectangle (eg, toggle a reservation skill in the hidden skill bar).</summary>
+		public static IState CtrlRightClick(RectangleF client, IState next = null) =>
+			new MoveMouse(Screen(Center(client)), new Delay(Latency,
+				new KeyDown(VKey.LControlKey, new Delay(Latency,
+					new RightMouseDown(new Delay(Latency,
+						new RightMouseUp(new Delay(Latency,
+							new KeyUp(VKey.LControlKey, new Delay(Latency, next))))))))));
+
 		/// <summary>Press and release a key.</summary>
 		public static IState Press(VKey key, IState next = null) => new KeyDown(key, new Delay(Latency, new KeyUp(key, new Delay(Latency, next))));
 

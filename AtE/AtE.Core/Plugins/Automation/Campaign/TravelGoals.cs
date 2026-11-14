@@ -336,6 +336,7 @@ namespace AtE {
 	/// <summary>
 	/// Put the skills on the skill bar as the Build's gem plan says, at the character's level: each group's first skill
 	/// gem on the slot its label names (eg, "Q"), if the gem is socketed. Done when they all are (those that can be).
+	/// Not the reservation skills (eg, Clarity): they need no slot, AuraKeeper turns them on from the hidden skill bar.
 	/// </summary>
 	public class BindPlannedSkills : Goal {
 		public override string Name => "Put the skills on the bar as the build plans";
@@ -347,10 +348,12 @@ namespace AtE {
 			var plan = BuildPlan.Gems();
 			if ( plan == null ) yield break;
 			var socketed = Equipment.SocketedGems().ToList();
+			var reservations = AuraKeeper.Planned().ToList();
 			foreach ( var group in plan.GroupsFor(GemPlan.CharacterLevel()) ) {
 				int slot = GemPlan.SlotOf(group.Label);
 				var gem = group.ActiveGems.FirstOrDefault();
 				if ( slot < 0 || gem == null || !socketed.Any(e => GemPlan.Matches(gem, e)) ) continue;
+				if ( reservations.Any(r => SkillBar.IsNamed(r, gem.Name)) ) continue;
 				if ( !SkillBar.Holds(SkillBar.GetSlot(slot), gem.Name) ) yield return (slot, gem.Name);
 			}
 		}

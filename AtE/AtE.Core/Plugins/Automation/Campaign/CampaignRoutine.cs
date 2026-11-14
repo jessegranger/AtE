@@ -52,6 +52,7 @@ namespace AtE {
 		[NoPersist] public readonly CampaignRunner Runner = new CampaignRunner();
 		protected readonly Looter Looter = new Looter();
 		protected readonly FlaskUpgrader FlaskUpgrader = new FlaskUpgrader();
+		protected readonly AuraKeeper AuraKeeper = new AuraKeeper();
 
 		/// <summary>The leaf goal chosen (null if all are done).</summary>
 		public Goal CurrentGoal { get; private set; }
@@ -246,6 +247,7 @@ namespace AtE {
 			lastSelect = 0;
 			Looter.Reset();
 			FlaskUpgrader.Reset();
+			AuraKeeper.Reset();
 			Root.Reset();
 		}
 
@@ -310,12 +312,14 @@ namespace AtE {
 			var goal = CurrentGoal;
 			if ( goal == null ) {
 				// all done: what a combat driver does
-				if ( !TryUpgradeFlask(ctx) && !TryLoot(ctx) && !TrySelectFate(ctx) ) base.Decide(ctx);
+				if ( !TryUpgradeFlask(ctx) && !TryKeepAuras(ctx) && !TryLoot(ctx) && !TrySelectFate(ctx) ) base.Decide(ctx);
 				return;
 			}
 			SetStatus(goal.Name);
 			// a bigger life or mana flask picked up: in place of the smaller one (it opens the inventory, so before closing it, below)
 			if ( !goal.UsesInventory && !goal.IgnoreMonsters && TryUpgradeFlask(ctx) ) { SetStatus($"{goal.Name}: {FlaskUpgrader.Status}"); return; }
+			// a reservation skill of the build's (eg, Clarity) off: on again
+			if ( !goal.UsesInventory && !goal.IgnoreMonsters && !BackpackIsOpen() && TryKeepAuras(ctx) ) { SetStatus($"{goal.Name}: {AuraKeeper.Status}"); return; }
 			if ( !goal.UsesInventory && BackpackIsOpen() && !(Runner.Current is CampaignState s && s != goal) ) {
 				// eg, left open after socketing a gem: it covers the screen
 				StopWalking("closing the inventory");
@@ -440,6 +444,13 @@ namespace AtE {
 			bool safe = !ctx.Hostiles.Any(h => h.Distance <= AttackRange);
 			if ( !FlaskUpgrader.Tick(ctx, safe) ) return false;
 			if ( CurrentGoal == null ) SetStatus(FlaskUpgrader.Status);
+			return true;
+		}
+
+		private bool TryKeepAuras(CombatContext ctx) {
+			bool safe = !ctx.Hostiles.Any(h => h.Distance <= AttackRange);
+			if ( !AuraKeeper.Tick(ctx, safe) ) return false;
+			if ( CurrentGoal == null ) SetStatus(AuraKeeper.Status);
 			return true;
 		}
 
