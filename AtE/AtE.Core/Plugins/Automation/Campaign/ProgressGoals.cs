@@ -461,8 +461,12 @@ namespace AtE {
 		public override bool Sticky => false;
 		public override void Reset() { base.Reset(); tries.Clear(); }
 
+		/// <summary>NPCs (the end of their metadata path) whose marker is not a quest: Einhar's (the bestiary league's) is his own.</summary>
+		public static readonly List<string> NotQuestGivers = new List<string> { "/Einhar" };
+
 		/// <summary>The NPCs here with a quest marker over their heads (not tried twice yet).</summary>
 		public IEnumerable<Entity> Waiting() => GetEntities()?.Where(e => e?.Path is string path && path.StartsWith("Metadata/NPC/")
+			&& !NotQuestGivers.Any(n => path.EndsWith(n, StringComparison.OrdinalIgnoreCase))
 			&& (e.GetComponent<NPC>()?.HasIconOverhead ?? false) && !(tries.TryGetValue(e.Address, out int n) && n >= 2)) ?? Enumerable.Empty<Entity>();
 
 		public override bool CheckDone(CombatContext ctx) => !(GetCurrentArea()?.IsTown ?? false) || !Waiting().Any();

@@ -83,6 +83,9 @@ namespace AtE {
 		/// Input to send (a chain of input states, see Inputs), queued by Send. A driver that runs states itself (the
 		/// Campaign) takes it into its own chain (TakeInput); otherwise it runs on the default Machine.
 		/// </summary>
+		/// <summary>The escape menu opening this soon after an Escape of ours: ours to close.</summary>
+		public long EscapeMenuMs = 3000;
+		private long lastMenuEscape;
 		private IState pendingInput;
 		private bool inputRunning;
 		/// <summary>True while input is queued or still going out: Send refuses more until it is done.</summary>
@@ -125,11 +128,22 @@ namespace AtE {
 				DrawBottomLeftText($"{Name}: {Status}", Color.Orange);
 				return this;
 			}
+			if ( PoEMemory.GameRoot?.EscapeState?.Menu != null ) {
+				// opened by an Escape of ours (eg, the dialog it was to close had closed already): Escape again to close it
+				// (never a click while it is open: the chain waits here); one the player opened is left alone
+				long now = Time.ElapsedMilliseconds;
+				if ( now - Inputs.LastEscapeMs < EscapeMenuMs && now - lastMenuEscape > 1000 && CanSendKey(VKey.Escape) ) {
+					lastMenuEscape = now;
+					Log($"{Name}: the escape menu opened after our Escape: closing it");
+					Platform.Current.Input.KeyDown(VKey.Escape);
+					Platform.Current.Input.KeyUp(VKey.Escape);
+				}
+				return Wait("escape menu");
+			}
 			// (the augury card selection window pauses the game: it is worked on all the same, see TryAugury)
 			if ( game.IsPaused && !AuguryIsOpen() ) return Wait("the game is paused");
 			// (the hidden skill bar takes the input focus too: not typing, and a click in it must get to its release)
 			if ( game.HasInputFocus && !SkillBar.IsChoosing ) return Wait("typing in the game");
-			if ( PoEMemory.GameRoot?.EscapeState?.Menu != null ) return Wait("escape menu");
 			if ( !PoEMemory.TargetHasFocus ) return Wait("the game needs focus to use the mouse");
 			if ( binding ) return Wait("changing the skill bar");
 			// left click should only move (and interact), never attack

@@ -135,6 +135,7 @@ namespace AtE {
 		public KeyDown(VKey key, IState next = null) : base(key, next) { }
 		public override IState OnTick(long dt) {
 			if( dt > 0 && CanSendKey(Key) ) {
+				if ( Key == VKey.Escape ) Inputs.LastEscapeMs = Time.ElapsedMilliseconds;
 				Platform.Current.Input.KeyDown(Key);
 				return Next;
 			}

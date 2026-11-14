@@ -201,6 +201,7 @@ namespace AtE {
 		public static void MouseTo(Vector2 pos) => Platform.Current.Input.MouseMove(pos + WindowOffset());
 
 		private static void PressEscape() {
+			Inputs.LastEscapeMs = Time.ElapsedMilliseconds;
 			Platform.Current.Input.KeyDown(VKey.Escape);
 			Platform.Current.Input.KeyUp(VKey.Escape);
 		}

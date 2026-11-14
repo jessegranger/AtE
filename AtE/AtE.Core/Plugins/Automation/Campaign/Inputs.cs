@@ -17,6 +17,9 @@ namespace AtE {
 		/// <summary>How long to hold a key or button, and to wait between steps (CoreSettings.InputLatency).</summary>
 		public static uint Latency => InventoryPlans.InputLatency;
 
+		/// <summary>When Escape last went out (eg, to close a dialog: if the dialog had closed already, the escape menu opens instead).</summary>
+		public static long LastEscapeMs = -1000000;
+
 		private static Vector2 Screen(Vector2 client) =>
 			client + (PoEMemory.Memory.TryGetTargetWindowRect(out int x, out int y, out _, out _) ? new Vector2(x, y) : Vector2.Zero);
 		private static Vector2 Center(RectangleF r) => new Vector2(r.X + (r.Width / 2), r.Y + (r.Height / 2));
