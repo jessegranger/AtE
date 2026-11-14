@@ -62,6 +62,8 @@ namespace AtE {
 		public CampaignRoutine() {
 			// an item a goal is to pick up is left to it, so it sees the item go and knows it is done
 			Looter.Leave = text => CurrentGoal is PickUp p && p.LabelText != null && text.IndexOf(p.LabelText, StringComparison.OrdinalIgnoreCase) >= 0;
+			// equipment only when rare (or unique), or for a slot with nothing in it
+			Looter.Want = Looter.RareOrEmptySlot;
 			Root = Campaign();
 			Root.AssignIds();
 		}
@@ -227,8 +229,10 @@ namespace AtE {
 		}
 
 		private void DecideGoal(CombatContext ctx) {
-			// (input going out: let it finish before choosing again, so a goal change does not cut a key press in half)
-			if ( Runner.Current is InputState || Runner.Current is Delay ) {
+			// input going out (any state in the chain that is not the campaign's own: input states, Delays, the end of
+			// input that clears InputBusy): let it finish before anything else (choosing again, looting), so a goal change
+			// does not cut a key press in half, and the looter does not wait forever on InputBusy
+			if ( Runner.Current != null && !(Runner.Current is CampaignState) ) {
 				if ( Runner.Current != stuckState ) { stuckState = Runner.Current; stuckSince = Time.ElapsedMilliseconds; }
 				else if ( Time.ElapsedMilliseconds - stuckSince > MaxInputMs ) {
 					// input never takes this long (eg, a modifier key that can't be sent while the game is not focused)

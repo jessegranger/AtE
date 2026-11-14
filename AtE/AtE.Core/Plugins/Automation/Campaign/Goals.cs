@@ -150,10 +150,15 @@ namespace AtE {
 				}
 				ctx.Driver.StopWalking("using a skill");
 				// the cast goes where the cursor is when it starts: stop, and keep the cursor on it for a moment first
-				ctx.Driver.Send(Inputs.MoveTo(screen));
+				// (only while aiming: input queued this frame makes the driver refuse the skill, see CombatDriver.InputBusy;
+				// using the skill moves the cursor there itself)
 				if ( aimSince == 0 ) aimSince = Time.ElapsedMilliseconds;
-				if ( Time.ElapsedMilliseconds - aimSince < AimMs ) { Detail = "aiming at it"; return; }
-				Detail = $"using {skill} at it";
+				if ( Time.ElapsedMilliseconds - aimSince < AimMs ) {
+					ctx.Driver.Send(Inputs.MoveTo(screen));
+					Detail = "aiming at it";
+					return;
+				}
+				Detail = ctx.Driver.InputBusy ? $"using {skill} at it (waiting for the input before it)" : $"using {skill} at it";
 				if ( !ctx.Driver.UseSkillPaced(skill, screen) ) return;
 				aimSince = 0;
 				castDue = false;
