@@ -245,7 +245,7 @@ namespace AtE {
 	}
 
 	/// <summary>
-	/// Go to an area: by the named waypoint (eg, "Merveil's Caverns" for The Cavern of Anger), if this area has a
+	/// Go to an area: by the named waypoint (eg, "The Coast"), if this area has a
 	/// waypoint and that one is discovered; else by TravelTo. Done once in the area.
 	/// </summary>
 	public class RouteTo : Goal {
@@ -519,7 +519,8 @@ namespace AtE {
 
 		/// <summary>
 		/// Where a quest's "Travel to X" step really means, when X is not the area's name: (quest, X) to the area.
-		/// The Siren's Cadence: "Travel to Merveil's Caverns" (the waypoint's name) is The Cavern of Anger.
+		/// The Siren's Cadence: "Travel to Merveil's Caverns" (the waypoint's name, in The Cavern of Wrath) means Merveil's
+		/// lair, The Cavern of Anger: TravelTo takes the waypoint to The Cavern of Wrath if it can, and walks on from there.
 		/// </summary>
 		public static readonly Dictionary<(string quest, string place), string> TravelAliases =
 			new Dictionary<(string quest, string place), string>() {

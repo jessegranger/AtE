@@ -52,12 +52,15 @@ namespace AtE {
 		///    between the area's levels, labelled "The Upper Prison"), prison_exit_up, prison_door_up (and the quest-blocked
 		///    shavronne_prison_door_up), prison_boss_exit (beside Brutus's cell)
 		///  - Prisoner's Gate's way to The Ship Graveyard: ".../Beach/Transitions/ShipgraveyardPassageway/..."
+		///  - The Cavern of Wrath (Metadata/Terrain/Cave/Features/...): caveup_exit (to The Cavern of Anger), caveskeleton_exit
+		///    (back to The Ship Graveyard)
 		/// Some may lead to another level of the same area: walking there names them, and the right one is taken.
 		/// </summary>
 		public static readonly string[] OtherExitTiles = {
 			"/beach_prisonback",
 			"/prison_entrance_down", "/prison_exit_up", "prison_door_up", "/prison_boss_exit",
 			"/ShipgraveyardPassageway/",
+			"/caveup_exit", "/caveskeleton_exit",
 		};
 
 		/// <summary>
@@ -72,6 +75,8 @@ namespace AtE {
 		/// </summary>
 		public static readonly (string tile, string destination)[] KnownExitTiles = {
 			("ShipgraveyardPassageway/shipgraveyard_passageway", "The Ship Graveyard"), // Prisoner's Gate (3.29.4)
+			("Cave/Features/caveup_exit", "The Cavern of Anger"), // The Cavern of Wrath (3.29.4; from the tile alone, not yet seen as an entity)
+			("Cave/Features/caveskeleton_exit", "The Ship Graveyard"), // The Cavern of Wrath (3.29.4)
 		};
 
 		/// <summary>The destination a tile names (see KnownExitTiles), or null.</summary>

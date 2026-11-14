@@ -33,7 +33,7 @@ namespace AtE {
 		/// <summary>
 		/// Do a panel name and an area name name the same place: equal ignoring case, or but for a leading "The " (the
 		/// panel says "Prisoner's Gate" for The Prisoner's Gate), or a pair in PanelAliases (eg, "Merveil's Caverns" for
-		/// The Cavern of Anger).
+		/// The Cavern of Wrath).
 		/// </summary>
 		public static bool SameName(string a, string b) {
 			if ( a == null || b == null ) return false;
@@ -44,9 +44,12 @@ namespace AtE {
 				|| (string.Equals(y, p.panel, StringComparison.OrdinalIgnoreCase) && string.Equals(x, p.area, StringComparison.OrdinalIgnoreCase)));
 		}
 
-		/// <summary>The panel's names for areas it calls something else (without a leading "The").</summary>
+		/// <summary>
+		/// The panel's names for areas it calls something else (without a leading "The"). "Merveil's Caverns" is the
+		/// waypoint in The Cavern of Wrath (The Cavern of Anger, past it, has none).
+		/// </summary>
 		public static readonly (string panel, string area)[] PanelAliases = {
-			("Merveil's Caverns", "Cavern of Anger"),
+			("Merveil's Caverns", "Cavern of Wrath"),
 		};
 
 		/// <summary>Is the destination element the area the player is in (see Offsets.Element_AreaInstanceDestination_IsCurrentArea)?</summary>

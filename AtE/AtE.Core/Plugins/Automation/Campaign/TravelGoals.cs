@@ -25,7 +25,7 @@ namespace AtE {
 		public bool Missing { get; private set; }
 		public override string Name => $"Take the waypoint to {Destination}";
 		public override bool Sticky => false;
-		/// <summary>The area it goes to, if not called as the panel names it (eg, "Merveil's Caverns" goes to The Cavern of Anger).</summary>
+		/// <summary>The area it goes to, if not called as the panel names it (eg, "Merveil's Caverns" goes to The Cavern of Wrath).</summary>
 		public string Arrives;
 		public override bool CheckDone(CombatContext ctx) => GoToArea.Is(GetCurrentArea(), Arrives ?? Destination);
 

@@ -17,7 +17,7 @@ namespace AtE {
 	///       Complete Act 1 (done: "Act 2" is offered, or the player is in a later act)
 	///         Exit The Twilight Strand (done: not in The Twilight Strand)
 	///         Finish all quests (from the quest tracker; in town, talk to the NPCs with something to say)
-	///         Route to The Cavern of Anger (waypoint "Merveil's Caverns"), kill Merveil, enter Act 2
+	///         Route to The Cavern of Anger (the waypoint "Merveil's Caverns" is in The Cavern of Wrath, before it), kill Merveil, enter Act 2
 	///       Complete Act 2: route to The Ancient Pyramid, up the stairs to the Pyramid Apex, the Dark Altar, its boss, on to Act 3
 	///       Complete Acts 3, 4, 5 (not specified yet)
 	///     Complete Part 2: Acts 6 to 10 (not specified yet)
@@ -141,7 +141,8 @@ namespace AtE {
 				) { DoneWhen = () => GetCurrentArea() is WorldArea here && !GoToArea.Is(here, TwilightStrand) },
 				quests,
 				new Sequence("Route to The Cavern of Anger",
-					new RouteTo("The Cavern of Anger", "Merveil's Caverns"),
+					// (TravelTo takes the waypoint "Merveil's Caverns", to The Cavern of Wrath, if it can, and walks on)
+					new RouteTo("The Cavern of Anger"),
 					new Kill("Merveil", IsMerveil, main) { Where = "The Cavern of Anger" },
 					new EnterArea("The Southern Forest"))
 			) { DoneWhen = () => CampaignProgress.ActDone(1) };
