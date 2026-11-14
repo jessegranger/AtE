@@ -54,7 +54,10 @@ namespace AtE {
 
 		public override string Name => $"Kill {Label} with {Skill}, out of its damaging areas";
 
+		/// <summary>Log the damaging areas (how many, and the nearest) at most this often, when their number has changed.</summary>
+		public long HazardLogMs = 5000;
 		private int lastHazardCount = -1;
+		private long lastHazardLog;
 
 		public static IEnumerable<Hazard> DefaultHazards(CombatContext ctx) {
 			if ( HazardPaths.Count == 0 ) yield break;
@@ -74,9 +77,11 @@ namespace AtE {
 			string skill = Skill;
 			float range = SpamRange > 0 ? SpamRange : ctx.Driver.AttackRange * .8f;
 			var hazards = Hazards(ctx).ToList();
-			if ( hazards.Count != lastHazardCount ) {
+			if ( hazards.Count != lastHazardCount && Time.ElapsedMilliseconds - lastHazardLog >= HazardLogMs ) {
 				lastHazardCount = hazards.Count;
-				Log($"AvoidSpam: {hazards.Count} damaging areas near {Label}{(hazards.Count == 0 ? "" : ": " + string.Join(", ", hazards))}");
+				lastHazardLog = Time.ElapsedMilliseconds;
+				string nearest = hazards.Count == 0 ? "" : $", the nearest {hazards.Min(h => Combat.Distance(ctx.Grid, h.Center) - h.Radius):F0} cells from its edge";
+				Log($"AvoidSpam: {hazards.Count} damaging areas near {Label}{nearest}");
 			}
 
 			// in (or at the edge of) an area: get out first
