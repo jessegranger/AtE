@@ -27,6 +27,8 @@ namespace AtE.Plugins {
 		public bool ShowLeagueNPCs = true;
 		public bool ShowLeagueResources = true;
 		public bool DebugUnknownResources = false;
+		public bool DebugMonsters = false;
+		public bool DebugChests = false;
 
 		public bool ShowRareOverhead = true;
 
@@ -65,6 +67,8 @@ namespace AtE.Plugins {
 			ImGui.Indent();
 				ImGui.Checkbox("Show League Resources", ref ShowLeagueResources);
 				ImGui.Checkbox("Debug Unknown Resources", ref DebugUnknownResources);
+				ImGui.Checkbox("Debug Monsters", ref DebugMonsters);
+				ImGui.Checkbox("Debug Chests", ref DebugChests);
 			ImGui.Unindent();
 		}
 
@@ -130,21 +134,22 @@ namespace AtE.Plugins {
 				}
 				*/
 
-				/* Debug:
-				if ( false && path.StartsWith("Metadata/Monster")
+				if ( DebugMonsters && path.StartsWith("Metadata/Monster")
 					&& IsHostile(ent)
 					&& IsTargetable(ent)
-					&& ent.HasComponent<MinimapIcon>()
+					&& IsAlive(ent)
+					// && ent.HasComponent<MinimapIcon>()
 					) {
 					ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
 					ImGui.Begin($"ent:{ent.Id} {ent.Path}");
-					ImGui.Text($"IsAlive: {IsAlive(ent)}");
+					ImGui_Object($"{ent.Id}", $"{ent.Id}", ent, new HashSet<int>());
+					// ImGui.Text($"IsAlive: {IsAlive(ent)}");
 					// ImGui.Text($"IsHostile: {IsHostile(ent)}");
 					// ImGui.Text($"IsTargetable: {IsTargetable(ent)}");
-					var minimapIcon = ent.GetComponent<MinimapIcon>();
-					ImGui.Text($"Icon IsVisible: {minimapIcon.IsVisible}");
-					ImGui.Text($"Icon IsHidden: {minimapIcon.IsHide}");
-					ImGui_Object($"MinimapIcon-{ent.Id}", $"MinimapIcon", minimapIcon, new HashSet<int>());
+					// var minimapIcon = ent.GetComponent<MinimapIcon>();
+					// ImGui.Text($"Icon IsVisible: {minimapIcon.IsVisible}");
+					// ImGui.Text($"Icon IsHidden: {minimapIcon.IsHide}");
+					// ImGui_Object($"MinimapIcon-{ent.Id}", $"MinimapIcon", minimapIcon, new HashSet<int>());
 					// ImGui.Text("Positioned");
 					// ImGui_Object($"Positioned-{ent.Id}", "Positioned", ent.GetComponent<Positioned>(), new HashSet<int>());
 					// ImGui.Text("Render");
@@ -153,19 +158,14 @@ namespace AtE.Plugins {
 					// ImGui_Object($"ObjectMagicProperties-{ent.Id}", "ObjectMagicProperties", ent.GetComponent<ObjectMagicProperties>(), new HashSet<int>());
 					ImGui.End();
 				}
-				/*
-				if ( path.StartsWith("Metadata/Chest") ) {
-			ImGui.Begin("Player Buffs");
-			ImGui_Object("Buffs", "Buffs", GetPlayer()?.GetComponent<Buffs>(), new HashSet<int>());
-			ImGui.End();
-					// ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
+				if ( DebugChests && path.StartsWith("Metadata/Chest") ) {
+					ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
 					ImGui.Begin($"Unknown Box##{ent.Id}");
 					ImGui_Object($"Box##{ent.Id}", "Box", ent, new HashSet<int>());
 					ImGui.Text("Chest:");
 					ImGui_Object("$Chest-##{ent.Id}", "Chest", ent.GetComponent<Chest>(), new HashSet<int>());
 					ImGui.End();
 				}
-				*/
 				if( ent.MinimapIcon.Expires < Time.ElapsedMilliseconds ) {
 					ent.MinimapIcon = new Entity.Icon() { Size = 0f, Sprite = SpriteIcon.None };
 				}
