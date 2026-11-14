@@ -259,6 +259,16 @@ namespace AtE {
 		// the worn and backpack items' mods, as stat ids and values (what item scoring reads)
 		private static string Items() {
 			var sb = new StringBuilder();
+			// the flask bar (read with the inventory closed too), and the inventory panel's flask slots by where they are drawn
+			for ( int i = 0; i < 5; i++ ) sb.AppendLine($"Flask bar {i + 1}: {GetFlask(i)?.realEnt?.Path ?? "(empty)"}");
+			if ( GetUI()?.InventoryPanel?.Flasks is Inventory flaskInv ) {
+				var panel = flaskInv.GetClientRect();
+				foreach ( var f in flaskInv.Items.Where(f => f?.Entity != null) ) {
+					var r = f.GetClientRect();
+					int slot = panel.Width <= 0 ? -1 : (int)((r.X + (r.Width / 2) - panel.X) / (panel.Width / 5));
+					sb.AppendLine($"Flask panel slot {slot + 1}: {f.Entity.Path} rect {r} (panel {panel})");
+				}
+			}
 			var slots = Equipment.WornSlots().Select(s => (s.name, s.inventory)).ToList();
 			if ( GetUI()?.InventoryPanel?.Backpack is Inventory backpack ) slots.Add(("Backpack", backpack));
 			var lists = slots.Select(s => (s.name, items: s.inventory.Items.Cast<InventoryItem>())).ToList();

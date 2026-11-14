@@ -29,11 +29,14 @@ namespace AtE {
 		public System.Func<Entity, bool> Want;
 
 		/// <summary>
-		/// Equipment worth picking up: a rare, or anything for a worn slot that is empty. Items that are not equipment
-		/// (currency, gems, flasks, quest items, ...) are always worth it; so is an item that can't be read.
+		/// Equipment worth picking up: a rare, or anything for a worn slot that is empty. A life or mana flask only if it
+		/// recovers more than one of its kind equipped (see FlaskUpgrader, which then puts it in that one's place). Other
+		/// items that are not equipment (currency, gems, other flasks, quest items, ...) are always worth it; so is an item
+		/// that can't be read.
 		/// </summary>
 		public static bool RareOrEmptySlot(Entity item) {
 			if ( item == null ) return true;
+			if ( FlaskUpgrader.TryRecovery(item, out _, out _) ) return FlaskUpgrader.IsUpgrade(item);
 			var slots = SlotsFor(item.Path);
 			if ( slots == null ) return true; // not equipment
 			var mods = item.GetComponent<Mods>();
@@ -61,6 +64,11 @@ namespace AtE {
 		/// <summary>What it is doing, for the status line.</summary>
 		public string Status { get; private set; } = "";
 
+		/// <summary>Called with an item's metadata path (the item, not the WorldItem) when one clicked on is gone from the ground (picked up).</summary>
+		public System.Action<string> PickedUp;
+		private uint pickingId; // the last item clicked, until its label is gone
+		private string pickingPath;
+
 		private readonly Dictionary<uint, int> clicks = new Dictionary<uint, int>();
 		private readonly Dictionary<uint, int> allClicks = new Dictionary<uint, int>();
 		private readonly HashSet<uint> blacklist = new HashSet<uint>();
@@ -75,10 +83,12 @@ namespace AtE {
 			blacklist.Clear();
 			lastClicked = 0;
 			current = 0;
+			pickingId = 0;
 		}
 
 		/// <summary>Where the item to pick up next is (the one being picked up, else the nearest); false if there is none.</summary>
 		public bool TryGetTarget(CombatContext ctx, out Offsets.Vector2i grid) {
+			CheckPickedUp(); // (asked first each frame, also after the last item is gone)
 			var found = Target(ctx);
 			grid = found.grid;
 			return found.item != null;
@@ -94,6 +104,7 @@ namespace AtE {
 
 		/// <summary>Work on picking up the nearest item; false if there is none to pick up.</summary>
 		public bool TryLoot(CombatContext ctx) {
+			CheckPickedUp();
 			var (label, item, grid, d) = Target(ctx);
 			if ( item == null ) { current = 0; return false; }
 			current = item.Id;
@@ -124,11 +135,22 @@ namespace AtE {
 			if ( ctx.Driver.Send(click) ) {
 				lastClick = Time.ElapsedMilliseconds;
 				lastClicked = item.Id;
+				pickingId = item.Id;
+				pickingPath = item.GetComponent<WorldItem>()?.Item?.Path;
 				lastClickWait = ClickPace + (long)(ClickPacePerCell * d);
 				if ( d <= Reach ) clicks[item.Id] = n + 1;
 				allClicks[item.Id] = all + 1;
 			}
 			return true;
+		}
+
+		// the item clicked last is gone from the ground: tell PickedUp
+		private void CheckPickedUp() {
+			if ( pickingId == 0 ) return;
+			var labels = GetUI()?.LabelsOnGround?.GetAllLabels();
+			if ( labels == null || labels.Any(l => l.Item?.Id == pickingId) ) return;
+			pickingId = 0;
+			if ( pickingPath != null ) PickedUp?.Invoke(pickingPath);
 		}
 
 		// the items on the ground with a label showing, not blacklisted, within MaxDistance

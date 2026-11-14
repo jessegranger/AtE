@@ -176,7 +176,7 @@ namespace AtE {
 		private static Inventory Flasks => GetUI()?.InventoryPanel?.Flasks;
 
 		/// <summary>The box of flask slot i (0 to 4) on screen: a fifth of the flask inventory's box.</summary>
-		private static RectangleF SlotRect(RectangleF panel, int i) => new RectangleF(panel.X + (i * panel.Width / 5), panel.Y, panel.Width / 5, panel.Height);
+		internal static RectangleF SlotRect(RectangleF panel, int i) => new RectangleF(panel.X + (i * panel.Width / 5), panel.Y, panel.Width / 5, panel.Height);
 		private static int SlotOf(RectangleF panel, InventoryItem item) {
 			var r = item.GetClientRect();
 			return panel.Width <= 0 ? -1 : (int)((r.X + (r.Width / 2) - panel.X) / (panel.Width / 5));

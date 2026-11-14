@@ -51,6 +51,7 @@ namespace AtE {
 		[NoPersist] public readonly Sequence Root;
 		[NoPersist] public readonly CampaignRunner Runner = new CampaignRunner();
 		protected readonly Looter Looter = new Looter();
+		protected readonly FlaskUpgrader FlaskUpgrader = new FlaskUpgrader();
 
 		/// <summary>The leaf goal chosen (null if all are done).</summary>
 		public Goal CurrentGoal { get; private set; }
@@ -64,6 +65,7 @@ namespace AtE {
 			Looter.Leave = text => CurrentGoal is PickUp p && p.LabelText != null && text.IndexOf(p.LabelText, StringComparison.OrdinalIgnoreCase) >= 0;
 			// equipment only when rare (or unique), or for a slot with nothing in it
 			Looter.Want = Looter.RareOrEmptySlot;
+			Looter.PickedUp = path => FlaskUpgrader.PickedUp(path);
 			Root = Campaign();
 			Root.AssignIds();
 		}
@@ -205,6 +207,7 @@ namespace AtE {
 			ForgetInput();
 			lastSelect = 0;
 			Looter.Reset();
+			FlaskUpgrader.Reset();
 			Root.Reset();
 		}
 
@@ -269,10 +272,12 @@ namespace AtE {
 			var goal = CurrentGoal;
 			if ( goal == null ) {
 				// all done: what a combat driver does
-				if ( !TryLoot(ctx) && !TrySelectFate(ctx) ) base.Decide(ctx);
+				if ( !TryUpgradeFlask(ctx) && !TryLoot(ctx) && !TrySelectFate(ctx) ) base.Decide(ctx);
 				return;
 			}
 			SetStatus(goal.Name);
+			// a bigger life or mana flask picked up: in place of the smaller one (it opens the inventory, so before closing it, below)
+			if ( !goal.UsesInventory && !goal.IgnoreMonsters && TryUpgradeFlask(ctx) ) { SetStatus($"{goal.Name}: {FlaskUpgrader.Status}"); return; }
 			if ( !goal.UsesInventory && BackpackIsOpen() && !(Runner.Current is CampaignState s && s != goal) ) {
 				// eg, left open after socketing a gem: it covers the screen
 				StopWalking("closing the inventory");
@@ -390,6 +395,14 @@ namespace AtE {
 				if ( FirstButton(child, depth - 1) is Element found ) return found;
 			}
 			return null;
+		}
+
+		private bool TryUpgradeFlask(CombatContext ctx) {
+			if ( !PickUpItems ) return false;
+			bool safe = !ctx.Hostiles.Any(h => h.Distance <= AttackRange);
+			if ( !FlaskUpgrader.Tick(ctx, safe) ) return false;
+			if ( CurrentGoal == null ) SetStatus(FlaskUpgrader.Status);
+			return true;
 		}
 
 		private bool TryLoot(CombatContext ctx) {
