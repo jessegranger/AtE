@@ -145,7 +145,14 @@ namespace AtE {
 				new Sequence("Route to The Cavern of Anger",
 					// (TravelTo takes the waypoint "Merveil's Caverns", to The Cavern of Wrath, if it can, and walks on)
 					new RouteTo("The Cavern of Anger"),
-					new Kill("Merveil", IsMerveil, main) { Where = "The Cavern of Anger" },
+					// her arena is through the door labelled "Merveil's Lair", on the Cave/Features/caveup_exit tile (3.29.4): walk
+					// straight there (no exploring), take it, and kill her inside; neither is done while The Siren's Cadence says
+					// "Kill Merveil" (her summons dying once marked her killed)
+					// (the door teleports within The Cavern of Anger: in the arena is told by where the player can walk, see InMerveilsLair)
+					new TakeTransition(MerveilsLair) { Where = "The Cavern of Anger", SearchAt = Search.Tile("/caveup_exit"),
+						NotDoneWhile = () => MustKillMerveil() && !InMerveilsLair(), DoneWhen = InMerveilsLair },
+					// (she covers the ground near her with damaging areas, one kind in each phase: stay out of them, see AvoidSpam)
+					new AvoidSpam("Merveil", IsMerveil, main) { Where = "The Cavern of Anger", NotDoneWhile = MustKillMerveil },
 					new EnterArea("The Southern Forest"))
 			) { DoneWhen = () => CampaignProgress.ActDone(1) };
 		}
@@ -169,8 +176,31 @@ namespace AtE {
 			&& string.Equals(e.GetComponent<Render>()?.Name, "Hailrake", StringComparison.OrdinalIgnoreCase);
 		private static bool IsDweller(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/")
 			&& (e.GetComponent<Render>()?.Name?.Contains("Dweller of the Deep", StringComparison.OrdinalIgnoreCase) ?? false);
+		private const string MerveilsLair = "Merveil's Lair";
+		/// <summary>
+		/// In Merveil's arena: the door "Merveil's Lair" teleports within The Cavern of Anger (3.29.4, the area keeps its
+		/// name), so it is told apart by where the player can walk: not to the way back to The Cavern of Wrath (the
+		/// Cave/Features/cavedown_exit tile; the arena is walled off from it). Or Merveil herself is in sight.
+		/// </summary>
+		private static bool InMerveilsLair() {
+			if ( !GoToArea.Is(GetCurrentArea(), "The Cavern of Anger") ) return false;
+			if ( GetEntities()?.Any(e => e != null && IsMerveil(e)) ?? false ) return true;
+			var terrain = GetTerrain();
+			var pos = GetPlayer()?.GetComponent<Positioned>();
+			if ( terrain == null || !IsValid(pos) ) return false;
+			var back = terrain.TileFeatures("/cavedown_exit").FirstOrDefault();
+			return back != null && !DefaultNavigator.IsReachable(terrain, pos.GridPos, back.GridPos);
+		}
+		private static bool MustKillMerveil() =>
+			Town.QuestStep("The Siren's Cadence")?.IndexOf("Kill Merveil", StringComparison.OrdinalIgnoreCase) >= 0;
+
+		// Merveil herself (a unique: "Merveil, the Siren", seawitchillusion/BossMerveil, then in her second phase "Merveil,
+		// the Twisted", Seawitch/BossMerveil2, a new entity at the same place): not her summons, "Merveil's Attendant", "Merveil's
+		// Daughter" (Seawitch/SeaWitchSpawn), whose deaths marked her killed (3.29.4)
 		private static bool IsMerveil(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/")
-			&& (e.GetComponent<Render>()?.Name?.StartsWith("Merveil", StringComparison.OrdinalIgnoreCase) ?? false);
+			&& e.GetComponent<Render>()?.Name is string name && name.StartsWith("Merveil", StringComparison.OrdinalIgnoreCase)
+			&& !name.StartsWith("Merveil's", StringComparison.OrdinalIgnoreCase)
+			&& e.GetComponent<ObjectMagicProperties>()?.Rarity == Offsets.MonsterRarity.Unique;
 
 		// ---- running ----
 

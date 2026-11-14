@@ -53,7 +53,7 @@ namespace AtE {
 		///    shavronne_prison_door_up), prison_boss_exit (beside Brutus's cell)
 		///  - Prisoner's Gate's way to The Ship Graveyard: ".../Beach/Transitions/ShipgraveyardPassageway/..."
 		///  - The Cavern of Wrath (Metadata/Terrain/Cave/Features/...): caveup_exit (to The Cavern of Anger), caveskeleton_exit
-		///    (back to The Ship Graveyard)
+		///    (back to The Ship Graveyard); in The Cavern of Anger, caveup_exit is the door to Merveil's Lair
 		/// Some may lead to another level of the same area: walking there names them, and the right one is taken.
 		/// </summary>
 		public static readonly string[] OtherExitTiles = {
@@ -71,17 +71,25 @@ namespace AtE {
 
 		/// <summary>
 		/// Exit tiles whose destination is known from the tile alone (a part of the .tdt path, without the version
-		/// numbers, so it lasts through updates): the exit is named from the start, before its entity is in range.
+		/// numbers, so it lasts through updates), in the area named (null: any area): the exit is named from the start,
+		/// before its entity is in range. The same tile can lead to different places in different areas.
 		/// </summary>
-		public static readonly (string tile, string destination)[] KnownExitTiles = {
-			("ShipgraveyardPassageway/shipgraveyard_passageway", "The Ship Graveyard"), // Prisoner's Gate (3.29.4)
-			("Cave/Features/caveup_exit", "The Cavern of Anger"), // The Cavern of Wrath (3.29.4; from the tile alone, not yet seen as an entity)
-			("Cave/Features/caveskeleton_exit", "The Ship Graveyard"), // The Cavern of Wrath (3.29.4)
+		public static readonly (string tile, string destination, string area)[] KnownExitTiles = {
+			("ShipgraveyardPassageway/shipgraveyard_passageway", "The Ship Graveyard", null), // Prisoner's Gate (3.29.4)
+			("Cave/Features/caveup_exit", "The Cavern of Anger", "The Cavern of Wrath"), // (3.29.4; from the tile alone, not yet seen as an entity)
+			("Cave/Features/caveskeleton_exit", "The Ship Graveyard", "The Cavern of Wrath"), // (3.29.4)
+			// the door to Merveil's arena: an AreaTransition labelled "Merveil's Lair" at <597, 1141>, on the caveup_exit
+			// tile at <596, 1138> (3.29.4, walked there by hand; not cavedown_boss_exit, which can't be walked to)
+			("Cave/Features/caveup_exit", "Merveil's Lair", "The Cavern of Anger"),
 		};
 
-		/// <summary>The destination a tile names (see KnownExitTiles), or null.</summary>
-		public static string KnownDestination(string tilePath) => tilePath == null ? null
-			: KnownExitTiles.FirstOrDefault(k => tilePath.IndexOf(k.tile, StringComparison.OrdinalIgnoreCase) >= 0).destination;
+		/// <summary>The destination a tile names in the current area (see KnownExitTiles), or null.</summary>
+		public static string KnownDestination(string tilePath) {
+			if ( tilePath == null ) return null;
+			string here = GetCurrentArea()?.Name;
+			return KnownExitTiles.FirstOrDefault(k => tilePath.IndexOf(k.tile, StringComparison.OrdinalIgnoreCase) >= 0
+				&& (k.area == null || string.Equals(k.area, here, StringComparison.OrdinalIgnoreCase))).destination;
+		}
 
 		public static bool IsTransitionTile(string tilePath) =>
 			tilePath != null

@@ -82,8 +82,14 @@ namespace AtE {
 		/// </summary>
 		public Func<CombatContext, Offsets.Vector2i?> SearchAt;
 
-		/// <summary>CheckDone, or DoneWhen.</summary>
-		public bool IsDone(CombatContext ctx) => CheckDone(ctx) || (DoneWhen?.Invoke() ?? false);
+		/// <summary>
+		/// Not done while this is true, whatever CheckDone says or was saved (eg, "Kill Merveil" while the quest tracker
+		/// still says so: a goal marked done by mistake is taken up again).
+		/// </summary>
+		public Func<bool> NotDoneWhile;
+
+		/// <summary>CheckDone, or DoneWhen; never while NotDoneWhile.</summary>
+		public bool IsDone(CombatContext ctx) => !(NotDoneWhile?.Invoke() ?? false) && (CheckDone(ctx) || (DoneWhen?.Invoke() ?? false));
 		/// <summary>Is it done? Asked several times a second until it says true.</summary>
 		public abstract bool CheckDone(CombatContext ctx);
 		/// <summary>One frame of work on it (it is not done): this to continue, or Call(a sub-state).</summary>
@@ -208,7 +214,7 @@ namespace AtE {
 			}
 			for ( int i = 0; i < Goals.Count; i++ ) {
 				var g = Goals[i];
-				if ( g.IsComplete && g.Sticky ) continue;
+				if ( g.IsComplete && g.Sticky && !(g.NotDoneWhile?.Invoke() ?? false) ) continue;
 				if ( g.SupersededBy(Goals.Skip(i + 1)) ) { MarkDone(g); continue; }
 				if ( g is Sequence inner ) {
 					var leaf = inner.Select(ctx);
@@ -356,6 +362,13 @@ namespace AtE {
 			var exits = ctx.Terrain.Exits;
 			return exits.Count == 1 ? exits[0].GridPos : (Offsets.Vector2i?)null;
 		}
+
+		/// <summary>
+		/// The nearest group of tiles cut from a .tdt whose path has tilePathPart (eg, "/cavedown_boss_exit", the way into
+		/// Merveil's arena in The Cavern of Anger); null if the area has none.
+		/// </summary>
+		public static Func<CombatContext, Offsets.Vector2i?> Tile(string tilePathPart) => ctx =>
+			ctx.Terrain.TileFeatures(tilePathPart).OrderBy(f => Combat.Distance(ctx.Grid, f.GridPos)).FirstOrDefault()?.GridPos;
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
