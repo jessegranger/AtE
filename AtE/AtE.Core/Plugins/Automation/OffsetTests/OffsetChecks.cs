@@ -411,7 +411,10 @@ namespace AtE {
 					if ( PoEMemory.TryRead(server.ptrPassives, out Offsets.ServerData_Passives passives ) ) c.That(passives.AllocatedPassives.Head == passives.AllocatedPassives.Tail || Offsets.IsValid(passives.AllocatedPassives), "AllocatedPassives is not a valid array (neither empty nor two pointers)");
 					else c.That(false, "could not read the ServerData_Passives");
 				} else c.That(false, "could not read the ServerData");
-				c.Eq("allocated passives of a new character", c.Game.AllocatedPassives.Length, 0);
+				// a new character has none (then the array being empty proves little); with some, they are ushort ids in ascending order, without repeats
+				var allocated = c.Game.AllocatedPassives;
+								c.That(allocated.Zip(allocated.Skip(1), (a, b) => a < b).All(x => x), $"the allocated passives are not ascending: {string.Join(",", allocated.Take(12))}");
+				c.Note($"{allocated.Length} allocated passives{(allocated.Length > 0 ? ": " + string.Join(",", allocated.Take(12)) : "")}");
 				return c.Result();
 			}, new[] { "A3.PlayerEntity" });
 

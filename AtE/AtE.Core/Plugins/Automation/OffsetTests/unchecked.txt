@@ -432,3 +432,15 @@ WorldAreaRef.ptrUnk90
 
 # WorldData: unknown, padding or unused fields of structs that are otherwise covered (see each)
 WorldData.vtable
+
+# AreaInstanceDestination_Details, Element_AreaInstanceDestination_Offset: the waypoint panel's destination elements (added with WaypointPanel.FindWaypointElement, commit 60ff835): need the waypoint panel open on a character with waypoints; no test yet
+AreaInstanceDestination_Details.intUnknown08
+AreaInstanceDestination_Details.intUnknown0C
+AreaInstanceDestination_Details.intUnknown20
+AreaInstanceDestination_Details.ptrAreaCodeName
+AreaInstanceDestination_Details.ptrDesc
+AreaInstanceDestination_Details.ptrName
+AreaInstanceDestination_Details.ptrNameCodePair
+AreaInstanceDestination_Details.ptrUnknown28
+AreaInstanceDestination_Details.ptrWorldAreasData
+Offsets.Element_AreaInstanceDestination_Offset

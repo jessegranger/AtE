@@ -98,7 +98,8 @@ namespace AtE {
 					// the name is empty or an identifier ("life_bubble")
 					string name = e.Name;
 					c.That(name == null || name.All(ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '-' || ch == ' ' || ch == '.'), $"{pair.Key} name reads {name}");
-					if ( e.IsVisible ) shown.Add(pair.Key);
+					// SkipAllTutorials ("skip_all_tutorials_button") shows only for the first minutes of a new character, so it is shown in some runs and not others
+					if ( e.IsVisible && pair.Key != "SkipAllTutorials" ) shown.Add(pair.Key);
 				}
 				c.Note($"{pointers.Count - nulls.Count} of {pointers.Count} found; not read, offsets not placed since 3.29.4: {Joined(unplaced)}");
 				c.Golden("ui.null", Joined(nulls));
@@ -429,6 +430,25 @@ namespace AtE {
 						return null;
 					},
 				});
+				// the game is paused while the passive tree is open (and runs again when it closes): the check goes straight after the tree's own
+				if ( tree ) {
+					yield return KeyToggle(new Toggle {
+						Id = "A7.Paused", Action = action, Fallback = fallback, TargetName = "IsPaused",
+						Covers = new[] { "InGameState_Data.IsPaused" },
+						State = () => (PoEMemory.GameRoot?.InGameState?.IsPaused ?? false) ? "paused" : "running",
+						Verify = c => {
+							if ( !(UIElement("SkillTree")?.IsVisible ?? false) ) return "the SkillTree did not open";
+							return PoEMemory.GameRoot?.InGameState?.IsPaused == true ? null : "IsPaused is false while the SkillTree is open";
+						},
+						// still paused a moment later, not a flicker
+						While = c => {
+							if ( c.Elapsed - (long)c.Scratch["opened"] < 1000 ) return Outcome.NotYet("holding the tree open");
+							return PoEMemory.GameRoot?.InGameState?.IsPaused == true ? Outcome.Pass() : Outcome.Fail("IsPaused went false again while the SkillTree stayed open");
+						},
+						HoldMs = 3000,
+						TimeoutMs = 9000,
+					});
+				}
 			}
 
 			// Tab swaps the corner map and the large map
@@ -600,7 +620,10 @@ namespace AtE {
 
 			yield return KeyToggle(new Toggle {
 				Id = "A8.EscapeMenu", Action = "", Fallback = VKey.Escape, TargetName = "EscapeState.elemMenu",
-				Covers = new[] { "EscapeGameState.elemRoot", "EscapeGameState.elemMenu" },
+				Covers = new[] { "EscapeGameState.elemRoot", "EscapeGameState.elemMenu", "InGameState_Data.IsPaused" },
+				// the Escape menu pauses the game: IsPaused is true while it is open
+				While = c => PoEMemory.GameRoot?.InGameState?.IsPaused == true ? Outcome.Pass() : Outcome.NotYet("waiting for IsPaused while the Escape menu is open"),
+				HoldMs = 2000,
 				State = () => (PoEMemory.GameRoot?.EscapeState?.Menu?.IsVisible ?? false) ? "shown" : "hidden",
 				Verify = c => {
 					var escape = PoEMemory.GameRoot?.EscapeState;

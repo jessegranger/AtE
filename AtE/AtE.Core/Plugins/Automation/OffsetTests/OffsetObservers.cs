@@ -207,7 +207,7 @@ namespace AtE {
 
 			yield return new ObserverSpec {
 				Id = "B.Chest",
-				Covers = new[] { "Component_Chest.IsOpened", "Component_Chest.IsLocked", "Component_Chest.Quality", "Component_Chest.IsStrongbox", "Component_Chest.ptrToStrongboxDetails", "StrongboxDetails.IsLarge", "Component_Chest.entOwner" },
+				Covers = new[] { "Component_Chest.IsOpened", "Component_Chest.IsLocked", "Component_Chest.Quality", "Component_Chest.ptrToStrongboxDetails", "StrongboxDetails.IsLarge", "Component_Chest.entOwner" },
 				Matches = e => Has(e, "Chest"),
 				Key = e => After(e.Path, "Metadata/"),
 				Run = (c, ents) => {

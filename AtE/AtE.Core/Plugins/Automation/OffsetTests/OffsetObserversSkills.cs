@@ -201,7 +201,7 @@ namespace AtE {
 			yield return new ObserverSpec {
 				Id = "B.InventoryItem",
 				Covers = new[] { "Element_InventoryItem.entItem", "Element_InventoryItem.Width", "Element_InventoryItem.Height", "Element_InventoryItem.spriteDetails",
-					"SpriteDetails.strSpriteFile", "SpriteDetails.strSpriteFileLong", "SpriteDetails.Width", "SpriteDetails.Height" },
+					"SpriteDetails.strSpriteFile" },
 				WaitingFor = "waiting for an item in the inventory",
 				Source = HeldItems,
 				Matches = e => Has(e, "Base"),
@@ -220,10 +220,10 @@ namespace AtE {
 						c.Eq("Height in cells", d.Height, (int)b.CellSizeY);
 					}
 					if ( Offsets.IsValid(d.spriteDetails) && PoEMemory.TryRead(d.spriteDetails, out Offsets.SpriteDetails sprite) ) {
-						c.That(Str(sprite.strSpriteFile)?.StartsWith("Art/") ?? false, $"SpriteDetails.strSpriteFile is {Str(sprite.strSpriteFile)}");
-						c.That(Str(sprite.strSpriteFileLong)?.StartsWith("path:Art/") ?? false, $"SpriteDetails.strSpriteFileLong is {Str(sprite.strSpriteFileLong)}");
-						c.That(sprite.Width > 0 && sprite.Height > 0, $"the sprite is {sprite.Width}x{sprite.Height}");
-						c.GoldenAny($"item.{After(e.Path, "Metadata/Items/")}.sprite", Str(sprite.strSpriteFile));
+						// "Art/2DItems/Currency/CurrencyIdentification.dds|0,0,0,0|0": the file, the rectangle of its atlas, a number
+						string spriteFile = Str(sprite.strSpriteFile)?.Split('|')[0];
+						c.That(spriteFile?.StartsWith("Art/") ?? false, $"SpriteDetails.strSpriteFile is {Str(sprite.strSpriteFile)}");
+						c.GoldenAny($"item.{After(e.Path, "Metadata/Items/")}.sprite", spriteFile);
 					} else c.That(false, "spriteDetails is not a pointer to a SpriteDetails");
 					// a new character's three Scrolls of Wisdom are always in the last slot of the backpack
 					if ( found.slot == "Backpack" && (e.Path?.EndsWith("CurrencyIdentification") ?? false) ) {

@@ -334,7 +334,7 @@ namespace AtE {
 			[FieldOffset(0xb90)] public readonly int GameTimeMs; // int32 counter, 1000/s (999.98 measured), ~52 million = 14.6 hours at test time
 			[FieldOffset(0xb94)] public readonly float FrameDeltaSec; // jitters 0.016-0.019, last frame duration
 			[FieldOffset(0xb98)] public readonly float GameTimeSec; // float32, == GameTimeMs / 1000, 1.0/s
-			[FieldOffset(0xb9e)] public readonly bool IsRunning; // moved with them (+4); one of three bytes that read 1 (unverified which is which)
+			[FieldOffset(0xb9e)] public readonly bool IsRunning; // moved with them (+4); 3.29.4: reads 1 while running and 0 while the Escape menu is open; it does not change with the SkillTree open (InGameState_Data.IsPaused does)
 			// 3.28.0: 40 new bytes here
 			// 3.29.3: the mouse position, in client pixels (two int32; found by recording InGameState while the mouse was put over the
 			// flasks, (467,1138), and the skill bar, (1509,1125)). The Vector2 of floats at 0x5b8 that was here is stale: it
@@ -620,8 +620,10 @@ namespace AtE {
 			// Not known whether it stops while the game is paused.
 			// 3.29.4: moved 0x14A0 -> 0x1520 (+0x80; /track over 4 s: 57.6/s, r2=1.0000, the only slot that changed in 0x1400..0x1700)
 			[FieldOffset(0x1520)] public readonly int FrameCount;
+			// 3.29.4: moved 0xB9C -> 0xBCC (+0x30; found by watching the bytes near the old offset while the SkillTree was toggled)
 			// 3.29.3 tentative: bytes at 0xB9C and 0xB9D read 1,1 while paused and 0 while running (single observation each)
-			[FieldOffset(0xB9C)] public readonly bool IsPaused;
+			// 3.30 confirmed: bytes at 0xBCC and 0xBCD read 1,1 while paused
+			[FieldOffset(0xBCC)] public readonly bool IsPaused;
 
 			// 3.29.3: confirmed with MemoryServer in Oriath Docks (vtable at +0x0, 37x37 tiles, two 426x851 nibble grids),
 			// and by drawing both grids in The Coast (blocked/projectile cells line up with walls and water)
@@ -633,11 +635,13 @@ namespace AtE {
 		// confirmed by allocating Frost Walker (44955): the array went from 91 to 92 ids with 44955 in its sorted place.
 		// ServerData+0xC2E8 points at the same array, 0x10 further on (at +0x190 of that object).
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ServerData {
-			[FieldOffset(0xC2E0)] public readonly IntPtr ptrPassives; // ptr ServerData_Passives
+			// 3.29.4: moved 0xC2E0 -> 0xC758, and AllocatedPassives 0x180 -> 0x190. Found with one passive allocated: the only array handle of exactly one ushort (id 57264) among
+			// everything ServerData points at. 0xC760 holds a second pointer, 0x10 *before* this one (the old second pointer was 0x10 after), whose handle at +0x1A0 is the same array.
+			[FieldOffset(0xC758)] public readonly IntPtr ptrPassives; // ptr ServerData_Passives
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ServerData_Passives {
 			// of ushort: the passive ids the character has allocated (the ids of Path of Building's tree data), sorted
-			[FieldOffset(0x180)] public readonly ArrayHandle AllocatedPassives;
+			[FieldOffset(0x190)] public readonly ArrayHandle AllocatedPassives;
 			// the unspent and refund point counts were not found here (no 1 -> 0 change when the last point was spent)
 		}
 
@@ -765,15 +769,15 @@ namespace AtE {
 			[FieldOffset(0x710)] public readonly IntPtr ItemsOnGroundLabelElement;
 			//[FieldOffset(0x628)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
 			[FieldOffset(0x790)] public readonly IntPtr RootBuffPanel;
-			[FieldOffset(0x790)] public readonly IntPtr NpcDialog;
-			[FieldOffset(0x798)] public readonly IntPtr NpcOptions;
+			[FieldOffset(0x7c8)] public readonly IntPtr NpcDialog;
+			[FieldOffset(0x7d0)] public readonly IntPtr NpcOptions;
 			// [FieldOffset(0x728)] public readonly IntPtr LeagueInteractButtonPanel;
-			[FieldOffset(0x7a8)] public readonly IntPtr QuestRewardWindow;
+			[FieldOffset(0x7d8)] public readonly IntPtr QuestRewardWindow;
 			// [FieldOffset(0x730)] public readonly IntPtr Unknown730;
-			[FieldOffset(0x7b8)] public readonly IntPtr PurchaseWindow;
+			[FieldOffset(0x7e8)] public readonly IntPtr PurchaseWindow;
 			// [FieldOffset(0x740)] public readonly IntPtr Unknown740; // LeagueSellPanel
-			[FieldOffset(0x7c8)] public readonly IntPtr SellWindow;
-			[FieldOffset(0x7d0)] public readonly IntPtr TradeWindow;
+			[FieldOffset(0x7f8)] public readonly IntPtr SellWindow;
+			[FieldOffset(0x800)] public readonly IntPtr TradeWindow;
 			// [FieldOffset(0x758)] public readonly IntPtr Unknown758;
 			// [FieldOffset(0x758)] public readonly IntPtr LabyrinthDivineFontPanel;
 			// [FieldOffset(0x768)] public readonly IntPtr Unknown768;
@@ -1049,12 +1053,14 @@ namespace AtE {
 			[FieldOffset(0xe8)] public readonly byte CanBeUsedWithWeapon;
 			[FieldOffset(0xea)] public readonly byte CanBeUsed;
 			// 3.25: 56 new bytes added here
-			[FieldOffset(0xcc)] public readonly int TotalUses;
-			[FieldOffset(0xd0)] public readonly int CooldownMS;
-			[FieldOffset(0xE4)] public readonly int SoulsPerUse;
-			[FieldOffset(0xe8)] public readonly int TotalVaalUses;
+			// 3.29.4: moved +0x28 with the flags (unchecked: Default Attack has used 0 times and no cooldown; the ints 4 and 36 at 0xfc and 0x100 are the old 0xd4 and 0xd8)
+			[FieldOffset(0xf4)] public readonly int TotalUses;
+			[FieldOffset(0xf8)] public readonly int CooldownMS;
+			[FieldOffset(0x10c)] public readonly int SoulsPerUse;
+			[FieldOffset(0x110)] public readonly int TotalVaalUses;
 			// 3.25: 24 new bytes added here
-			[FieldOffset(0x148)] public readonly IntPtr ptrGameStats; // ptr to GameStatArray
+			// 3.29.4: moved 0x148 -> 0x168 (+0x20): the same GameStatArray (20 stats of Default Attack at +0xf0, unchanged) is also pointed at from 0x128 (-0x20)
+			[FieldOffset(0x168)] public readonly IntPtr ptrGameStats; // ptr to GameStatArray
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ActorSkillUIState {
@@ -1354,8 +1360,8 @@ namespace AtE {
 			[FieldOffset(0x168)] public readonly bool IsOpened;
 			[FieldOffset(0x169)] public readonly bool IsLocked;
 			[FieldOffset(0x16c)] public readonly byte Quality;
-			[FieldOffset(0x1A8)] public readonly bool IsStrongbox;
-			[FieldOffset(0x1B0)] public readonly IntPtr ptrToChestEffect;
+			// [FieldOffset(0x1A8)] public readonly bool IsStrongbox;
+			[FieldOffset(0x1C8)] public readonly IntPtr ptrToChestEffect;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ChestEffect {
 			[FieldOffset(0x08)] public readonly IntPtr strPath;
@@ -1433,8 +1439,10 @@ namespace AtE {
 			// Crucible: some new 32 bytes added in here
 			// 3.24: 8 new bytes here
 			// 3.29: 112 new bytes here
-			[FieldOffset(0x2b8)] public readonly uint ItemLevel;
-			[FieldOffset(0x2bc)] public readonly uint RequiredLevel;
+			[FieldOffset(0x2b8)] public readonly UInt32 ItemLevel;
+			// 3.29.4: ItemLevel is a UInt32 and RequiredLevel is 4 bytes after it (corrected by hand, tested on items dropped by Hillock). On the two Driftwood Wands the golden
+			// expects 1 and 1 for, 0x2b8 reads 1 and 0x2bc reads 0 (0x2c0 reads 1), so the wand's RequiredLevel golden will record 0 until that is looked at.
+			[FieldOffset(0x2bc)] public readonly UInt32 RequiredLevel;
 			// 3.22.1c: 8 new bytes here
 			[FieldOffset(0x2c8)] public readonly IntPtr ptrIncubator; // ptr to IncubatorEntry
 			[FieldOffset(0x2d8)] public readonly short IncubatorKillCount;
@@ -1772,9 +1780,10 @@ namespace AtE {
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_ItemsOnGroundLabelRoot {
 			// 3.27: 432 bytes here
-			[FieldOffset(0x450)] public readonly ItemsOnGroundLabelEntry hoverLabel; // 2 ptrs, one Element, one Entity (3.29.3: not checked, probably moved like the list below)
+			// 3.29.4: both moved +0x28 (the list head at 0x510 leads to a circular list whose entries have a label Element at +0x10 and its entity at +0x18); hoverLabel unchecked
+			[FieldOffset(0x478)] public readonly ItemsOnGroundLabelEntry hoverLabel; // 2 ptrs, one Element, one Entity (3.29.3: not checked, probably moved like the list below)
 			// 3.29.3: the list moved from 0x468 (seen with a Driftwood Wand and the Dying Exile: each entry's +0x10 is the label, +0x18 its entity)
-			[FieldOffset(0x4E8)] public readonly IntPtr labelsOnGroundHead;
+			[FieldOffset(0x510)] public readonly IntPtr labelsOnGroundHead;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemsOnGroundLabelEntry {
 			[FieldOffset(0x00)] public readonly IntPtr nextEntry;
@@ -1906,12 +1915,10 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct SpriteDetails {
-			[FieldOffset(0x0)] public readonly IntPtr strSpriteFile;
-			// 3.29.3: the strings are each a ptr and a length now (0x8 holds 47 for "Art/2DItems/Currency/..."): the "path:" form is at 0x10 (length 0x18),
-			// and the size in pixels (80x80 for a scroll) is at 0x48 and 0x4c, the floats 80.0 at 0x58; the others were at 0x8, 0x20 and 0x28
-			[FieldOffset(0x10)] public readonly IntPtr strSpriteFileLong; // the same, with an extra 'path:'
-			[FieldOffset(0x48)] public readonly int Width;
-			[FieldOffset(0x4c)] public readonly int Height;
+			// 3.29.4: a different object (vtable at 0x0): the string is at 0x8, as a ptr to unicode "Art/2DItems/Currency/CurrencyIdentification.dds|0,0,0,0|0" (the file, the
+			// rectangle of its atlas, a number), then its length (0x18) and capacity (0x20). The size in pixels (Width, Height) and the "path:" form (strSpriteFileLong)
+			// are gone: nothing reads a size from here (0x38..0x48 hold small ints, 3, 4 or 2, 2, that are not the size).
+			[FieldOffset(0x08)] public readonly IntPtr strSpriteFile;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_SubMap {
@@ -1957,7 +1964,7 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_RecordSet {
 			[FieldOffset(0x00)] public readonly ArrayHandle recordsArray;
-			// 3.29.3: recordCount (0x40) is removed: it reads a pointer. The count is the array's length, with the records' size (Mods.dat: 40355 records of 0x28e)
+			// 3.29.3: recordCount (0x40) is removed: it reads a pointer. The count is the array's length, with the records' size (Mods.dat: 41324 records of 0x2b4 in 3.29.4)
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_StatsDat_Entry {
@@ -2005,7 +2012,9 @@ namespace AtE {
 			[FieldOffset(0x0C6)] public readonly IntPtr UnkTagsArray;
 			[FieldOffset(0x17e)] public readonly byte IsEssence;
 			[FieldOffset(0x204)] public readonly IntPtr MainTag; // ?
-			[FieldOffset(0x286)] public readonly long Padding; // so that total size = 0x290 (656)
+			// 3.29.4: the records are 0x2b4 bytes now (41324 of them; they were 0x28e and 40355). Every field up to MainTag (0x204) is where it was (checked on "Strength1", a Strength mod
+			// of +8 to 12: its name, type, MinLevel, Stat0, the name, Group, Family, the stat range and the tag arrays); the 0x26 new bytes are after it.
+			[FieldOffset(0x2ac)] public readonly long Padding; // so that total size = 0x2b4 (692)
 		}
 
 		public enum AffixType : uint {

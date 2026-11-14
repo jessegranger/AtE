@@ -555,7 +555,7 @@
     "Version": "3.29.3"
   },
   "Witch.ui.visible": {
-    "Value": "ChatBoxRoot,CurrentTime,ExperienceBar,Flasks,GameUI,GreenShopButton,HelpPanelButton,ItemsOnGroundLabelElement,LifeBubble,ManaBubble,Map,Mouse,OpenMenuPopoutButton,RootBuffPanel,SkillBar,SkipAllTutorials",
+    "Value": "ChatBoxRoot,CurrentTime,ExperienceBar,Flasks,GameUI,GreenShopButton,HelpPanelButton,ItemsOnGroundLabelElement,LifeBubble,ManaBubble,Map,Mouse,OpenMenuPopoutButton,RootBuffPanel,SkillBar",
     "Confirmed": true,
     "Version": "3.29.3"
   }
