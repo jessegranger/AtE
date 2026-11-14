@@ -443,7 +443,7 @@ namespace AtE {
 
 		/// <summary>
 		/// Click target, a monster that has to be clicked before it can be fought (see Combat.ClickReason): a monster
-		/// inside a monolith (MonsterInsideMonolith = 1, and CannotBeDamaged until it is out), or a unique frozen for an
+		/// inside a monolith (MonsterInsideMonolith = 1, and CannotBeDamaged until it is out; rare and unique only), or a unique frozen for an
 		/// augury (which opens the augury card selection window). Walks near it, then clicks it every MonsterClickMs
 		/// (the caller stops asking once it no longer has to be clicked). True while doing so.
 		/// </summary>

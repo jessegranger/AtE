@@ -66,16 +66,23 @@ namespace AtE {
 			return IsValid(stats) && stats.GetStats().TryGetValue(stat, out int v) && v == value;
 		}
 
-		public const string AuguryFrozenBuff = "augury_boss_frozen";
+		/// <summary>Is ent a rare or unique monster (by its ObjectMagicProperties).</summary>
+		public static bool IsRareOrUnique(Entity ent) =>
+			(ent?.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White) is Offsets.MonsterRarity.Rare or Offsets.MonsterRarity.Unique;
+
+				public const string AuguryFrozenBuff = "augury_boss_frozen";
 
 		/// <summary>Is ent a unique monster with the augury_boss_frozen buff, which clicking opens the augury card selection window for.</summary>
 		public static bool IsFrozenAuguryBoss(Entity ent) =>
 			(ent?.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White) == Offsets.MonsterRarity.Unique
 			&& HasBuff(ent, AuguryFrozenBuff);
 
-		/// <summary>Why ent has to be clicked before it can be fought ("inside a monolith", "frozen for an augury"), or null if it doesn't.</summary>
+		/// <summary>
+		/// Why ent has to be clicked before it can be fought ("inside a monolith", "frozen for an augury"), or null if it
+		/// doesn't. Only a rare or unique monster inside a monolith is clicked (the others are left in it).
+		/// </summary>
 		public static string ClickReason(Entity ent) =>
-			InsideMonolith(ent) ? "inside a monolith"
+			InsideMonolith(ent) && IsRareOrUnique(ent) ? "inside a monolith"
 			: IsFrozenAuguryBoss(ent) ? "frozen for an augury"
 			: null;
 
