@@ -89,6 +89,8 @@ namespace AtE {
 		/// <summary>Jewel socket node id to the id of the jewel (an item of the build) in it.</summary>
 		public readonly Dictionary<int, int> Jewels = new Dictionary<int, int>();
 		public string Url;
+		/// <summary>The character level from the title ("Level 12" is 12), or -1 if it has none (as PobSkillSet.Level).</summary>
+		public int Level = -1;
 
 		public override string ToString() => string.IsNullOrEmpty(Title) ? "(untitled)" : Title;
 
@@ -101,6 +103,8 @@ namespace AtE {
 				SecondaryAscendClassId = PobBuild.Int(s.Attribute("secondaryAscendClassId"), 0),
 				Url = ((string)s.Element("URL"))?.Trim(),
 			};
+			var level = Regex.Match(spec.Title, @"\bLevel\s*(\d+)", RegexOptions.IgnoreCase);
+			if ( level.Success ) spec.Level = int.Parse(level.Groups[1].Value, CultureInfo.InvariantCulture);
 			foreach ( Match m in Regex.Matches((string)s.Attribute("nodes") ?? "", @"\d+") ) spec.Nodes.Add(int.Parse(m.Value, CultureInfo.InvariantCulture));
 			foreach ( Match m in Regex.Matches((string)s.Attribute("masteryEffects") ?? "", @"\{(\d+),(\d+)\}") ) {
 				spec.MasteryEffects[int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)] = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);

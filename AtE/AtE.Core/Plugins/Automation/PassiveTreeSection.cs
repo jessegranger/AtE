@@ -16,7 +16,10 @@ namespace AtE {
 	public class PassiveTreeSection : AutomationSection {
 		public override string Name => "Passive Tree";
 
-		/// <summary>The tree to end with (an index into the build's trees); -1 for the one selected in PoB.</summary>
+		/// <summary>
+		/// The tree to end with (an index into the build's trees); -1 to pick it: by the character's level when the build
+		/// has more than one tree titled "Level N" (see PassivePlan.LevelTarget), else the one selected in PoB.
+		/// </summary>
 		public int TargetTree = -1;
 		/// <summary>Another folder to look in for TreeData/&lt;version&gt;/tree.lua (eg, one with a newer tree than PoB has).</summary>
 		public string TreeDataFolder = "";
@@ -34,6 +37,8 @@ namespace AtE {
 		public PassivePlan Plan { get; private set; }
 		private string error;
 		private int buildVersion = -1;
+		// the "Level N" tree picked by the character's level (-1: none), and the level it was picked at
+		private int levelTarget = -1, level;
 		private static BuildSection BuildSection => GetPlugin<AutomationPlugin>()?.Build;
 		private readonly Dictionary<string, PassiveTree> trees = new Dictionary<string, PassiveTree>();
 
@@ -45,7 +50,8 @@ namespace AtE {
 			if ( ImGui.Button("Reload tree data") ) { trees.Clear(); Reload(); }
 
 			if ( Build != null && Build.Specs.Count > 0 ) {
-				var titles = new[] { $"(selected in PoB: {Build.Specs[Build.ActiveSpec]})" }
+				string auto = levelTarget >= 0 ? $"(by character level {level}: {Build.Specs[levelTarget]})" : $"(selected in PoB: {Build.Specs[Build.ActiveSpec]})";
+				var titles = new[] { auto }
 					.Concat(Build.Specs.Select((s, i) => $"{i + 1}: {s} ({s.Nodes.Count} nodes)")).ToArray();
 				int target = TargetTree + 1;
 				if ( ImGui.Combo("End with tree", ref target, titles, titles.Length) ) {
@@ -147,10 +153,15 @@ namespace AtE {
 			var section = BuildSection;
 			if ( section == null ) return;
 			section.EnsureLoaded();
-			if ( section.Version == buildVersion ) return;
-			if ( buildVersion >= 0 ) TargetTree = -1;
-			buildVersion = section.Version;
-			Reload();
+			if ( section.Version != buildVersion ) {
+				if ( buildVersion >= 0 ) TargetTree = -1;
+				buildVersion = section.Version;
+				Reload();
+				return;
+			}
+			// a "Level N" tree picked by level: the next one once the character reaches its level
+			if ( Build != null && PoEMemory.IsAttached && GemPlan.CharacterLevel() is int now && now > 0 && now != level
+				&& PassivePlan.LevelTarget(Build, now) != levelTarget ) Reload();
 		}
 
 		private void Reload() {
@@ -158,7 +169,10 @@ namespace AtE {
 			if ( Build == null ) return;
 			try {
 				if ( Build.Specs.Count == 0 ) { error = "The build has no passive tree."; return; }
-				var stages = PassivePlan.DefaultStages(Build, TargetTree);
+				level = PoEMemory.IsAttached ? GemPlan.CharacterLevel() : 0;
+				levelTarget = PassivePlan.LevelTarget(Build, level);
+				var stages = TargetTree < 0 && levelTarget >= 0 ? PassivePlan.LevelStages(Build, levelTarget) : PassivePlan.DefaultStages(Build, TargetTree);
+				if ( TargetTree < 0 && levelTarget >= 0 ) Log($"{Name}: following the trees up to {Build.Specs[levelTarget]} (character level {level})");
 				var version = Build.Specs[stages[stages.Count - 1]].TreeVersion;
 				var tree = Tree(version);
 				if ( tree == null ) { error = $"No tree data (TreeData/{version}/tree.lua) in: {string.Join("; ", Folders())}"; return; }

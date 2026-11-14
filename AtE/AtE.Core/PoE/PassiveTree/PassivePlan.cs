@@ -73,6 +73,27 @@ namespace AtE {
 				.ToList();
 		}
 
+		/// <summary>
+		/// The tree to end with by the character's level, when the build has more than one tree titled "Level N": the one
+		/// with the highest N not above level (the rule GemPlan.SetFor picks the skill set by), or the lowest if all are
+		/// above it. -1 when the build has fewer than two such trees.
+		/// </summary>
+		public static int LevelTarget(PobBuild build, int level) {
+			var levelled = LevelTrees(build);
+			if ( levelled.Count < 2 ) return -1;
+			return levelled.LastOrDefault(i => build.Specs[i].Level <= level, levelled[0]);
+		}
+
+		// the trees titled "Level N", by N (PoB's order breaks ties)
+		private static List<int> LevelTrees(PobBuild build) => Enumerable.Range(0, build.Specs.Count)
+			.Where(i => build.Specs[i].Level >= 0).OrderBy(i => build.Specs[i].Level).ToList();
+
+		/// <summary>The stages to end with the "Level N" tree target: the "Level N" trees up to it, by N.</summary>
+		public static List<int> LevelStages(PobBuild build, int target) {
+			var levelled = LevelTrees(build);
+			return levelled.Take(levelled.IndexOf(target) + 1).ToList();
+		}
+
 		/// <summary>The plan for build's trees stages (indexes into build.Specs, in order; null for DefaultStages).</summary>
 		public static PassivePlan Make(PassiveTree tree, PobBuild build, IList<int> stages = null) {
 			var plan = new PassivePlan { Tree = tree, Build = build };
