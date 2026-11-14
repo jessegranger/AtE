@@ -31,6 +31,12 @@ namespace AtE {
 
 		protected override IState Step(CombatContext ctx) {
 			long now = Time.ElapsedMilliseconds;
+			if ( GiveUpIfMissing && WaypointPanel.Panel() == null && WaypointPanel.IsKnownLocked(Destination) ) {
+				// the panel's tree already shows it is not unlocked: don't walk to the waypoint to find out
+				Missing = true;
+				Detail = $"{Destination} is not unlocked (the waypoint panel's tree)";
+				return Next;
+			}
 			if ( WaypointPanel.Panel() != null ) {
 				ctx.Driver.StopWalking("using the waypoint");
 				if ( now - lastClick < 2000 ) return this;

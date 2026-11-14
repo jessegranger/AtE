@@ -462,6 +462,9 @@ namespace AtE {
 		// a byte that is 1 for each area visited (The Twilight Strand ... The Flooded Depths) and 0 for The Ledge (shown,
 		// next door, not visited yet); taken as "can be traveled to". (+0x32C read 1 only on the current area.)
 		public static readonly int Element_AreaInstanceDestination_Unlocked_Offset = 0x32A;
+		// 3.29.4: 1 on the destination of the area the player is in, 0 on the others (seen on The Submerged Passage, and on
+		// "The Prison" while in The Lower Prison: the panel's name for an area is not always the area's)
+		public static readonly int Element_AreaInstanceDestination_IsCurrentArea = 0x32C;
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct AreaInstanceDestination_Details {
 			[FieldOffset(0x0)] public readonly IntPtr ptrAreaCodeName; // ptr to string like "1_town"

@@ -25,10 +25,25 @@ namespace AtE {
 		/// </summary>
 		public static Element FindWaypointElement(string name) {
 			foreach ( var (element, destination) in Destinations() ) {
-				if ( string.Equals(destination, name, StringComparison.OrdinalIgnoreCase) && IsUnlocked(element) ) return element;
+				if ( SameName(destination, name) && IsUnlocked(element) ) return element;
 			}
 			return null;
 		}
+
+		/// <summary>
+		/// Do a panel name and an area name name the same place: equal ignoring case, or but for a leading "The " (the
+		/// panel says "Prisoner's Gate" for The Prisoner's Gate). Panel names that differ more (eg, "Merveil's Caverns" for
+		/// The Cavern of Anger) don't match.
+		/// </summary>
+		public static bool SameName(string a, string b) {
+			if ( a == null || b == null ) return false;
+			static string Bare(string s) => s.StartsWith("The ", StringComparison.OrdinalIgnoreCase) ? s.Substring(4) : s;
+			return string.Equals(Bare(a.Trim()), Bare(b.Trim()), StringComparison.OrdinalIgnoreCase);
+		}
+
+		/// <summary>Is the destination element the area the player is in (see Offsets.Element_AreaInstanceDestination_IsCurrentArea)?</summary>
+		public static bool IsCurrentArea(Element e) =>
+			IsValid(e) && PoEMemory.TryRead(e.Address + Offsets.Element_AreaInstanceDestination_IsCurrentArea, out byte b) && b != 0;
 
 		/// <summary>
 		/// Can the destination element be traveled to (its area visited)? The panel also shows areas next to visited ones,
@@ -74,17 +89,18 @@ namespace AtE {
 
 		/// <summary>
 		/// True if the panel's element tree (open or closed, see DestinationsEvenClosed) shows that the waypoint called
-		/// name (as the panel names it, eg "Merveil's Caverns") can't be taken now: it shows the current act (the current
-		/// area is among its destinations) and name is not an unlocked destination there. False when it can't tell (the
-		/// tree shows another act, or was never built): try the waypoint then. The closed tree is as of when the panel
-		/// was last open, so a waypoint unlocked since may still read as locked (it walks instead, which is only slower).
+		/// name (as the panel names it, eg "Merveil's Caverns", or an area's name, see SameName) can't be taken now: it
+		/// shows the current act (one destination is marked as the current area, see IsCurrentArea, or is named as it) and
+		/// name is not an unlocked destination there. False when it can't tell (the tree shows another act, or was never
+		/// built): try the waypoint then. The closed tree is as of when the panel was last open, so a waypoint unlocked
+		/// since may still read as locked (it walks instead, which is only slower).
 		/// </summary>
 		public static bool IsKnownLocked(string name) {
 			string here = GetCurrentArea()?.Name;
-			if ( string.IsNullOrEmpty(here) || string.IsNullOrEmpty(name) ) return false;
+			if ( string.IsNullOrEmpty(name) ) return false;
 			var list = DestinationsEvenClosed().ToList();
-			if ( !list.Any(d => string.Equals(d.name, here, StringComparison.OrdinalIgnoreCase)) ) return false;
-			return !list.Any(d => string.Equals(d.name, name, StringComparison.OrdinalIgnoreCase) && IsUnlocked(d.element));
+			if ( !list.Any(d => IsCurrentArea(d.element) || SameName(d.name, here)) ) return false;
+			return !list.Any(d => SameName(d.name, name) && IsUnlocked(d.element));
 		}
 
 		private static IEnumerable<(Element element, string name)> DestinationsIn(Element panel) {

@@ -342,7 +342,7 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			var sb = new StringBuilder(open ? "" : "(the waypoint panel is closed: read from its element tree; rects are not on screen)" + NL);
 			int n = 0;
 			foreach ( var (e, name) in open ? WaypointPanel.Destinations() : WaypointPanel.DestinationsEvenClosed() ) {
-				sb.Append($"{name}  unlocked={WaypointPanel.IsUnlocked(e)} element={e.Address} rect={e.GetClientRect()} visible={e.IsVisible}" + NL);
+				sb.Append($"{name}  unlocked={WaypointPanel.IsUnlocked(e)}{(WaypointPanel.IsCurrentArea(e) ? " (you are here)" : "")} known-locked={WaypointPanel.IsKnownLocked(name)} element={e.Address} rect={e.GetClientRect()} visible={e.IsVisible}" + NL);
 				n += 1;
 			}
 			return n == 0 ? sb.Append("(no destinations found)" + NL).ToString() : sb.ToString();
