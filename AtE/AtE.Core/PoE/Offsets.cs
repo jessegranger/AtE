@@ -21,12 +21,12 @@ namespace AtE {
 		/// The current version of this file.
 		/// </summary>
 		public const int VersionMajor = 1;
-		public const int VersionMinor = 13;
+		public const int VersionMinor = 14;
 
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.29.3";
+		public const string PoEVersion = "3.30";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -780,8 +780,8 @@ namespace AtE {
 			[FieldOffset(0x710)] public readonly IntPtr ItemsOnGroundLabelElement;
 			//[FieldOffset(0x628)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
 			[FieldOffset(0x790)] public readonly IntPtr RootBuffPanel;
-			[FieldOffset(0x7c8)] public readonly IntPtr NpcDialog;
-			[FieldOffset(0x7d0)] public readonly IntPtr NpcOptions;
+			[FieldOffset(0x7c0)] public readonly IntPtr NpcDialog;
+			[FieldOffset(0x7c8)] public readonly IntPtr NpcOptions;
 			// [FieldOffset(0x728)] public readonly IntPtr LeagueInteractButtonPanel;
 			[FieldOffset(0x7d8)] public readonly IntPtr QuestRewardWindow;
 			// [FieldOffset(0x730)] public readonly IntPtr Unknown730;
