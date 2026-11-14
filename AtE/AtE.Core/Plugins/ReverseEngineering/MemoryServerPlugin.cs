@@ -281,11 +281,11 @@ namespace AtE {
   /offsets/golden | /offsets/confirm?key=<contains> | /offsets/forget?key=<contains>   the values a fresh character is known to have
   /ents?filter=<path substring>&comp=<ComponentName>&id=<entity id>&limit=30
   /tree?at=EXPR&depth=3         an element and its children: path of child indexes, address, visible, text, and the item if it is an InventoryItem
-  /waypoints                    the destinations on the open waypoint panel (WaypointPanel.Destinations): name, element, screen rect
+  /waypoints                    the destinations on the waypoint panel, open or closed (read from its element tree): name, unlocked (visited), element, screen rect
   /labels                       the labels on the ground: entity id and path, text, screen rect, and the entity's screen position
   /skillbar[?stats=1]           the skill bar's slots: key, skill name, internal name, id, use time (stats=1: each skill's stats)
   /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
-  /progress[?key=U]             PRESSES KEYS: opens the AreaInstanceUI (U), reads the campaign progress (parts, acts), closes it, and reports
+  /progress[?key=U]             reads the campaign progress (parts, acts) from the closed AreaInstanceUI; only if that fails, PRESSES KEYS to open it (U) and close it; reports
   /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
   /items                        the worn, backpack and purchase window items: name, rarity, and each mod's stats (Stats.dat ids) with their values
   /log?n=100&filter=            the overlay's last log lines (the last n, matching filter)
@@ -318,10 +318,14 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 		private const string NL = "\n";
 
 		private string WaypointsText() {
-			if ( WaypointPanel.Panel() == null ) return "(the waypoint panel is not open)" + NL;
-			var sb = new StringBuilder();
-			foreach ( var (e, name) in WaypointPanel.Destinations() ) sb.Append($"{name}  element={e.Address} rect={e.GetClientRect()} visible={e.IsVisible}" + NL);
-			return sb.Length == 0 ? "(no destinations found)" + NL : sb.ToString();
+			bool open = WaypointPanel.Panel() != null;
+			var sb = new StringBuilder(open ? "" : "(the waypoint panel is closed: read from its element tree; rects are not on screen)" + NL);
+			int n = 0;
+			foreach ( var (e, name) in open ? WaypointPanel.Destinations() : WaypointPanel.DestinationsEvenClosed() ) {
+				sb.Append($"{name}  unlocked={WaypointPanel.IsUnlocked(e)} element={e.Address} rect={e.GetClientRect()} visible={e.IsVisible}" + NL);
+				n += 1;
+			}
+			return n == 0 ? sb.Append("(no destinations found)" + NL).ToString() : sb.ToString();
 		}
 
 		private string LabelsText() {

@@ -41,7 +41,7 @@ namespace AtE {
 					var r = element.GetClientRect();
 					return Inputs.Click(new System.Numerics.Vector2(r.X + WaypointPanel.ClickOffset.X, r.Y + WaypointPanel.ClickOffset.Y), this);
 				} else {
-					Detail = $"{Destination} is not on the waypoint panel (it shows: {string.Join(", ", WaypointPanel.Destinations().Select(d => d.name))})";
+					Detail = $"{Destination} is not unlocked on the waypoint panel (it can go to: {string.Join(", ", WaypointPanel.Destinations().Where(d => WaypointPanel.IsUnlocked(d.element)).Select(d => d.name))})";
 					if ( GiveUpIfMissing && WaypointPanel.Destinations().Any() ) {
 						Missing = true;
 						// close the panel

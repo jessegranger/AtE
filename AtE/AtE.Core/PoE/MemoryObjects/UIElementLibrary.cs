@@ -127,6 +127,8 @@ namespace AtE {
 		public Element BuffsPanel => IsValid(Address) ? getElement(Cache.BuffsPanel) : null;
 		public Element DelveDarkness => IsValid(Address) ? getElement(Cache.DelveDarkness) : null; // Debuffs Panel
 		public Element AreaInstanceUi => IsValid(Address) ? getElement(Cache.AreaInstanceUi) : null;
+		/// <summary>The augury card selection window, opened by clicking a unique monster with the augury_boss_frozen buff.</summary>
+		public Element AuguryCardSelectionWindow => IsValid(Address) ? getElement(Cache.AuguryCardSelectionWindow) : null;
 		// public Element InteractButtonWrapper => IsValid(Address) ? getElement(Cache.InteractButtonWrapper) : null;
 		// public Element SkipAheadButton => IsValid(Address) ? getElement(Cache.SkipAheadButton) : null;
 		// public Element SyndicateHelpButton => IsValid(Address) ? getElement(Cache.SyndicateHelpButton) : null;

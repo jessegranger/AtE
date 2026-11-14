@@ -76,6 +76,20 @@ namespace AtE {
 			Log($"Campaign: progress: {Summary}");
 		}
 
+		/// <summary>
+		/// Read it without opening it: the AreaInstanceUI keeps its element tree, with each tab's visibility, while it
+		/// is closed (3.29.4). False (nothing read) if no "Part" tab shows there (eg, the tree is not built yet). It is
+		/// not kept up to date while closed: what it shows is as of the last time the panel was open (so the run's
+		/// ReadCampaignProgress opens it instead; only the memory server's /progress reads it this way).
+		/// </summary>
+		public static bool TryReadClosed() {
+			var panel = GetUI()?.AreaInstanceUi;
+			if ( !IsValid(panel) ) return false;
+			if ( !UiSearch.Texts(panel.GetChild(2, 0, 0)).Any(t => t.StartsWith("Part", StringComparison.OrdinalIgnoreCase)) ) return false;
+			Read(panel);
+			return true;
+		}
+
 		/// <summary>Give up reading it (eg, the panel did not open): go by the current area's act.</summary>
 		public static void Failed(string why) {
 			Scanned = true;
@@ -104,6 +118,7 @@ namespace AtE {
 			long waited = 0;
 			IState finish = State.NewState(done);
 			return State.NewState("ScanCampaignProgress", (self, dt) => {
+				if ( presses == 0 && TryReadClosed() ) return finish; // (no keys needed)
 				// (KeyDown / KeyUp post the key to the game's window when it can be sent in the background: no focus needed then)
 				if ( !CanSendKey(key) ) { Failed($"{key} can't be sent to the game (not focused, and not sendable in the background)"); return finish; }
 				var panel = WaypointPanel.Panel();
@@ -121,8 +136,9 @@ namespace AtE {
 	}
 
 	/// <summary>
-	/// At the start of a run: open the AreaInstanceUI (U), read the campaign progress from it (see CampaignProgress),
-	/// and close it again.
+	/// At the start of a run: open the AreaInstanceUI (U), read the campaign progress (see CampaignProgress), and close
+	/// it again. (Not read while closed: the closed panel's tree is only as of when it was last open, eg, an act
+	/// behind if the player went on without opening it since.)
 	/// </summary>
 	public class ReadCampaignProgress : Goal {
 		public VKey Key = VKey.U;
@@ -317,7 +333,7 @@ namespace AtE {
 		public float Reach = 15;
 		public int MaxClicks = 5;
 		private int clicks;
-		private long lastClick;
+		private long lastClick, lastContinue;
 
 		/// <param name="npc">Its name (the end of its metadata path, eg "Nessa").</param>
 		/// <param name="isOption">Which option to click; null to just talk (eg, to hear about a new quest).</param>
@@ -341,6 +357,13 @@ namespace AtE {
 				ctx.Driver.StopWalking($"talking to {npcName}");
 				if ( isOption == null ) { Detail = "closing the dialog"; return Inputs.Press(VKey.Escape, Next); }
 				var option = Town.FindByText(options, isOption);
+				if ( option == null && Town.NpcContinue() is Element more ) {
+					// story text first: Continue to the options (or the reward window)
+					if ( Time.ElapsedMilliseconds - lastContinue < 800 ) return this;
+					lastContinue = Time.ElapsedMilliseconds;
+					Detail = "clicking Continue";
+					return Inputs.Click(more.GetClientRect(), this);
+				}
 				if ( option == null ) {
 					Detail = $"no option {optionLabel} (shows: {string.Join(", ", Town.Texts(options))})";
 					Log($"Campaign: {npcName} has no option {optionLabel} (shows: {string.Join(", ", Town.Texts(options))})");
@@ -407,6 +430,14 @@ namespace AtE {
 			&& !step.StartsWith("Travel to ", StringComparison.OrdinalIgnoreCase)
 			&& !step.EndsWith("for your reward", StringComparison.OrdinalIgnoreCase);
 		public QuestHandler(string quest, Goal goal) { Quest = quest; Goal = goal; }
+
+		/// <summary>Is the quest tracker's quest (eg, "The Dweller of the Deep (Optional)") this handler's (eg, "The Dweller of the Deep")?</summary>
+		public bool IsFor(string trackerName) {
+			if ( trackerName == null ) return false;
+			const string optional = " (Optional)";
+			if ( trackerName.EndsWith(optional, StringComparison.OrdinalIgnoreCase) ) trackerName = trackerName.Substring(0, trackerName.Length - optional.Length);
+			return string.Equals(trackerName.Trim(), Quest, StringComparison.OrdinalIgnoreCase);
+		}
 	}
 
 	/// <summary>
@@ -457,7 +488,7 @@ namespace AtE {
 		public IEnumerable<string> Unhandled() => Town.QuestNames().Where(q => {
 			var step = Town.QuestStep(q);
 			if ( Town.RewardNpc(q) != null || (step?.StartsWith("Travel to ", StringComparison.OrdinalIgnoreCase) ?? false) ) return false;
-			return !Handlers.Any(h => string.Equals(h.Quest, q, StringComparison.OrdinalIgnoreCase));
+			return !Handlers.Any(h => h.IsFor(q));
 		});
 
 		/// <summary>What it would do next for a quest in the tracker, as text (eg, "talk to Nessa for the reward").</summary>
@@ -465,7 +496,7 @@ namespace AtE {
 			var step = Town.QuestStep(quest);
 			if ( Town.RewardNpc(quest) is string npc ) return $"talk to {npc} in {TownName} for the reward";
 			if ( TravelTarget(step) is string area ) return IsTown(area) ? $"go to {TownName}, and talk to the NPCs with something to say" : $"go to {area}";
-			var h = Handlers.FirstOrDefault(x => string.Equals(x.Quest, quest, StringComparison.OrdinalIgnoreCase));
+			var h = Handlers.FirstOrDefault(x => x.IsFor(quest));
 			if ( h == null ) return "nothing: no goals known for it yet";
 			if ( !h.Active(step) ) return $"nothing at this step ({h.Goal.Name} does other steps)";
 			var leaf = h.Goal is Sequence seq ? seq.Goals.FirstOrDefault(g => !g.IsComplete) : h.Goal;
@@ -487,7 +518,8 @@ namespace AtE {
 				else if ( !GoToArea.Is(GetCurrentArea(), area) ) return TravelGoal(area);
 			}
 			foreach ( var h in Handlers ) {
-				if ( !quests.Any(q => string.Equals(q, h.Quest, StringComparison.OrdinalIgnoreCase)) || !h.Active(Town.QuestStep(h.Quest)) ) continue;
+				var quest = quests.FirstOrDefault(h.IsFor);
+				if ( quest == null || !h.Active(Town.QuestStep(quest)) ) continue;
 				if ( h.Goal is Sequence seq ? seq.Select(ctx) != null : !h.Goal.IsDone(ctx) ) return h.Goal;
 			}
 			return null;

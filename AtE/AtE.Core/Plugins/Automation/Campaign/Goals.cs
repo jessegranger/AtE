@@ -66,9 +66,14 @@ namespace AtE {
 				if ( target != null ) {
 					seen = true;
 					lastSeen = target.GridPos;
-					if ( !IsTargetable(ent) ) {
-						// eg, a boss that has not woken up yet: get close and wait
-						Detail = "waiting for it to be targetable";
+					if ( Combat.ClickReason(ent) is string why ) {
+						ctx.Driver.ClickMonster(ctx, target);
+						Detail = $"clicking it, {why}";
+						return this;
+					}
+					if ( !IsTargetable(ent) || Combat.CannotBeDamaged(ent) ) {
+						// eg, a boss that has not woken up yet, or is invulnerable for a phase: get close and wait
+						Detail = IsTargetable(ent) ? "waiting for it to be damageable" : "waiting for it to be targetable";
 						if ( target.Distance > 20 ) ctx.Driver.WalkTo(Approach(ctx, target.GridPos), $"walking to {Label}");
 						else ctx.Driver.StopWalking("waiting");
 						return this;
@@ -125,7 +130,7 @@ namespace AtE {
 			: base(label, match, skill) => Radius = radius;
 
 		public override string Name => $"Kill {Label} with {Skill}, circling it";
-		public override void Reset() { base.Reset(); point = -1; castDue = true; castUntil = aimSince = 0; }
+		public override void Reset() { base.Reset(); point = -1; castDue = true; castUntil = aimSince = progressAt = 0; }
 
 		protected override void Fight(CombatContext ctx, Hostile target) {
 			string skill = Skill;
@@ -135,6 +140,7 @@ namespace AtE {
 			if ( Time.ElapsedMilliseconds < castUntil ) {
 				ctx.Driver.StopWalking("casting");
 				Detail = $"casting {skill}";
+				progressAt = 0; // (standing still on purpose: the walk's progress starts over after)
 				return;
 			}
 			var dirs = GridDirections(target.GridPos, ctx.Z);
@@ -158,6 +164,7 @@ namespace AtE {
 					Detail = "aiming at it";
 					return;
 				}
+				if ( ctx.Driver.TryPlaceTotem(ctx, screen) ) { Detail = "placing a totem"; return; }
 				Detail = ctx.Driver.InputBusy ? $"using {skill} at it (waiting for the input before it)" : $"using {skill} at it";
 				if ( !ctx.Driver.UseSkillPaced(skill, screen) ) return;
 				aimSince = 0;
@@ -178,6 +185,10 @@ namespace AtE {
 						// there: use the skill again, then on to the next one
 						castDue = true;
 						point = (point + 1) % Cardinal.Length;
+						progressAt = 0;
+					} else if ( IsBlocked(ctx, spot) ) {
+						// monsters in the way (eg, the boss's minions): clear a way, with the skill toward the point
+						CastToward(ctx, skill, spot);
 					} else if ( Time.ElapsedMilliseconds - walkStart > MaxWalkMs ) {
 						castDue = true; // a long walk: use the skill on the way, then keep going to this point
 					} else {
@@ -187,9 +198,50 @@ namespace AtE {
 					return;
 				}
 				point = (point + 1) % Cardinal.Length;
+				progressAt = 0;
 			}
 			// nowhere around it to stand: fight it from wherever
 			base.Fight(ctx, target);
+		}
+
+		/// <summary>Walking to a point counts as blocked when it has not got a cell nearer in this long, with monsters near.</summary>
+		public long BlockedMs = 600;
+		/// <summary>How near (in cells) a monster has to be to count as in the way.</summary>
+		public float BlockRadius = 12;
+		/// <summary>How far toward the point (in cells) to aim when clearing the way.</summary>
+		public float BlockedAimCells = 15;
+		private long progressAt; // when the walk to the point last got nearer; 0 to start over
+		private float progressDistance;
+
+		// is the walk to spot held up by monsters: no nearer for BlockedMs, with a monster within BlockRadius
+		private bool IsBlocked(CombatContext ctx, Offsets.Vector2i spot) {
+			float d = Combat.Distance(ctx.Grid, spot);
+			long now = Time.ElapsedMilliseconds;
+			if ( progressAt == 0 || d < progressDistance - 1 ) {
+				progressAt = now;
+				progressDistance = d;
+				return false;
+			}
+			return now - progressAt >= BlockedMs && ctx.Hostiles.Any(h => h.Distance <= BlockRadius);
+		}
+
+		// use the skill once toward spot (at most BlockedAimCells away), standing still until the cast is out
+		private void CastToward(CombatContext ctx, string skill, Offsets.Vector2i spot) {
+			Detail = $"blocked on the way to the {CardinalNames[point]}: {skill} toward it";
+			float d = Combat.Distance(ctx.Grid, spot);
+			var aim = d <= BlockedAimCells ? spot : new Offsets.Vector2i(
+				ctx.Grid.X + (int)MathF.Round((spot.X - ctx.Grid.X) * BlockedAimCells / d),
+				ctx.Grid.Y + (int)MathF.Round((spot.Y - ctx.Grid.Y) * BlockedAimCells / d));
+			if ( !TryGridToScreen(aim, ctx.Z, out Vector2 screen) || !PathFollower.IsSafeToClick(screen) ) {
+				progressAt = 0; // can't aim there: keep walking, and look again
+				return;
+			}
+			ctx.Driver.StopWalking("clearing the way");
+			if ( !ctx.Driver.UseSkillPaced(skill, screen) ) return; // (input still going out: again next frame)
+			int castMs = Math.Max(300, SkillBar.CastTimeMs(SkillBar.FindSlot(skill)?.Skill));
+			castUntil = Time.ElapsedMilliseconds + (long)(castMs * CastFraction) + 50;
+			progressAt = 0;
+			Log($"Orbit: blocked on the way to the {CardinalNames[point]} of {Label}: {skill} toward it");
 		}
 
 		// where to stand on the point in direction dir from center: a cell that can be walked to, near it, that sees center

@@ -75,7 +75,7 @@ namespace AtE {
 		// ---- the master list ----
 
 		private const string TwilightStrand = "The Twilight Strand", LioneyesWatch = "Lioneye's Watch", TheCoast = "The Coast",
-			MudFlats = "The Mud Flats", TidalIsland = "The Tidal Island", AncientPyramid = "The Ancient Pyramid";
+			MudFlats = "The Mud Flats", TidalIsland = "The Tidal Island", FloodedDepths = "The Flooded Depths", AncientPyramid = "The Ancient Pyramid";
 
 		/// <summary>Each act's town, as WorldArea names it with its act (several share a name).</summary>
 		public static string TownOf(int act) => act switch {
@@ -112,6 +112,9 @@ namespace AtE {
 				new PickUpQuestItem("Hailrake's quest item") { Where = TidalIsland },
 				new PickUp("Portal Scroll") { DoneWhen = () => Equipment.InBackpack(Offsets.PATH_SCROLL_PORTAL) },
 				new UsePortalScroll(LioneyesWatch))));
+			// "Kill the Dweller of the Deep": he is in The Flooded Depths (the quest tracker says to travel there first)
+			quests.Handlers.Add(new QuestHandler("The Dweller of the Deep", new Sequence("The Dweller of the Deep",
+				new Orbit("the Dweller of the Deep", IsDweller, main) { Where = FloodedDepths })));
 
 			return new Sequence("Complete Act 1",
 				new Sequence("Exit The Twilight Strand",
@@ -155,6 +158,8 @@ namespace AtE {
 
 		private static bool IsHailrake(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/")
 			&& string.Equals(e.GetComponent<Render>()?.Name, "Hailrake", StringComparison.OrdinalIgnoreCase);
+		private static bool IsDweller(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/")
+			&& (e.GetComponent<Render>()?.Name?.Contains("Dweller of the Deep", StringComparison.OrdinalIgnoreCase) ?? false);
 		private static bool IsMerveil(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/")
 			&& (e.GetComponent<Render>()?.Name?.StartsWith("Merveil", StringComparison.OrdinalIgnoreCase) ?? false);
 
@@ -246,6 +251,10 @@ namespace AtE {
 				return;
 			}
 			stuckState = null;
+			// the augury card selection window (opened by clicking a frozen augury boss): apply the cards and confirm first
+			// (its clicks go into the chain, see Decide)
+			if ( TryAugury() ) return;
+			if ( TryLevelGems(ctx) ) return;
 			if ( Runner.Current == null || Time.ElapsedMilliseconds - lastSelect > 250 ) {
 				lastSelect = Time.ElapsedMilliseconds;
 				Select(ctx);
@@ -333,11 +342,53 @@ namespace AtE {
 		}
 
 		// pick up an item, if there is one; true if doing so, or fighting the monsters near it (or near the player) first.
+		// ---- leveling gems ----
+
+		/// <summary>How often to click a gem level-up button (the panel takes a moment to update after one).</summary>
+		public long GemLevelClickMs = 1000;
+		private long lastGemLevel;
+
+		/// <summary>
+		/// Level up gems as they become ready: with no monsters within AttackRange, click the first visible button on the
+		/// GemLvlUpPanel (depth first, in child order: "level up all" when it shows, else the only gem's own). At most once
+		/// every GemLevelClickMs. True if it clicked.
+		/// </summary>
+		private bool TryLevelGems(CombatContext ctx) {
+			long now = Time.ElapsedMilliseconds;
+			if ( now - lastGemLevel < GemLevelClickMs || InputBusy ) return false;
+			var panel = GetUI()?.GemLvlUpPanel;
+			if ( !IsValid(panel) || !panel.IsVisible ) return false;
+			if ( ctx.Hostiles.Any(h => h.Distance <= AttackRange) ) return false;
+			var button = FirstButton(panel, 10);
+			if ( button == null ) return false;
+			var rect = button.GetClientRect();
+			if ( rect.Width <= 0 || rect.Height <= 0 ) return false;
+			StopWalking("leveling up a gem");
+			DefaultFollower.ReleaseMouse();
+			if ( !Send(Inputs.Click(rect)) ) return false;
+			lastGemLevel = now;
+			SetStatus("leveling up a gem");
+			Log($"{Name}: clicked a gem level-up button at {rect}");
+			return true;
+		}
+
+		// the first visible button under e (e included), depth first in child order
+		private static Element FirstButton(Element e, int depth) {
+			if ( !IsValid(e) || !e.IsVisibleLocal ) return null;
+			if ( e.IsButton ) return e;
+			if ( depth <= 0 ) return null;
+			foreach ( var child in e.Children ) {
+				if ( FirstButton(child, depth - 1) is Element found ) return found;
+			}
+			return null;
+		}
+
 		private bool TryLoot(CombatContext ctx) {
 			if ( !PickUpItems || BackpackIsOpen() || !Looter.TryGetTarget(ctx, out var item) ) return false;
 			var near = ctx.Hostiles.Where(h => h.Distance <= AttackRange || Combat.Distance(h.GridPos, item) <= AttackRange).ToList();
 			if ( near.Count > 0 ) {
-				if ( CurrentGoal is Kill ) return false; // (it fights them its own way, eg, Orbit)
+				// (a Kill fights them its own way, eg, Orbit; and a unique is fought by Orbit, see Fight)
+				if ( CurrentGoal is Kill || Runner.Stack().OfType<Kill>().Any() || near.Any(h => h.Rarity == Offsets.MonsterRarity.Unique) ) return false;
 				var target = ChooseTarget(near);
 				if ( target != null && Engage(ctx, target) ) {
 					SetStatus($"fighting {target} before picking up an item");

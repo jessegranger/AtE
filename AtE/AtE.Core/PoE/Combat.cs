@@ -31,7 +31,7 @@ namespace AtE {
 		public static List<Hostile> GetHostiles(Offsets.Vector2i from, float radius) {
 			var result = new List<Hostile>();
 			foreach ( var ent in GetEnemies() ) {
-				if ( !IsAlive(ent) || !IsTargetable(ent) ) continue;
+				if ( !IsAlive(ent) || !IsTargetable(ent) || CannotBeDamaged(ent) ) continue;
 				var pos = ent.GetComponent<Positioned>();
 				if ( !IsValid(pos) ) continue;
 				var grid = pos.GridPos;
@@ -44,6 +44,51 @@ namespace AtE {
 					Rarity = ent.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White,
 					Distance = d,
 				});
+			}
+			result.Sort((a, b) => a.Distance.CompareTo(b.Distance));
+			return result;
+		}
+
+		/// <summary>
+		/// Does ent have the stat CannotBeDamaged = 1 (eg, a monster that is invulnerable for now); not worth attacking.
+		/// </summary>
+		public static bool CannotBeDamaged(Entity ent) => StatIs(ent, Offsets.GameStat.CannotBeDamaged, 1);
+
+		/// <summary>
+		/// Does ent have the stat MonsterInsideMonolith = 1: a monster sealed in a monolith (and so CannotBeDamaged),
+		/// which clicking it lets out (see CombatDriver.ClickMonster).
+		/// </summary>
+		public static bool InsideMonolith(Entity ent) => StatIs(ent, Offsets.GameStat.MonsterInsideMonolith, 1);
+
+		/// <summary>Does ent's Stats component have stat = value.</summary>
+		public static bool StatIs(Entity ent, Offsets.GameStat stat, int value) {
+			var stats = ent?.GetComponent<Stats>();
+			return IsValid(stats) && stats.GetStats().TryGetValue(stat, out int v) && v == value;
+		}
+
+		public const string AuguryFrozenBuff = "augury_boss_frozen";
+
+		/// <summary>Is ent a unique monster with the augury_boss_frozen buff, which clicking opens the augury card selection window for.</summary>
+		public static bool IsFrozenAuguryBoss(Entity ent) =>
+			(ent?.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White) == Offsets.MonsterRarity.Unique
+			&& HasBuff(ent, AuguryFrozenBuff);
+
+		/// <summary>Why ent has to be clicked before it can be fought ("inside a monolith", "frozen for an augury"), or null if it doesn't.</summary>
+		public static string ClickReason(Entity ent) =>
+			InsideMonolith(ent) ? "inside a monolith"
+			: IsFrozenAuguryBoss(ent) ? "frozen for an augury"
+			: null;
+
+		/// <summary>
+		/// The living monsters within radius cells of from that have to be clicked before they can be fought (see
+		/// ClickReason: inside a monolith, or a frozen augury boss), nearest first.
+		/// </summary>
+		public static List<Hostile> GetMonstersToClick(Offsets.Vector2i from, float radius) {
+			var result = new List<Hostile>();
+			foreach ( var ent in GetEntities() ?? Enumerable.Empty<Entity>() ) {
+				if ( ent?.Path == null || !ent.Path.StartsWith("Metadata/Monsters/") || !IsAlive(ent) || ClickReason(ent) == null ) continue;
+				var h = ToHostile(ent, from);
+				if ( h != null && h.Distance <= radius ) result.Add(h);
 			}
 			result.Sort((a, b) => a.Distance.CompareTo(b.Distance));
 			return result;

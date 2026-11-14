@@ -405,6 +405,10 @@ namespace AtE {
 			// 3.23: 32 fewer bytes here again
 			[FieldOffset(0x1e1)] public readonly byte IsVisibleByte; // 3.29.4: bit 8 varies between elements here (0x2e vs 0x26), not yet checked against one known to be shown or hidden
 			public bool IsVisibleLocal => (IsVisibleByte & 8) == 8;
+			// 3.29.4: 0x61 on the GemLvlUpPanel's buttons (level up all, and each gem's), 0x01 on everything else there
+			// (text, gem icons, bars, containers), compared over its 29 elements; not yet checked on other panels' buttons
+			[FieldOffset(0x1e3)] public readonly byte IsButtonByte;
+			public bool IsButton => IsButtonByte == 0x61;
 
 			// [FieldOffset(0x160)] public readonly uint ElementBorderColor;
 			// [FieldOffset(0x164)] public readonly uint ElementBackgroundColor;
@@ -454,6 +458,10 @@ namespace AtE {
 		public static readonly int Element_Text = 0x358;
 
 		public static readonly int Element_AreaInstanceDestination_Offset = 0x300;
+		// 3.29.4, compared live across the Act 1 destination elements with the panel open in The Submerged Passage:
+		// a byte that is 1 for each area visited (The Twilight Strand ... The Flooded Depths) and 0 for The Ledge (shown,
+		// next door, not visited yet); taken as "can be traveled to". (+0x32C read 1 only on the current area.)
+		public static readonly int Element_AreaInstanceDestination_Unlocked_Offset = 0x32A;
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct AreaInstanceDestination_Details {
 			[FieldOffset(0x0)] public readonly IntPtr ptrAreaCodeName; // ptr to string like "1_town"
@@ -862,7 +870,9 @@ namespace AtE {
 			// [FieldOffset(0x9E8)] public readonly IntPtr Unknown9E8;
 			// [FieldOffset(0x9F0)] public readonly IntPtr Unknown9F0;
 			// [FieldOffset(0x9f8)] public readonly IntPtr InvitesPanel;
-			[FieldOffset(0xC68)] public readonly IntPtr GemLvlUpPanel;
+			[FieldOffset(0xAB8)] public readonly IntPtr AuguryCardSelectionWindow; // opened by clicking a unique with the augury_boss_frozen buff (3.29.4, from the user; not checked live yet)
+			// 3.30: 104 new bytes here
+			[FieldOffset(0xCD0)] public readonly IntPtr GemLvlUpPanel;
 			// [FieldOffset(0xA58)] public readonly IntPtr SkillBarNotifyPanel1;
 			[FieldOffset(0xBC0)] public readonly IntPtr ItemOnGroundTooltip;
 

@@ -257,10 +257,10 @@ namespace AtE {
 	}
 
 	/// <summary>
-	/// Which reward to take from a quest reward window, Build-neutral: the first offered of (1) the rewards named in
-	/// Overrides (quest => "reward, reward"; any quest's, as the window does not say which quest it is for), (2) the gems
-	/// the Build's gem plan uses (those needed at the character's level first), (3) a Quicksilver Flask, (4) the first
-	/// reward offered.
+	/// Which reward to take from a quest reward window: the only one, if there is one; else the first offered of (1) the
+	/// gems the Build's gem plan uses (those needed at the character's level first), (2) the rewards named in Overrides
+	/// (quest => "reward, reward"; any quest's, as the window does not say which quest it is for), (3) a Quicksilver
+	/// Flask, (4) the first reward offered.
 	/// </summary>
 	public static class RewardChooser {
 		public static (Element element, string name, string why) Choose(IReadOnlyDictionary<string, string> overrides) {
@@ -269,10 +269,8 @@ namespace AtE {
 			// (eg, a Book of Skill: nothing to choose)
 			if ( rewards.Count == 1 ) return (rewards[0].element, Equipment.ItemName(rewards[0].item) ?? rewards[0].item.Path, "the only reward");
 			string NameOf(Entity item) => Equipment.ItemName(item) ?? item.Path;
-			foreach ( var wanted in overrides?.Values.SelectMany(SplitNames) ?? Enumerable.Empty<string>() ) {
-				var r = rewards.FirstOrDefault(x => Equipment.IsGem(x.item, wanted) || string.Equals(Equipment.ItemName(x.item), wanted, StringComparison.OrdinalIgnoreCase));
-				if ( r.element != null ) return (r.element, NameOf(r.item), "named in the reward overrides");
-			}
+			// a gem the build uses comes first (the overrides are not per build: ones written for another build must not
+			// win over the build's own gems)
 			var plan = BuildPlan.Gems();
 			if ( plan != null ) {
 				int level = GemPlan.CharacterLevel();
@@ -281,6 +279,10 @@ namespace AtE {
 				if ( r.element != null ) return (r.element, NameOf(r.item), "the build needs it now");
 				r = rewards.FirstOrDefault(x => plan.Wants(x.item));
 				if ( r.element != null ) return (r.element, NameOf(r.item), "the build uses it later");
+			}
+			foreach ( var wanted in overrides?.Values.SelectMany(SplitNames) ?? Enumerable.Empty<string>() ) {
+				var r = rewards.FirstOrDefault(x => Equipment.IsGem(x.item, wanted) || string.Equals(Equipment.ItemName(x.item), wanted, StringComparison.OrdinalIgnoreCase));
+				if ( r.element != null ) return (r.element, NameOf(r.item), "named in the reward overrides");
 			}
 			var flask = rewards.FirstOrDefault(x => string.Equals(Equipment.ItemName(x.item), "Quicksilver Flask", StringComparison.OrdinalIgnoreCase));
 			if ( flask.element != null ) return (flask.element, NameOf(flask.item), "a Quicksilver Flask");
@@ -361,6 +363,15 @@ namespace AtE {
 			// (the window closed, or is not open yet: a window opened again starts its clicks over)
 			emptySince = 0;
 			if ( now - lastClick > 1500 ) { clicked = null; clicks = 0; }
+			if ( Town.NpcContinue() is Element more ) {
+				// the NPC shows story text before the reward window: Continue to it
+				ctx.Driver.StopWalking("talking for a quest reward");
+				if ( now - lastClick < 800 ) return this;
+				lastClick = now;
+				retryAt = now + 2000;
+				Detail = "clicking Continue";
+				return Inputs.Click(more.GetClientRect(), this);
+			}
 			var (quest, npc) = Pending();
 			if ( quest == null ) return this;
 			if ( Town.AnyWindowOpen ) {

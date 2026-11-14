@@ -420,15 +420,38 @@ namespace AtE {
 
 		/// <summary>Is there a monster to fight within radius (0: EngageRadius)?</summary>
 		public static bool AnyNear(CombatContext ctx, float radius) => radius <= 0
-			? ctx.Hostiles.Count > 0
-			: ctx.Hostiles.Any(h => h.Distance <= radius);
+			? ctx.Hostiles.Count > 0 || ctx.MonstersToClick.Count > 0
+			: ctx.Hostiles.Any(h => h.Distance <= radius) || ctx.MonstersToClick.Any(h => h.Distance <= radius);
 
 		protected override IState Tick(CombatContext ctx, long dt) {
 			if ( ctx.Driver.TryRetreat(ctx) ) { Detail = "retreating"; return this; }
+			// a monster to click first (inside a monolith, a frozen augury boss): TryFight does, see CombatDriver.ClickMonster
+			if ( ctx.MonstersToClick.Any(h => Radius <= 0 || h.Distance <= Radius) ) {
+				ctx.Driver.TryFight(ctx, Radius > 0 ? Radius : ctx.Driver.EngageRadius, Skill);
+				Detail = ctx.Driver.Status;
+				return this;
+			}
+			// a unique: circle it (see Orbit) instead of standing and trading blows
+			var unique = ctx.Hostiles.FirstOrDefault(h => h.Rarity == Offsets.MonsterRarity.Unique && (Radius <= 0 || h.Distance <= Radius));
+			if ( unique != null ) return Call(OrbitUnique(unique, Skill));
 			bool fighting = Radius > 0 ? ctx.Driver.TryFight(ctx, Radius, Skill) : ctx.Driver.TryFight(ctx, Skill);
 			if ( !fighting ) return Next;
 			Detail = ctx.Driver.Target?.ToString() ?? "";
 			return this;
+		}
+
+		/// <summary>
+		/// An Orbit of the unique monster target (with skill, else the build's main skill), that hands back once it is
+		/// dead, or is no longer one of the hostiles near (out of reach, or it can't be damaged for now).
+		/// </summary>
+		public static Orbit OrbitUnique(Hostile target, string skill) {
+			var ent = target.Entity;
+			uint id = ent.Id;
+			string label = ent.GetComponent<Render>()?.Name;
+			if ( string.IsNullOrWhiteSpace(label) ) label = ent.Path?.Split('/').LastOrDefault() ?? "a unique";
+			return new Orbit(label, e => e.Id == id, () => skill ?? BuildPlan.MainSkill()) {
+				DoneWhen = () => Context == null || !Context.Hostiles.Any(h => h.Entity?.Id == id),
+			};
 		}
 	}
 

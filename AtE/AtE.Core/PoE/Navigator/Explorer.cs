@@ -149,7 +149,7 @@ namespace AtE {
 			if ( monsters ) {
 				float best = MonsterRadius;
 				foreach ( var ent in GetEnemies() ) {
-					if ( !IsAlive(ent) || !IsTargetable(ent) ) continue;
+					if ( !IsAlive(ent) || !IsTargetable(ent) || Combat.CannotBeDamaged(ent) ) continue;
 					var pos = ent.GetComponent<Positioned>();
 					if ( !IsValid(pos) ) continue;
 					var grid = pos.GridPos;

@@ -250,6 +250,7 @@ DeployedObjectsArrayEntry.SkillId
 DeployedObjectsArrayEntry.intUnknown
 
 # Element: element fields no UI check reads yet (scroll, hover label, label details); the label list itself is covered
+Element.IsButtonByte
 Element.ScrollOffset
 Element.unkArrayHandle
 

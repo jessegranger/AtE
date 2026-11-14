@@ -117,6 +117,9 @@ namespace AtE {
 
 		public bool IsVisibleLocal => Cache.IsVisibleLocal;
 
+		/// <summary>Is it a button (see Offsets.Element.IsButton), not text, an icon or a container.</summary>
+		public bool IsButton => Cache.IsButton;
+
 		public bool IsVisible => IsVisibleLocal && (!IsValid(Parent) || Parent == Self || Parent.IsVisible);
 
 		public Vector2 Size => Cache.Size;

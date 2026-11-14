@@ -125,7 +125,8 @@ namespace AtE {
 				DrawBottomLeftText($"{Name}: {Status}", Color.Orange);
 				return this;
 			}
-			if ( game.IsPaused ) return Wait("the game is paused");
+			// (the augury card selection window pauses the game: it is worked on all the same, see TryAugury)
+			if ( game.IsPaused && !AuguryIsOpen() ) return Wait("the game is paused");
 			if ( game.HasInputFocus ) return Wait("typing in the game");
 			if ( PoEMemory.GameRoot?.EscapeState?.Menu != null ) return Wait("escape menu");
 			if ( !PoEMemory.TargetHasFocus ) return Wait("the game needs focus to use the mouse");
@@ -157,7 +158,8 @@ namespace AtE {
 
 		/// <summary>
 		/// With passive points to spend and no monsters within AttackRange (as for picking up items), spend them on the
-		/// Passive Tree plan (see PassiveAllocator); if monsters come that close while the tree is open, close it. True while doing either (instead of anything else).
+		/// Passive Tree plan (see PassiveAllocator). True while doing so (instead of anything else). (The game is paused
+		/// while the tree is open, so monsters can't come near once it has started.)
 		/// </summary>
 		public bool TrySpendPoints(CombatContext ctx) {
 			var section = GetPlugin<AutomationPlugin>()?.PassiveTree;
@@ -165,19 +167,11 @@ namespace AtE {
 			if ( allocator == null || section.Plan == null ) return false;
 			int points = GetUI()?.UnspentPassivePoints ?? 0;
 			string at = $"{points} points, {ctx.Game.AllocatedPassives.Length} passives";
-			if ( ctx.Hostiles.Any(h => h.Distance <= AttackRange) ) {
-				if ( allocator.IsActive ) allocator.Stop("monsters came near");
-				spending = false;
-				if ( !PassiveTreePanel.IsOpen ) return false;
-				StopWalking("closing the passive tree");
-				Status = "monsters near: closing the passive tree";
-				if ( Time.ElapsedMilliseconds - lastTreeClose > 700 && Send(Inputs.Press(VKey.Escape)) ) lastTreeClose = Time.ElapsedMilliseconds;
-				return true;
-			}
 			if ( !allocator.IsActive ) {
 				// it stopped: all spent, or stopped short
 				if ( spending ) { spending = false; spendStoppedAt = at; }
 				if ( points == 0 || at == spendStoppedAt ) return false;
+				if ( ctx.Hostiles.Any(h => h.Distance <= AttackRange) ) return false; // (not with monsters near: once they are dealt with)
 				allocator.Start();
 				spending = true;
 			}
@@ -187,7 +181,6 @@ namespace AtE {
 			return true;
 		}
 		private bool spending;
-		private long lastTreeClose;
 
 		/// <summary>
 		/// Called each frame while the driver is on and the player is dead: true to stay on (eg, resurrecting), false to stop.
@@ -200,7 +193,7 @@ namespace AtE {
 		/// The default: retreat if low on life, else fight, else explore, else stop.
 		/// </summary>
 		protected virtual void Decide(CombatContext ctx) {
-			if ( TryRetreat(ctx) || TryFight(ctx) ) return;
+			if ( TryAugury() || TryRetreat(ctx) || TryFight(ctx) ) return;
 			if ( !TryExplore(ctx) ) Stop("the area is explored and clear");
 		}
 
@@ -216,14 +209,19 @@ namespace AtE {
 			return true;
 		}
 
-		/// <summary>Fight the monster ChooseTarget picks from those near (with skill, if given, else Attack); true if fighting.</summary>
+		/// <summary>
+		/// Fight the monster ChooseTarget picks from those near (with skill, if given, else Attack); true if fighting.
+		/// A monster near that has to be clicked first (inside a monolith, a frozen augury boss) is clicked (see ClickMonster).
+		/// </summary>
 		public bool TryFight(CombatContext ctx, string skill = null) {
+			if ( ctx.MonstersToClick.FirstOrDefault() is Hostile toClick ) return ClickMonster(ctx, toClick);
 			Target = ChooseTarget(ctx.Hostiles);
 			return Target != null && Engage(ctx, Target, skill);
 		}
 
 		/// <summary>Fight the monsters within radius cells (that can be walked to), instead of EngageRadius; true if fighting.</summary>
 		public bool TryFight(CombatContext ctx, float radius, string skill = null) {
+			if ( ctx.MonstersToClick.FirstOrDefault(h => h.Distance <= radius) is Hostile toClick ) return ClickMonster(ctx, toClick);
 			var near = Combat.GetHostiles(ctx.Grid, radius).Where(h => DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, h.GridPos)).ToList();
 			Target = ChooseTarget(near);
 			return Target != null && Engage(ctx, Target, skill);
@@ -241,6 +239,7 @@ namespace AtE {
 			bool inRange = d <= range && (!los || ctx.Terrain.HasLineOfSight(ctx.Grid, target.GridPos));
 			if ( inRange && TryWorldToScreen(target.WorldPos, out Vector2 screen) && PathFollower.IsSafeToClick(screen) ) {
 				if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, "attacking");
+				if ( TryPlaceTotem(ctx, screen) ) { Status = $"placing a Decoy Totem near {target}"; return true; }
 				Status = $"attacking {target}{(skill == null ? "" : $" with {skill}")}";
 				if ( skill == null ) Attack(target, screen);
 				else UseSkillPaced(skill, screen);
@@ -251,6 +250,156 @@ namespace AtE {
 				return true;
 			}
 			return false;
+		}
+
+		/// <summary>How often to click in the augury card selection window.</summary>
+		public long AuguryClickMs = 300;
+		/// <summary>How long to wait for the window to close after clicking Confirm, before clicking it again.</summary>
+		public long AuguryConfirmRetryMs = 1500;
+		private readonly HashSet<long> auguryCardsClicked = new HashSet<long>();
+		private long lastAuguryClick, lastAuguryConfirm;
+
+		/// <summary>Is the augury card selection window open (see TryAugury)?</summary>
+		public static bool AuguryIsOpen() {
+			var window = GetUI()?.AuguryCardSelectionWindow;
+			return IsValid(window) && window.IsVisible;
+		}
+
+		/// <summary>
+		/// While the augury card selection window is open (opened by clicking a frozen augury boss, see ClickMonster):
+		/// click each visible card (the direct children of its GetChild(2, 6, 0)) once, to apply them to the boss, then
+		/// click Confirm (GetChild(2, 9)), again every AuguryConfirmRetryMs until the window closes. True while it is open.
+		/// Called first thing in Decide (so a driver that TakesInput gets the clicks into its chain), even while the game
+		/// is paused, which it is while the window is open (see OnTick).
+		/// </summary>
+		public bool TryAugury() {
+			var window = GetUI()?.AuguryCardSelectionWindow;
+			if ( !IsValid(window) || !window.IsVisible ) {
+				auguryCardsClicked.Clear();
+				lastAuguryConfirm = 0;
+				return false;
+			}
+			StopWalking("the augury card selection window is open");
+			long now = Time.ElapsedMilliseconds;
+			var cards = window.GetChild(2, 6, 0)?.Children?.Where(c => IsValid(c) && c.IsVisible).ToList() ?? new List<Element>();
+			var card = cards.FirstOrDefault(c => !auguryCardsClicked.Contains(c.Address.ToInt64()));
+			if ( card != null ) {
+				Status = $"augury: applying card {auguryCardsClicked.Count + 1} of {cards.Count}";
+				if ( InputBusy || now - lastAuguryClick < AuguryClickMs ) return true;
+				var rect = card.GetClientRect();
+				if ( rect.Width <= 0 || rect.Height <= 0 ) { auguryCardsClicked.Add(card.Address.ToInt64()); return true; } // (nothing to click)
+				DefaultFollower.ReleaseMouse();
+				if ( Send(Inputs.Click(rect)) ) {
+					auguryCardsClicked.Add(card.Address.ToInt64());
+					lastAuguryClick = now;
+					Log($"{Name}: augury card {auguryCardsClicked.Count} of {cards.Count} clicked");
+				}
+				return true;
+			}
+			var confirm = window.GetChild(2, 9);
+			Status = $"augury: {auguryCardsClicked.Count} cards applied, confirming";
+			if ( !IsValid(confirm) || !confirm.IsVisible ) { Status = "augury: no Confirm button at GetChild(2, 9)"; return true; }
+			if ( InputBusy || now - lastAuguryClick < AuguryClickMs || now - lastAuguryConfirm < AuguryConfirmRetryMs ) return true;
+			var at = confirm.GetClientRect();
+			if ( at.Width <= 0 || at.Height <= 0 ) return true;
+			DefaultFollower.ReleaseMouse();
+			if ( Send(Inputs.Click(at)) ) {
+				lastAuguryClick = lastAuguryConfirm = now;
+				Log($"{Name}: augury Confirm clicked ({auguryCardsClicked.Count} cards)");
+			}
+			return true;
+		}
+
+		/// <summary>How near (in cells) to be to a monster to click it (see ClickMonster).</summary>
+		public float MonsterClickReach = 20;
+		/// <summary>How often to click a monster that has to be clicked, until it no longer has to be.</summary>
+		public long MonsterClickMs = 300;
+		private long lastMonsterClick;
+
+		/// <summary>
+		/// Click target, a monster that has to be clicked before it can be fought (see Combat.ClickReason): a monster
+		/// inside a monolith (MonsterInsideMonolith = 1, and CannotBeDamaged until it is out), or a unique frozen for an
+		/// augury (which opens the augury card selection window). Walks near it, then clicks it every MonsterClickMs
+		/// (the caller stops asking once it no longer has to be clicked). True while doing so.
+		/// </summary>
+		public bool ClickMonster(CombatContext ctx, Hostile target) {
+			Target = target;
+			string why = Combat.ClickReason(target.Entity) ?? "to click";
+			if ( target.Distance > MonsterClickReach ) {
+				var spot = DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, target.GridPos, out var s) ? s : target.GridPos;
+				if ( Combat.Distance(ctx.Grid, spot) > 3 ) {
+					WalkTo(spot, $"walking to {target}, {why}");
+					return true;
+				}
+			}
+			StopWalking("clicking a monster");
+			Status = $"clicking {target}, {why}";
+			if ( InputBusy || binding || Time.ElapsedMilliseconds - lastMonsterClick < MonsterClickMs ) return true;
+			var click = Ground.ClickEntity(target.Entity);
+			if ( click == null ) {
+				// off screen or under a panel: get nearer
+				WalkTo(target.GridPos, $"walking to {target}, {why} (can't click it from here)");
+				return true;
+			}
+			DefaultFollower.ReleaseMouse();
+			if ( Send(click) ) lastMonsterClick = Time.ElapsedMilliseconds;
+			return true;
+		}
+
+		/// <summary>The totem skills to keep placed while fighting (see PlaceTotem).</summary>
+		public static readonly string[] TotemSkills = { "Decoy Totem" };
+		/// <summary>After a totem is placed, its DeployedObjects entry shows up a moment later: no other totem cast until then.</summary>
+		public long TotemSettleMs = 1000;
+		private long lastTotem;
+
+		/// <summary>While fighting: PlaceTotem for each of TotemSkills, until one is cast. True if one was.</summary>
+		public bool TryPlaceTotem(CombatContext ctx, Vector2 targetScreen) {
+			foreach ( var name in TotemSkills ) {
+				if ( PlaceTotem(ctx, name, targetScreen) ) return true;
+			}
+			return false;
+		}
+
+		/// <summary>How many totems the skill may have out at once (its SkillDisplayNumberOfTotemsAllowed stat; 1 if it has none).</summary>
+		public static int TotemsAllowed(ActorSkill skill) =>
+			skill != null && skill.TryGetStat(Offsets.GameStat.SkillDisplayNumberOfTotemsAllowed, out int n) && n > 0 ? n : 1;
+
+		/// <summary>
+		/// How many totems of the skill are out: the player's DeployedObjects entries with its skill id. If no entry has
+		/// the id of any of the player's skills (the entry's SkillId offset is not confirmed), the totem entities among
+		/// them (path with "/Totems/"; eg, Decoy Totem's is not named for it) are counted instead.
+		/// </summary>
+		public static int TotemsPlaced(Actor actor, ActorSkill skill) {
+			if ( !IsValid(actor) || skill == null ) return 0;
+			var deployed = actor.DeployedObjects.ToList();
+			int byId = deployed.Count(d => d.SkillId == skill.Id);
+			if ( byId > 0 ) return byId;
+			var ids = new HashSet<uint>(actor.Skills.Select(s => (uint)s.Id));
+			if ( deployed.Any(d => ids.Contains(d.SkillId)) ) return 0; // (the ids read right: none of this skill's are out)
+			return deployed.Count(d => d.GetEntity()?.Path?.Contains("/Totems/", StringComparison.OrdinalIgnoreCase) ?? false);
+		}
+
+		/// <summary>
+		/// Keep the totem skill called name at its number of totems allowed (see TotemsAllowed): if it is on the skill
+		/// bar, usable, off cooldown, and fewer of its totems are out (see TotemsPlaced), cast it halfway between the
+		/// player and targetScreen (or at targetScreen, if halfway can't be clicked). True if it was cast.
+		/// </summary>
+		public bool PlaceTotem(CombatContext ctx, string name, Vector2 targetScreen) {
+			if ( InputBusy || binding || Time.ElapsedMilliseconds - lastTotem < TotemSettleMs ) return false;
+			var slot = SkillBar.FindSlot(name);
+			var skill = slot?.Skill;
+			if ( skill == null || !skill.CanBeUsed || skill.IsOnCooldown ) return false;
+			var actor = ctx.Player?.GetComponent<Actor>();
+			int placed = TotemsPlaced(actor, skill), allowed = TotemsAllowed(skill);
+			if ( placed >= allowed ) return false;
+			if ( !TryWorldToScreen(Position(ctx.Player), out Vector2 me) ) return false;
+			var at = (me + targetScreen) / 2;
+			if ( !PathFollower.IsSafeToClick(at) ) at = targetScreen;
+			DefaultFollower.ReleaseMouse();
+			if ( !Send(Inputs.UseSlot(slot, at, 40)) ) return false;
+			lastTotem = Time.ElapsedMilliseconds;
+			Log($"{Name}: placing {name} ({placed} of {allowed} out)");
+			return true;
 		}
 
 		private long lastPacedUse;
@@ -348,6 +497,12 @@ namespace AtE {
 		/// <summary>The hostile monsters within the driver's EngageRadius that can be walked to, nearest first.</summary>
 		public List<Hostile> Hostiles => hostiles ??= Combat.GetHostiles(Grid, Driver.EngageRadius)
 			.Where(h => DefaultNavigator.IsReachable(Terrain, Grid, h.GridPos)).ToList();
+		private List<Hostile> monstersToClick;
+		/// <summary>
+		/// The monsters within the driver's EngageRadius to click before fighting (inside a monolith, or a frozen augury
+		/// boss; see Combat.ClickReason), nearest first.
+		/// </summary>
+		public List<Hostile> MonstersToClick => monstersToClick ??= Combat.GetMonstersToClick(Grid, Driver.EngageRadius);
 	}
 
 	/// <summary>

@@ -26,6 +26,9 @@ namespace AtE {
 		public static Element SellWindow => GetUI()?.SellWindow;
 		public static Element QuestRewardWindow => GetUI()?.QuestRewardWindow;
 
+		/// <summary>The "Continue" under the open NpcOptions (it shows story text before the options, or before a quest reward window); null if none.</summary>
+		public static Element NpcContinue() => IsOpen(NpcOptions) ? FindByText(NpcOptions, "Continue") : null;
+
 		/// <summary>True if one of the windows an NPC option opens is open: purchase, sell, or quest reward.</summary>
 		public static bool AnyWindowOpen => IsOpen(PurchaseWindow) || IsOpen(SellWindow) || IsOpen(QuestRewardWindow);
 

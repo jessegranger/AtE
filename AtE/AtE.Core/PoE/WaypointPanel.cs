@@ -20,14 +20,21 @@ namespace AtE {
 
 		/// <summary>
 		/// The destination element for the area called name (eg, "The Mud Flats"), or null (eg, the panel is closed, or
-		/// the waypoint is not on the act shown, or not discovered).
+		/// the waypoint is not on the act shown, or not discovered: shown but locked counts as not there, see IsUnlocked).
 		/// </summary>
 		public static Element FindWaypointElement(string name) {
 			foreach ( var (element, destination) in Destinations() ) {
-				if ( string.Equals(destination, name, StringComparison.OrdinalIgnoreCase) ) return element;
+				if ( string.Equals(destination, name, StringComparison.OrdinalIgnoreCase) && IsUnlocked(element) ) return element;
 			}
 			return null;
 		}
+
+		/// <summary>
+		/// Can the destination element be traveled to (its area visited)? The panel also shows areas next to visited ones,
+		/// which can't be (eg, The Ledge before going there). See Offsets.Element_AreaInstanceDestination_Unlocked_Offset.
+		/// </summary>
+		public static bool IsUnlocked(Element e) =>
+			IsValid(e) && PoEMemory.TryRead(e.Address + Offsets.Element_AreaInstanceDestination_Unlocked_Offset, out byte b) && b != 0;
 
 		/// <summary>
 		/// Where to click a destination element, from its top left: the element is a point (0.75 x 0.75, no children),
@@ -52,8 +59,20 @@ namespace AtE {
 		/// visible element (depth first) whose Element_AreaInstanceDestination_Offset pointer reads as a destination
 		/// with a name. Empty if the panel is closed.
 		/// </summary>
-		public static IEnumerable<(Element element, string name)> Destinations() {
-			var root = Panel()?.GetChild(2);
+		public static IEnumerable<(Element element, string name)> Destinations() => DestinationsIn(Panel());
+
+		/// <summary>
+		/// The destinations as Destinations reads them, but whether or not the panel is open: its element tree stays in
+		/// memory while it is closed, with each element's own visible flag (IsVisibleLocal) set as when it was last shown
+		/// (the act last shown). Their screen rects mean nothing while it is closed. Empty if the panel was never built.
+		/// </summary>
+		public static IEnumerable<(Element element, string name)> DestinationsEvenClosed() {
+			var panel = GetUI()?.AreaInstanceUi;
+			return IsValid(panel) ? DestinationsIn(panel) : Array.Empty<(Element, string)>();
+		}
+
+		private static IEnumerable<(Element element, string name)> DestinationsIn(Element panel) {
+			var root = panel?.GetChild(2);
 			foreach ( var e in UiSearch.Visible(root, 12, 5000) ) {
 				if ( TryReadDestination(e, out string name) ) yield return (e, name);
 			}
