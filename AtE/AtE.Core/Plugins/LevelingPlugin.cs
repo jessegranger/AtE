@@ -390,13 +390,7 @@ namespace AtE {
 				ImGui.End();
 				*/
 				if ( IsValid(dialog) && dialog.IsVisibleLocal ) {
-					var continueOption = dialog
-						.GetChild(1)?
-						.GetChild(2)?
-						.GetChild(0)?
-						.GetChild(2)?
-						.GetChild(2)?
-						.GetChild(0) ?? null;
+					var continueOption = dialog.GetChild(1, 2, 0, 2, 2, 0);
 					string text;
 					if ( IsValid(continueOption)
 						&& continueOption.IsVisibleLocal
