@@ -131,7 +131,15 @@ namespace AtE {
 		public override string Name => "Read the campaign progress";
 		public override bool Sticky => false;
 		public override void Reset() { base.Reset(); tries = 0; }
-		public override bool CheckDone(CombatContext ctx) => CampaignProgress.Scanned && WaypointPanel.Panel() == null;
+		// did it open the panel itself (so it is to close it): the same panel is the waypoint's, and one a waypoint goal
+		// opened must be left open (closing it here made a waypoint goal and this one take turns opening and closing it)
+		private bool openedIt;
+		public override bool CheckDone(CombatContext ctx) {
+			if ( !CampaignProgress.Scanned ) return false;
+			if ( openedIt && WaypointPanel.Panel() != null ) return false;
+			openedIt = false;
+			return true;
+		}
 
 		protected override IState Step(CombatContext ctx) {
 			ctx.Driver.StopWalking("reading the campaign progress");
@@ -140,10 +148,15 @@ namespace AtE {
 			if ( panel != null && !CampaignProgress.Scanned ) CampaignProgress.Read(panel);
 			Detail = CampaignProgress.Summary;
 			if ( now - lastPress < 1500 ) return this;
-			if ( panel != null ) { lastPress = now; return Inputs.Press(Key, this); } // (close it)
+			if ( panel != null ) {
+				if ( !openedIt ) return this; // (not its own: done, the next select moves on)
+				lastPress = now;
+				return Inputs.Press(Key, this); // (close it)
+			}
 			if ( CampaignProgress.Scanned ) return this;
 			if ( ++tries > 3 ) { CampaignProgress.Failed($"{Key} did not open the AreaInstanceUI"); return this; }
 			lastPress = now;
+			openedIt = true;
 			return Inputs.Press(Key, this);
 		}
 	}

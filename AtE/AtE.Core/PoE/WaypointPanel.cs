@@ -72,7 +72,8 @@ namespace AtE {
 
 		private static bool IsPrintable(string s) {
 			foreach ( char c in s ) {
-				if ( char.IsControl(c) || c == '�' ) return false;
+				// (area names are Latin script; other pointers read as runs of CJK / Hangul characters)
+				if ( char.IsControl(c) || c == '�' || c > 'ɏ' ) return false;
 			}
 			return true;
 		}
