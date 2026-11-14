@@ -192,6 +192,75 @@ namespace AtE {
 	}
 
 	/// <summary>
+	/// Walk to within Reach cells of a group of tiles (Terrain.TileFeatures: the walkable cell nearest the middle of the
+	/// tiles cut from a .tdt whose path has TilePathPart), fighting on the way. Done once there (eg, The Way Forward's
+	/// "Follow the Emperor's Road": near Prisoner's Gate's Beach/Transitions/beach_passageblock tile).
+	/// </summary>
+	public class ApproachTiles : Goal {
+		public readonly string Label;
+		public readonly string TilePathPart;
+		public float Reach = 50;
+		public float FightRadius = 75;
+		/// <summary>How far from the tiles (cells) to look for the nearest cell that can be walked to.</summary>
+		public int SnapRadius = 200;
+		private bool reached;
+		// the walkable cell nearest the tiles that can be walked to from the player, for the tiles at spotFor
+		private Offsets.Vector2i spot, spotFor;
+		private bool hasSpot;
+
+		/// <param name="label">What to call it on the on-screen list, eg "the Emperor's Road".</param>
+		/// <param name="tilePathPart">A part of the path of the .tdt, eg "/beach_passageblock".</param>
+		public ApproachTiles(string label, string tilePathPart) { Label = label; TilePathPart = tilePathPart; }
+
+		public override string Name => $"Go to {Label}";
+		public override void Reset() { base.Reset(); hasSpot = false; } // (a new area instance: a new map)
+
+		private AreaFeature Nearest(CombatContext ctx) =>
+			ctx.Terrain.TileFeatures(TilePathPart).OrderBy(f => Combat.Distance(ctx.Grid, f.GridPos)).FirstOrDefault();
+
+		public override bool CheckDone(CombatContext ctx) {
+			if ( reached ) return true;
+			if ( Where != null && !GoToArea.Is(GetCurrentArea(), Where) ) return false;
+			var tiles = Nearest(ctx);
+			if ( tiles == null ) return false;
+			if ( Combat.Distance(ctx.Grid, tiles.GridPos) <= Reach ) {
+				Log($"Campaign: within {Reach} cells of {Label} ({tiles.GridPos})");
+				return reached = true;
+			}
+			// (the nearest cell that can be walked to may be further than Reach: being there is as near as it gets)
+			if ( hasSpot && spotFor.Equals(tiles.GridPos) && Combat.Distance(ctx.Grid, spot) <= 3 ) {
+				Log($"Campaign: at {spot}, the nearest walkable cell to {Label} ({tiles.GridPos}, {Combat.Distance(spot, tiles.GridPos):F0} cells away)");
+				return reached = true;
+			}
+			return false;
+		}
+
+		// where to walk to: the cell nearest the tiles that can be walked to from here (searched once per tile group)
+		private Offsets.Vector2i Spot(CombatContext ctx, Offsets.Vector2i target) {
+			if ( !hasSpot || !spotFor.Equals(target) ) {
+				spotFor = target;
+				hasSpot = true;
+				if ( !DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, target, out spot, SnapRadius) ) spot = target;
+				Log($"Campaign: {Label} at {target}: walking to {spot}, the nearest cell that can be walked to ({Combat.Distance(spot, target):F0} cells from it)");
+			}
+			return spot;
+		}
+
+		protected override IState Step(CombatContext ctx) {
+			var tiles = Nearest(ctx);
+			if ( tiles == null ) {
+				Detail = $"no tiles with \"{TilePathPart}\" in this area";
+				return FightFirst(ctx, FightRadius) ?? Call(new Explore(Label) { FightRadius = FightRadius });
+			}
+			var to = Spot(ctx, tiles.GridPos);
+			Detail = $"to {to} (by {tiles.GridPos}), {Combat.Distance(ctx.Grid, to):F0} cells away";
+			// (no LegMs: a long walk handed back every second was started over each time, before the path was found, and
+			// never moved; the walk ends once near, or for a fight on the way)
+			return Call(new Navigate(Label, _ => to, 3) { FightRadius = FightRadius });
+		}
+	}
+
+	/// <summary>
 	/// Click a quest object that unlocks something (eg, The Mud Flats' Strange Glyph Wall, which opens the way to The
 	/// Submerged Passage, once the three glyphs are had). Walk toward its tiles (Terrain.TileFeatures) until the object
 	/// is in range, then click its label. Done when the thing it unlocks is in range and targetable (sticky).
@@ -322,12 +391,17 @@ namespace AtE {
 		public override bool Sticky => false;
 		// the quest reward window opens the inventory beside it: the campaign must not close that (it cancels the reward)
 		public override bool UsesInventory => true;
-		public override void Reset() { base.Reset(); clicks = 0; retryAt = 0; clicked = null; emptySince = 0; }
+		public override void Reset() { base.Reset(); clicks = 0; retryAt = 0; clicked = null; emptySince = 0; talks.Clear(); gaveUp.Clear(); }
 
-		// the first quest waiting for its reward, and who has it
-		private static (string quest, string npc) Pending() {
+		/// <summary>Talks to a quest's NPC that open no reward window before it is left (until a new area instance).</summary>
+		public int MaxTalks = 3;
+		private readonly Dictionary<string, int> talks = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+		private readonly HashSet<string> gaveUp = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		// the first quest waiting for its reward (and not given up on), and who has it
+		private (string quest, string npc) Pending() {
 			foreach ( var quest in Town.QuestNames() ) {
-				if ( Town.RewardNpc(quest) is string npc ) return (quest, npc);
+				if ( !gaveUp.Contains(quest) && Town.RewardNpc(quest) is string npc ) return (quest, npc);
 			}
 			return (null, null);
 		}
@@ -342,6 +416,7 @@ namespace AtE {
 		protected override IState Step(CombatContext ctx) {
 			long now = Time.ElapsedMilliseconds;
 			if ( Town.IsOpen(Town.QuestRewardWindow) ) {
+				talks.Clear(); // (the talk worked)
 				ctx.Driver.StopWalking("taking a quest reward");
 				if ( now - lastClick < 800 ) return this;
 				var (element, reward, why) = RewardChooser.Choose(overrides?.Invoke());
@@ -382,6 +457,12 @@ namespace AtE {
 				return Inputs.Click(new System.Drawing.RectangleF(1, 1, 0, 0), this); // (a click at the top left corner closes them)
 			}
 			if ( now < retryAt ) return this;
+			talks[quest] = talks.TryGetValue(quest, out int n) ? n + 1 : 1;
+			if ( talks[quest] > MaxTalks ) {
+				gaveUp.Add(quest);
+				Log($"{Name}: talked to {npc} {MaxTalks} times for {quest}, but no reward window opened: leaving it");
+				return this;
+			}
 			Detail = $"{quest}: talking to {npc}";
 			retryAt = now + 2000; // (if the talk hands back without the reward window: try again in a while)
 			return Call(new TalkToNpc(npc, text => text.EndsWith(" Reward", StringComparison.OrdinalIgnoreCase), $"{quest} reward"));

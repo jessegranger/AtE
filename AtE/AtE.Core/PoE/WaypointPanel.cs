@@ -32,14 +32,22 @@ namespace AtE {
 
 		/// <summary>
 		/// Do a panel name and an area name name the same place: equal ignoring case, or but for a leading "The " (the
-		/// panel says "Prisoner's Gate" for The Prisoner's Gate). Panel names that differ more (eg, "Merveil's Caverns" for
-		/// The Cavern of Anger) don't match.
+		/// panel says "Prisoner's Gate" for The Prisoner's Gate), or a pair in PanelAliases (eg, "Merveil's Caverns" for
+		/// The Cavern of Anger).
 		/// </summary>
 		public static bool SameName(string a, string b) {
 			if ( a == null || b == null ) return false;
 			static string Bare(string s) => s.StartsWith("The ", StringComparison.OrdinalIgnoreCase) ? s.Substring(4) : s;
-			return string.Equals(Bare(a.Trim()), Bare(b.Trim()), StringComparison.OrdinalIgnoreCase);
+			string x = Bare(a.Trim()), y = Bare(b.Trim());
+			if ( string.Equals(x, y, StringComparison.OrdinalIgnoreCase) ) return true;
+			return PanelAliases.Any(p => (string.Equals(x, p.panel, StringComparison.OrdinalIgnoreCase) && string.Equals(y, p.area, StringComparison.OrdinalIgnoreCase))
+				|| (string.Equals(y, p.panel, StringComparison.OrdinalIgnoreCase) && string.Equals(x, p.area, StringComparison.OrdinalIgnoreCase)));
 		}
+
+		/// <summary>The panel's names for areas it calls something else (without a leading "The").</summary>
+		public static readonly (string panel, string area)[] PanelAliases = {
+			("Merveil's Caverns", "Cavern of Anger"),
+		};
 
 		/// <summary>Is the destination element the area the player is in (see Offsets.Element_AreaInstanceDestination_IsCurrentArea)?</summary>
 		public static bool IsCurrentArea(Element e) =>

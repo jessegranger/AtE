@@ -411,13 +411,13 @@ namespace AtE {
 		private AreaExit NearestUnnamedExit(CombatContext ctx) {
 			var exits = ctx.Terrain.Exits;
 			if ( !ReferenceEquals(exits, deadExitsOf) ) { deadExits.Clear(); deadExitsOf = exits; } // (a new area)
-			foreach ( var e in exits.Where(e => !e.Seen && !deadExits.Contains(e)).ToList() ) {
+			foreach ( var e in exits.Where(e => !e.Seen && e.Destination == null && !deadExits.Contains(e)).ToList() ) {
 				if ( Combat.Distance(ctx.Grid, e.GridPos) <= UnnamedExitReach ) {
 					deadExits.Add(e);
 					Log($"Campaign: the unnamed exit at {e.GridPos} showed no name from {UnnamedExitReach} cells: skipping it");
 				}
 			}
-			return exits.Where(e => !e.Seen && !deadExits.Contains(e) && DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, e.GridPos))
+			return exits.Where(e => !e.Seen && e.Destination == null && !deadExits.Contains(e) && DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, e.GridPos))
 				.OrderBy(e => Combat.Distance(ctx.Grid, e.GridPos))
 				.FirstOrDefault();
 		}
@@ -431,7 +431,9 @@ namespace AtE {
 			var route = WorldArea.FindRoute(GetCurrentArea(), Destination);
 			if ( route == null || route.Count < 2 ) { Detail = "no route"; return this; }
 			var next = route[1];
-			var exit = ctx.Terrain.Exits.FirstOrDefault(e => e.Seen && e.Destination == next.Name);
+			// (seen, or not yet seen but named by its tile, see AreaExits.KnownExitTiles: walk there, the entity names it exactly)
+			var exit = ctx.Terrain.Exits.FirstOrDefault(e => e.Seen && e.Destination == next.Name)
+				?? ctx.Terrain.Exits.FirstOrDefault(e => !e.Seen && e.Destination == next.Name);
 			if ( exit == null ) {
 				// one of the exits not named yet (found in the tiles, its entity not in range yet): walk to the nearest of
 				// them, until its name shows; a wrong one is then Seen, and the next nearest is tried

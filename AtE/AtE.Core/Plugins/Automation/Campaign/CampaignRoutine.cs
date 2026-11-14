@@ -75,7 +75,8 @@ namespace AtE {
 		// ---- the master list ----
 
 		private const string TwilightStrand = "The Twilight Strand", LioneyesWatch = "Lioneye's Watch", TheCoast = "The Coast",
-			MudFlats = "The Mud Flats", TidalIsland = "The Tidal Island", FloodedDepths = "The Flooded Depths", AncientPyramid = "The Ancient Pyramid";
+			MudFlats = "The Mud Flats", TidalIsland = "The Tidal Island", FloodedDepths = "The Flooded Depths", AncientPyramid = "The Ancient Pyramid",
+			PrisonersGate = "Prisoner's Gate";
 
 		/// <summary>Each act's town, as WorldArea names it with its act (several share a name).</summary>
 		public static string TownOf(int act) => act switch {
@@ -115,6 +116,11 @@ namespace AtE {
 			// "Kill the Dweller of the Deep": he is in The Flooded Depths (the quest tracker says to travel there first)
 			quests.Handlers.Add(new QuestHandler("The Dweller of the Deep", new Sequence("The Dweller of the Deep",
 				new Orbit("the Dweller of the Deep", IsDweller, main) { Where = FloodedDepths })));
+			// "Follow the Emperor's Road": walk to within 50 cells of Prisoner's Gate's Beach/Transitions/beach_passageblock tile
+			quests.Handlers.Add(new QuestHandler("The Way Forward", new Sequence("The Way Forward: the Emperor's Road",
+				new ApproachTiles("the Emperor's Road", "/beach_passageblock") { Where = PrisonersGate, Reach = 90 })) {
+				Active = step => step != null && step.IndexOf("Follow the Emperor's Road", StringComparison.OrdinalIgnoreCase) >= 0,
+			});
 
 			return new Sequence("Complete Act 1",
 				new Sequence("Exit The Twilight Strand",

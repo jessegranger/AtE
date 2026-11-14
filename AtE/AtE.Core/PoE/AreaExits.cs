@@ -29,7 +29,10 @@ namespace AtE {
 	///  - when an AreaTransition entity comes into network range (exact position and destination)
 	/// </summary>
 	public class AreaExit : AreaFeature {
-		/// <summary>The label on the door, eg "The Mud Flats"; null until the entity has been seen.</summary>
+		/// <summary>
+		/// The label on the door, eg "The Mud Flats"; null until the entity has been seen, unless the tile names it (see
+		/// AreaExits.KnownExitTiles).
+		/// </summary>
 		public string Destination;
 
 		/// <summary>The area on the other side, if the destination is known and is a neighbor of the current area.</summary>
@@ -42,13 +45,43 @@ namespace AtE {
 	public static class AreaExits {
 
 		/// <summary>
-		/// Tiles whose path has one of these is an exit too, though not a "transition" .tdt: 3.29.4, The Climb's way to
-		/// The Lower Prison is "Metadata/Terrain/Beach/Special/beach_prisonback.tdt" (found with the memory server's /tiles).
+		/// Tiles whose path has one of these is an exit too, though not a "transition" .tdt (found with the memory server's
+		/// /tiles, 3.29.4):
+		///  - The Climb's way to The Lower Prison: "Metadata/Terrain/Beach/Special/beach_prisonback.tdt"
+		///  - The Upper Prison (Metadata/Terrain/Prison/Features/...): prison_entrance_down (stairs down; one is a way
+		///    between the area's levels, labelled "The Upper Prison"), prison_exit_up, prison_door_up (and the quest-blocked
+		///    shavronne_prison_door_up), prison_boss_exit (beside Brutus's cell)
+		///  - Prisoner's Gate's way to The Ship Graveyard: ".../Beach/Transitions/ShipgraveyardPassageway/..."
+		/// Some may lead to another level of the same area: walking there names them, and the right one is taken.
 		/// </summary>
-		public static readonly string[] OtherExitTiles = { "/beach_prisonback" };
+		public static readonly string[] OtherExitTiles = {
+			"/beach_prisonback",
+			"/prison_entrance_down", "/prison_exit_up", "prison_door_up", "/prison_boss_exit",
+			"/ShipgraveyardPassageway/",
+		};
+
+		/// <summary>
+		/// "Transition" tiles that are not exits (ground between two kinds of terrain): Prisoner's Gate's
+		/// Beach/Transitions/beach_passageblock and Beach/Transitions/BeachToSwamp/ tiles.
+		/// </summary>
+		public static readonly string[] NotExitTiles = { "/beach_passageblock", "/BeachToSwamp/" };
+
+		/// <summary>
+		/// Exit tiles whose destination is known from the tile alone (a part of the .tdt path, without the version
+		/// numbers, so it lasts through updates): the exit is named from the start, before its entity is in range.
+		/// </summary>
+		public static readonly (string tile, string destination)[] KnownExitTiles = {
+			("ShipgraveyardPassageway/shipgraveyard_passageway", "The Ship Graveyard"), // Prisoner's Gate (3.29.4)
+		};
+
+		/// <summary>The destination a tile names (see KnownExitTiles), or null.</summary>
+		public static string KnownDestination(string tilePath) => tilePath == null ? null
+			: KnownExitTiles.FirstOrDefault(k => tilePath.IndexOf(k.tile, StringComparison.OrdinalIgnoreCase) >= 0).destination;
 
 		public static bool IsTransitionTile(string tilePath) =>
-			tilePath != null && (tilePath.IndexOf("transition", StringComparison.OrdinalIgnoreCase) >= 0
+			tilePath != null
+			&& !NotExitTiles.Any(t => tilePath.IndexOf(t, StringComparison.OrdinalIgnoreCase) >= 0)
+			&& (tilePath.IndexOf("transition", StringComparison.OrdinalIgnoreCase) >= 0
 				|| OtherExitTiles.Any(t => tilePath.IndexOf(t, StringComparison.OrdinalIgnoreCase) >= 0));
 
 		/// <summary>
@@ -61,7 +94,11 @@ namespace AtE {
 		/// <summary>
 		/// Find exit candidates from the area's tiles: each connected group of tiles cut from the same "transition" .tdt.
 		/// </summary>
-		public static List<AreaExit> FromTiles(Offsets.TerrainData data, Terrain terrain) => FromTiles<AreaExit>(data, terrain, IsTransitionTile);
+		public static List<AreaExit> FromTiles(Offsets.TerrainData data, Terrain terrain) {
+			var exits = FromTiles<AreaExit>(data, terrain, IsTransitionTile);
+			foreach ( var e in exits ) e.Destination ??= KnownDestination(e.TileFile);
+			return exits;
+		}
 
 		/// <summary>
 		/// Find features from the area's tiles: each connected group of tiles cut from the same .tdt, whose path is wanted.

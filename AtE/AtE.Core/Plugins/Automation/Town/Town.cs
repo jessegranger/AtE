@@ -128,11 +128,19 @@ namespace AtE {
 		public static string QuestStep(string name) => FindQuest(name)?.GetChild(1)?.GetChild(0)?.GetChild(1)?.Text?.Trim();
 
 		private static readonly Regex RewardStep = new Regex("^Talk to (.+) for your reward$", RegexOptions.IgnoreCase);
+		// (a reward talked about but not taken: the step becomes just "Talk to Nessa", and her "Merveil Reward" option
+		// opens the reward window again)
+		private static readonly Regex TalkStep = new Regex("^Talk to ([^,.]+)$", RegexOptions.IgnoreCase);
 
-		/// <summary>The NPC who has the reward for the quest called name, if its step is "Talk to [NPC] for your reward"; else null.</summary>
+		/// <summary>
+		/// The NPC who has the reward for the quest called name, if its step is "Talk to [NPC] for your reward", or just
+		/// "Talk to [NPC]" (eg, after the reward window was closed without taking one); else null.
+		/// </summary>
 		public static string RewardNpc(string quest) {
-			var m = RewardStep.Match(QuestStep(quest) ?? "");
-			return m.Success ? m.Groups[1].Value : null;
+			string step = QuestStep(quest) ?? "";
+			var m = RewardStep.Match(step);
+			if ( !m.Success ) m = TalkStep.Match(step);
+			return m.Success ? m.Groups[1].Value.Trim() : null;
 		}
 
 		/// <summary>The names of the rewards in the open quest reward window, for status lines.</summary>

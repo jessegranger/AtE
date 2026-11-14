@@ -517,9 +517,28 @@ namespace AtE {
 		private readonly EnterArea toTown;
 		private readonly Dictionary<string, EnterArea> travels = new Dictionary<string, EnterArea>(StringComparer.OrdinalIgnoreCase);
 
-		/// <summary>The area a step "Travel to X" names, or null.</summary>
-		public static string TravelTarget(string step) =>
-			step != null && step.StartsWith("Travel to ", StringComparison.OrdinalIgnoreCase) ? step.Substring("Travel to ".Length).Trim().TrimEnd('.') : null;
+		/// <summary>
+		/// Where a quest's "Travel to X" step really means, when X is not the area's name: (quest, X) to the area.
+		/// The Siren's Cadence: "Travel to Merveil's Caverns" (the waypoint's name) is The Cavern of Anger.
+		/// </summary>
+		public static readonly Dictionary<(string quest, string place), string> TravelAliases =
+			new Dictionary<(string quest, string place), string>() {
+				{ ("The Siren's Cadence", "Merveil's Caverns"), "The Cavern of Anger" },
+			};
+
+		/// <summary>The area a step "Travel to X" of quest (the tracker's name, may be null) names, or null.</summary>
+		public static string TravelTarget(string step, string quest = null) {
+			if ( step == null || !step.StartsWith("Travel to ", StringComparison.OrdinalIgnoreCase) ) return null;
+			string place = step.Substring("Travel to ".Length).Trim().TrimEnd('.');
+			if ( quest != null ) {
+				string bare = quest.EndsWith(" (Optional)", StringComparison.OrdinalIgnoreCase) ? quest.Substring(0, quest.Length - " (Optional)".Length) : quest;
+				foreach ( var kv in TravelAliases ) {
+					if ( string.Equals(kv.Key.quest, bare, StringComparison.OrdinalIgnoreCase)
+						&& string.Equals(kv.Key.place, place, StringComparison.OrdinalIgnoreCase) ) return kv.Value;
+				}
+			}
+			return place;
+		}
 
 		/// <summary>Is the area called name this act's town (its name, without the act)?</summary>
 		public bool IsTown(string name) => name != null && TownName != null
@@ -554,7 +573,7 @@ namespace AtE {
 		public string NextFor(string quest) {
 			var step = Town.QuestStep(quest);
 			if ( Town.RewardNpc(quest) is string npc ) return $"talk to {npc} in {TownName} for the reward";
-			if ( TravelTarget(step) is string area ) return IsTown(area) ? $"go to {TownName}, and talk to the NPCs with something to say" : $"go to {area}";
+			if ( TravelTarget(step, quest) is string area ) return IsTown(area) ? $"go to {TownName}, and talk to the NPCs with something to say" : $"go to {area}";
 			var h = Handlers.FirstOrDefault(x => x.IsFor(quest));
 			if ( h == null ) return "nothing: no goals known for it yet";
 			if ( !h.Active(step) ) return $"nothing at this step ({h.Goal.Name} does other steps)";
@@ -571,8 +590,17 @@ namespace AtE {
 				if ( !rewards.IsDone(ctx) ) return rewards;
 				foreach ( var g in Upkeep ) if ( !g.IsDone(ctx) ) return g;
 			}
-			if ( quests.Any(q => Town.RewardNpc(q) != null) ) return rewards;
-			foreach ( var area in quests.Select(q => TravelTarget(Town.QuestStep(q))).Where(a => a != null) ) {
+			if ( quests.Any(q => Town.RewardNpc(q) != null) && !rewards.IsDone(ctx) ) return rewards; // (a reward given up on is passed by)
+			// a quest's own goal to do here, in the area the player is in (eg, The Way Forward in Prisoner's Gate), before
+			// traveling elsewhere for another quest's "Travel to X"
+			var here = GetCurrentArea();
+			foreach ( var h in Handlers ) {
+				var quest = quests.FirstOrDefault(h.IsFor);
+				if ( quest == null || !h.Active(Town.QuestStep(quest)) ) continue;
+				var next = h.Goal is Sequence s ? s.Select(ctx) : (h.Goal.IsDone(ctx) ? null : h.Goal);
+				if ( next?.Where != null && GoToArea.Is(here, next.Where) ) return h.Goal;
+			}
+			foreach ( var area in quests.Select(q => TravelTarget(Town.QuestStep(q), q)).Where(a => a != null) ) {
 				if ( IsTown(area) ) { if ( !inTown ) return toTown; }
 				else if ( !GoToArea.Is(GetCurrentArea(), area) ) return TravelGoal(area);
 			}
