@@ -25,6 +25,7 @@ namespace AtE {
 		public bool ShowSpectreSpells = false;
 		public bool ShowMinionHealth = false;
 		public bool DebugUnknownMinions = false;
+		public bool DebugNpcOptions = false;
 
 		private struct MinionSkillDesc {
 			public string PathPrefix;
@@ -121,6 +122,7 @@ namespace AtE {
 			ImGui.Text("Click Delay (ms)");
 			ImGui.SameLine();
 			ImGui.SliderInt("##DismissDelay", ref ClickDelayMilliseconds, 10, 1000);
+			ImGui.Checkbox("Debug Npc Options", ref DebugNpcOptions);
 			ImGui.Unindent();
 
 			ImGui.Checkbox("Show Minion Summary", ref ShowMinionStats);
@@ -189,14 +191,6 @@ namespace AtE {
 			if( life.MaxMana > 0 ) {
 				float pctMana = life.CurMana / (float)life.MaxMana;
 				ProgressBar(pctMana, "", new Vector2(100, 3), Color.Transparent, manaColor, Color.White);
-			}
-		}
-
-		private void ClickElement(Element elem) {
-			long now = Time.ElapsedMilliseconds;
-			if( (now - lastClick) > ClickDelayMilliseconds ) {
-				lastClick = now;
-				Run(new LeftClickAt(elem.GetClientRect(), 30, 1));
 			}
 		}
 
@@ -379,17 +373,26 @@ namespace AtE {
 
 			if ( DismissStoryText && !( PoEMemory.GameRoot?.InGameState.IsPaused ?? true ) ) {
 				var dialog = ui.NpcOptions;
-				
-				/*
-				ImGui.Begin("Debug NpcOptions");
-				if( IsValid(dialog) ) {
-					DebugElement(ui.NpcOptions, "ui.NpcOptions");
-				} else {
-					ImGui.Text("Not valid");
+
+				if ( DebugNpcOptions ) {
+					ImGui.Begin("Debug NpcOptions");
+					if ( IsValid(dialog) ) {
+						DebugElement(ui.NpcOptions, "ui.NpcOptions");
+					} else {
+						ImGui.Text("Not valid");
+					}
+					ImGui.End();
 				}
-				ImGui.End();
-				*/
 				if ( IsValid(dialog) && dialog.IsVisibleLocal ) {
+					string text;
+					foreach(var elem in UiSearch.Visible(dialog)) {
+						if (((text = elem.Text)?.Equals("Continue") ?? false) 
+							|| (text?.StartsWith("Sail to") ?? false)) {
+							return new LeftClickAt(elem.GetClientRect(), 30, 1, new Delay((uint)ClickDelayMilliseconds, this));
+						}
+					}
+
+					/*
 					var continueOption = dialog.GetChild(1, 2, 0, 2, 2, 0);
 					string text;
 					if ( IsValid(continueOption)
@@ -401,30 +404,7 @@ namespace AtE {
 						ClickElement(continueOption);
 						return new Delay((uint)ClickDelayMilliseconds, this);
 					}
-				}
-				dialog = ui.NpcDialog;
-				/*
-				ImGui.Begin("Debug LeagueNpcDialog");
-				if( IsValid(dialog) ) {
-					DebugElement(ui.NpcDialog, "ui.NpcDialog");
-				} else {
-					ImGui.Text("Not valid");
-				}
-				ImGui.End();
-				*/
-				if ( IsValid(dialog) && (dialog?.IsVisibleLocal ?? false) ) {
-					var options = dialog.GetChild(1)?.GetChild(2) ?? null;
-					if ( options != null ) {
-						foreach ( var child in options.Children ) {
-							var textChild = child?.GetChild(0);
-							string text = textChild?.Text;
-							if ( (text?.Equals("Continue") ?? false)
-								|| (text?.StartsWith("Sail to") ?? false) ) {
-								ClickElement(textChild);
-								return new Delay((uint)ClickDelayMilliseconds, this);
-							}
-						}
-					}
+					*/
 				}
 			}
 			
