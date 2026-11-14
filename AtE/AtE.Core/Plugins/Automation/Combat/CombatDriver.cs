@@ -265,10 +265,18 @@ namespace AtE {
 			return IsValid(window) && window.IsVisible;
 		}
 
+		// the visible direct children of e (eg, the cards in the augury card selection window)
+		private static List<Element> VisibleChildren(Element e) =>
+			e?.Children?.Where(c => IsValid(c) && c.IsVisible).ToList() ?? new List<Element>();
+
 		/// <summary>
-		/// While the augury card selection window is open (opened by clicking a frozen augury boss, see ClickMonster):
-		/// click each visible card (the direct children of its GetChild(2, 6, 0)) once, to apply them to the boss, then
-		/// click Confirm (GetChild(2, 9)), again every AuguryConfirmRetryMs until the window closes. True while it is open.
+		/// While the augury card selection window is open, either:
+		///  - opened by clicking a frozen augury boss (see ClickMonster): click each visible card (the direct children of
+		///    its GetChild(2, 6, 0)) once, to apply them to the boss, then click Confirm (GetChild(2, 9));
+		///  - opened by "Select a Fate" on an AuguryCardObject (see TrySelectFate; or, if not opened that way, when
+		///    GetChild(2, 6, 0) shows no cards but GetChild(2, 5, 0) does): click one of the visible cards (the direct
+		///    children of GetChild(2, 5, 0); see ChooseFateCard), then click Confirm (GetChild(2, 9, 1)).
+		/// Confirm is clicked again every AuguryConfirmRetryMs until the window closes. True while it is open.
 		/// Called first thing in Decide (so a driver that TakesInput gets the clicks into its chain), even while the game
 		/// is paused, which it is while the window is open (see OnTick).
 		/// </summary>
@@ -277,11 +285,14 @@ namespace AtE {
 			if ( !IsValid(window) || !window.IsVisible ) {
 				auguryCardsClicked.Clear();
 				lastAuguryConfirm = 0;
+				if ( Time.ElapsedMilliseconds - lastFateClick > FateOpenMs ) selectingFate = false;
 				return false;
 			}
 			StopWalking("the augury card selection window is open");
 			long now = Time.ElapsedMilliseconds;
-			var cards = window.GetChild(2, 6, 0)?.Children?.Where(c => IsValid(c) && c.IsVisible).ToList() ?? new List<Element>();
+			var bossCards = VisibleChildren(window.GetChild(2, 6, 0));
+			if ( selectingFate || (bossCards.Count == 0 && VisibleChildren(window.GetChild(2, 5, 0)).Count > 0) ) return TrySelectFateCard(window, now);
+			var cards = bossCards;
 			var card = cards.FirstOrDefault(c => !auguryCardsClicked.Contains(c.Address.ToInt64()));
 			if ( card != null ) {
 				Status = $"augury: applying card {auguryCardsClicked.Count + 1} of {cards.Count}";
@@ -306,6 +317,120 @@ namespace AtE {
 			if ( Send(Inputs.Click(at)) ) {
 				lastAuguryClick = lastAuguryConfirm = now;
 				Log($"{Name}: augury Confirm clicked ({auguryCardsClicked.Count} cards)");
+			}
+			return true;
+		}
+
+		/// <summary>
+		/// The reward texts of a fate card (a visible child of the window's GetChild(2, 5, 0)): the tooltip of each of its
+		/// reward slots, at GetChild(0, 0, 8, 0, i, 3) (hidden until hovered; eg, "Empowered Monster will drop additional
+		/// Rare Ranged Weapons or Quivers"). The slot's icon (a rectangle of Augury/2.dds, at the slot's +0x230*+0x8*) says
+		/// the same, less exactly. Only the visible slots (one per reward; three in all).
+		/// </summary>
+		public static IEnumerable<string> FateRewards(Element card) =>
+			VisibleChildren(card?.GetChild(0, 0, 8, 0))
+				.Select(slot => slot.GetChild(3)?.Text?.Trim())
+				.Where(t => !string.IsNullOrEmpty(t));
+
+		/// <summary>The fate card to choose: the first whose rewards mention "Currency", else the first.</summary>
+		public static Element ChooseFateCard(List<Element> cards) =>
+			cards.FirstOrDefault(c => FateRewards(c).Any(t => t.IndexOf("Currency", StringComparison.OrdinalIgnoreCase) >= 0))
+			?? cards.FirstOrDefault();
+
+		// "Select a Fate": a card under GetChild(2, 5, 0) (see ChooseFateCard), once, then Confirm at GetChild(2, 9, 1)
+		private bool TrySelectFateCard(Element window, long now) {
+			if ( auguryCardsClicked.Count == 0 ) {
+				var card = ChooseFateCard(VisibleChildren(window.GetChild(2, 5, 0)));
+				Status = "augury: selecting a fate";
+				if ( card == null ) { Status = "augury: no fate cards at GetChild(2, 5, 0)"; return true; }
+				if ( InputBusy || now - lastAuguryClick < AuguryClickMs ) return true;
+				var rect = card.GetClientRect();
+				if ( rect.Width <= 0 || rect.Height <= 0 ) { Status = "augury: the first fate card has no size"; return true; }
+				DefaultFollower.ReleaseMouse();
+				if ( Send(Inputs.Click(rect)) ) {
+					auguryCardsClicked.Add(card.Address.ToInt64());
+					lastAuguryClick = now;
+					Log($"{Name}: augury fate chosen: {card.GetChild(0, 0, 4)?.Text?.Trim()} ({string.Join("; ", FateRewards(card))})");
+				}
+				return true;
+			}
+			// (GetChild(2, 9) is the button, IsButton; its GetChild(2, 9, 1), the same size, is hidden (a highlight?), and
+			// GetChild(2, 9, 0) its text "confirm")
+			var confirm = window.GetChild(2, 9, 1);
+			if ( !IsValid(confirm) || !confirm.IsVisible ) confirm = window.GetChild(2, 9);
+			Status = "augury: fate selected, confirming";
+			if ( !IsValid(confirm) || !confirm.IsVisible ) { Status = "augury: no Confirm button at GetChild(2, 9)"; return true; }
+			if ( InputBusy || now - lastAuguryClick < AuguryClickMs || now - lastAuguryConfirm < AuguryConfirmRetryMs ) return true;
+			var at = confirm.GetClientRect();
+			if ( at.Width <= 0 || at.Height <= 0 ) return true;
+			DefaultFollower.ReleaseMouse();
+			if ( Send(Inputs.Click(at)) ) {
+				lastAuguryClick = lastAuguryConfirm = now;
+				Log($"{Name}: augury fate Confirm clicked");
+			}
+			return true;
+		}
+
+		public const string PATH_AUGURY_CARD_OBJECT = "Metadata/Terrain/Leagues/Augury/Objects/AuguryCardObject";
+		/// <summary>How near (in cells) to be to an AuguryCardObject to click its "Select a Fate" (see TrySelectFate).</summary>
+		public float FateReach = 15;
+		/// <summary>How often to click an AuguryCardObject until its window opens.</summary>
+		public long FateClickMs = 1000;
+		/// <summary>How long after clicking an AuguryCardObject its window counts as opened by that click.</summary>
+		public long FateOpenMs = 3000;
+		/// <summary>Clicks on one AuguryCardObject without its window opening before it is given up on.</summary>
+		public int FateMaxClicks = 5;
+		private bool selectingFate;
+		private long lastFateClick;
+		private uint fateArea;
+		private readonly Dictionary<uint, int> fateClicks = new Dictionary<uint, int>(); // entity id: clicks, in this area instance
+
+		/// <summary>Is e an AuguryCardObject whose fate has not been selected yet (its StateMachine's card_chosen is 0)?</summary>
+		public static bool IsUnusedAuguryCard(Entity e) => IsValid(e) && e.Path == PATH_AUGURY_CARD_OBJECT
+			&& (e.GetComponent<StateMachine>()?.TryGetState("card_chosen", out long chosen) ?? false) && chosen == 0
+			&& (e.GetComponent<Targetable>()?.IsTargetable ?? true);
+
+		/// <summary>
+		/// "Select a Fate" from an unused AuguryCardObject in range (see IsUnusedAuguryCard): walk within FateReach of it,
+		/// then click it (its "Select a Fate" label) every FateClickMs, until its augury card selection window opens (then
+		/// TryAugury selects the fate). Not with monsters within AttackRange (fight them first), nor while the window is
+		/// open. One clicked FateMaxClicks times without the window opening is given up on. True while doing so.
+		/// </summary>
+		public bool TrySelectFate(CombatContext ctx) {
+			if ( AuguryIsOpen() || BackpackIsOpen() ) return false;
+			uint area = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
+			if ( area != fateArea ) { fateArea = area; fateClicks.Clear(); }
+			if ( ctx.Hostiles.Any(h => h.Distance <= AttackRange) ) return false;
+			var card = GetEntities()?
+				.Where(e => IsUnusedAuguryCard(e) && (!fateClicks.TryGetValue(e.Id, out int n) || n < FateMaxClicks))
+				.Select(e => (e, pos: e.GetComponent<Positioned>()))
+				.Where(x => IsValid(x.pos))
+				.OrderBy(x => Combat.Distance(ctx.Grid, x.pos.GridPos))
+				.FirstOrDefault() ?? default;
+			if ( card.e == null ) return false;
+			var grid = card.pos.GridPos;
+			float d = Combat.Distance(ctx.Grid, grid);
+			if ( d > FateReach ) {
+				var spot = DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, grid, out var s) ? s : grid;
+				if ( Combat.Distance(ctx.Grid, spot) > 3 ) {
+					WalkTo(spot, $"walking to an augury card object to select a fate, {d:F0} cells away");
+					return true;
+				}
+			}
+			StopWalking("selecting a fate");
+			Status = "clicking \"Select a Fate\"";
+			if ( InputBusy || binding || Time.ElapsedMilliseconds - lastFateClick < FateClickMs ) return true;
+			var click = Ground.ClickEntity(card.e);
+			if ( click == null ) {
+				WalkTo(grid, "walking to an augury card object (can't click it from here)");
+				return true;
+			}
+			DefaultFollower.ReleaseMouse();
+			if ( Send(click) ) {
+				lastFateClick = Time.ElapsedMilliseconds;
+				selectingFate = true;
+				fateClicks[card.e.Id] = fateClicks.TryGetValue(card.e.Id, out int clicks) ? clicks + 1 : 1;
+				Log($"{Name}: clicked \"Select a Fate\" on the augury card object {card.e.Id} (click {fateClicks[card.e.Id]})");
 			}
 			return true;
 		}

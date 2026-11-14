@@ -269,7 +269,7 @@ namespace AtE {
 			var goal = CurrentGoal;
 			if ( goal == null ) {
 				// all done: what a combat driver does
-				if ( !TryLoot(ctx) ) base.Decide(ctx);
+				if ( !TryLoot(ctx) && !TrySelectFate(ctx) ) base.Decide(ctx);
 				return;
 			}
 			SetStatus(goal.Name);
@@ -283,6 +283,8 @@ namespace AtE {
 				return;
 			}
 			if ( !goal.UsesInventory && !goal.IgnoreMonsters && TryLoot(ctx) ) return;
+			// an AuguryCardObject's "Select a Fate" (its window is worked on by TryAugury, above)
+			if ( !goal.UsesInventory && !goal.IgnoreMonsters && TrySelectFate(ctx) ) { SetStatus($"{goal.Name}: {Status}"); return; }
 			if ( !Runner.Tick(ctx, FrameDt) ) lastSelect = 0; // the goal handed back (done): choose again next frame
 			var top = Runner.Stack().OfType<CampaignState>().FirstOrDefault();
 			if ( top != null && top != goal ) SetStatus($"{goal.Name}: {top}");
