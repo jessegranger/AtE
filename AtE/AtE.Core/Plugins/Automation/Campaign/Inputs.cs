@@ -61,6 +61,15 @@ namespace AtE {
 		/// </summary>
 		public static IState UseSlot(SkillSlot slot, Vector2 client, uint holdMs, IState next = null) {
 			if ( slot == null || slot.Key == VKey.None ) return next;
+			return new MoveMouse(Screen(client), UseSlotHere(slot, holdMs, next));
+		}
+
+		/// <summary>
+		/// Use a skill slot where the cursor is, without moving it (eg, an instant self-cast like Righteous Fire): hold the
+		/// slot's modifiers, click its mouse button or press its key (held holdMs), and let the modifiers go.
+		/// </summary>
+		public static IState UseSlotHere(SkillSlot slot, uint holdMs, IState next = null) {
+			if ( slot == null || slot.Key == VKey.None ) return next;
 			var mods = new List<VKey>();
 			if ( (slot.Key & VKey.Control) != 0 ) mods.Add(VKey.ControlKey);
 			if ( (slot.Key & VKey.Shift) != 0 ) mods.Add(VKey.ShiftKey);
@@ -74,7 +83,7 @@ namespace AtE {
 			else if ( button.HasValue ) chain = new MouseButtonPress(button.Value, holdMs, chain);
 			else chain = new KeyDown(slot.KeyCode, new Delay(holdMs, new KeyUp(slot.KeyCode, chain)));
 			foreach ( var m in mods ) chain = new KeyDown(m, new Delay(Latency, chain));
-			return new MoveMouse(Screen(client), chain);
+			return chain;
 		}
 
 		// another mouse button (eg, middle), down then up holdMs later
