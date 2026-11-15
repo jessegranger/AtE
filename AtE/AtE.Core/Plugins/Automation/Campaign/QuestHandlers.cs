@@ -232,6 +232,8 @@ namespace AtE {
 			};
 		}
 		private const string CraftingRecipe = "Crafting Recipe";
+		/// <summary>How long Piety must be gone (or not targetable) after the fight in The Crematorium to count as teleported away.</summary>
+		private const long PietyGoneMs = 3000;
 
 		/// <summary>The Vaal Oversoul (Metadata/Monsters/IncaShadowBoss/..., not its spawner, the Dark Altar).</summary>
 		private static bool IsVaalOversoul(Entity e) => e?.Path is string path && path.StartsWith("Metadata/Monsters/")
@@ -387,7 +389,77 @@ namespace AtE {
 		}
 
 		private void Act3Quests(FinishAllQuests quests) {
-			quests.Handlers.Add(Stub("Lost in Love"));
+			Func<string> main = BuildPlan.MainSkill;
+			// The City of Sarn's way to town: the exit on the RuinedCity/AreaTransitions/act3_docks_to_town_lower tile (3.29.4)
+			// (done in town, or in any of later, the areas past it)
+			Goal ToSarnEncampment(params string[] later) => new TakeTransition(SarnEncampment) { Where = CityOfSarn, SearchAt = Search.Exit(SarnEncampment, "/act3_docks_to_town_lower"),
+				DoneWhen = () => InAny(TownOf(3)) || InAny(later) };
+			// Seeing Clarissa in The City of Sarn gives it (before Shadow of the Vaal's step there: it comes first). "Defeat the
+			// guard and rescue the girl": kill the Guard Captain (Metadata/Monsters/Axis/GuardLieutenantClarissa, a unique,
+			// with Guards around him, by Clarissa: seen live, 3.29.4, at <564, 1298>, Clarissa, Metadata/NPC/Act3/ClarissaSlums,
+			// at <560, 1278>), then talk to her once she can be targeted.
+			// "Find Tolman in the Crematorium": on to town, from town to The Slums, from The Slums through the exit to The
+			// Crematorium (on the AreaTransitions/act3_prison_entrance tile). There, toward the Terrain/quest_marker tile until
+			// Piety (Axis/PietyEscape) shows; wait for her to be targetable, and fight her (Orbit) until she teleports away
+			// (gone, or not targetable any more, for a few seconds). Then click "Tolman", pick up Tolman's Bracelet, and collect
+			// a Crafting Recipe if one shows near.
+			// "Travel to the Sarn Encampment" (once the Crematorium's goals are done): a trip (by a Portal Scroll, see
+			// FinishAllQuests). "Talk to Clarissa" (she gives the Sewer Keys) and "Talk to Maramoa for your reward" (a gem):
+			// talks in town (see TakeQuestRewards).
+			// TODO: confirm live (not seen yet): the exits' labels, Piety's teleport, Tolman's label, the Sewer Keys as a reward
+			const string love = "Lost in Love";
+			bool rescueStep() => StepOf(love)?.StartsWith("Defeat the guard", StringComparison.OrdinalIgnoreCase) ?? false;
+			bool tolmanStep() => StepOf(love)?.StartsWith("Find Tolman", StringComparison.OrdinalIgnoreCase) ?? false;
+			bool isPiety(Entity e) => e?.Path?.IndexOf("Axis/PietyEscape", StringComparison.OrdinalIgnoreCase) >= 0;
+			// Piety gone: seen targetable (fought), then not there or not targetable for PietyGoneMs (latched)
+			bool pietyFought = false, pietyGone = false;
+			long pietyLostAt = 0;
+			bool PietyGone() {
+				if ( pietyGone ) return true;
+				var piety = GetEntities()?.FirstOrDefault(e => e != null && isPiety(e));
+				bool targetable = piety != null && IsAlive(piety) && (piety.GetComponent<Targetable>()?.IsTargetable ?? false);
+				if ( targetable ) { pietyFought = true; pietyLostAt = 0; return false; }
+				// (after a restart past the fight: Tolman's label shows, and no Piety in range)
+				bool tolman = GetUI()?.LabelsOnGround?.GetAllLabels()?.Any(l => string.Equals(Ground.LabelText(l.Label)?.Trim(), "Tolman", StringComparison.OrdinalIgnoreCase)) ?? false;
+				if ( !pietyFought && !(tolman && piety == null) ) return false;
+				if ( pietyLostAt == 0 ) pietyLostAt = Time.ElapsedMilliseconds;
+				if ( Time.ElapsedMilliseconds - pietyLostAt < PietyGoneMs ) return false;
+				Log($"Campaign: {love}: Piety is gone ({(pietyFought ? "after the fight" : "not in range, and Tolman's label shows")})");
+				return pietyGone = true;
+			}
+			var questMarker = Search.Tile("/quest_marker");
+			var recipe = new PickUp(CraftingRecipe) { Where = Crematorium, SearchAt = questMarker, DoneWhen = NoLabelFor(CraftingRecipe, 5000) };
+			var clarissaNpc = TalkTo.NpcNamed("Clarissa");
+			bool clarissa(Entity e) => clarissaNpc(e) && (e.GetComponent<Targetable>()?.IsTargetable ?? false);
+			bool clarissaFree() => GetEntities()?.Any(e => e != null && clarissa(e)) ?? false;
+			bool isCaptain(Entity e) => e?.Path?.StartsWith("Metadata/Monsters/Axis/GuardLieutenantClarissa", StringComparison.OrdinalIgnoreCase) ?? false;
+			// (look for him by her, if she is in range)
+			Offsets.Vector2i? byClarissa(CombatContext ctx) => GetEntities()?.FirstOrDefault(e => e != null && clarissaNpc(e))?.GetComponent<Positioned>()?.GridPos;
+			quests.Handlers.Add(new QuestHandler(love, new Sequence(love,
+				new Orbit("the Guard Captain", isCaptain, main) { Where = CityOfSarn, SearchAt = byClarissa, DoneWhen = () => !rescueStep() || clarissaFree() },
+				new TalkTo("Clarissa", clarissa) { Where = CityOfSarn, SearchAt = byClarissa, DoneWhen = () => !rescueStep() },
+				ToSarnEncampment(Slums, Crematorium),
+				new EnterArea(Slums) { Where = TownOf(3), DoneWhen = () => InAny(Slums, Crematorium) },
+				new TakeTransition(Crematorium) { Where = Slums, SearchAt = Search.Exit(Crematorium, "/act3_prison_entrance"), DoneWhen = () => InAny(Crematorium) },
+				new Orbit("Piety", isPiety, main) { Where = Crematorium, SearchAt = questMarker, DoneWhen = () => PietyGone() || !tolmanStep() },
+				new Activate("Tolman") { Where = Crematorium, SearchAt = questMarker, DoneWhen = () => !tolmanStep() },
+				new PickUpQuestItem("Tolman's Bracelet") { Where = Crematorium },
+				recipe)) {
+				Active = step => step != null && (
+					(InAny(CityOfSarn) && (step.StartsWith("Defeat the guard", StringComparison.OrdinalIgnoreCase) || step.StartsWith("Find Tolman", StringComparison.OrdinalIgnoreCase)))
+					|| (InAny(TownOf(3), Slums) && step.StartsWith("Find Tolman", StringComparison.OrdinalIgnoreCase))
+					// (the step may move on to the trip to town before the bracelet and the recipe are had)
+					|| (InAny(Crematorium) && (step.StartsWith("Find Tolman", StringComparison.OrdinalIgnoreCase)
+						|| (step.StartsWith("Travel to ", StringComparison.OrdinalIgnoreCase) && !recipe.IsComplete)))),
+			});
+			// Act 2's Shadow of the Vaal, on in The City of Sarn: "Find the Sarn encampment". Collect a Crafting Recipe if one
+			// is in sight on the way (looking for a moment, toward the exit), then on to town.
+			const string vaal = "Shadow of the Vaal";
+			quests.Handlers.Add(new QuestHandler(vaal, new Sequence($"{vaal}: the Sarn encampment",
+				new PickUp(CraftingRecipe) { Where = CityOfSarn, SearchAt = Search.Exit(SarnEncampment, "/act3_docks_to_town_lower"), DoneWhen = NoLabelFor(CraftingRecipe, 5000) },
+				ToSarnEncampment())) {
+				Active = step => step != null && InAny(CityOfSarn) && step.StartsWith("Find the Sarn encampment", StringComparison.OrdinalIgnoreCase),
+			});
 			quests.Handlers.Add(Stub("Sever the Right Hand"));
 			quests.Handlers.Add(Stub("The Gemling Queen"));
 			quests.Handlers.Add(Stub("Victario's Secrets"));

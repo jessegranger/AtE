@@ -86,7 +86,7 @@ namespace AtE {
 			LowerPrison = "The Lower Prison", BrokenBridge = "The Broken Bridge", Wetlands = "The Wetlands", Den = "The Den",
 			ChamberOfSins2 = "The Chamber of Sins Level 2", WeaversChambers = "The Weaver's Chambers",
 			Crypt2 = "The Crypt Level 2", VaalRuins = "The Vaal Ruins", NorthernForest = "The Northern Forest", Caverns = "The Caverns",
-			CityOfSarn = "The City of Sarn";
+			CityOfSarn = "The City of Sarn", SarnEncampment = "The Sarn Encampment", Slums = "The Slums", Crematorium = "The Crematorium";
 
 		/// <summary>Each act's town, as WorldArea names it with its act (several share a name).</summary>
 		public static string TownOf(int act) => act switch {
@@ -99,7 +99,7 @@ namespace AtE {
 		private Sequence Campaign() => new Sequence("Complete the campaign",
 			new ReadCampaignProgress(),
 			new ReadGameKeys(), // (the inventory key, for TrySyncInventory; the Portal Scroll key)
-			new Sequence("Complete Part 1", Act1(), Act2(), Act(3), Act(4), Act(5)) { DoneWhen = () => CampaignProgress.Part1Done },
+			new Sequence("Complete Part 1", Act1(), Act2(), Act3(), Act(4), Act(5)) { DoneWhen = () => CampaignProgress.Part1Done },
 			new Sequence("Complete Part 2", Act(6), Act(7), Act(8), Act(9), Act(10)) { DoneWhen = () => CampaignProgress.CampaignDone }
 		) { DoneWhen = () => CampaignProgress.CampaignDone };
 
@@ -162,6 +162,9 @@ namespace AtE {
 				new Sequence("Route to The City of Sarn", new Goal[] { new RouteTo(AncientPyramid) }.Concat(PyramidGoals(main)).ToArray())
 			) { DoneWhen = () => CampaignProgress.ActDone(2) };
 		}
+
+		// Act 3: its quests (the ones written so far), then the rest, not written yet
+		private Sequence Act3() => new Sequence("Complete Act 3", Quests(3), new NotSpecified("the rest of Act 3")) { DoneWhen = () => CampaignProgress.ActDone(3) };
 
 		private static bool IsHailrake(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/")
 			&& string.Equals(e.GetComponent<Render>()?.Name, "Hailrake", StringComparison.OrdinalIgnoreCase);

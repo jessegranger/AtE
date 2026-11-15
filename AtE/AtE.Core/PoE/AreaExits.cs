@@ -140,6 +140,10 @@ namespace AtE {
 			("Forest/Transitions/waterfall_cave_entrance", "The Caverns", "The Northern Forest"),
 			("Dungeon/Stairs/dungeon_stairs_up", "The Ancient Pyramid", "The Caverns"),
 			("Dungeon/Features/dungeon_huangdoor", "The City of Sarn", "The Ancient Pyramid"),
+			// The City of Sarn's way to town (3.29.4, from the user)
+			("RuinedCity/AreaTransitions/act3_docks_to_town_lower", "The Sarn Encampment", "The City of Sarn"),
+			// The Slums' way to The Crematorium (3.29.4, from the user)
+			("AreaTransitions/act3_prison_entrance", "The Crematorium", "The Slums"),
 		};
 
 		/// <summary>
