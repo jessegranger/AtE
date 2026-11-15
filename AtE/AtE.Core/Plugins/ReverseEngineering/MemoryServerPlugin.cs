@@ -1,4 +1,4 @@
-using ImGuiNET;
+﻿using ImGuiNET;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -433,14 +433,22 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 		private string TilesText(string filter) {
 			var terrain = GetTerrain();
 			if ( terrain == null || !terrain.IsLoaded ) return "(no terrain loaded)" + NL;
-			var sb = new StringBuilder($"area {GetCurrentArea()?.Name}, player at {GetPlayer()?.GetComponent<Positioned>()?.GridPos}" + NL);
-			foreach ( var e in terrain.Exits ) sb.Append($"exit: {e}  tile={e.TileFile}" + NL);
+			var playerPos = GetPlayer()?.GetComponent<Positioned>();
+			Offsets.Vector2i? here = IsValid(playerPos) ? playerPos.GridPos : (Offsets.Vector2i?)null;
+			// (the straight-line distance from the player, in grid cells)
+			float Dist(Offsets.Vector2i p) => here.HasValue ? Combat.Distance(here.Value, p) : float.NaN;
+			var sb = new StringBuilder($"area {GetCurrentArea()?.Name}, player at {(here.HasValue ? here.Value.ToString() : "?")}" + NL);
+			foreach ( var e in terrain.Exits.OrderBy(e => Dist(e.GridPos)) ) sb.Append($"exit: {e}  d={Dist(e.GridPos):F0}  tile={e.TileFile}" + NL);
 			var groups = terrain.AllTileGroups()
 				.Where(g => string.IsNullOrEmpty(filter) || (g.TileFile?.IndexOf(filter, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0)
 				.GroupBy(g => g.TileFile)
 				.OrderBy(g => g.Count());
 			foreach ( var file in groups ) {
-				sb.Append($"{file.Count(),4}  {file.Key}  at {string.Join(" ", file.Take(6).Select(g => g.GridPos))}{(file.Count() > 6 ? " ..." : "")}" + NL);
+				// (each group's nearest positions first)
+				var nearest = file.Select(g => g.GridPos).OrderBy(Dist).ToList();
+				// (count, then the distance to the nearest one)
+				string dist = here.HasValue ? $"{Dist(nearest[0]),6:F0}" : "     ?";
+				sb.Append($"{file.Count(),4}  {dist}  {file.Key}  at {string.Join(" ", nearest.Take(6))}{(file.Count() > 6 ? " ..." : "")}" + NL);
 			}
 			return sb.ToString();
 		}
