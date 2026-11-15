@@ -780,6 +780,7 @@ namespace AtE {
 			[FieldOffset(0x710)] public readonly IntPtr ItemsOnGroundLabelElement;
 			//[FieldOffset(0x628)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
 			[FieldOffset(0x790)] public readonly IntPtr RootBuffPanel;
+			[FieldOffset(0x798)] public readonly IntPtr HelpOrKillBandit;
 			[FieldOffset(0x7c0)] public readonly IntPtr NpcDialog;
 			[FieldOffset(0x7c8)] public readonly IntPtr NpcOptions;
 			// [FieldOffset(0x728)] public readonly IntPtr LeagueInteractButtonPanel;

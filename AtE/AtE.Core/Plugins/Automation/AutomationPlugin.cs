@@ -138,7 +138,27 @@ namespace AtE {
 			current?.Render();
 		}
 
+		// --campaign (see LaunchOptions): switch the Campaign on once, after the game has been ready for a moment
+		private bool launchStarted;
+		private long readySince = -1;
+		private void StartOnLaunch() {
+			if ( launchStarted || !LaunchOptions.Campaign ) return;
+			bool ready = PoEMemory.IsAttached && IsValid(GetPlayer()) && GetCurrentArea() != null
+				&& !(PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true);
+			if ( !ready ) { readySince = -1; return; }
+			if ( readySince < 0 ) readySince = Time.ElapsedMilliseconds;
+			if ( Time.ElapsedMilliseconds - readySince < 3000 ) return;
+			launchStarted = true;
+			var campaign = Routines.FirstOrDefault(r => r is CampaignRoutine);
+			if ( campaign == null ) return;
+			if ( Current != campaign ) { Current?.Stop("another routine was chosen"); Routine = campaign.Key; }
+			Log($"Combat: --campaign: switching the {campaign.Name} on");
+			if ( !PoEMemory.TargetHasFocus && !Platform.Current.Memory.TryFocusTarget() ) Log("Combat: --campaign: could not focus the game");
+			if ( !campaign.IsActive ) campaign.Start();
+		}
+
 		public override IState OnTick(long dt) {
+			StartOnLaunch();
 			var current = Current;
 			if ( current != null && ToggleKey.IsReleased && PoEMemory.IsAttached ) {
 				if ( current.IsActive ) current.Stop("switched off");

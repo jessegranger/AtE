@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -20,6 +20,94 @@ namespace AtE {
 	}
 
 	/// <summary>
+	/// Fights that go nowhere (eg, a Necromancer raising skeletons as fast as they die): a watched monster (by the start of
+	/// its path, see Rules) that stays within Radius cells of the player for StuckMs without dropping to low life
+	/// (LowLife of its life) has its kind ignored for IgnoreMs: every monster whose path starts with one of the rule's
+	/// prefixes (the Necromancer and its skeletons), so the player goes on past them. The list is cleared on area change.
+	/// </summary>
+	public static class Stalemates {
+		/// <summary>The monsters to watch (a path prefix), and the path prefixes to ignore when one stalls.</summary>
+		public static readonly List<(string watch, string[] ignore)> Rules = new List<(string, string[])> {
+			("Metadata/Monsters/Necromancer", new[] { "Metadata/Monsters/Necromancer/", "Metadata/Monsters/Skeletons/" }),
+		};
+		public static float Radius = 75;
+		public static long StuckMs = 30000;
+		public static float LowLife = .5f;
+		public static long IgnoreMs = 5 * 60000;
+		/// <summary>Out of Radius this long, a watched monster's time starts over.</summary>
+		public static long GapMs = 2000;
+
+		// path prefix -> ignored until
+		private static readonly Dictionary<string, long> ignored = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+		// watched monster (by address) -> (first seen near, last seen near)
+		private static readonly Dictionary<IntPtr, (long first, long last)> near = new Dictionary<IntPtr, (long, long)>();
+		private static bool hooked;
+
+		private static void Hook() {
+			if ( hooked ) return;
+			hooked = true;
+			OnAreaChange += (_, __) => { ignored.Clear(); near.Clear(); ignoredMonsters.Clear(); attacked.Clear(); };
+		}
+
+		/// <summary>
+		/// A monster attacked for this long (with gaps of at most GapMs) that has lost no life or energy shield can't be
+		/// hurt from where it is attacked (eg, behind a palisade that stops projectiles, 3.29.4, a bandit guard in The
+		/// Western Forest): it is ignored until the area changes.
+		/// </summary>
+		public static long UnhurtMs = 8000;
+		private static readonly HashSet<IntPtr> ignoredMonsters = new HashSet<IntPtr>();
+		// monster attacked (by address) -> (first attacked, last attacked, life + energy shield then)
+		private static readonly Dictionary<IntPtr, (long first, long last, int hp)> attacked = new Dictionary<IntPtr, (long, long, int)>();
+
+		/// <summary>Note an attack on ent (see CombatDriver.Engage); one that stays unhurt for UnhurtMs is ignored.</summary>
+		public static void NoteAttack(Entity ent) {
+			Hook();
+			var life = ent?.GetComponent<Life>();
+			if ( !IsValid(life) ) return;
+			int hp = life.CurHP + life.CurES;
+			long now = Time.ElapsedMilliseconds;
+			if ( !attacked.TryGetValue(ent.Address, out var t) || now - t.last > GapMs || hp < t.hp ) t = (now, now, hp);
+			t.last = now;
+			attacked[ent.Address] = t;
+			if ( now - t.first < UnhurtMs ) return;
+			attacked.Remove(ent.Address);
+			ignoredMonsters.Add(ent.Address);
+			Log($"Stalemates: {ent.Path} (id {ent.Id}) attacked for {UnhurtMs / 1000} s without losing any life: ignoring it (until the area changes)");
+		}
+
+		/// <summary>Is ent ignored now (of a kind ignored, or itself, see NoteAttack)?</summary>
+		public static bool IsIgnored(Entity ent) {
+			Hook();
+			if ( ent != null && ignoredMonsters.Contains(ent.Address) ) return true;
+			if ( ignored.Count == 0 || !(ent?.Path is string path) ) return false;
+			long now = Time.ElapsedMilliseconds;
+			foreach ( var kv in ignored ) {
+				if ( kv.Value > now && path.StartsWith(kv.Key, StringComparison.OrdinalIgnoreCase) ) return true;
+			}
+			return false;
+		}
+
+		/// <summary>Note a monster seen distance cells from the player (see GetHostiles); a stalled one starts its kind's ignoring.</summary>
+		public static void Watch(Entity ent, float distance) {
+			Hook();
+			if ( !(ent?.Path is string path) ) return;
+			var rule = Rules.FirstOrDefault(r => path.StartsWith(r.watch, StringComparison.OrdinalIgnoreCase));
+			if ( rule.watch == null ) return;
+			long now = Time.ElapsedMilliseconds;
+			if ( distance > Radius ) return;
+			if ( !near.TryGetValue(ent.Address, out var t) || now - t.last > GapMs ) t = (now, now);
+			t.last = now;
+			near[ent.Address] = t;
+			if ( now - t.first < StuckMs ) return;
+			var life = ent.GetComponent<Life>();
+			if ( IsValid(life) && life.MaxHP > 0 && life.CurHP < LowLife * life.MaxHP ) return; // (nearly dead: keep at it)
+			foreach ( var prefix in rule.ignore ) ignored[prefix] = now + IgnoreMs;
+			near.Remove(ent.Address);
+			Log($"Stalemates: {path} has been within {Radius:F0} cells for {StuckMs / 1000} s above {LowLife:P0} life: ignoring {string.Join(", ", rule.ignore)} for {IgnoreMs / 60000} minutes (or until the area changes)");
+		}
+	}
+
+	/// <summary>
 	/// The building blocks for combat drivers: who to fight, where to stand, and how to get there.
 	/// Positions are grid cells (Positioned.GridPos).
 	/// </summary>
@@ -32,10 +120,12 @@ namespace AtE {
 			var result = new List<Hostile>();
 			foreach ( var ent in GetEnemies() ) {
 				if ( !IsAlive(ent) || !IsTargetable(ent) || CannotBeDamaged(ent) ) continue;
+				if ( Stalemates.IsIgnored(ent) ) continue;
 				var pos = ent.GetComponent<Positioned>();
 				if ( !IsValid(pos) ) continue;
 				var grid = pos.GridPos;
 				float d = Distance(from, grid);
+				Stalemates.Watch(ent, d);
 				if ( d > radius ) continue;
 				result.Add(new Hostile() {
 					Entity = ent,

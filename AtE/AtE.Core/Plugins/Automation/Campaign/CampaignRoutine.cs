@@ -36,14 +36,14 @@ namespace AtE {
 	/// On screen: the previous 3 goals, the current one (and what it is running), and the next 6. In the Combat section:
 	/// the master list, and the running chain, which can be opened in an Object Browser.
 	/// </summary>
-	public class CampaignRoutine : CombatDriver {
+	public partial class CampaignRoutine : CombatDriver {
 		public override string Name => "Campaign";
 
 		public bool ShowObjectives = true;
 		/// <summary>Pick up the items that show a label on the ground (see Looter), when no monster is within AttackRange.</summary>
 		public bool PickUpItems = true;
-		/// <summary>The key the game uses a Portal Scroll with (None: right click one in the backpack instead).</summary>
-		public HotKey PortalScrollKey = new HotKey(VKey.None);
+		/// <summary>The key that opens the game's Options panel (to read its key bindings once, see GameKeys).</summary>
+		public HotKey OptionsKey = new HotKey(VKey.O);
 		/// <summary>Rewards to take before what the Build wants (see RewardChooser): "Quest: reward, reward; Quest: reward".</summary>
 		public string RewardOverrides = "";
 
@@ -79,7 +79,11 @@ namespace AtE {
 
 		private const string TwilightStrand = "The Twilight Strand", LioneyesWatch = "Lioneye's Watch", TheCoast = "The Coast",
 			MudFlats = "The Mud Flats", TidalIsland = "The Tidal Island", FloodedDepths = "The Flooded Depths", AncientPyramid = "The Ancient Pyramid",
-			PrisonersGate = "Prisoner's Gate";
+			PrisonersGate = "Prisoner's Gate", SubmergedPassage = "The Submerged Passage", WesternForest = "The Western Forest", UpperPrison = "The Upper Prison",
+			ShipGraveyard = "The Ship Graveyard", ShipGraveyardCave = "The Ship Graveyard Cave",
+			LowerPrison = "The Lower Prison", BrokenBridge = "The Broken Bridge", Wetlands = "The Wetlands", Den = "The Den",
+			ChamberOfSins2 = "The Chamber of Sins Level 2", WeaversChambers = "The Weaver's Chambers",
+			Crypt2 = "The Crypt Level 2", VaalRuins = "The Vaal Ruins";
 
 		/// <summary>Each act's town, as WorldArea names it with its act (several share a name).</summary>
 		public static string TownOf(int act) => act switch {
@@ -101,26 +105,6 @@ namespace AtE {
 		private Sequence Act1() {
 			Func<string> skill = BuildPlan.StartingSkill, support = BuildPlan.StartingSupport, main = BuildPlan.MainSkill;
 			var quests = Quests(1);
-			quests.Handlers.Add(new QuestHandler("Breaking Some Eggs", new Sequence("Breaking Some Eggs: the glyphs",
-				// each nest drops a glyph: Haliotis (Glyph1), Ammonite (Glyph2), Roseus (Glyph3)
-				new OpenQuestChests("Rhoa Nest", "rhoanest", "QuestChests/Rhoa", 3) { Where = MudFlats, FightRadius = 100, ItemPathPart = "QuestItems/Glyphs/" },
-				// with the three glyphs, the wall opens the exit beside it
-				new UseQuestObject("Strange Glyph Wall", "WaterCave/GlyphWall", "watercave", "WaterCave/WaterCaveAreaTransition") { Where = MudFlats })));
-			quests.Handlers.Add(new QuestHandler("Mercy Mission", new Sequence("Mercy Mission: Hailrake's quest item",
-				// (The Tidal Island has no waypoint: by waypoint to The Coast, and walk)
-				new Orbit("Hailrake", IsHailrake, main) { Where = TidalIsland },
-				new PickUpQuestItem("Hailrake's quest item") { Where = TidalIsland },
-				new PickUp("Portal Scroll") { DoneWhen = () => Equipment.InBackpack(Offsets.PATH_SCROLL_PORTAL) },
-				new UsePortalScroll(LioneyesWatch))));
-			// "Kill the Dweller of the Deep": he is in The Flooded Depths (the quest tracker says to travel there first)
-			quests.Handlers.Add(new QuestHandler("The Dweller of the Deep", new Sequence("The Dweller of the Deep",
-				new Orbit("the Dweller of the Deep", IsDweller, main) { Where = FloodedDepths })));
-			// "Follow the Emperor's Road": walk to within 50 cells of Prisoner's Gate's Beach/Transitions/beach_passageblock tile
-			quests.Handlers.Add(new QuestHandler("The Way Forward", new Sequence("The Way Forward: the Emperor's Road",
-				new ApproachTiles("the Emperor's Road", "/beach_passageblock") { Where = PrisonersGate, Reach = 90 })) {
-				Active = step => step != null && step.IndexOf("Follow the Emperor's Road", StringComparison.OrdinalIgnoreCase) >= 0,
-			});
-
 			return new Sequence("Complete Act 1",
 				new Sequence("Exit The Twilight Strand",
 					new ClickButton("Skip All Tutorials", () => GetUI()?.SkipAllTutorials),
@@ -162,6 +146,7 @@ namespace AtE {
 			quests.Upkeep.Add(new EquipFlask("Quicksilver Flask", 4));
 			quests.Upkeep.Add(new ArrangeGems());
 			quests.Upkeep.Add(new BindPlannedSkills());
+			AddQuestHandlers(quests);
 			return quests;
 		}
 
@@ -183,8 +168,6 @@ namespace AtE {
 
 		private static bool IsHailrake(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/")
 			&& string.Equals(e.GetComponent<Render>()?.Name, "Hailrake", StringComparison.OrdinalIgnoreCase);
-		private static bool IsDweller(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/")
-			&& (e.GetComponent<Render>()?.Name?.Contains("Dweller of the Deep", StringComparison.OrdinalIgnoreCase) ?? false);
 		private const string MerveilsLair = "Merveil's Lair";
 		/// <summary>
 		/// In Merveil's arena: the door "Merveil's Lair" teleports within The Cavern of Anger (3.29.4, the area keeps its
@@ -428,11 +411,14 @@ namespace AtE {
 			return true;
 		}
 
-		// the first visible button under e (e included), depth first in child order
+		// the first visible button under e (e included), depth first in child order; not in a gem's row that says "Gem
+		// cannot level up" (3.29.4, seen live: its button still shows, but clicking it does nothing, eg the character's
+		// level is too low)
 		private static Element FirstButton(Element e, int depth) {
 			if ( !IsValid(e) || !e.IsVisibleLocal ) return null;
 			if ( e.IsButton ) return e;
 			if ( depth <= 0 ) return null;
+			if ( e.Children.Any(c => IsValid(c) && c.IsVisibleLocal && string.Equals(c.Text?.Trim(), "Gem cannot level up", StringComparison.OrdinalIgnoreCase)) ) return null;
 			foreach ( var child in e.Children ) {
 				if ( FirstButton(child, depth - 1) is Element found ) return found;
 			}
@@ -539,9 +525,9 @@ namespace AtE {
 			base.Render();
 			ImGui.Checkbox("Show Objectives", ref ShowObjectives);
 			ImGui.Checkbox("Pick Up Items", ref PickUpItems);
-			ImGui_HotKeyButton("Portal Scroll Key", ref PortalScrollKey);
+			ImGui_HotKeyButton("Options Key", ref OptionsKey);
 			ImGui.SameLine();
-			ImGui_HelpMarker("The key bound to use a Portal Scroll in the game, if any; with None, one is right clicked in the backpack.");
+			ImGui_HelpMarker("The key bound to open the game's Options: they are opened once, when a game key is needed (eg, Use Portal Scroll), to read the key bindings.");
 			ImGui.InputText("Reward Overrides", ref RewardOverrides, 500);
 			ImGui.SameLine();
 			ImGui_HelpMarker("Quest rewards to take before what the Build wants, eg \"Enemy at the Gate: Caustic Arrow; Mercy Mission: Quicksilver Flask\". Otherwise: a gem the Build uses, else a Quicksilver Flask, else the first offered.");

@@ -408,7 +408,7 @@ namespace AtE {
 		public override void Reset() { base.Reset(); deadExits.Clear(); }
 
 		// the nearest reachable exit found in the tiles whose entity has not been seen yet (so its name is not known)
-		private AreaExit NearestUnnamedExit(CombatContext ctx) {
+		private AreaExit NearestUnnamedExit(CombatContext ctx, Func<AreaExit, bool> where = null) {
 			var exits = ctx.Terrain.Exits;
 			if ( !ReferenceEquals(exits, deadExitsOf) ) { deadExits.Clear(); deadExitsOf = exits; } // (a new area)
 			foreach ( var e in exits.Where(e => !e.Seen && e.Destination == null && !deadExits.Contains(e)).ToList() ) {
@@ -417,10 +417,17 @@ namespace AtE {
 					Log($"Campaign: the unnamed exit at {e.GridPos} showed no name from {UnnamedExitReach} cells: skipping it");
 				}
 			}
-			return exits.Where(e => !e.Seen && e.Destination == null && !deadExits.Contains(e) && DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, e.GridPos))
+			return exits.Where(e => !e.Seen && e.Destination == null && !deadExits.Contains(e) && (where == null || where(e))
+					&& DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, e.GridPos))
 				.OrderBy(e => Combat.Distance(ctx.Grid, e.GridPos))
 				.FirstOrDefault();
 		}
+
+		/// <summary>
+		/// With no exit known to lead to the next area: walk to the unnamed exits in turn, and explore (true), or stop the
+		/// routine, listing the exits in the tiles, so the right tile can be named in AreaExits.KnownExitTiles (false).
+		/// </summary>
+		public static bool ExploreUnknownExits = LaunchOptions.ExploreExits; // (off, unless launched with --explore-exits)
 
 		internal static bool Is(WorldArea area, string name) => area != null
 			&& (string.Equals(area.Name, name, StringComparison.OrdinalIgnoreCase) || string.Equals(area.DisplayName, name, StringComparison.OrdinalIgnoreCase));
@@ -434,6 +441,25 @@ namespace AtE {
 			// (seen, or not yet seen but named by its tile, see AreaExits.KnownExitTiles: walk there, the entity names it exactly)
 			var exit = ctx.Terrain.Exits.FirstOrDefault(e => e.Seen && e.Destination == next.Name)
 				?? ctx.Terrain.Exits.FirstOrDefault(e => !e.Seen && e.Destination == next.Name);
+			if ( exit == null ) {
+				// an exit whose tile may lead there, among others (see AreaExits.AmbiguousExitTiles): walk to each in turn
+				// until its name shows (a wrong one is then Seen, named, and the next is tried)
+				var maybe = NearestUnnamedExit(ctx, e => AreaExits.MayLeadTo(e.TileFile, next.Name));
+				if ( maybe != null ) {
+					Detail = $"looking for the way to {next.Name}: checking the exit at {maybe.GridPos}";
+					return Call(new Navigate($"the exit at {maybe.GridPos}", _ => maybe.GridPos, UnnamedExitReach) {
+						FightRadius = IgnoreMonsters ? -1 : ExitSearchFightRadius, LegMs = 1000 });
+				}
+			}
+			if ( exit == null && !ExploreUnknownExits ) {
+				// no exit known to lead there (see AreaExits.KnownExitTiles): stop, listing the exits the tiles show, so the
+				// one that does can be named, instead of walking to each in turn
+				var tiles = ctx.Terrain.Exits.Select(e => $"{e.Destination ?? "?"} at {e.GridPos} ({e.TileFile})");
+				string why = $"no known exit from {GetCurrentArea()?.Name} toward {next.Name} (on the way to {Destination})";
+				Log($"Campaign: {why}; the exits in the tiles: {string.Join("; ", tiles)}");
+				Detail = why;
+				return Call(new StopForHelp(why));
+			}
 			if ( exit == null ) {
 				// one of the exits not named yet (found in the tiles, its entity not in range yet): walk to the nearest of
 				// them, until its name shows; a wrong one is then Seen, and the next nearest is tried

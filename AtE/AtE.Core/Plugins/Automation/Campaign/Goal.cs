@@ -290,6 +290,11 @@ namespace AtE {
 				waypoint = null;
 			}
 			var via = WaypointVia(here);
+			if ( via != null && NearerTown(ctx, here) is AreaExit toTown ) {
+				// (the town next door is nearer than this area's waypoint: its waypoint, then)
+				Detail = $"by way of {toTown.Destination}'s waypoint to {via}";
+				return Call(new GoToArea(toTown.Destination) { IgnoreMonsters = IgnoreMonsters });
+			}
 			if ( via != null ) {
 				Detail = $"by waypoint to {via}";
 				waypoint = new UseWaypoint(via) { IgnoreMonsters = IgnoreMonsters, GiveUpIfMissing = true };
@@ -297,6 +302,19 @@ namespace AtE {
 			}
 			Detail = "walking";
 			return Call(new GoToArea(Area) { IgnoreMonsters = IgnoreMonsters });
+		}
+
+		// the exit to this act's town next door, if it is known and nearer than this area's waypoint (eg, in The Riverways,
+		// the camp's exit beside it, rather than the waypoint 1000 cells away): else null
+		private static AreaExit NearerTown(CombatContext ctx, WorldArea here) {
+			if ( here.IsTown || ctx.Terrain == null ) return null;
+			var town = here.Connections.FirstOrDefault(a => a.IsTown && a.Act == here.Act);
+			if ( town == null ) return null;
+			var exit = ctx.Terrain.Exits.Where(e => e.Destination == town.Name && DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, e.GridPos))
+				.OrderBy(e => Combat.Distance(ctx.Grid, e.GridPos)).FirstOrDefault();
+			if ( exit == null ) return null;
+			var wp = ctx.Terrain.Waypoint;
+			return wp == null || Combat.Distance(ctx.Grid, exit.GridPos) < Combat.Distance(ctx.Grid, wp.GridPos) ? exit : null;
 		}
 
 		// the area with a waypoint nearest to Area (by exits), if taking it saves walking: else null
@@ -369,6 +387,18 @@ namespace AtE {
 		/// </summary>
 		public static Func<CombatContext, Offsets.Vector2i?> Tile(string tilePathPart) => ctx =>
 			ctx.Terrain.TileFeatures(tilePathPart).OrderBy(f => Combat.Distance(ctx.Grid, f.GridPos)).FirstOrDefault()?.GridPos;
+
+		/// <summary>
+		/// The exit named destination (eg, a door within the area, named by AreaExits.PlacedExitTiles, or seen); else the
+		/// nearest exit not seen yet whose tile has tilePathPart (each is named once seen, and the next is tried); else null.
+		/// </summary>
+		public static Func<CombatContext, Offsets.Vector2i?> Exit(string destination, string tilePathPart) => ctx => {
+			var exits = ctx.Terrain.Exits;
+			var named = exits.FirstOrDefault(e => string.Equals(e.Destination, destination, StringComparison.OrdinalIgnoreCase));
+			if ( named != null ) return named.GridPos;
+			return exits.Where(e => !e.Seen && e.Destination == null && (e.TileFile?.IndexOf(tilePathPart, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0)
+				.OrderBy(e => Combat.Distance(ctx.Grid, e.GridPos)).FirstOrDefault()?.GridPos;
+		};
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------

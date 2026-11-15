@@ -100,7 +100,8 @@ namespace AtE {
 		public static Element FindQuest(string name, Element root = null, int depth = 6) {
 			root = root ?? QuestTracker;
 			if ( !IsValid(root) || !root.IsVisibleLocal ) return null;
-			if ( string.Equals(root.GetChild(0)?.GetChild(0)?.Text?.Trim(), name, StringComparison.OrdinalIgnoreCase) ) return root;
+			if ( string.Equals(root.GetChild(0)?.GetChild(0)?.Text?.Trim(), name, StringComparison.OrdinalIgnoreCase) )
+				return IsIgnoredStep(root.GetChild(1)?.GetChild(0)?.GetChild(1)?.Text?.Trim()) ? null : root;
 			if ( depth <= 0 ) return null;
 			foreach ( var child in root.Children ) {
 				var found = FindQuest(name, child, depth - 1);
@@ -116,13 +117,22 @@ namespace AtE {
 				if ( !IsValid(e) || !e.IsVisibleLocal ) return;
 				var name = e.GetChild(0)?.GetChild(0)?.Text?.Trim();
 				var step = e.GetChild(1)?.GetChild(0)?.GetChild(1)?.Text?.Trim();
-				if ( !string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(step) ) { names.Add(name); return; }
+				if ( !string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(step) ) { if ( !IsIgnoredStep(step) ) names.Add(name); return; }
 				if ( depth <= 0 ) return;
 				foreach ( var child in e.Children ) Walk(child, depth - 1);
 			}
 			Walk(QuestTracker, 6);
 			return names;
 		}
+
+		// (eg, "Talk to Einhar in your Hideout": not something the campaign does)
+		private static readonly Regex HideoutStep = new Regex("^Talk to .+ in your Hideout$", RegexOptions.IgnoreCase);
+
+		/// <summary>
+		/// A tracker step the routine ignores, as if its quest were not in the tracker (FindQuest, QuestStep and
+		/// QuestNames leave it out): "Talk to [NPC] in your Hideout".
+		/// </summary>
+		public static bool IsIgnoredStep(string step) => step != null && HideoutStep.IsMatch(step);
 
 		/// <summary>The current step of the quest called name (eg, "Talk to Tarkleigh for your reward"), or null.</summary>
 		public static string QuestStep(string name) => FindQuest(name)?.GetChild(1)?.GetChild(0)?.GetChild(1)?.Text?.Trim();
@@ -131,6 +141,10 @@ namespace AtE {
 		// (a reward talked about but not taken: the step becomes just "Talk to Nessa", and her "Merveil Reward" option
 		// opens the reward window again)
 		private static readonly Regex TalkStep = new Regex("^Talk to ([^,.]+)$", RegexOptions.IgnoreCase);
+		// a quest item to hand over (eg, Mercy Mission's "Take the Medicine Chest to Nessa"): talking to the NPC does it
+		private static readonly Regex DeliverStep = new Regex("^(?:Take|Bring|Return|Give) .+ to ([^,.]+)$", RegexOptions.IgnoreCase);
+		// (eg, Intruders in Black's "Meet Helena in Town")
+		private static readonly Regex MeetStep = new Regex("^Meet ([^,.]+?) in town$", RegexOptions.IgnoreCase);
 
 		/// <summary>
 		/// The NPC who has the reward for the quest called name, if its step is "Talk to [NPC] for your reward", or just
@@ -140,6 +154,8 @@ namespace AtE {
 			string step = QuestStep(quest) ?? "";
 			var m = RewardStep.Match(step);
 			if ( !m.Success ) m = TalkStep.Match(step);
+			if ( !m.Success ) m = DeliverStep.Match(step);
+			if ( !m.Success ) m = MeetStep.Match(step);
 			return m.Success ? m.Groups[1].Value.Trim() : null;
 		}
 

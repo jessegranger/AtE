@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using static AtE.Globals;
@@ -54,6 +54,10 @@ namespace AtE {
 		///  - Prisoner's Gate's way to The Ship Graveyard: ".../Beach/Transitions/ShipgraveyardPassageway/..."
 		///  - The Cavern of Wrath (Metadata/Terrain/Cave/Features/...): caveup_exit (to The Cavern of Anger), caveskeleton_exit
 		///    (back to The Ship Graveyard); in The Cavern of Anger, caveup_exit is the door to Merveil's Lair
+		///  - The Chamber of Sins Level 1's way down to Level 2: "Metadata/Terrain/RuinedTempleForest/Features/templeruinforest_exit_down_v01_01.tdt",
+		///    and Level 2's way back up: ".../templeruinforest_exit_up_v01_01.tdt"
+		///  - The Crypt Level 1 (Metadata/Terrain/Church/Features/...): church_exit_down (to Level 2), church_exit_up (back to
+		///    The Fellshrine Ruins)
 		/// Some may lead to another level of the same area: walking there names them, and the right one is taken.
 		/// </summary>
 		public static readonly string[] OtherExitTiles = {
@@ -61,6 +65,9 @@ namespace AtE {
 			"/prison_entrance_down", "/prison_exit_up", "prison_door_up", "/prison_boss_exit",
 			"/ShipgraveyardPassageway/",
 			"/caveup_exit", "/caveskeleton_exit",
+			"/templeruinforest_exit_down", "/templeruinforest_exit_up",
+			"/church_exit_down", "/church_exit_up",
+			"/spidergrove_exit",
 		};
 
 		/// <summary>
@@ -84,12 +91,90 @@ namespace AtE {
 			// the dock to the camp, at <793, 1520>; the area's other transition tile, Forest/Transitions/forest_caveentrance,
 			// is beside the waypoint where Act 2 starts, the way back to Act 1 (3.29.4, from the tiles alone)
 			("Forest/Transitions/forestcamp_dock", "The Forest Encampment", "The Southern Forest"),
+			// The Crossroads (3.29.4, seen live): the road gate north, at <1000, 264>, is The Fellshrine Ruins (the same
+			// road_wall_gate tile, west at <219, 678>, is the way back to The Old Fields: the tile alone can't name either);
+			// the temple entrance south, at <931, 1545>, is The Chamber of Sins (the last unnamed one, by elimination); the
+			// bridge connection east, at <1653, 563>, is The Broken Bridge (from the tiles alone, not seen as an entity yet)
+			("Forest/Transitions/temple_entrance", "The Chamber of Sins Level 1", "The Crossroads"),
+			("Forest/Transitions/bridgeconnection", "The Broken Bridge", "The Crossroads"),
+			// The Riverways (3.29.4, from the tiles alone, not seen as entities yet): besides the camp (forestcamp_left, at
+			// <1941, 695>), the bridge connection at <931, 1883> is The Wetlands (across the river), and the road at
+			// <424, 2104>, roadtothickforest_entrance, is The Western Forest (the road's end)
+			("Forest/Transitions/bridgeconnection", "The Wetlands", "The Riverways"),
+			("Forest/Transitions/forestcamp_left", "The Forest Encampment", "The Riverways"), // (seen live as an entity, 3.29.4)
+			// The Fellshrine Ruins (3.29.4): the church's dungeon entrance at <829, 781> is The Crypt Level 1 (its only other
+			// exit, road_wall_gate at <678, 2679>, is The Crossroads, seen as an entity)
+			("Forest/Transitions/church_dungeon_entrance", "The Crypt Level 1", "The Fellshrine Ruins"),
+			("Forest/Transitions/road_wall_gate", "The Crossroads", "The Fellshrine Ruins"),
+			("Forest/Transitions/roadtothickforest_entrance", "The Western Forest", "The Riverways"),
+			// The Chamber of Sins Level 1's only exit tile, at <712, 201> (3.29.4, from the tiles alone)
+			("RuinedTempleForest/Features/templeruinforest_exit_down", "The Chamber of Sins Level 2", "The Chamber of Sins Level 1"),
+			// The Chamber of Sins Level 2's way back up, at <1259, 827> (3.29.4, from the tiles alone; Level 2 has no waypoint tile)
+			("RuinedTempleForest/Features/templeruinforest_exit_up", "The Chamber of Sins Level 1", "The Chamber of Sins Level 2"),
+			// The Crypt Level 1 (3.29.4, from the tiles): church_exit_up at <1080, 1097> is the way in from The Fellshrine Ruins
+			// (seen as an entity), church_exit_down at <429, 229> the way down to Level 2 (the only other exit tile; the
+			// labyrinth_catacombs_door at <1000, 551> is the Trial of Ascendancy, not an exit). Level 2's way back up, by analogy
+			("Church/Features/church_exit_down", "The Crypt Level 2", "The Crypt Level 1"),
+			("Church/Features/church_exit_up", "The Fellshrine Ruins", "The Crypt Level 1"),
+			("Church/Features/church_exit_up", "The Crypt Level 1", "The Crypt Level 2"), // (confirmed live)
+			// The Western Forest (3.29.4): the road east, roadtothickforest_entrance at <1953, 1341>, is The Riverways (seen
+			// live); the spider grove at <1655, 448> is The Weaver's Chambers, and the mountain pass west at <379, 896> is
+			// Prisoner's Gate (Act 1), from the tiles alone
+			("Forest/Transitions/roadtothickforest_entrance", "The Riverways", "The Western Forest"),
+			("Forest/Transitions/spidergrove_entrance", "The Weaver's Chambers", "The Western Forest"),
+			("Forest/Transitions/forest_mountainpass", "Prisoner's Gate", "The Western Forest"),
+			// The Weaver's Chambers (3.29.4, from the tiles): the lit spidergrove_exit at <172, 483> is the way back out to The
+			// Western Forest (the area's only connection); the plain spidergrove_exit tiles are doors within the area (see
+			// PlacedExitTiles)
+			("SpiderGrove/Features/spidergrove_exit_lit", "The Western Forest", "The Weaver's Chambers"),
 		};
 
-		/// <summary>The destination a tile names in the current area (see KnownExitTiles), or null.</summary>
-		public static string KnownDestination(string tilePath) {
+		/// <summary>
+		/// Exit tiles that lead to one of several places in the area named, the tile alone can't tell which (eg, The
+		/// Crossroads' two road gates, 3.29.4: one north to The Fellshrine Ruins, one west back to The Old Fields). Going to
+		/// one of those places, GoToArea walks to these exits in turn until the right one shows its name, instead of stopping.
+		/// </summary>
+		public static readonly (string tile, string area, string[] destinations)[] AmbiguousExitTiles = {
+			("Forest/Transitions/road_wall_gate", "The Crossroads", new[] { "The Fellshrine Ruins", "The Old Fields" }),
+		};
+
+		/// <summary>Is the tile one of the area's exits that may lead to destination, the tile alone can't tell (see AmbiguousExitTiles)?</summary>
+		public static bool MayLeadTo(string tilePath, string destination) {
+			if ( tilePath == null ) return false;
+			string here = GetCurrentArea()?.Name;
+			return AmbiguousExitTiles.Any(k => tilePath.IndexOf(k.tile, StringComparison.OrdinalIgnoreCase) >= 0
+				&& string.Equals(k.area, here, StringComparison.OrdinalIgnoreCase)
+				&& k.destinations.Contains(destination, StringComparer.OrdinalIgnoreCase));
+		}
+
+		/// <summary>
+		/// Exit tiles that lead to different places in the same area, told apart by where they are (the area's layout is the
+		/// same each time): the tile, in the area named, within PlacedExitReach cells of near, leads to destination. If the
+		/// layout turns out different, none is near: the exit stays unnamed (see AmbiguousExitTiles for that case).
+		/// </summary>
+		public static readonly (string tile, string area, int x, int y, string destination)[] PlacedExitTiles = {
+			// The Crossroads' two road gates (3.29.4, seen live twice, at the same places): north, The Fellshrine Ruins;
+			// west, the way back to The Old Fields
+			("Forest/Transitions/road_wall_gate", "The Crossroads", 1000, 265, "The Fellshrine Ruins"),
+			("Forest/Transitions/road_wall_gate", "The Crossroads", 219, 678, "The Old Fields"),
+			// The Weaver's Chambers' two doors within the area (3.29.4, seen live as entities, both on spidergrove_exit tiles):
+			// "The Weaver's Nest" (his arena) at <954, 715>, and one labelled "The Weaver's Chambers" at <784, 770>
+			("SpiderGrove/Features/spidergrove_exit_v", "The Weaver's Chambers", 954, 713, "The Weaver's Nest"),
+			("SpiderGrove/Features/spidergrove_exit_v", "The Weaver's Chambers", 782, 770, "The Weaver's Chambers"),
+		};
+		/// <summary>How near (cells) an exit must be to a PlacedExitTiles position to be named by it.</summary>
+		public const float PlacedExitReach = 40;
+
+		/// <summary>The destination a tile names in the current area (see KnownExitTiles, and PlacedExitTiles by its position), or null.</summary>
+		public static string KnownDestination(string tilePath, Offsets.Vector2i? at = null) {
 			if ( tilePath == null ) return null;
 			string here = GetCurrentArea()?.Name;
+			if ( at is Offsets.Vector2i pos ) {
+				var placed = PlacedExitTiles.FirstOrDefault(k => tilePath.IndexOf(k.tile, StringComparison.OrdinalIgnoreCase) >= 0
+					&& string.Equals(k.area, here, StringComparison.OrdinalIgnoreCase)
+					&& Combat.Distance(pos, new Offsets.Vector2i(k.x, k.y)) <= PlacedExitReach).destination;
+				if ( placed != null ) return placed;
+			}
 			return KnownExitTiles.FirstOrDefault(k => tilePath.IndexOf(k.tile, StringComparison.OrdinalIgnoreCase) >= 0
 				&& (k.area == null || string.Equals(k.area, here, StringComparison.OrdinalIgnoreCase))).destination;
 		}
@@ -112,7 +197,7 @@ namespace AtE {
 		/// </summary>
 		public static List<AreaExit> FromTiles(Offsets.TerrainData data, Terrain terrain) {
 			var exits = FromTiles<AreaExit>(data, terrain, IsTransitionTile);
-			foreach ( var e in exits ) e.Destination ??= KnownDestination(e.TileFile);
+			foreach ( var e in exits ) e.Destination ??= KnownDestination(e.TileFile, e.GridPos);
 			return exits;
 		}
 
@@ -223,6 +308,11 @@ namespace AtE {
 				if ( exit == null ) {
 					exit = new AreaExit();
 					exits.Add(exit);
+				}
+				if ( !exit.Seen && exit.TileFile != null && destination != null && KnownDestination(exit.TileFile, exit.GridPos) != destination ) {
+					// a tile whose exit was not known (or known wrong) now shows its name: log it, to add to KnownExitTiles
+					Log($"AreaExits: learned: in {GetCurrentArea()?.Name}, the tile {exit.TileFile} at {exit.GridPos} leads to {destination}"
+						+ $" (was {KnownDestination(exit.TileFile, exit.GridPos) ?? "unknown"}; entity at {grid})");
 				}
 				exit.Seen = true;
 				exit.GridPos = grid;

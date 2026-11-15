@@ -104,7 +104,39 @@ namespace AtE {
 		/// </summary>
 		public static bool EquipmentRefreshed { get; internal set; }
 
+		/// <summary>True once /passives was read in this run (or given up on).</summary>
+		public static bool PassivesRead { get; internal set; }
+		/// <summary>
+		/// The quests whose passive point the character has (a Skill Book's), from /passives: eg "(1 from The Dweller of the
+		/// Deep)". Those quests are done.
+		/// </summary>
+		public static HashSet<string> PassiveQuests { get; private set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		/// <summary>Has the character the passive point of quest (see PassiveQuests)?</summary>
+		public static bool HasPassiveFrom(string quest) => quest != null && PassiveQuests.Contains(quest);
+
+		/// <summary>
+		/// Read /passives' reply from the chat's last messages: from the last one with "total Passive Skill Points", each
+		/// line "(N from [quest])" names a quest done. False if no reply is there.
+		/// </summary>
+		public static bool ReadPassives(List<string> messages) {
+			int at = messages.FindLastIndex(m => m.Contains("total Passive Skill Points", StringComparison.OrdinalIgnoreCase));
+			if ( at < 0 ) return false;
+			var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			foreach ( var line in messages.Skip(at).SelectMany(msg => msg.Split('\n')).Select(l => l.Trim()) ) {
+				var match = PassiveFromQuest.Match(line);
+				if ( match.Success ) found.Add(match.Groups[1].Value.Trim());
+			}
+			PassiveQuests = found;
+			PassivesRead = true;
+			Log($"Campaign: /passives: the passive points of {(found.Count == 0 ? "no quests" : string.Join(", ", found))}");
+			return true;
+		}
+		private static readonly System.Text.RegularExpressions.Regex PassiveFromQuest = new System.Text.RegularExpressions.Regex(@"^\(\d+ from (.+)\)$");
+
 		public static void Forget() {
+			PassivesRead = false;
+			PassiveQuests = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			Scanned = false;
 			EquipmentRefreshed = false;
 			HighestAct = 0;
@@ -161,7 +193,7 @@ namespace AtE {
 		public override string Name => "Read the campaign progress";
 		public override bool Sticky => false;
 		public override bool UsesInventory => true; // (it opens and closes the inventory itself)
-		public override void Reset() { base.Reset(); tries = inventoryTries = 0; bothOpenAt = 0; }
+		public override void Reset() { base.Reset(); tries = inventoryTries = passivesTries = 0; bothOpenAt = passivesSentAt = 0; }
 		// did it open the panel / the inventory itself (so it is to close them): the panel is also the waypoint's, and one
 		// a waypoint goal opened must be left open (closing it here made a waypoint goal and this one take turns)
 		private bool openedIt, openedInventory;
@@ -172,6 +204,7 @@ namespace AtE {
 			if ( !Read ) return false;
 			if ( openedIt && WaypointPanel.Panel() != null ) return false;
 			if ( openedInventory && BackpackIsOpen() ) return false;
+			if ( !CampaignProgress.PassivesRead ) return false;
 			openedIt = openedInventory = false;
 			return true;
 		}
@@ -222,8 +255,30 @@ namespace AtE {
 			// 4. close the inventory (I), then 5. the AreaInstanceUI (U), each only if it opened it
 			if ( openedInventory && inventory ) return Press(InventoryKey, now, null);
 			if ( openedIt && panel != null ) return Press(Key, now, null);
+			// 6. /passives: which quests' passive points the character has (they are done; see CampaignProgress.PassiveQuests)
+			if ( !CampaignProgress.PassivesRead ) {
+				if ( passivesSentAt == 0 ) {
+					if ( ++passivesTries > 2 ) {
+						Log("Campaign: /passives gave no reply: going on without it");
+						CampaignProgress.PassivesRead = true;
+						return this;
+					}
+					Detail = "sending /passives";
+					passivesSentAt = now;
+					return ChatCommand.Send("/passives", this);
+				}
+				Detail = "reading /passives' reply";
+				if ( now - passivesSentAt < PassivesWaitMs ) return this;
+				if ( CampaignProgress.ReadPassives(ChatCommand.LastMessages(30)) ) return this;
+				if ( now - passivesSentAt > 3 * PassivesWaitMs ) passivesSentAt = 0; // (no reply: send it again)
+			}
 			return this;
 		}
+
+		/// <summary>How long after sending /passives to read its reply.</summary>
+		public long PassivesWaitMs = 1000;
+		private long passivesSentAt;
+		private int passivesTries;
 
 		private IState Press(VKey key, long now, Action pressed) {
 			lastPress = now;
@@ -240,6 +295,24 @@ namespace AtE {
 		public override bool CheckDone(CombatContext ctx) => false;
 		protected override IState Step(CombatContext ctx) {
 			ctx.Driver.Stop($"the goals for \"{name}\" are not specified yet");
+			return this;
+		}
+	}
+
+	/// <summary>
+	/// Stop the routine once, with a reason (eg, at a Trial of Ascendancy, until its goals are written): done after it
+	/// stopped, for as long as the overlay runs (switching the routine on again carries on past it).
+	/// </summary>
+	public class StopForHelp : Goal {
+		private readonly string why;
+		private bool stopped;
+		public StopForHelp(string why) => this.why = why;
+		public override string Name => $"Stop: {why}";
+		public override bool CheckDone(CombatContext ctx) => stopped;
+		protected override IState Step(CombatContext ctx) {
+			stopped = true;
+			Log($"Campaign: stopping: {why}");
+			ctx.Driver.Stop(why);
 			return this;
 		}
 	}
@@ -380,6 +453,39 @@ namespace AtE {
 	}
 
 	/// <summary>
+	/// Talk to an NPC out in an area (eg, Captain Fairgraves, in The Ship Graveyard): look for it (Search), then talk to
+	/// it (TalkToNpc, closing its options). Done after MaxTalks talks, or by DoneWhen (eg, the quest moving on).
+	/// </summary>
+	public class TalkTo : Goal {
+		public readonly string Label;
+		private readonly Func<Entity, bool> match;
+		public int MaxTalks = 3;
+		private int talks;
+		/// <param name="label">Its name, for the status line (eg, "Captain Fairgraves").</param>
+		/// <param name="match">Which entity it is (see NpcNamed).</param>
+		public TalkTo(string label, Func<Entity, bool> match) { Label = label; this.match = match; }
+		public override string Name => $"Talk to {Label}";
+		public override void Reset() { base.Reset(); talks = 0; }
+		public override bool CheckDone(CombatContext ctx) => talks >= MaxTalks;
+
+		/// <summary>
+		/// An NPC by name: the end of its metadata path (eg, "Nessa"; spaces ignored), or its name (Render.Name) has the
+		/// name in it (eg, "Captain Fairgraves").
+		/// </summary>
+		public static Func<Entity, bool> NpcNamed(string name) => e => e?.Path is string path && path.StartsWith("Metadata/NPC/")
+			&& (string.Equals(path.Substring(path.LastIndexOf('/') + 1), name.Replace(" ", ""), StringComparison.OrdinalIgnoreCase)
+				|| (e.GetComponent<Render>()?.Name?.Contains(name, StringComparison.OrdinalIgnoreCase) ?? false));
+
+		protected override IState Step(CombatContext ctx) {
+			var npc = GetEntities()?.FirstOrDefault(e => e != null && match(e));
+			if ( npc == null ) return Search(ctx, Label);
+			talks += 1;
+			Detail = $"talking to {Label} ({talks} of {MaxTalks})";
+			return Call(new TalkToNpc(npc));
+		}
+	}
+
+	/// <summary>
 	/// Talk to an NPC: walk near it, click it (its label, or where it stands), and once its options show, click the
 	/// option IsOption picks (eg, "Mercy Mission Reward"); with no IsOption, close them (Escape) once they show, or once
 	/// the NPC's overhead icon (the quest marker) is gone. Hands back when done, or after MaxClicks clicks without options.
@@ -414,6 +520,14 @@ namespace AtE {
 			var options = Town.NpcOptions;
 			if ( Town.IsOpen(options) ) {
 				ctx.Driver.StopWalking($"talking to {npcName}");
+				// a reward the NPC still has (eg, one skipped: the quest is gone from the tracker, and nothing else tells of it):
+				// its option ("[quest] Reward") is taken first, whatever the talk was for (the reward window is TakeQuestRewards')
+				if ( (isOption == null || Town.FindByText(options, isOption) == null)
+					&& Town.FindByText(options, t => t.EndsWith(" Reward", StringComparison.OrdinalIgnoreCase)) is Element owed ) {
+					Detail = $"clicking {owed.Text?.Trim()}";
+					Log($"Campaign: {npcName} has a reward waiting: clicking {owed.Text?.Trim()}");
+					return Inputs.Click(owed.GetClientRect(), new Delay(300, Next));
+				}
 				if ( isOption == null ) { Detail = "closing the dialog"; return Inputs.Press(VKey.Escape, Next); }
 				var option = Town.FindByText(options, isOption);
 				if ( option == null && Town.NpcContinue() is Element more ) {
@@ -489,10 +603,54 @@ namespace AtE {
 	public sealed class QuestHandler {
 		public readonly string Quest;
 		public readonly Goal Goal;
-		public Func<string, bool> Active = step => step != null
+		public Func<string, bool> Active = DefaultActive;
+		/// <summary>Does a handler do a quest step, by default: any step but a trip ("Travel to X", "Enter town") or a reward.</summary>
+		public static bool DefaultActive(string step) => step != null
 			&& !step.StartsWith("Travel to ", StringComparison.OrdinalIgnoreCase)
+			&& !FinishAllQuests.IsToTown(step)
 			&& !step.EndsWith("for your reward", StringComparison.OrdinalIgnoreCase);
 		public QuestHandler(string quest, Goal goal) { Quest = quest; Goal = goal; }
+
+		/// <summary>
+		/// The quest is not in the quest tracker but is still to do (eg, Breaking Some Eggs before it starts, which is at
+		/// the glyph wall: The Submerged Passage's waypoint is not unlocked). Null: a quest not in the tracker is not done.
+		/// </summary>
+		public Func<bool> Untracked;
+
+		/// <summary>Does the handler work now: on the quest's step (tracker's quest, or null if it is not there).</summary>
+		/// <summary>
+		/// The town whose NPC gives the reward, when it is not the act's own (eg, The Way Forward, worked on in Act 2:
+		/// Bestel, in Lioneye's Watch). Null: the act's town.
+		/// </summary>
+		public string RewardTown;
+
+		/// <summary>The reward to take first, if the reward window offers it (eg, "Quicksilver Flask"); null: RewardChooser's choice.</summary>
+		public string PreferredReward;
+
+		/// <summary>
+		/// NPCs the handler talks to out in an area (eg, Captain Fairgraves): a step "Talk to" one of them is the handler's,
+		/// not a talk in town.
+		/// </summary>
+		public string[] FieldNpcs = Array.Empty<string>();
+
+		/// <summary>Does the handler work now: not if the character has the quest's passive point (it is done, see CampaignProgress.PassiveQuests).</summary>
+		public bool IsActive(string trackerQuest) => !CampaignProgress.HasPassiveFrom(Quest) && IsActiveByStep(trackerQuest);
+		private bool IsActiveByStep(string trackerQuest) => trackerQuest != null ? Active(Town.QuestStep(trackerQuest)) : (Untracked?.Invoke() ?? false);
+
+		/// <summary>A quest whose handler is not written yet: it does nothing (the quest counts as having no goals).</summary>
+		public static QuestHandler Stub(string quest) => new QuestHandler(quest, new NotSpecified(quest)) { Active = _ => false };
+		public bool IsStub => Goal is NotSpecified && !IsSkipped && DoneBy == null;
+
+		/// <summary>
+		/// A quest done by goals outside the quests (eg, The Siren's Cadence: the act's route kills Merveil and enters the
+		/// forest). It does nothing itself; its "Travel to" steps and rewards are still done.
+		/// </summary>
+		public static QuestHandler Elsewhere(string quest, string doneBy) => new QuestHandler(quest, new NotSpecified(quest)) { Active = _ => false, DoneBy = doneBy };
+		public string DoneBy { get; private set; }
+
+		/// <summary>A quest not to do (eg, an optional one not worth the trip): nothing is done for it, not even its "Travel to" steps.</summary>
+		public static QuestHandler Skip(string quest) => new QuestHandler(quest, new NotSpecified(quest)) { Active = _ => false, IsSkipped = true };
+		public bool IsSkipped { get; private set; }
 
 		/// <summary>Is the quest tracker's quest (eg, "The Dweller of the Deep (Optional)") this handler's (eg, "The Dweller of the Deep")?</summary>
 		public bool IsFor(string trackerName) {
@@ -518,7 +676,36 @@ namespace AtE {
 		public readonly List<Goal> Upkeep = new List<Goal>();
 		private readonly TalkToQuestGivers givers = new TalkToQuestGivers();
 		private readonly TakeQuestRewards rewards;
+		private readonly Func<IReadOnlyDictionary<string, string>> rewardOverrides;
+		// the rewards given in another town (see QuestHandler.RewardTown), by town
+		private readonly Dictionary<string, TakeQuestRewards> rewardsElsewhere = new Dictionary<string, TakeQuestRewards>(StringComparer.OrdinalIgnoreCase);
+
+		/// <summary>The NPC in town a quest's step sends the player to (see Town.RewardNpc), unless its handler talks to it out in an area (FieldNpcs).</summary>
+		public string TownNpc(string quest) {
+			var npc = Town.RewardNpc(quest);
+			if ( npc == null ) return null;
+			// (not those whose marker is not a quest, eg Einhar's Hunt's "Talk to Einhar")
+			if ( TalkToQuestGivers.NotQuestGivers.Any(n => string.Equals(n.TrimStart('/'), npc, StringComparison.OrdinalIgnoreCase)) ) return null;
+			// (a plain "Talk to X" only: "Meet X in town", a delivery or a reward is in town)
+			string step = Town.QuestStep(quest) ?? "";
+			bool plainTalk = step.StartsWith("Talk to ", StringComparison.OrdinalIgnoreCase) && !step.EndsWith("for your reward", StringComparison.OrdinalIgnoreCase);
+			return plainTalk && Handlers.Any(h => h.IsFor(quest) && h.FieldNpcs.Any(f => string.Equals(f, npc, StringComparison.OrdinalIgnoreCase))) ? null : npc;
+		}
+
+		/// <summary>The reward a quest's handler prefers (see QuestHandler.PreferredReward), or null.</summary>
+		public string PreferredRewardOf(string quest) => Handlers.FirstOrDefault(h => h.PreferredReward != null && h.IsFor(quest))?.PreferredReward;
+
+		/// <summary>The other town where the quest's reward is given (see QuestHandler.RewardTown), or null for this act's town.</summary>
+		public string RewardTownOf(string quest) => Handlers.FirstOrDefault(h => h.RewardTown != null && !IsTown(h.RewardTown) && h.IsFor(quest))?.RewardTown;
+
+		private TakeQuestRewards RewardsIn(string town) {
+			if ( !rewardsElsewhere.TryGetValue(town, out var g) ) {
+				rewardsElsewhere[town] = g = new TakeQuestRewards(rewardOverrides) { Where = town, Quests = q => string.Equals(RewardTownOf(q), town, StringComparison.OrdinalIgnoreCase), Prefer = PreferredRewardOf };
+			}
+			return g;
+		}
 		private readonly EnterArea toTown;
+		private readonly UsePortalScroll portalToTown;
 		private readonly Dictionary<string, EnterArea> travels = new Dictionary<string, EnterArea>(StringComparer.OrdinalIgnoreCase);
 
 		/// <summary>
@@ -542,7 +729,32 @@ namespace AtE {
 						&& string.Equals(kv.Key.place, place, StringComparison.OrdinalIgnoreCase) ) return kv.Value;
 				}
 			}
+			// a place of several levels (eg, Intruders in Black's "Travel to The Chamber of Sins"): its first level. Also when
+			// the name alone is an area of another act (eg, Through Sacred Ground's "Travel to the Crypt", 3.29.4: Act 7 has
+			// "The Crypt", reached through The Wetlands and the acts after it, while Act 2's is "The Crypt Level 1")
+			var here = GetCurrentArea();
+			if ( here != null && !GoToArea.Is(here, place) ) {
+				bool InThisAct(List<WorldArea> route) => route != null && route[route.Count - 1].Act == here.Act;
+				if ( !InThisAct(WorldArea.FindRoute(here, place)) && InThisAct(WorldArea.FindRoute(here, $"{place} Level 1")) ) return $"{place} Level 1";
+			}
 			return place;
+		}
+
+		/// <summary>A quest step that means going to town without naming it (eg, Enemy at the Gate's "Enter town for your reward").</summary>
+		public static bool IsToTown(string step) => step != null
+			&& (step.StartsWith("Enter town", StringComparison.OrdinalIgnoreCase) || step.StartsWith("Return to town", StringComparison.OrdinalIgnoreCase));
+
+		/// <summary>Where a quest's step sends the player: the area of a "Travel to X", this act's town for "Enter town ...", or null.</summary>
+		public string Destination(string step, string quest = null) => IsToTown(step) ? TownName : TravelTarget(step, quest);
+
+		/// <summary>
+		/// Is the area another level of the same place as the one called name (eg, The Chamber of Sins Level 1 and Level 2):
+		/// a quest's work there is "here" (Intruders in Black, in Level 1, goes on to Level 2 before another quest's trip).
+		/// </summary>
+		public static bool SamePlace(WorldArea here, string name) {
+			static string Place(string n) => n == null ? null : System.Text.RegularExpressions.Regex.Replace(n.Trim(), @"\s+Level\s+\d+$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+			string a = Place(here?.Name), b = Place(name);
+			return a != null && b != null && a != here.Name && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 		}
 
 		/// <summary>Is the area called name this act's town (its name, without the act)?</summary>
@@ -559,29 +771,37 @@ namespace AtE {
 
 		public FinishAllQuests(int act, string townName, Func<IReadOnlyDictionary<string, string>> rewardOverrides) {
 			Act = act; TownName = townName;
-			rewards = new TakeQuestRewards(rewardOverrides) { Where = townName };
+			rewards = new TakeQuestRewards(rewardOverrides) { Where = townName, Quests = q => RewardTownOf(q) == null && TownNpc(q) != null, Prefer = PreferredRewardOf };
+			this.rewardOverrides = rewardOverrides;
 			toTown = new EnterArea(townName);
+			portalToTown = new UsePortalScroll(townName);
 		}
 		public override string Name => $"Finish all quests (Act {Act})";
 		public override bool Sticky => false;
-		public override IEnumerable<Goal> Children => new Goal[] { givers, rewards }.Concat(Upkeep).Concat(travels.Values).Concat(Handlers.Select(h => h.Goal));
+		public override IEnumerable<Goal> Children => new Goal[] { givers, rewards, toTown, portalToTown }.Concat(Upkeep).Concat(travels.Values).Concat(rewardsElsewhere.Values).Concat(Handlers.Select(h => h.Goal));
 		public override void Reset() { base.Reset(); foreach ( var g in Children ) g.Reset(); }
 
 		/// <summary>The quests in the tracker no handler does anything for (at their current step).</summary>
-		public IEnumerable<string> Unhandled() => Town.QuestNames().Where(q => {
+		public IEnumerable<string> Unhandled() => Town.QuestNames().Where(q => !IsSkipped(q)).Where(q => {
 			var step = Town.QuestStep(q);
-			if ( Town.RewardNpc(q) != null || (step?.StartsWith("Travel to ", StringComparison.OrdinalIgnoreCase) ?? false) ) return false;
-			return !Handlers.Any(h => h.IsFor(q));
+			if ( TownNpc(q) != null || Destination(step, q) != null ) return false;
+			return !Handlers.Any(h => h.IsFor(q) && !h.IsStub);
 		});
+
+		/// <summary>Is the quest tracker's quest one to skip (see QuestHandler.Skip)?</summary>
+		public bool IsSkipped(string quest) => Handlers.Any(h => h.IsSkipped && h.IsFor(quest));
 
 		/// <summary>What it would do next for a quest in the tracker, as text (eg, "talk to Nessa for the reward").</summary>
 		public string NextFor(string quest) {
+			if ( IsSkipped(quest) ) return "nothing: skipped";
 			var step = Town.QuestStep(quest);
-			if ( Town.RewardNpc(quest) is string npc ) return step.EndsWith("for your reward", StringComparison.OrdinalIgnoreCase)
+			if ( TownNpc(quest) is string npc ) return step.EndsWith("for your reward", StringComparison.OrdinalIgnoreCase)
 				? $"talk to {npc} in {TownName} for the reward" : $"talk to {npc} in {TownName}";
-			if ( TravelTarget(step, quest) is string area ) return IsTown(area) ? $"go to {TownName}, and talk to the NPCs with something to say" : $"go to {area}";
+			if ( Destination(step, quest) is string area ) return IsTown(area) ? $"go to {TownName}, and talk to the NPCs with something to say" : $"go to {area}";
 			var h = Handlers.FirstOrDefault(x => x.IsFor(quest));
 			if ( h == null ) return "nothing: no goals known for it yet";
+			if ( h.IsStub ) return "nothing: its handler is a stub (not written yet)";
+			if ( h.DoneBy != null && !h.Active(step) ) return $"nothing here: {h.DoneBy} does it";
 			if ( !h.Active(step) ) return $"nothing at this step ({h.Goal.Name} does other steps)";
 			var leaf = h.Goal is Sequence seq ? seq.Goals.FirstOrDefault(g => !g.IsComplete) : h.Goal;
 			return $"{h.Goal.Name}{(leaf == null || leaf == h.Goal ? "" : $": {leaf.Name}{(leaf.Where == null ? "" : $" (in {leaf.Where})")}")}";
@@ -592,27 +812,41 @@ namespace AtE {
 			var quests = Town.QuestNames();
 			bool inTown = GetCurrentArea()?.IsTown ?? false;
 			if ( inTown ) {
+				// (a reward window open, eg from a reward option found while talking: take it first)
+				if ( Town.IsOpen(Town.QuestRewardWindow) && !rewards.IsDone(ctx) ) return rewards;
 				if ( !givers.IsDone(ctx) ) return givers;
 				if ( !rewards.IsDone(ctx) ) return rewards;
 				foreach ( var g in Upkeep ) if ( !g.IsDone(ctx) ) return g;
 			}
-			if ( quests.Any(q => Town.RewardNpc(q) != null) && !rewards.IsDone(ctx) ) return rewards; // (a reward given up on is passed by)
 			// a quest's own goal to do here, in the area the player is in (eg, The Way Forward in Prisoner's Gate), before
-			// traveling elsewhere for another quest's "Travel to X"
+			// going to town for a reward or traveling elsewhere for another quest's "Travel to X" (eg, Breaking Some Eggs:
+			// The Submerged Passage's waypoint, before going to town for the reward)
 			var here = GetCurrentArea();
 			foreach ( var h in Handlers ) {
-				var quest = quests.FirstOrDefault(h.IsFor);
-				if ( quest == null || !h.Active(Town.QuestStep(quest)) ) continue;
+				if ( !h.IsActive(quests.FirstOrDefault(h.IsFor)) ) continue;
 				var next = h.Goal is Sequence s ? s.Select(ctx) : (h.Goal.IsDone(ctx) ? null : h.Goal);
-				if ( next?.Where != null && GoToArea.Is(here, next.Where) ) return h.Goal;
+				if ( next?.Where != null && (GoToArea.Is(here, next.Where) || SamePlace(here, next.Where)) ) return h.Goal;
 			}
-			foreach ( var area in quests.Select(q => TravelTarget(Town.QuestStep(q), q)).Where(a => a != null) ) {
-				if ( IsTown(area) ) { if ( !inTown ) return toTown; }
+			if ( quests.Any(q => TownNpc(q) != null && RewardTownOf(q) == null) && !rewards.IsDone(ctx) ) return rewards; // (a reward given up on is passed by)
+			// a reward given in another town (eg, The Way Forward's, by Bestel in Lioneye's Watch): go there for it
+			foreach ( var town in quests.Where(q => TownNpc(q) != null).Select(RewardTownOf).Where(t => t != null).Distinct(StringComparer.OrdinalIgnoreCase) ) {
+				var there = RewardsIn(town);
+				if ( !there.IsDone(ctx) ) return there;
+			}
+			// (a handler that does a quest's "Travel to" step itself, eg Deal with the Bandits' "Travel to The Broken Bridge, The
+			// Western Forest or The Wetlands", has it: no trip for it)
+			foreach ( var area in quests.Where(q => !IsSkipped(q) && !Handlers.Any(h => h.IsFor(q) && h.Active(Town.QuestStep(q))))
+				.Select(q => Destination(Town.QuestStep(q), q)).Where(a => a != null) ) {
+				// (to town: by a Portal Scroll, with the routine's key, unless the chat said lately there are none; the backpack
+				// is not looked in: see UsePortalScroll.CanTry)
+				if ( IsTown(area) ) {
+					if ( inTown ) continue;
+					return UsePortalScroll.CanTry(ctx.Driver) ? portalToTown : toTown;
+				}
 				else if ( !GoToArea.Is(GetCurrentArea(), area) ) return TravelGoal(area);
 			}
 			foreach ( var h in Handlers ) {
-				var quest = quests.FirstOrDefault(h.IsFor);
-				if ( quest == null || !h.Active(Town.QuestStep(quest)) ) continue;
+				if ( !h.IsActive(quests.FirstOrDefault(h.IsFor)) ) continue;
 				if ( h.Goal is Sequence seq ? seq.Select(ctx) != null : !h.Goal.IsDone(ctx) ) return h.Goal;
 			}
 			return null;

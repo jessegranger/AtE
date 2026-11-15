@@ -373,6 +373,61 @@ namespace AtE {
 	}
 
 	/// <summary>
+	/// Kill a bandit leader (Act 2: Kraityn, Alira, Oak): find them in their area (a unique monster, named so, that
+	/// CannotBeDamaged until a choice is made), click them to talk, and in the dialog that shows (HelpOrKillBandit, found
+	/// by its text) click "Kill [name]" (never Help): they turn hostile (CannotBeDamaged 0), and are fought as any monster is (Kill: the driver's Engage).
+	/// Done once seen dead (kept while the overlay runs, through new runs), or by DoneWhen (eg, the quest's step no longer
+	/// naming their area). (Their quest items go to the quest inventory, not the backpack.)
+	/// </summary>
+	public class KillBandit : Goal {
+		public readonly string Bandit;
+		private readonly Func<string> skill;
+		private long lastClick;
+		private bool killed;
+		public KillBandit(string bandit, Func<string> skill) { Bandit = bandit; this.skill = skill; }
+		public override string Name => $"Kill {Bandit} (the bandit)";
+
+		private Entity Find() => GetEntities()?.FirstOrDefault(e => e?.Path is string path && path.StartsWith("Metadata/Monsters/")
+			&& (e.GetComponent<Render>()?.Name?.Contains(Bandit, StringComparison.OrdinalIgnoreCase) ?? false));
+
+		/// <summary>The dialog's "Kill [name]" button, if it shows (searched for from the UI root).</summary>
+		private Element KillButton() => Town.FindByText(PoEMemory.GameRoot?.InGameState?.UIRoot, $"Kill {Bandit}", 16);
+
+		public override bool CheckDone(CombatContext ctx) => killed;
+
+		protected override IState Step(CombatContext ctx) {
+			long now = Time.ElapsedMilliseconds;
+			if ( KillButton() is Element button ) {
+				ctx.Driver.StopWalking($"choosing to kill {Bandit}");
+				if ( now - lastClick < 1000 ) return this;
+				lastClick = now;
+				Detail = $"clicking Kill {Bandit}";
+				Log($"Campaign: {Bandit}: clicking \"Kill {Bandit}\"");
+				return Inputs.Click(button.GetClientRect(), this);
+			}
+			var bandit = Find();
+			if ( bandit == null ) return Search(ctx, Bandit);
+			if ( !IsAlive(bandit) ) { killed = true; Detail = $"{Bandit} is dead"; return this; }
+			if ( !Combat.CannotBeDamaged(bandit) ) {
+				Detail = $"fighting {Bandit}";
+				return Call(new Kill(Bandit, e => e?.Address == bandit.Address, skill));
+			}
+			// not chosen yet: talk to them
+			var pos = bandit.GetComponent<Positioned>();
+			if ( !IsValid(pos) ) return this;
+			if ( !IsNear(ctx, pos.GridPos, 12, out _, out float d) ) {
+				Detail = $"to {Bandit}, {d:F0} cells away";
+				return Call(new Navigate(Bandit, _ => pos.GridPos, 12) { FightRadius = 60 });
+			}
+			ctx.Driver.StopWalking($"talking to {Bandit}");
+			if ( now - lastClick < 1500 || !(Ground.ClickEntity(bandit, this) is IState click) ) return this;
+			lastClick = now;
+			Detail = $"talking to {Bandit}";
+			return click;
+		}
+	}
+
+	/// <summary>
 	/// Take the rewards of finished quests: for every quest in the quest tracker whose step is "Talk to [NPC] for your
 	/// reward", talk to that NPC, choose its option ending in "Reward", and Ctrl+click the reward RewardChooser picks.
 	/// While a reward window is open (an NPC with more than one reward opens it again after each), it keeps choosing.
@@ -383,6 +438,11 @@ namespace AtE {
 		private long lastClick, retryAt;
 		private int clicks;
 		private string clicked;
+		// the quest last talked for (the reward window does not say which quest it is for)
+		private string talkedFor;
+
+		/// <summary>The reward to take first for a quest (eg, The Great White Beast: "Quicksilver Flask"), if offered; null: none.</summary>
+		public Func<string, string> Prefer;
 
 		/// <param name="overrides">The rewards to prefer (see RewardChooser), asked when needed (eg, from the campaign's settings).</param>
 		public TakeQuestRewards(Func<IReadOnlyDictionary<string, string>> overrides = null) => this.overrides = overrides;
@@ -399,9 +459,12 @@ namespace AtE {
 		private readonly HashSet<string> gaveUp = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 		// the first quest waiting for its reward (and not given up on), and who has it
+		/// <summary>Which quests (as the tracker names them) it takes the rewards of; null: all (eg, one town's, see QuestHandler.RewardTown).</summary>
+		public Func<string, bool> Quests;
+
 		private (string quest, string npc) Pending() {
 			foreach ( var quest in Town.QuestNames() ) {
-				if ( !gaveUp.Contains(quest) && Town.RewardNpc(quest) is string npc ) return (quest, npc);
+				if ( !gaveUp.Contains(quest) && (Quests?.Invoke(quest) ?? true) && Town.RewardNpc(quest) is string npc ) return (quest, npc);
 			}
 			return (null, null);
 		}
@@ -420,6 +483,11 @@ namespace AtE {
 				ctx.Driver.StopWalking("taking a quest reward");
 				if ( now - lastClick < 800 ) return this;
 				var (element, reward, why) = RewardChooser.Choose(overrides?.Invoke());
+				if ( talkedFor != null && Prefer?.Invoke(talkedFor) is string want ) {
+					var offered = Town.QuestRewards().FirstOrDefault(r => Town.RewardItem(r) is Entity item
+						&& (Equipment.ItemName(item)?.Contains(want, StringComparison.OrdinalIgnoreCase) ?? false));
+					if ( offered != null ) { element = offered; reward = Equipment.ItemName(Town.RewardItem(offered)); why = $"{talkedFor} prefers {want}"; }
+				}
 				if ( element == null ) {
 					if ( emptySince == 0 ) emptySince = now;
 					Detail = $"the reward window shows no rewards ({now - emptySince} ms)";
@@ -429,7 +497,7 @@ namespace AtE {
 				if ( reward != clicked ) { clicked = reward; clicks = 0; }
 				if ( clicks >= 3 ) { Detail = $"clicked {reward} {clicks} times, but it was not taken"; return this; }
 				Detail = $"taking {reward} ({why})";
-				if ( clicks == 0 ) Log($"{Name}: taking {reward} ({why}) from {Town.RewardNames()}");
+				Log($"{Name}: taking {reward} ({why}) from {Town.RewardNames()}: Ctrl + click {element.GetClientRect()} (click {clicks + 1})");
 				// with Ctrl held, the game takes it at once
 				lastClick = now;
 				clicks += 1;
@@ -448,6 +516,7 @@ namespace AtE {
 				return Inputs.Click(more.GetClientRect(), this);
 			}
 			var (quest, npc) = Pending();
+			talkedFor = quest ?? talkedFor;
 			if ( quest == null ) return this;
 			if ( Town.AnyWindowOpen ) {
 				// eg, the purchase window, from the wrong option

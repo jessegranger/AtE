@@ -114,6 +114,18 @@ namespace AtE {
 			return !list.Any(d => SameName(d.name, name) && IsUnlocked(d.element));
 		}
 
+		/// <summary>
+		/// True if the panel's element tree (open or closed) shows the current act with the waypoint called name unlocked.
+		/// False when it can't tell (see IsKnownLocked), or it is locked.
+		/// </summary>
+		public static bool IsKnownUnlocked(string name) {
+			string here = GetCurrentArea()?.Name;
+			if ( string.IsNullOrEmpty(name) ) return false;
+			var list = DestinationsEvenClosed().ToList();
+			if ( !list.Any(d => IsCurrentArea(d.element) || SameName(d.name, here)) ) return false;
+			return list.Any(d => SameName(d.name, name) && IsUnlocked(d.element));
+		}
+
 		private static IEnumerable<(Element element, string name)> DestinationsIn(Element panel) {
 			var root = panel?.GetChild(2);
 			foreach ( var e in UiSearch.Visible(root, 12, 5000) ) {

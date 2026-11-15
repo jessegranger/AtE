@@ -86,6 +86,9 @@ namespace AtE {
 		/// <summary>The escape menu opening this soon after an Escape of ours: ours to close.</summary>
 		public long EscapeMenuMs = 3000;
 		private long lastMenuEscape;
+		/// <summary>An empty input (eg, the chat's) with the focus this long, nothing of ours typing: closed with Escape.</summary>
+		public long ChatIdleCloseMs = 4000;
+		private long emptyInputSince;
 		private IState pendingInput;
 		private bool inputRunning;
 		/// <summary>True while input is queued or still going out: Send refuses more until it is done.</summary>
@@ -141,9 +144,26 @@ namespace AtE {
 				return Wait("escape menu");
 			}
 			// (the augury card selection window pauses the game: it is worked on all the same, see TryAugury)
-			if ( game.IsPaused && !AuguryIsOpen() ) return Wait("the game is paused");
+			// (so does the passive tree: points are spent with it open, see TrySpendPoints, eg after a restart with it open)
+			if ( game.IsPaused && !AuguryIsOpen() && !PassiveTreePanel.IsOpen ) return Wait("the game is paused");
 			// (the hidden skill bar takes the input focus too: not typing, and a click in it must get to its release)
-			if ( game.HasInputFocus && !SkillBar.IsChoosing ) return Wait("typing in the game");
+			// (nor is a chat command of ours being typed, see ChatCommand)
+			if ( game.HasInputFocus && !SkillBar.IsChoosing && !ChatCommand.IsTyping ) {
+				// an empty input left open (3.29.4, seen after a relaunch: the chat input, open and empty, with nothing
+				// typing): close it with Escape after ChatIdleCloseMs; one with text in it is someone typing, so wait
+				long nowMs = Time.ElapsedMilliseconds;
+				bool empty = string.IsNullOrEmpty(game.Focused?.Text);
+				if ( !empty ) emptyInputSince = 0;
+				else if ( emptyInputSince == 0 ) emptyInputSince = nowMs;
+				else if ( nowMs - emptyInputSince > ChatIdleCloseMs && nowMs - lastMenuEscape > 1000 && CanSendKey(VKey.Escape) ) {
+					lastMenuEscape = Inputs.LastEscapeMs = nowMs; // (ours: if it opens the escape menu instead, that is closed too)
+					emptyInputSince = 0;
+					Log($"{Name}: an empty input ({game.Focused?.GetClientRect()}) has had the focus for {ChatIdleCloseMs} ms: closing it with Escape");
+					Run(Inputs.Press(VKey.Escape)); // (on the default Machine: the campaign's chain does not run while waiting here)
+				}
+				return Wait("typing in the game");
+			}
+			emptyInputSince = 0;
 			if ( !PoEMemory.TargetHasFocus ) return Wait("the game needs focus to use the mouse");
 			if ( binding ) return Wait("changing the skill bar");
 			// left click should only move (and interact), never attack
@@ -256,6 +276,7 @@ namespace AtE {
 				if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, "attacking");
 				if ( TryPlaceTotem(ctx, screen) ) { Status = $"placing a Decoy Totem near {target}"; return true; }
 				Status = $"attacking {target}{(skill == null ? "" : $" with {skill}")}";
+				Stalemates.NoteAttack(target.Entity);
 				if ( skill == null ) Attack(target, screen);
 				else UseSkillPaced(skill, screen);
 				return true;
@@ -273,6 +294,12 @@ namespace AtE {
 		public long AuguryConfirmRetryMs = 1500;
 		private readonly HashSet<long> auguryCardsClicked = new HashSet<long>();
 		private long lastAuguryClick, lastAuguryConfirm;
+		/// <summary>
+		/// A fate card chosen, and Confirm clicked, with the window still open this long after: that card was not a valid
+		/// choice (3.29.4, seen live: Confirm did nothing for the first card), so choose the next one not tried yet.
+		/// </summary>
+		public long FateCardTimeoutMs = 8000;
+		private long fateCardChosenAt;
 
 		/// <summary>Is the augury card selection window open (see TryAugury)?</summary>
 		public static bool AuguryIsOpen() {
@@ -352,10 +379,13 @@ namespace AtE {
 			cards.FirstOrDefault(c => FateRewards(c).Any(t => t.IndexOf("Currency", StringComparison.OrdinalIgnoreCase) >= 0))
 			?? cards.FirstOrDefault();
 
-		// "Select a Fate": a card under GetChild(2, 5, 0) (see ChooseFateCard), once, then Confirm at GetChild(2, 9, 1)
+		// "Select a Fate": a card under GetChild(2, 5, 0) (see ChooseFateCard), then Confirm at GetChild(2, 9, 1); if the
+		// window is still open FateCardTimeoutMs after, the next card not tried yet
 		private bool TrySelectFateCard(Element window, long now) {
-			if ( auguryCardsClicked.Count == 0 ) {
-				var card = ChooseFateCard(VisibleChildren(window.GetChild(2, 5, 0)));
+			bool timedOut = auguryCardsClicked.Count > 0 && now - fateCardChosenAt > FateCardTimeoutMs;
+			var untried = VisibleChildren(window.GetChild(2, 5, 0)).Where(c => !auguryCardsClicked.Contains(c.Address.ToInt64())).ToList();
+			if ( auguryCardsClicked.Count == 0 || (timedOut && untried.Count > 0) ) {
+				var card = ChooseFateCard(untried);
 				Status = "augury: selecting a fate";
 				if ( card == null ) { Status = "augury: no fate cards at GetChild(2, 5, 0)"; return true; }
 				if ( InputBusy || now - lastAuguryClick < AuguryClickMs ) return true;
@@ -363,8 +393,10 @@ namespace AtE {
 				if ( rect.Width <= 0 || rect.Height <= 0 ) { Status = "augury: the first fate card has no size"; return true; }
 				DefaultFollower.ReleaseMouse();
 				if ( Send(Inputs.Click(rect)) ) {
+					if ( timedOut ) Log($"{Name}: augury: the window is still open {FateCardTimeoutMs} ms after choosing a fate: that one is not valid, trying the next");
 					auguryCardsClicked.Add(card.Address.ToInt64());
-					lastAuguryClick = now;
+					lastAuguryClick = fateCardChosenAt = now;
+					lastAuguryConfirm = 0;
 					Log($"{Name}: augury fate chosen: {card.GetChild(0, 0, 4)?.Text?.Trim()} ({string.Join("; ", FateRewards(card))})");
 				}
 				return true;
@@ -555,12 +587,47 @@ namespace AtE {
 		/// <summary>True once TryExplore has found nothing left to explore in this area.</summary>
 		public bool ExploreDone => exploreTarget != null && exploreTarget.Kind == ExploreTargetKind.None;
 
+		/// <summary>The place TryExplore is walking to (null before the first call).</summary>
+		public ExploreTarget ExploreTarget => exploreTarget;
+
+		/// <summary>
+		/// Exploring, the player not getting ExploreStuckCells nearer the place it is walking to for this long (jittering on
+		/// the spot counts as not getting nearer): it can't be reached (eg, a spot the paths say is walkable but is not), so
+		/// give up on it (DefaultExplorer.GiveUp) and explore somewhere else.
+		/// </summary>
+		public long ExploreStuckMs = 10000; // (long enough for a path that winds away from the place for a while)
+		public float ExploreStuckCells = 8;
+		/// <summary>The cells around a place given up on that count as explored (so it is not chosen again).</summary>
+		public int ExploreGiveUpRadius = 24;
+		private Offsets.Vector2i exploreProgressTarget;
+		private float exploreBestDistance;
+		private long exploreProgressTime, lastExploreCall;
+
 		/// <summary>Walk to the next unexplored place; false if there is none left.</summary>
 		public bool TryExplore(CombatContext ctx) {
+			long now = Time.ElapsedMilliseconds;
+			// progress: the nearest the player has been to the place, since it was chosen (a new place, more than
+			// ExploreStuckCells from the last, starts over; time spent not exploring, eg fighting, does not count)
+			if ( exploreTarget != null && exploreTarget.Kind == ExploreTargetKind.Explore ) {
+				float d = Combat.Distance(ctx.Grid, exploreTarget.GridPos);
+				if ( now - lastExploreCall > 1000 || Combat.Distance(exploreTarget.GridPos, exploreProgressTarget) > ExploreStuckCells
+					|| d < exploreBestDistance - ExploreStuckCells ) {
+					exploreProgressTarget = exploreTarget.GridPos;
+					exploreBestDistance = d;
+					exploreProgressTime = now;
+				}
+				if ( now - exploreProgressTime > ExploreStuckMs ) {
+					Log($"{Name}: exploring: not {ExploreStuckCells:F0} cells nearer {exploreTarget.GridPos} in {ExploreStuckMs} ms (at {ctx.Grid}, {d:F0} cells away; {DefaultFollower.Status}: {DefaultFollower.Detail}): giving up on it, exploring somewhere else");
+					DefaultExplorer.GiveUp(ctx.Terrain, exploreTarget.GridPos, ExploreGiveUpRadius);
+					exploreTarget = null;
+					exploreProgressTime = now;
+				}
+			}
+			lastExploreCall = now;
 			// look for the next place twice a second, it moves as the area is explored
-			if ( exploreTarget == null || Time.ElapsedMilliseconds - exploreTargetTime > 500 || DefaultFollower.Status == FollowStatus.Arrived ) {
+			if ( exploreTarget == null || now - exploreTargetTime > 500 || DefaultFollower.Status == FollowStatus.Arrived ) {
 				exploreTarget = DefaultExplorer.FindNextTarget(DefaultNavigator, ctx.Terrain, ctx.Grid, monsters: false);
-				exploreTargetTime = Time.ElapsedMilliseconds;
+				exploreTargetTime = now;
 			}
 			if ( exploreTarget.Kind == ExploreTargetKind.None ) return false;
 			WalkTo(exploreTarget.GridPos, $"exploring {exploreTarget.GridPos} ({DefaultExplorer.ExploredFraction:P0} explored)");

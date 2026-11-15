@@ -188,10 +188,12 @@ namespace AtE {
 				case "/tree": {
 					string at = q["at"];
 					int depth = ParseInt(q["depth"], 3);
-					return RunOnMain(() => TryResolve(at, out long addr, out string err) ? ElementTree(new IntPtr(addr), depth) : $"error: {err}" + NL);
+					return RunOnMain(() => TryResolve(at, out long addr, out string err) ? ElementTree(new IntPtr(addr), depth, q["rects"] == "1") : $"error: {err}" + NL);
 				}
 				case "/waypoints":
 					return RunOnMain(WaypointsText);
+				case "/route":
+					return RunOnMain(() => RouteText(q["to"]));
 				case "/tiles":
 					return RunOnMain(() => TilesText(q["filter"]));
 				case "/labels":
@@ -307,7 +309,8 @@ namespace AtE {
   /offsets/queue?ids=failed|clear|A2.Terrain,A4      queue checks for fixing (shown on screen as FIX)
   /offsets/golden | /offsets/confirm?key=<contains> | /offsets/forget?key=<contains>   the values a fresh character is known to have
   /ents?filter=<path substring>&comp=<ComponentName>&id=<entity id>&limit=30
-  /tree?at=EXPR&depth=3         an element and its children: path of child indexes, address, visible, text, and the item if it is an InventoryItem
+  /tree?at=EXPR&depth=3[&rects=1]   an element and its children: path of child indexes, address, visible, (rect), text, and the item if it is an InventoryItem
+  /route?to=<area name>         the route of areas (WorldArea.FindRoute) from here to an area, and each area's connections, waypoint, town, hub
   /waypoints                    the destinations on the waypoint panel, open or closed (read from its element tree): name, unlocked (visited), element, screen rect
   /tiles[?filter=]              the current area's tile files (.tdt): groups of neighboring tiles per file and where, and the exits known
   /labels                       the labels on the ground: entity id and path, text, screen rect, and the entity's screen position
@@ -330,13 +333,13 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 
 		// ---------------------------------------------------------------- status / entities
 
-		private string ElementTree(IntPtr address, int depth) {
+		private string ElementTree(IntPtr address, int depth, bool rects = false) {
 			var sb = new StringBuilder();
 			void Walk(Element e, string path, int d) {
 				if ( !IsValid(e) ) { sb.AppendLine($"{path} (invalid)"); return; }
 				var item = new InventoryItem(e.Address).Entity;
 				var children = e.Children.ToList();
-				sb.AppendLine($"{path} 0x{e.Address.ToInt64():X} visible={e.IsVisibleLocal} children={children.Count} text={e.Text?.Trim()}{(item == null ? "" : $" item={item.Path} entity=0x{item.Address.ToInt64():X} base=0x{(item.GetComponent<Base>()?.Address ?? IntPtr.Zero).ToInt64():X} name={Equipment.ItemName(item)}")}");
+				sb.AppendLine($"{path} 0x{e.Address.ToInt64():X} visible={e.IsVisibleLocal} children={children.Count}{(rects ? $" rect={e.GetClientRect()}" : "")} text={e.Text?.Trim()}{(item == null ? "" : $" item={item.Path} entity=0x{item.Address.ToInt64():X} base=0x{(item.GetComponent<Base>()?.Address ?? IntPtr.Zero).ToInt64():X} name={Equipment.ItemName(item)}")}");
 				if ( d <= 0 ) return;
 				for ( int i = 0; i < children.Count; i++ ) Walk(children[i], $"{path}.{i}", d - 1);
 			}
@@ -360,6 +363,20 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			foreach ( var file in groups ) {
 				sb.Append($"{file.Count(),4}  {file.Key}  at {string.Join(" ", file.Take(6).Select(g => g.GridPos))}{(file.Count() > 6 ? " ..." : "")}" + NL);
 			}
+			return sb.ToString();
+		}
+
+		private string RouteText(string to) {
+			var sb = new StringBuilder();
+			var here = GetCurrentArea();
+			string Describe(WorldArea a) => $"{a.DisplayName} [{a.Id}]{(a.HasWaypoint ? " wp" : "")}{(a.IsTown ? " town" : "")}{(a.IsHub ? " hub" : "")}"
+				+ $"{(WaypointPanel.IsKnownLocked(a.Name) ? " (locked)" : WaypointPanel.IsKnownUnlocked(a.Name) ? " (unlocked)" : "")}";
+			sb.AppendLine($"here: {(here == null ? "?" : Describe(here))}");
+			if ( here != null ) sb.AppendLine($"  connections: {string.Join("; ", here.Connections.Select(Describe))}");
+			if ( string.IsNullOrEmpty(to) ) return sb.ToString();
+			var route = WorldArea.FindRoute(here, to);
+			if ( route == null ) { sb.AppendLine($"no route to {to}"); return sb.ToString(); }
+			foreach ( var a in route ) sb.AppendLine($"{Describe(a)}\n  connections: {string.Join("; ", a.Connections.Select(Describe))}");
 			return sb.ToString();
 		}
 
@@ -452,8 +469,15 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 				sb.AppendLine($"  misplaced: {string.Join(", ", GemArrangement.Misplaced(gemPlan, level).Select(m => $"{m.slot}[{m.socket}]={Equipment.ItemName(m.gem)}"))}");
 				sb.AppendLine($"  next move: {InventoryPlans.PlanOneGemMove(gemPlan, level, null)?.Name ?? "(none)"}");
 			}
+			var treeSection = GetPlugin<AutomationPlugin>()?.PassiveTree;
+			if ( treeSection?.Plan != null ) {
+				var have = new HashSet<int>((PoEMemory.GameRoot?.InGameState?.AllocatedPassives ?? Array.Empty<ushort>()).Select(id => (int)id));
+				var nextStep = treeSection.Plan.Next(have);
+				sb.AppendLine($"passives: {GetUI()?.UnspentPassivePoints ?? 0} unspent; next: {(nextStep == null ? "(none)" : $"{nextStep.Node.Id} {nextStep} ({nextStep.Node.Kind}{(nextStep.MasteryEffect >= 0 ? $", effect {nextStep.MasteryEffect}" : "")})")}; allocator: {treeSection.Allocator.Status}");
+			}
 			sb.AppendLine($"goal: {routine.CurrentGoal?.Id ?? "(none)"}");
 			foreach ( var s in routine.StackLines() ) sb.AppendLine($"  running: {s}");
+			sb.AppendLine($"  explore: {routine.ExploreTarget?.ToString() ?? "(none)"}, {DefaultExplorer.ExploredFraction:P0} explored; walking: {DefaultFollower.Status} {DefaultFollower.Detail}");
 			Sequence shown = null;
 			foreach ( var (parent, goal, depth) in routine.Leaves() ) {
 				if ( parent != shown ) { shown = parent; sb.AppendLine($"{new string(' ', depth * 2)}{parent.Name}{(parent.IsComplete ? " [x]" : "")}"); }

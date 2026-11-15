@@ -159,6 +159,9 @@ namespace AtE {
 			return new RectangleF(vPos.X, vPos.Y, vSize.X, vSize.Y);
 		}
 
+		/// <summary>Screen pixels per UI unit, at the UI root's scale (the UI is laid out on a 2560x1600 virtual screen).</summary>
+		public static Vector2 UIScreenScale => ScreenScale();
+
 		/// <summary>
 		/// Where a point in this element's own coordinates (the space its children are placed in, moved by ScrollOffset)
 		/// is on the screen; and how many screen pixels one unit of that space is.

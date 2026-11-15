@@ -39,6 +39,8 @@ namespace AtE {
 			}
 		}
 		public Element SkillTree => IsValid(Address) ? getElement(Cache.SkillTree) : null;
+		/// <summary>The Options panel (O): its "Input" tab lists the game's key bindings (see GameKeys).</summary>
+		public Element OptionsPanel => IsValid(Address) ? getElement(Cache.OptionsPanel) : null;
 		public Element HiddenSkillBar => IsValid(Address) ? getElement(Cache.HiddenSkillBar) : null;
 		public Element ChatBoxRoot => IsValid(Address) ? getElement(Cache.ChatBoxRoot) : null;
 		public Element QuestTracker => IsValid(Address) ? getElement(Cache.QuestTracker) : null;

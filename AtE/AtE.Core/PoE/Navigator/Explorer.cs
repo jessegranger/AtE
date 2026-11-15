@@ -108,6 +108,27 @@ namespace AtE {
 			}
 		}
 
+		/// <summary>
+		/// Count the walkable cells within radius of pos as explored, so they are not chosen again (eg, a place that
+		/// could not be reached).
+		/// </summary>
+		public void GiveUp(Terrain terrain, Offsets.Vector2i pos, int radius) {
+			var m = current;
+			if ( m == null || terrain == null ) return;
+			for ( int y = Math.Max(0, pos.Y - radius); y <= Math.Min(m.Height - 1, pos.Y + radius); y++ ) {
+				for ( int x = Math.Max(0, pos.X - radius); x <= Math.Min(m.Width - 1, pos.X + radius); x++ ) {
+					int dx = x - pos.X, dy = y - pos.Y;
+					if ( (dx * dx) + (dy * dy) > radius * radius ) continue;
+					int i = (y * m.Width) + x;
+					ulong bit = 1UL << (i & 63);
+					if ( (m.Bits[i >> 6] & bit) != 0 || !terrain.IsWalkable(x, y) ) continue;
+					m.Bits[i >> 6] |= bit;
+					m.Explored += 1;
+					m.BlockUnexplored[((y >> 3) * m.BlocksX) + (x >> 3)] -= 1;
+				}
+			}
+		}
+
 		private void MarkAll() {
 			if ( current.Explored == current.Walkable ) return;
 			Array.Fill(current.Bits, ulong.MaxValue);
@@ -163,10 +184,16 @@ namespace AtE {
 			// (on entering an area, the terrain can be the new one's while the map is still the last one's, until Update)
 			if ( result.Kind == ExploreTargetKind.None && current != null && current.Width == terrain.Width && current.Height == terrain.Height ) {
 				int Needed(int regionSize) => Math.Min(MinUnexplored, Math.Max(1, regionSize / 2));
+				// (only the cells Terrain calls walkable count: Update marks no others, and the Navigator's regions also
+				// have door passages, which Terrain keeps blocked, so a region of them would be wanted forever)
 				bool Wanted(List<Offsets.Vector2i> cells) {
-					int unexplored = 0;
-					foreach ( var c in cells ) if ( !IsExplored(c) ) unexplored += 1;
-					return unexplored >= Needed(cells.Count);
+					int unexplored = 0, walkable = 0;
+					foreach ( var c in cells ) {
+						if ( !terrain.IsWalkable(c) ) continue;
+						walkable += 1;
+						if ( !IsExplored(c) ) unexplored += 1;
+					}
+					return walkable > 0 && unexplored >= Needed(walkable);
 				}
 				// skip a region without looking at its cells when its whole block has too few unexplored ones
 				var map = current;

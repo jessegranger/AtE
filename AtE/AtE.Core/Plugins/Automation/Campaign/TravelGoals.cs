@@ -81,15 +81,34 @@ namespace AtE {
 	}
 
 	/// <summary>
-	/// Go to town with a Portal Scroll: use one (press the routine's PortalScrollKey, or else right click one in the
-	/// backpack), close the inventory, then click the portal that opens. Fights the monsters near first. Done when the
-	/// current area is the destination.
+	/// Go to town with a Portal Scroll: press the game's "Use Portal Scroll" key (read from its Options, see GameKeys;
+	/// ReadGameKeys first if they are not read yet), then click the portal that opens. Fights the monsters near first.
+	/// Done when the current area is the destination. After the key, the chat saying "Out of Portal Scrolls" within
+	/// OutCheckMs means there are none (see OutOfScrollsAt): the caller walks instead. The backpack is not looked in.
 	/// </summary>
 	public class UsePortalScroll : Goal {
 		public readonly string Destination;
 		/// <summary>Click the portal when within this many cells of it.</summary>
 		public float Reach = 12;
 		private long scrollUsed, lastClick, lastAction;
+		private IntPtr chatMark; // the chat's last message when the key was pressed
+
+		/// <summary>How long after the key to look for "Out of Portal Scrolls" in the chat.</summary>
+		public const long OutCheckMs = 1000;
+		/// <summary>After running out, how long the scrolls are not tried again (see CanTry).</summary>
+		public const long OutForMs = 120000;
+		/// <summary>When the chat last said "Out of Portal Scrolls" after the key (shared: it is the character's).</summary>
+		public static long OutOfScrollsAt { get; private set; } = -1000000;
+
+		/// <summary>The game's key for a Portal Scroll (VKey.None if not read yet, or not bound).</summary>
+		public static VKey ScrollKey => GameKeys.Key("Use Portal Scroll");
+
+		/// <summary>
+		/// Worth trying: the scrolls did not run out lately, and the game's key is known (or not read yet: it reads them
+		/// first; not if they could not be read, or the action has no key).
+		/// </summary>
+		public static bool CanTry(CombatDriver driver) => Time.ElapsedMilliseconds - OutOfScrollsAt > OutForMs
+			&& (GameKeys.Loaded ? ScrollKey != VKey.None : !GameKeys.Unreadable);
 
 		/// <param name="destination">The town the portal goes to (eg, "Lioneye's Watch").</param>
 		public UsePortalScroll(string destination) => Destination = destination;
@@ -97,7 +116,9 @@ namespace AtE {
 		public override bool Sticky => false;
 		public override bool UsesInventory => true; // (it opens and closes the inventory itself)
 		public override void Reset() { base.Reset(); scrollUsed = lastClick = lastAction = 0; }
-		public override bool CheckDone(CombatContext ctx) => GoToArea.Is(GetCurrentArea(), Destination);
+		// (also done, not there, when the scrolls ran out lately: the caller goes another way)
+		public override bool CheckDone(CombatContext ctx) => GoToArea.Is(GetCurrentArea(), Destination)
+			|| (Time.ElapsedMilliseconds - OutOfScrollsAt < OutForMs && FindPortal(ctx) == null);
 
 		/// <summary>A town portal near the player (Metadata/MiscellaneousObjects/...Portal...), or null.</summary>
 		private static Entity FindPortal(CombatContext ctx) => GetEntities()?
@@ -118,7 +139,18 @@ namespace AtE {
 					lastAction = now;
 					return Inputs.Press(VKey.I, this);
 				}
-				if ( portal == null ) { ctx.Driver.StopWalking("waiting for the portal"); Detail = "waiting for the portal"; return this; }
+				if ( portal == null ) {
+					// (out of scrolls: the chat says so)
+					if ( chatMark != IntPtr.Zero && now - scrollUsed <= OutCheckMs + 500
+						&& ChatCommand.MessagesAfter(chatMark).Any(m => m.Contains("Out of Portal Scrolls", StringComparison.OrdinalIgnoreCase)) ) {
+						OutOfScrollsAt = now;
+						chatMark = IntPtr.Zero;
+						Log("Campaign: out of Portal Scrolls: walking instead");
+						Detail = "out of Portal Scrolls";
+						return this;
+					}
+					ctx.Driver.StopWalking("waiting for the portal"); Detail = "waiting for the portal"; return this;
+				}
 				var pos = portal.GetComponent<Positioned>().GridPos;
 				if ( !IsNear(ctx, pos, Reach, out _, out float d) ) {
 					Detail = $"the portal is {d:F0} cells away";
@@ -136,19 +168,14 @@ namespace AtE {
 			ctx.Driver.StopWalking("using a Portal Scroll");
 			if ( now - lastAction < 700 ) return this;
 			lastAction = now;
-			var key = (ctx.Driver as CampaignRoutine)?.PortalScrollKey?.Key ?? VKey.None;
-			if ( key != VKey.None && !BackpackIsOpen() ) {
-				Detail = $"pressing {key}";
-				scrollUsed = now;
-				return Inputs.Press(key, this);
-			}
-			if ( !BackpackIsOpen() ) { Detail = "opening the inventory"; return Inputs.Press(VKey.I, this); }
-			var scroll = BackpackItems().FirstOrDefault(i => i.Entity?.Path == Offsets.PATH_SCROLL_PORTAL);
-			if ( scroll == null ) { Detail = "no Portal Scroll in the backpack"; return this; }
-			Detail = "right clicking a Portal Scroll";
+			if ( !GameKeys.Loaded && !GameKeys.Unreadable ) { Detail = "reading the game's keys"; return Call(new ReadGameKeys()); }
+			var key = ScrollKey;
+			if ( key == VKey.None ) { Detail = "no key for Use Portal Scroll in the game's Options"; return this; }
+			if ( BackpackIsOpen() ) { Detail = "closing the inventory"; return Inputs.Press(VKey.I, this); }
+			Detail = $"pressing {GameKeys.Text("Use Portal Scroll")}";
 			scrollUsed = now;
-			return Inputs.RightClick(scroll.GetClientRect(), this);
-			return this;
+			chatMark = ChatCommand.LastMessage();
+			return GameKeys.Press(key, this);
 		}
 	}
 
