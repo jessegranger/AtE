@@ -461,17 +461,31 @@ namespace AtE {
 
 		// 3.29.4, found live (searched memory for the key codes, then for the pointers to them), on a freshly started game
 		// before the Options panel was ever shown: the player's key bindings. The UI root element (InGameState.elemRoot)
-		// + UIRoot_Input points at an object whose UIInput_Bindings is a std::vector (begin, end, capacity end), and
-		// UIInput_BindingCount (just after it, with one pointer between) its count, of 12-byte entries
-		// { int key; int modifier; int action }, one per action that has a key: key a virtual key code, modifier 0x10 /
-		// 0x11 / 0x12 (Shift / Ctrl / Alt) or 0, action the action's index (the Input tab's rows, in order, unbound ones
-		// included: see GameKeys.BindingActions). Path: ingame+0x800*+0xD8*+0x3D0. Not used: a static object of the game
-		// module (ingame+0x398*) holds the default bindings at +0x528, as { int action; int key; int modifier }, all 69;
-		// and once the panel was shown, its Input page has its own copy (ingame+0x290*+0x6A0*+0x428*+0x48*+0x110, 8-byte
-		// { key; modifier } entries in action order).
+		// + UIRoot_Input points at a UIInput, whose Bindings (a std::vector) holds a KeyBindingEntry for each action that
+		// has a key. Path: ingame+0x800*+0xD8*+0x3D0. Not used: a static object of the game module (ingame+0x398*) holds
+		// the default bindings at +0x528, as { int action; int key; int modifier }, all 69; and once the panel was shown,
+		// its Input page has its own copy (ingame+0x290*+0x6A0*+0x428*+0x48*+0x110, 8-byte { key; modifier } entries in
+		// action order).
 		public static readonly int UIRoot_Input = 0xD8;
-		public static readonly int UIInput_Bindings = 0x3D0;
-		public static readonly int UIInput_BindingCount = 0x3F0;
+
+		/// <summary>3.29.4: what the UI root points at, at UIRoot_Input (the player's key bindings; see there).</summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct UIInput {
+			/// <summary>A std::vector of KeyBindingEntry (begin, end; the capacity's end follows).</summary>
+			[FieldOffset(0x3D0)] public ArrayHandle Bindings;
+			/// <summary>How many entries Bindings has (one pointer after the vector).</summary>
+			[FieldOffset(0x3F0)] public int BindingCount;
+		}
+
+		/// <summary>
+		/// 3.29.4: one key binding in UIInput.Bindings: Key a virtual key code, Modifier 0x10 / 0x11 / 0x12 (Shift / Ctrl /
+		/// Alt) or 0, Action the action's index (the Options panel's Input rows, in order, unbound ones included: see
+		/// GameKeys.BindingActions).
+		/// </summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1, Size = 12)] public struct KeyBindingEntry {
+			[FieldOffset(0x0)] public int Key;
+			[FieldOffset(0x4)] public int Modifier;
+			[FieldOffset(0x8)] public int Action;
+		}
 		// 3.29.4, compared live across the Act 1 destination elements with the panel open in The Submerged Passage:
 		// a byte that is 1 for each area visited (The Twilight Strand ... The Flooded Depths) and 0 for The Ledge (shown,
 		// next door, not visited yet); taken as "can be traveled to". (+0x32C read 1 only on the current area.)
@@ -771,39 +785,40 @@ namespace AtE {
 			// 3.26: 8 new bytes here
 			[FieldOffset(0x568)] public readonly IntPtr ChatBoxRoot;
 
-			[FieldOffset(0x598)] public readonly IntPtr QuestTracker;
-			[FieldOffset(0x620)] public readonly IntPtr OpenLeftPanel;
-			[FieldOffset(0x628)] public readonly IntPtr OpenRightPanel;
-			[FieldOffset(0x650)] public readonly IntPtr InventoryPanel;
-			[FieldOffset(0x658)] public readonly IntPtr StashElement;
-			[FieldOffset(0x660)] public readonly IntPtr GuildStashElement;
-			[FieldOffset(0x670)] public readonly IntPtr SocialPanel;
-			[FieldOffset(0x678)] public readonly IntPtr SkillTree;
+			// 3.30.1: 16 new bytes here
+			[FieldOffset(0x5a8)] public readonly IntPtr QuestTracker;
+			[FieldOffset(0x630)] public readonly IntPtr OpenLeftPanel;
+			[FieldOffset(0x638)] public readonly IntPtr OpenRightPanel;
+			[FieldOffset(0x660)] public readonly IntPtr InventoryPanel;
+			[FieldOffset(0x668)] public readonly IntPtr StashElement;
+			[FieldOffset(0x670)] public readonly IntPtr GuildStashElement;
+			[FieldOffset(0x680)] public readonly IntPtr SocialPanel;
+			[FieldOffset(0x688)] public readonly IntPtr SkillTree;
 			// [FieldOffset(0x618)] public readonly IntPtr AtlasPanel;
 			// [FieldOffset(0x620)] public readonly IntPtr AtlasSkillPanel;
 			// [FieldOffset(0x650)] public readonly IntPtr WorldMap;
-			[FieldOffset(0x698)] public readonly IntPtr CharacterPanel;
-			[FieldOffset(0x6a0)] public readonly IntPtr OptionsPanel;
-			[FieldOffset(0x6a8)] public readonly IntPtr ChallengesPanel;
-			[FieldOffset(0x6b0)] public readonly IntPtr PantheonPanel;
-			[FieldOffset(0x6b8)] public readonly IntPtr PvPPanel;
-			[FieldOffset(0x6c0)] public readonly IntPtr AreaInstanceUi;
+			[FieldOffset(0x6a8)] public readonly IntPtr CharacterPanel;
+			[FieldOffset(0x6b0)] public readonly IntPtr OptionsPanel;
+			[FieldOffset(0x6b8)] public readonly IntPtr ChallengesPanel;
+			[FieldOffset(0x6c0)] public readonly IntPtr PantheonPanel;
+			[FieldOffset(0x6c8)] public readonly IntPtr PvPPanel;
+			[FieldOffset(0x6d0)] public readonly IntPtr AreaInstanceUi;
 
-			[FieldOffset(0x700)] public readonly IntPtr RelicPanel;
-			[FieldOffset(0x708)] public readonly IntPtr Map;
-			[FieldOffset(0x710)] public readonly IntPtr ItemsOnGroundLabelElement;
+			[FieldOffset(0x710)] public readonly IntPtr RelicPanel;
+			[FieldOffset(0x718)] public readonly IntPtr Map;
+			[FieldOffset(0x720)] public readonly IntPtr ItemsOnGroundLabelElement;
 			//[FieldOffset(0x628)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
-			[FieldOffset(0x790)] public readonly IntPtr RootBuffPanel;
-			[FieldOffset(0x798)] public readonly IntPtr HelpOrKillBandit;
-			[FieldOffset(0x7c0)] public readonly IntPtr NpcDialog;
-			[FieldOffset(0x7c8)] public readonly IntPtr NpcOptions;
+			[FieldOffset(0x7a0)] public readonly IntPtr RootBuffPanel;
+			[FieldOffset(0x7a8)] public readonly IntPtr HelpOrKillBandit;
+			[FieldOffset(0x7d0)] public readonly IntPtr NpcDialog;
+			[FieldOffset(0x7d8)] public readonly IntPtr NpcOptions;
 			// [FieldOffset(0x728)] public readonly IntPtr LeagueInteractButtonPanel;
-			[FieldOffset(0x7d8)] public readonly IntPtr QuestRewardWindow;
+			[FieldOffset(0x7e8)] public readonly IntPtr QuestRewardWindow;
 			// [FieldOffset(0x730)] public readonly IntPtr Unknown730;
-			[FieldOffset(0x7e8)] public readonly IntPtr PurchaseWindow;
+			[FieldOffset(0x7f8)] public readonly IntPtr PurchaseWindow;
 			// [FieldOffset(0x740)] public readonly IntPtr Unknown740; // LeagueSellPanel
-			[FieldOffset(0x7f8)] public readonly IntPtr SellWindow;
-			[FieldOffset(0x800)] public readonly IntPtr TradeWindow;
+			[FieldOffset(0x808)] public readonly IntPtr SellWindow;
+			[FieldOffset(0x810)] public readonly IntPtr TradeWindow;
 			// [FieldOffset(0x758)] public readonly IntPtr Unknown758;
 			// [FieldOffset(0x758)] public readonly IntPtr LabyrinthDivineFontPanel;
 			// [FieldOffset(0x768)] public readonly IntPtr Unknown768;
@@ -817,7 +832,7 @@ namespace AtE {
 			// [FieldOffset(0x7a8)] public readonly IntPtr Unknown7a8;
 			// [FieldOffset(0x7b0)] public readonly IntPtr Unknown7b0;
 			// [FieldOffset(0x7b8)] public readonly IntPtr Unknown7b8;
-			[FieldOffset(0x830)] public readonly IntPtr CardTradePanel;
+			[FieldOffset(0x840)] public readonly IntPtr CardTradePanel;
 			// [FieldOffset(0x7C8)] public readonly IntPtr Unknown7C8;
 			// [FieldOffset(0x7c8)] public readonly IntPtr IncursionAltarOfSacrificePanel;
 			// [FieldOffset(0x7D0)] public readonly IntPtr IncursionLapidaryLensPanel;
@@ -827,8 +842,8 @@ namespace AtE {
 			// [FieldOffset(0x800)] public readonly IntPtr Unknown800; // KiracMissionPanel
 			// [FieldOffset(0x800)] public readonly IntPtr BetrayalWindow;
 			// [FieldOffset(0x810)] public readonly IntPtr Unknown810;
-			[FieldOffset(0x880)] public readonly IntPtr CraftBench;
-			[FieldOffset(0x888)] public readonly IntPtr UnveilWindow;
+			[FieldOffset(0x890)] public readonly IntPtr CraftBench;
+			[FieldOffset(0x898)] public readonly IntPtr UnveilWindow;
 			// [FieldOffset(0x828)] public readonly IntPtr Unknown828;
 			// [FieldOffset(0x830)] public readonly IntPtr Unknown830;
 			// [FieldOffset(0x838)] public readonly IntPtr Unknown838;
@@ -853,8 +868,8 @@ namespace AtE {
 			// [FieldOffset(0x8D0)] public readonly IntPtr Unknown8D0;
 			// [FieldOffset(0x8D8)] public readonly IntPtr Unknown8D8;
 			// [FieldOffset(0x8E0)] public readonly IntPtr Unknown8E0;
-			[FieldOffset(0x9a0)] public readonly IntPtr BuffsPanel;
-			[FieldOffset(0x9b8)] public readonly IntPtr DelveDarkness; // Debuffs Panel
+			[FieldOffset(0x9b0)] public readonly IntPtr BuffsPanel;
+			[FieldOffset(0x9c8)] public readonly IntPtr DelveDarkness; // Debuffs Panel
 			// [FieldOffset(0x8F8)] public readonly IntPtr Unknown8F8;
 			// [FieldOffset(0x900)] public readonly IntPtr Unknown900;
 			// [FieldOffset(0x908)] public readonly IntPtr Unknown908;
@@ -888,11 +903,11 @@ namespace AtE {
 			// [FieldOffset(0x9E8)] public readonly IntPtr Unknown9E8;
 			// [FieldOffset(0x9F0)] public readonly IntPtr Unknown9F0;
 			// [FieldOffset(0x9f8)] public readonly IntPtr InvitesPanel;
-			[FieldOffset(0xAB8)] public readonly IntPtr AuguryCardSelectionWindow; // opened by clicking a unique with the augury_boss_frozen buff (3.29.4, from the user; not checked live yet)
+			[FieldOffset(0xAC8)] public readonly IntPtr AuguryCardSelectionWindow; // opened by clicking a unique with the augury_boss_frozen buff (3.29.4, from the user; not checked live yet)
 			// 3.30: 104 new bytes here
-			[FieldOffset(0xCD0)] public readonly IntPtr GemLvlUpPanel;
+			[FieldOffset(0xCE0)] public readonly IntPtr GemLvlUpPanel;
 			// [FieldOffset(0xA58)] public readonly IntPtr SkillBarNotifyPanel1;
-			[FieldOffset(0xBC0)] public readonly IntPtr ItemOnGroundTooltip;
+			[FieldOffset(0xBD0)] public readonly IntPtr ItemOnGroundTooltip;
 
 		}
 

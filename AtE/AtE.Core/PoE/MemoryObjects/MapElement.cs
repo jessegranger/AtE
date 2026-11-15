@@ -285,12 +285,21 @@ namespace AtE {
 		public float GetMapZoom() {
 			var largeMap = LargeMap;
 			if( IsValid(largeMap) && largeMap.IsVisibleLocal ) {
-				return largeMap.Zoom;
+				return SaneZoom(largeMap.Zoom, "large map");
 			}
 			var smallMap = MiniMap;
 			if( IsValid(smallMap) && smallMap.IsVisibleLocal ) {
-				return smallMap.Zoom;
+				return SaneZoom(smallMap.Zoom, "minimap");
 			}
+			return 1.0f;
+		}
+
+		// the zoom goes from 0.5 to 1.5 (see Offsets): one read far outside that (eg, a bad read after the game restarted)
+		// made the icons sized by it cover the screen (a rare's overhead icon filled the overlay, 3.29.4): 1 then
+		private static bool loggedBadZoom;
+		private static float SaneZoom(float zoom, string which) {
+			if ( float.IsFinite(zoom) && zoom >= 0.1f && zoom <= 4f ) return zoom;
+			if ( !loggedBadZoom ) { loggedBadZoom = true; Log($"Map: the {which}'s zoom reads {zoom}: using 1"); }
 			return 1.0f;
 		}
 	}

@@ -14,7 +14,7 @@ namespace AtE {
 	/// the rows: each with the action at Child(0, 0) (eg "Use Portal Scroll") and its key at Child(1, 0, 0, 0, 0, 1)
 	/// (eg ",", "O", "1").
 	///
-	/// TryReadFromMemory reads them without the panel (see Offsets.UIInput_Bindings: a list of { key, modifier, action }
+	/// TryReadFromMemory reads them without the panel (see Offsets.UIInput.Bindings: a list of { key, modifier, action }
 	/// kept from the start of the game). TryRead tries that first, so the panel is only opened if it does not work.
 	/// </summary>
 	public static class GameKeys {
@@ -33,7 +33,7 @@ namespace AtE {
 		public static string Source { get; private set; }
 
 		/// <summary>
-		/// The actions by index (Offsets.UIInput_Bindings' action): the Input tab's rows in order, as read live (3.29.4)
+		/// The actions by index (Offsets.UIInput.Bindings' action): the Input tab's rows in order, as read live (3.29.4)
 		/// with the default and a few changed keys. Null for the ones that had no key, whose row's name is not known yet.
 		/// </summary>
 		public static readonly string[] BindingActions = {
@@ -55,27 +55,26 @@ namespace AtE {
 		};
 
 		/// <summary>
-		/// Read the player's bindings from memory (Offsets.UIInput_Bindings: no input, and the Options panel need not have
+		/// Read the player's bindings from memory (Offsets.UIInput.Bindings: no input, and the Options panel need not have
 		/// been shown); false if they can't be read, or do not look right (the vector's size and count disagree, an action
 		/// index past BindingActions, or a key that is not one).
 		/// </summary>
 		public static bool TryReadFromMemory() {
 			var root = PoEMemory.GameRoot?.InGameState?.UIRoot;
 			if ( !IsValid(root) ) return false;
-			if ( !PoEMemory.TryRead(root.Address + Offsets.UIRoot_Input, out IntPtr input) || !IsValid(input) ) return false;
-			if ( !PoEMemory.TryRead(input + Offsets.UIInput_Bindings, out IntPtr begin)
-				|| !PoEMemory.TryRead(input + Offsets.UIInput_Bindings + 8, out IntPtr end)
-				|| !PoEMemory.TryRead(input + Offsets.UIInput_BindingCount, out int count) || !IsValid(begin) ) return false;
-			long size = end.ToInt64() - begin.ToInt64();
-			if ( count <= 0 || count > 500 || size != count * 12L ) {
-				Log($"GameKeys: the key list does not look right (count {count}, {size} bytes): not read from memory (the game changed?)");
+			if ( !PoEMemory.TryRead(root.Address + Offsets.UIRoot_Input, out IntPtr ptr) || !IsValid(ptr) ) return false;
+			if ( !PoEMemory.TryRead(ptr, out Offsets.UIInput input) || !Offsets.IsValid(input.Bindings) ) return false;
+			var list = new ArrayHandle<Offsets.KeyBindingEntry>(input.Bindings);
+			int count = input.BindingCount;
+			if ( count <= 0 || count > 500 || list.Length != count ) {
+				Log($"GameKeys: the key list does not look right (count {count}, {list.Length} entries): not read from memory (the game changed?)");
 				return false;
 			}
-			var raw = new int[count * 3];
-			if ( PoEMemory.TryRead(begin, raw) != raw.Length * sizeof(int) ) return false; // (it returns the bytes read)
+			var entries = list.ToArray(limit: 500);
+			if ( entries.Length != count ) return false;
 			var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 			for ( int i = 0; i < count; i++ ) {
-				int code = raw[i * 3], mod = raw[(i * 3) + 1], action = raw[(i * 3) + 2];
+				int code = entries[i].Key, mod = entries[i].Modifier, action = entries[i].Action;
 				if ( code <= 0 || code > 0xFF || action < 0 || action >= BindingActions.Length || (mod != 0 && (mod < 0x10 || mod > 0x12)) ) {
 					Log($"GameKeys: the key list's entry {i} does not look right (key {code}, modifier {mod}, action {action}): not read from memory (the game changed?)");
 					return false;
