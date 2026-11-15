@@ -192,9 +192,17 @@ namespace AtE {
 						castDue = true;
 						point = (point + 1) % Cardinal.Length;
 						progressAt = 0;
-					} else if ( IsBlocked(ctx, spot) ) {
+					} else if ( IsBlocked(ctx, spot, out bool monsters) && monsters ) {
 						// monsters in the way (eg, the boss's minions): clear a way, with the skill toward the point
 						CastToward(ctx, skill, spot);
+					} else if ( Time.ElapsedMilliseconds - progressAt >= StalledMs && progressAt != 0 ) {
+						// no nearer for a while, and no monsters near: held up by something not in the grid (eg, the boss's
+						// own body, between the player and the point on its far side): on to the next point
+						int from = point;
+						point = (point + 1) % Cardinal.Length;
+						progressAt = 0;
+						castDue = true;
+						Log($"Orbit: no nearer to the {CardinalNames[from]} of {Label} in {StalledMs} ms: on to the {CardinalNames[point]}");
 					} else if ( Time.ElapsedMilliseconds - walkStart > MaxWalkMs ) {
 						castDue = true; // a long walk: use the skill on the way, then keep going to this point
 					} else {
@@ -215,6 +223,8 @@ namespace AtE {
 
 		/// <summary>Walking to a point counts as blocked when it has not got a cell nearer in this long, with monsters near.</summary>
 		public long BlockedMs = 600;
+		/// <summary>Walking to a point that has got no nearer in this long (with no monsters near) gives it up for the next.</summary>
+		public long StalledMs = 1000;
 		/// <summary>How near (in cells) a monster has to be to count as in the way.</summary>
 		public float BlockRadius = 12;
 		/// <summary>How far toward the point (in cells) to aim when clearing the way.</summary>
@@ -222,8 +232,9 @@ namespace AtE {
 		private long progressAt; // when the walk to the point last got nearer; 0 to start over
 		private float progressDistance;
 
-		// is the walk to spot held up by monsters: no nearer for BlockedMs, with a monster within BlockRadius
-		private bool IsBlocked(CombatContext ctx, Offsets.Vector2i spot) {
+		// is the walk to spot held up: no nearer for BlockedMs (monsters: with one within BlockRadius); keeps progressAt
+		private bool IsBlocked(CombatContext ctx, Offsets.Vector2i spot, out bool monsters) {
+			monsters = false;
 			float d = Combat.Distance(ctx.Grid, spot);
 			long now = Time.ElapsedMilliseconds;
 			if ( progressAt == 0 || d < progressDistance - 1 ) {
@@ -231,7 +242,9 @@ namespace AtE {
 				progressDistance = d;
 				return false;
 			}
-			return now - progressAt >= BlockedMs && ctx.Hostiles.Any(h => h.Distance <= BlockRadius);
+			if ( now - progressAt < BlockedMs ) return false;
+			monsters = ctx.Hostiles.Any(h => h.Distance <= BlockRadius);
+			return true;
 		}
 
 		// use the skill once toward spot (at most BlockedAimCells away), standing still until the cast is out
