@@ -293,16 +293,24 @@ namespace AtE {
 			});
 			// Helena gives it (after Intruders in Black). "Travel to The Wetlands" (a trip, from The Riverways), poison the tree
 			// (Lorrata) there with Maligaro's Spike (Sharp and Cruel) and the Baleful Gem (Intruders in Black): click its
-			// roots, which opens the way to The Vaal Ruins; then into The Vaal Ruins, which finishes it.
-			// TODO: confirm live (not seen yet): the steps' text, the roots' label, the exit's label
+			// roots, which opens the way to The Vaal Ruins; then "Find a way through the Vaal Ruins": click the "Ancient Seal"
+			// (seen live, 3.29.4: entity Metadata/QuestObjects/Inca/IncaDarknessRelease at <437, 1092>, on the area's only
+			// Dungeon/Features/dungeon_bossrelease_v01_01 tile, at <436, 1092>), so walk straight to that tile. Touching it
+			// leaves this quest's step as it was, but adds "Shadow of the Vaal" to the tracker: that is the seal done, and
+			// the handler then only takes the exit labelled "The Northern Forest" (seen live: on a dungeon_inca_exit tile at
+			// <321, 1488>, see AreaExits.PlacedExitTiles), and is not active anywhere else.
+			// TODO: confirm live (not seen yet): the roots' label, the exit's label
 			const string root = "The Root of the Problem";
 			// (any step naming The Vaal Ruins: the tree is poisoned; a step not known is the tree still to poison)
 			bool poisoned() => StepOf(root) is string s && s.IndexOf("Vaal Ruins", StringComparison.OrdinalIgnoreCase) >= 0;
+			bool sealDone() => StepOf("Shadow of the Vaal") != null;
 			quests.Handlers.Add(new QuestHandler(root, new Sequence($"{root}: poison the tree",
 				new Activate("Tree Roots") { Where = Wetlands, DoneWhen = poisoned },
-				new TakeTransition(VaalRuins) { Where = Wetlands })) {
+				new TakeTransition(VaalRuins) { Where = Wetlands, DoneWhen = () => InAny(VaalRuins) },
+				new Activate("Ancient Seal") { Where = VaalRuins, DoneWhen = sealDone, SearchAt = Search.Tile("/dungeon_bossrelease") },
+				new TakeTransition(NorthernForest) { Where = VaalRuins, DoneWhen = () => InAny(NorthernForest) })) {
 				// (a "Travel to The Vaal Ruins" too is the handler's: the way is the roots' new exit, not a known route)
-				Active = step => QuestHandler.DefaultActive(step) || poisoned(),
+				Active = step => (QuestHandler.DefaultActive(step) || poisoned()) && !(sealDone() && !InAny(VaalRuins)),
 			});
 			quests.Handlers.Add(Stub("Shadow of the Vaal"));
 			quests.Handlers.Add(Stub("The Lord's Labyrinth"));

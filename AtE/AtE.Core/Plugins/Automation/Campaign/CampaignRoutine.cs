@@ -85,7 +85,7 @@ namespace AtE {
 			ShipGraveyard = "The Ship Graveyard", ShipGraveyardCave = "The Ship Graveyard Cave",
 			LowerPrison = "The Lower Prison", BrokenBridge = "The Broken Bridge", Wetlands = "The Wetlands", Den = "The Den",
 			ChamberOfSins2 = "The Chamber of Sins Level 2", WeaversChambers = "The Weaver's Chambers",
-			Crypt2 = "The Crypt Level 2", VaalRuins = "The Vaal Ruins";
+			Crypt2 = "The Crypt Level 2", VaalRuins = "The Vaal Ruins", NorthernForest = "The Northern Forest";
 
 		/// <summary>Each act's town, as WorldArea names it with its act (several share a name).</summary>
 		public static string TownOf(int act) => act switch {

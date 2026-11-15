@@ -68,6 +68,7 @@ namespace AtE {
 			"/templeruinforest_exit_down", "/templeruinforest_exit_up",
 			"/church_exit_down", "/church_exit_up",
 			"/spidergrove_exit",
+			"/dungeon_inca_exit",
 		};
 
 		/// <summary>
@@ -140,6 +141,8 @@ namespace AtE {
 		/// </summary>
 		public static readonly (string tile, string area, string[] destinations)[] AmbiguousExitTiles = {
 			("Forest/Transitions/road_wall_gate", "The Crossroads", new[] { "The Fellshrine Ruins", "The Old Fields" }),
+			// (if the layout differs from the one seen, see PlacedExitTiles)
+			("Dungeon/Features/dungeon_inca_exit", "The Vaal Ruins", new[] { "The Northern Forest", "The Wetlands" }),
 		};
 
 		/// <summary>Is the tile one of the area's exits that may lead to destination, the tile alone can't tell (see AmbiguousExitTiles)?</summary>
@@ -165,7 +168,19 @@ namespace AtE {
 			// "The Weaver's Nest" (his arena) at <954, 715>, and one labelled "The Weaver's Chambers" at <784, 770>
 			("SpiderGrove/Features/spidergrove_exit_v", "The Weaver's Chambers", 954, 713, "The Weaver's Nest"),
 			("SpiderGrove/Features/spidergrove_exit_v", "The Weaver's Chambers", 782, 770, "The Weaver's Chambers"),
+			// The Vaal Ruins' two dungeon_inca_exit tiles (3.29.4): the one at <321, 1488> is "The Northern Forest" (seen live
+			// as its entity, at <321, 1487>); the other, at <1097, 275>, is presumably the way back to The Wetlands (not seen)
+			("Dungeon/Features/dungeon_inca_exit", "The Vaal Ruins", 321, 1488, "The Northern Forest"),
 		};
+		/// <summary>
+		/// Exit tiles told apart by what is near them, for when the layout is not one in PlacedExitTiles: in the area named,
+		/// of the exits on tile still unnamed, the one nearest a group of nearTile tiles leads to destination.
+		/// </summary>
+		public static readonly (string tile, string area, string nearTile, string destination)[] NearTileExitTiles = {
+			// The Vaal Ruins (3.29.4): The Northern Forest's exit is the dungeon_inca_exit nearer the Ancient Seal's tile
+			("Dungeon/Features/dungeon_inca_exit", "The Vaal Ruins", "/dungeon_bossrelease", "The Northern Forest"),
+		};
+
 		/// <summary>How near (cells) an exit must be to a PlacedExitTiles position to be named by it.</summary>
 		public const float PlacedExitReach = 40;
 
@@ -202,6 +217,17 @@ namespace AtE {
 		public static List<AreaExit> FromTiles(Offsets.TerrainData data, Terrain terrain) {
 			var exits = FromTiles<AreaExit>(data, terrain, IsTransitionTile);
 			foreach ( var e in exits ) e.Destination ??= KnownDestination(e.TileFile, e.GridPos);
+			string here = GetCurrentArea()?.Name;
+			foreach ( var k in NearTileExitTiles ) {
+				if ( !string.Equals(k.area, here, StringComparison.OrdinalIgnoreCase) ) continue;
+				if ( exits.Any(e => e.Destination == k.destination) ) continue;
+				var near = FromTiles<AreaFeature>(data, terrain, p => p != null && p.IndexOf(k.nearTile, StringComparison.OrdinalIgnoreCase) >= 0);
+				var unnamed = exits.Where(e => e.Destination == null && (e.TileFile?.IndexOf(k.tile, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0).ToList();
+				if ( near.Count == 0 || unnamed.Count == 0 ) continue;
+				var pick = unnamed.OrderBy(e => near.Min(f => Combat.Distance(e.GridPos, f.GridPos))).First();
+				pick.Destination = k.destination;
+				Log($"AreaExits: the exit at {pick.GridPos} is {k.destination} (the {k.tile} nearest {k.nearTile})");
+			}
 			return exits;
 		}
 
