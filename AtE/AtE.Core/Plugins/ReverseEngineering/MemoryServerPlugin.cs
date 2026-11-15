@@ -196,6 +196,23 @@ namespace AtE {
 					return RunOnMain(() => RouteText(q["to"]));
 				case "/tiles":
 					return RunOnMain(() => TilesText(q["filter"]));
+				case "/doors":
+					return RunOnMain(DoorsText);
+				case "/path":
+					// plan a path (DefaultNavigator.FindPath, which only reads) from the player to a grid cell, and list its steps
+					return RunOnMain(() => {
+						var terrain = GetTerrain();
+						var pos = GetPlayer()?.GetComponent<Positioned>();
+						var parts = (q["to"] ?? "").Split(',');
+						if ( terrain == null || !IsValid(pos) || parts.Length != 2 || !int.TryParse(parts[0], out int tx) || !int.TryParse(parts[1], out int ty) )
+							return "give to=X,Y (grid cells), with terrain and a player" + NL;
+						var path = DefaultNavigator.FindPath(terrain, pos.GridPos, new Offsets.Vector2i(tx, ty));
+						if ( path == null ) return $"no path from {pos.GridPos} to <{tx}, {ty}>" + NL;
+						var sb = new StringBuilder();
+						sb.AppendLine($"from {pos.GridPos} to <{tx}, {ty}>: {path.Cells.Count} cells, {path.Steps.Count} steps, method {path.Method}, {path.ElapsedMs:F1} ms");
+						foreach ( var step in path.Steps ) sb.AppendLine($"  {step.Kind} {step.Target}{(step.Door == null ? "" : $" ({step.Door})")}");
+						return sb.ToString();
+					});
 				case "/labels":
 					return RunOnMain(LabelsText);
 				case "/gamekeys":
@@ -339,6 +356,7 @@ namespace AtE {
   /route?to=<area name>         the route of areas (WorldArea.FindRoute) from here to an area, and each area's connections, waypoint, town, hub
   /waypoints                    the destinations on the waypoint panel, open or closed (read from its element tree): name, unlocked (visited), element, screen rect
   /tiles[?filter=]              the current area's tile files (.tdt): groups of neighboring tiles per file and where, and the exits known
+  /doors                        the doors Terrain knows (closed/open, passage cells), each with a map of its box in the walkable grid
   /labels                       the labels on the ground: entity id and path, text, screen rect, and the entity's screen position
   /skillbar[?stats=1]           the skill bar's slots: key, skill name, internal name, id, use time, tags (stats=1: each skill's stats)
   /gamekeys                     the game's key bindings from its Options panel (GameKeys; read from its tree now, if not yet), and the inventory key chosen
@@ -380,6 +398,38 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 
 		// the current area's tile files: per .tdt, how many groups of neighboring tiles and where (the walkable cell nearest
 		// each group's center), plus the exits known now; filter keeps the paths containing it
+		/// <summary>
+		/// /doors: Terrain.Doors, each with its TriggerableBlockage box drawn from the walkable grid as read when the area
+		/// loaded: '#' blocked, '.' walkable, 'P' a passage cell (blocked in the grid, walkable to the Navigator), 'D' the door.
+		/// </summary>
+		private string DoorsText() {
+			var terrain = GetTerrain();
+			if ( terrain == null || !terrain.IsLoaded ) return "no terrain" + NL;
+			var doors = terrain.Doors;
+			var sb = new StringBuilder();
+			sb.AppendLine($"{doors.Count} doors (terrain generation {terrain.Generation})");
+			// what AreaDoors.UpdateFromEntities sees: every entity with a TriggerableBlockage
+			foreach ( var ent in GetEntities() ) {
+				if ( !IsValid(ent) || !ent.HasComponent("TriggerableBlockage") ) continue;
+				var blockage = ent.GetComponent<TriggerableBlockage>();
+				var pos = ent.GetComponent<Positioned>();
+				sb.AppendLine($"  entity {ent.Id} {ent.Path}: blockage valid={IsValid(blockage)} closed={(IsValid(blockage) ? blockage.IsClosed.ToString() : "?")} box={(IsValid(blockage) ? $"{blockage.GridMin}..{blockage.GridMax}" : "?")} positioned valid={IsValid(pos)} at={(IsValid(pos) ? pos.GridPos.ToString() : "?")}");
+			}
+			foreach ( var d in doors ) {
+				sb.AppendLine($"{d} box {d.GridMin}..{d.GridMax} exact={d.PassageIsExact}");
+				var passage = new HashSet<long>(d.Passage.Select(c => c.Id));
+				for ( int y = d.GridMin.Y - 1; y <= d.GridMax.Y + 1; y++ ) {
+					var line = new StringBuilder("  ");
+					for ( int x = d.GridMin.X - 1; x <= d.GridMax.X + 1; x++ ) {
+						var c = new Offsets.Vector2i(x, y);
+						line.Append(x == d.GridPos.X && y == d.GridPos.Y ? 'D' : passage.Contains(c.Id) ? 'P' : terrain.IsWalkable(c) ? '.' : '#');
+					}
+					sb.AppendLine(line.ToString());
+				}
+			}
+			return sb.ToString();
+		}
+
 		private string TilesText(string filter) {
 			var terrain = GetTerrain();
 			if ( terrain == null || !terrain.IsLoaded ) return "(no terrain loaded)" + NL;
