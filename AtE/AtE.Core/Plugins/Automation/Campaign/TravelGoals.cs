@@ -27,11 +27,16 @@ namespace AtE {
 		public override bool Sticky => false;
 		/// <summary>The area it goes to, if not called as the panel names it (eg, "Merveil's Caverns" goes to The Cavern of Wrath).</summary>
 		public string Arrives;
+		/// <summary>The destination's act, if not this one: its tab is clicked on the panel first (0: this act).</summary>
+		public int Act;
+		private int tabClicks;
+		/// <summary>How many times to click the act's tab before giving the destination up as not there.</summary>
+		public const int TabTries = 3;
 		public override bool CheckDone(CombatContext ctx) => GoToArea.Is(GetCurrentArea(), Arrives ?? Destination);
 
 		protected override IState Step(CombatContext ctx) {
 			long now = Time.ElapsedMilliseconds;
-			if ( GiveUpIfMissing && WaypointPanel.Panel() == null && WaypointPanel.IsKnownLocked(Destination) ) {
+			if ( GiveUpIfMissing && WaypointPanel.Panel() == null && WaypointPanel.IsKnownLocked(Destination, Act) ) {
 				// the panel's tree already shows it is not unlocked: don't walk to the waypoint to find out
 				Missing = true;
 				Detail = $"{Destination} is not unlocked (the waypoint panel's tree)";
@@ -46,6 +51,13 @@ namespace AtE {
 					Detail = $"clicking {Destination} on the waypoint panel";
 					var r = element.GetClientRect();
 					return Inputs.Click(new System.Numerics.Vector2(r.X + WaypointPanel.ClickOffset.X, r.Y + WaypointPanel.ClickOffset.Y), this);
+				} else if ( Act > 0 && tabClicks < TabTries && WaypointPanel.ActTab(Act) is Element tab ) {
+					// (another act's: show its tab; the destinations are read again after)
+					lastClick = now;
+					tabClicks++;
+					Detail = $"clicking the Act {Act} tab on the waypoint panel";
+					Log($"Campaign: waypoint: clicking the Act {Act} tab, for {Destination}");
+					return Inputs.Click(tab.GetClientRect(), this);
 				} else {
 					Detail = $"{Destination} is not unlocked on the waypoint panel (it can go to: {string.Join(", ", WaypointPanel.Destinations().Where(d => WaypointPanel.IsUnlocked(d.element)).Select(d => d.name))})";
 					if ( GiveUpIfMissing && WaypointPanel.Destinations().Any() ) {

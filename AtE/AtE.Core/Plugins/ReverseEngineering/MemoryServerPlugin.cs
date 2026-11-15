@@ -198,6 +198,15 @@ namespace AtE {
 					return RunOnMain(() => TilesText(q["filter"]));
 				case "/labels":
 					return RunOnMain(LabelsText);
+				case "/gamekeys":
+					// (not read yet: try reading them now, from the Options panel's element tree, without opening it)
+					return RunOnMain(() => {
+						bool already = GameKeys.Loaded;
+						if ( !already && !GameKeys.TryRead() )
+							return $"the key bindings could not be read, from memory (the Input page's key list) or from the Options panel's tree (its Input body {(IsValid(GameKeys.Body()) ? "is there, but has no \"Use Portal Scroll\" row" : "is not built")})\n";
+						return (already ? "" : "read now\n") + $"source: {GameKeys.Source}\n"
+							+ $"inventory key: {SkillBar.KeyName(GameKeys.InventoryKey)}\n" + string.Join("", GameKeys.All().Select(kv => $"{kv.Key} = {kv.Value}\n"));
+					});
 				case "/skillbar":
 					return RunOnMain(() => SkillBarText(q["stats"] == "1"));
 				case "/offsets/run":
@@ -253,6 +262,23 @@ namespace AtE {
 				case "/track":
 				case "/record":
 					return SampleCommand(path == "/record", q);
+				case "/search":
+					return Search(q["hex"], ParseInt(q["max"], 40), ParseInt(q["align"], 1));
+				case "/pathto": {
+					// resolve the roots on the main thread, then walk the pointers here (only reads)
+					var roots = (q.GetValues("from") ?? new[] { "ingame", "ingame+0x218*", "ingame+0x290*", "gameroot" }).ToList();
+					var resolved = new List<(string expr, long addr)>();
+					string bad = RunOnMain(() => {
+						foreach ( var r in roots ) {
+							if ( !TryResolve(r, out long a, out string e) ) return $"error: {r}: {e}\n";
+							resolved.Add((r, a));
+						}
+						return "";
+					});
+					if ( bad.Length > 0 ) return bad;
+					if ( !TryResolve(q["target"] ?? "", out long target, out string terr) ) return $"error: target: {terr}\n";
+					return PathTo(resolved, target, ParseInt(q["window"], 0x200), ParseInt(q["depth"], 3), ParseInt(q["len"], 0x1000), ParseInt(q["max"], 30));
+				}
 				default:
 					return "error: unknown endpoint, try /help\n";
 			}
@@ -314,7 +340,8 @@ namespace AtE {
   /waypoints                    the destinations on the waypoint panel, open or closed (read from its element tree): name, unlocked (visited), element, screen rect
   /tiles[?filter=]              the current area's tile files (.tdt): groups of neighboring tiles per file and where, and the exits known
   /labels                       the labels on the ground: entity id and path, text, screen rect, and the entity's screen position
-  /skillbar[?stats=1]           the skill bar's slots: key, skill name, internal name, id, use time (stats=1: each skill's stats)
+  /skillbar[?stats=1]           the skill bar's slots: key, skill name, internal name, id, use time, tags (stats=1: each skill's stats)
+  /gamekeys                     the game's key bindings from its Options panel (GameKeys; read from its tree now, if not yet), and the inventory key chosen
   /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
   /progress[?key=U]             reads the campaign progress (parts, acts) from the closed AreaInstanceUI; only if that fails, PRESSES KEYS to open it (U) and close it; reports
   /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
@@ -326,6 +353,8 @@ namespace AtE {
   /gsnap?id=<entity id>&name=a&depth=1&len=0x400    snapshot all components + pointees (+ animated object) under a label
   /gdiff?name=a[&name2=b][&top=1][&match=Comp]   re-read (or compare to snapshot b) and list every 4-byte slot that changed, as i32 and f32
   /read?at=EXPR&len=0x80&depth=0        annotated hexdump; depth>0 also dumps what valid pointers point at
+  /search?hex=4F000000??00&max=40&align=1   find bytes (?? any) in the game's read-write memory (slow: scans it all)
+  /pathto?target=0xADDR&from=ingame&depth=3&len=0x1000&window=0x200   pointer chains from roots (default ingame, its data, UI elements, gameroot) to a struct
   /track?at=EXPR&len=0x40&ms=100&dur=5000    sample, then report only the slots that change (i32/i64/f32/f64)
   /record?at=EXPR[&at=EXPR2]&len=0x40[&len=0x100]&ms=100&dur=5000&name=label    writes memdumps/<name>-<time>.jsonl
 EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID,Name) ui(1,142,3) (UIRoot children by index). steps: +N -N *
@@ -407,7 +436,7 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 		private string SkillBarText(bool stats) {
 			var sb = new StringBuilder();
 			foreach ( var slot in SkillBar.GetSlots() ) {
-				sb.AppendLine($"{slot}  internal={slot.Skill?.InternalName} display={slot.Skill?.DisplayName} id={slot.Skill?.Id} visible={slot.IsVisible} useTime={SkillBar.CastTimeMs(slot.Skill)}ms");
+				sb.AppendLine($"{slot}  internal={slot.Skill?.InternalName} display={slot.Skill?.DisplayName} id={slot.Skill?.Id} visible={slot.IsVisible} useTime={SkillBar.CastTimeMs(slot.Skill)}ms tags={string.Join(",", SkillBar.SkillTags(slot.Skill))}");
 				if ( stats && slot.Skill != null ) {
 					foreach ( var s in slot.Skill.GetAllStats().OrderBy(s => s.Key.ToString()) ) sb.AppendLine($"    {s.Key} = {s.Value}");
 				}
@@ -525,6 +554,11 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 				if ( comp != null && !ent.HasComponent(comp) ) continue;
 				if ( n++ >= limit ) { sb.AppendLine("..."); break; }
 				sb.Append($"id={ent.Id} addr=0x{ent.Address.ToInt64():X} {p}");
+				if ( p.StartsWith("Metadata/Monsters/") ) {
+					var render = ent.GetComponent<Render>();
+					var mods = ent.GetComponent<ObjectMagicProperties>();
+					sb.Append($"  name=\"{(IsValid(render) ? render.Name : null)}\" rarity={(IsValid(mods) ? mods.Rarity.ToString() : "?")} at={ent.GetComponent<Positioned>()?.GridPos}");
+				}
 				var comps = ent.GetComponents();
 				if ( comps != null ) {
 					if ( comp != null && comps.TryGetValue(comp, out IntPtr cp) ) {
@@ -966,6 +1000,92 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			while ( w + 1 < probe.Length && probe[w] >= 0x20 && probe[w] < 0x7f && probe[w + 1] == 0 ) w += 2;
 			if ( w >= 8 ) return $"ptr->u\"{Encoding.Unicode.GetString(probe, 0, w)}\"";
 			return "ptr";
+		}
+
+		/// <summary>
+		/// /pathto: chains of pointers from the roots to within window bytes after target (eg, a struct whose address was
+		/// found by /search), breadth first: each node's first len bytes are read, every 8-byte value that is a valid pointer
+		/// is followed, to depth levels. Prints each chain as an address expression (eg, ingame+0x218*+0x9C8*+0x110), at
+		/// most max. Read-only.
+		/// </summary>
+		private string PathTo(List<(string expr, long addr)> roots, long target, int window, int depth, int len, int max) {
+			depth = Math.Max(1, Math.Min(depth, 5));
+			len = Math.Max(8, Math.Min(len, 0x10000));
+			var watch = System.Diagnostics.Stopwatch.StartNew();
+			var sb = new StringBuilder();
+			var seen = new HashSet<long>();
+			var level = roots.Select(r => (r.expr, r.addr)).ToList();
+			foreach ( var r in roots ) seen.Add(r.addr);
+			int found = 0, nodes = 0;
+			const int MaxNodes = 300000;
+			var buf = new byte[len];
+			for ( int d = 0; d < depth && level.Count > 0 && found < max; d++ ) {
+				var next = new List<(string expr, long addr)>();
+				foreach ( var (expr, addr) in level ) {
+					if ( ++nodes > MaxNodes || found >= max ) break;
+					int got = PoEMemory.TryRead(new IntPtr(addr), buf);
+					for ( int off = 0; off + 8 <= got; off += 8 ) {
+						long v = BitConverter.ToInt64(buf, off);
+						if ( !IsValid(new IntPtr(v)) ) continue;
+						string here = $"{expr}+0x{off:X}*";
+						if ( v >= target - window && v <= target ) {
+							sb.AppendLine($"{here}{(v == target ? "" : $"+0x{target - v:X}")}   (depth {d + 1})");
+							if ( ++found >= max ) break;
+							continue;
+						}
+						if ( d + 1 < depth && seen.Add(v) ) next.Add((here, v));
+					}
+				}
+				level = next;
+			}
+			return $"# {found} found, {nodes} nodes read in {watch.ElapsedMilliseconds} ms (depth {depth}, len 0x{len:X}, window 0x{window:X})\n" + sb;
+		}
+
+		/// <summary>
+		/// /search: every place in the game's committed read-write memory where the bytes hex (eg, "4F000000430000",
+		/// "??" for any byte) are, at addresses that are multiples of align; at most max. Read-only (it only reads).
+		/// </summary>
+		private string Search(string hex, int max, int align) {
+			if ( string.IsNullOrWhiteSpace(hex) ) return "error: give hex=<bytes>, eg hex=4F00000043000000 (?? for any byte)\n";
+			hex = hex.Replace(" ", "");
+			if ( hex.Length % 2 != 0 ) return "error: hex needs an even number of digits\n";
+			int n = hex.Length / 2;
+			var pattern = new byte[n];
+			var any = new bool[n];
+			for ( int i = 0; i < n; i++ ) {
+				string b = hex.Substring(i * 2, 2);
+				if ( b == "??" ) { any[i] = true; continue; }
+				if ( !byte.TryParse(b, System.Globalization.NumberStyles.HexNumber, null, out pattern[i]) ) return $"error: bad hex byte {b}\n";
+			}
+			align = Math.Max(1, align);
+			max = Math.Max(1, Math.Min(max, 1000));
+			var sb = new StringBuilder();
+			int found = 0;
+			long scanned = 0;
+			var watch = System.Diagnostics.Stopwatch.StartNew();
+			const int Chunk = 1 << 20;
+			foreach ( var region in PoEMemory.EnumerateAllocatedRanges() ) {
+				long start = region.BaseAddress.ToInt64(), end = start + region.RegionSize;
+				for ( long at = start; at < end && found < max; at += Chunk ) {
+					int want = (int)Math.Min(Chunk + n - 1, end - at);
+					if ( want < n ) break;
+					var span = new byte[want];
+					if ( PoEMemory.TryRead(new IntPtr(at), span) != want ) continue;
+					scanned += want;
+					int last = Math.Min(Chunk, want - n + 1);
+					for ( int i = (int)((align - (at % align)) % align); i < last; i += align ) {
+						bool match = true;
+						for ( int j = 0; j < n; j++ ) {
+							if ( !any[j] && span[i + j] != pattern[j] ) { match = false; break; }
+						}
+						if ( !match ) continue;
+						sb.AppendLine($"0x{at + i:X}  (region 0x{start:X} +0x{at + i - start:X}, size 0x{region.RegionSize:X})");
+						if ( ++found >= max ) break;
+					}
+				}
+				if ( found >= max ) break;
+			}
+			return $"# {found} found{(found >= max ? " (max reached)" : "")}, {scanned / (1 << 20)} MB scanned in {watch.ElapsedMilliseconds} ms\n" + sb;
 		}
 
 		private string Dump(long addr, int len, int depth, string title) {

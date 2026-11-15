@@ -87,9 +87,24 @@ namespace AtE {
 			Detail = detail;
 		}
 
+		private long holdUntil;
+		/// <summary>
+		/// Stop steering for ms (letting go of the button), still walking after: eg, while a travel skill's key goes out, so
+		/// the cursor stays where it was aimed (see TravelSkills).
+		/// </summary>
+		public void Hold(long ms) {
+			ReleaseMouse();
+			holdUntil = Time.ElapsedMilliseconds + ms;
+		}
+
 		public FollowStatus Tick(Navigator nav, Terrain terrain, Offsets.Vector2i player, float z) {
 			if ( !IsActive ) return Status;
 			lastTick = Time.ElapsedMilliseconds;
+			if ( lastTick < holdUntil ) {
+				progressTime = lastTick; // (holding is not being stuck)
+				Detail = "holding still for a skill";
+				return Status;
+			}
 			var game = PoEMemory.GameRoot?.InGameState;
 			if ( terrain == null || game == null ) return Wait(FollowStatus.Paused, "no terrain");
 			if ( terrain.Generation != terrainGeneration ) {

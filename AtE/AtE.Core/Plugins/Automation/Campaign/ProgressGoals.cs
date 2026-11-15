@@ -812,8 +812,13 @@ namespace AtE {
 			var quests = Town.QuestNames();
 			bool inTown = GetCurrentArea()?.IsTown ?? false;
 			if ( inTown ) {
-				// (a reward window open, eg from a reward option found while talking: take it first)
-				if ( Town.IsOpen(Town.QuestRewardWindow) && !rewards.IsDone(ctx) ) return rewards;
+				// (a reward window open, eg from a reward option found while talking: take it first; in another act's town, with
+				// that town's goal: this act's has Where this act's town, eg Bestel's for The Way Forward in Lioneye's Watch)
+				if ( Town.IsOpen(Town.QuestRewardWindow) ) {
+					string hereName = GetCurrentArea()?.Name;
+					var open = IsTown(hereName) || hereName == null ? rewards : RewardsIn(hereName);
+					if ( !open.IsDone(ctx) ) return open;
+				}
 				if ( !givers.IsDone(ctx) ) return givers;
 				if ( !rewards.IsDone(ctx) ) return rewards;
 				foreach ( var g in Upkeep ) if ( !g.IsDone(ctx) ) return g;

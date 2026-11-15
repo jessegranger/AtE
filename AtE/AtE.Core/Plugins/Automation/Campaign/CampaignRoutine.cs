@@ -58,6 +58,8 @@ namespace AtE {
 		public Goal CurrentGoal { get; private set; }
 
 		private uint areaHash;
+		// a new area: open and close the inventory once (see TrySyncInventory)
+		private bool inventorySyncDue;
 		private long lastSelect;
 		private bool wasActive;
 
@@ -95,6 +97,7 @@ namespace AtE {
 
 		private Sequence Campaign() => new Sequence("Complete the campaign",
 			new ReadCampaignProgress(),
+			new ReadGameKeys(), // (the inventory key, for TrySyncInventory; the Portal Scroll key)
 			new Sequence("Complete Part 1", Act1(), Act2(), Act(3), Act(4), Act(5)) { DoneWhen = () => CampaignProgress.Part1Done },
 			new Sequence("Complete Part 2", Act(6), Act(7), Act(8), Act(9), Act(10)) { DoneWhen = () => CampaignProgress.CampaignDone }
 		) { DoneWhen = () => CampaignProgress.CampaignDone };
@@ -221,6 +224,7 @@ namespace AtE {
 			uint hash = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
 			if ( hash == areaHash ) return;
 			areaHash = hash;
+			inventorySyncDue = true;
 			StartGoalOver();
 		}
 
@@ -284,6 +288,7 @@ namespace AtE {
 				return;
 			}
 			stuckState = null;
+			if ( TrySyncInventory() ) return;
 			// the augury card selection window (opened by clicking a frozen augury boss): apply the cards and confirm first
 			// (its clicks go into the chain, see Decide)
 			if ( TryAugury() ) return;
@@ -308,7 +313,7 @@ namespace AtE {
 				StopWalking("closing the inventory");
 				if ( Time.ElapsedMilliseconds - lastInventoryClose > 700 ) {
 					lastInventoryClose = Time.ElapsedMilliseconds;
-					Send(Inputs.Press(VKey.I));
+					Send(GameKeys.Press(GameKeys.InventoryKey, null));
 				}
 				return;
 			}
@@ -440,6 +445,26 @@ namespace AtE {
 			return true;
 		}
 
+		/// <summary>
+		/// At the start of each area: press the inventory key (GameKeys.InventoryKey, from the Options panel) twice, to open
+		/// the inventory and close it again, with no wait between beyond the key presses' own, so the game keeps the worn
+		/// items and the backpack in step with the server. Not if the inventory is open already. Waits until the key bindings
+		/// are read (VKey.I if they can't be). True while it goes out.
+		/// </summary>
+		private bool TrySyncInventory() {
+			if ( !inventorySyncDue ) return false;
+			if ( BackpackIsOpen() ) { inventorySyncDue = false; return false; }
+			if ( InputBusy ) return false;
+			// (the key from the Options panel: wait for it, read at the start of the run by ReadGameKeys, unless it can't be)
+			if ( !GameKeys.Loaded && !GameKeys.Unreadable && !GameKeys.TryRead() ) return false;
+			var key = GameKeys.InventoryKey;
+			if ( !Send(GameKeys.Press(key, GameKeys.Press(key, null))) ) return false;
+			inventorySyncDue = false;
+			Log($"{Name}: a new area: opening and closing the inventory ({SkillBar.KeyName(key)}) to sync it");
+			SetStatus("opening and closing the inventory");
+			return true;
+		}
+
 		private bool TryLoot(CombatContext ctx) {
 			if ( !PickUpItems || BackpackIsOpen() || !Looter.TryGetTarget(ctx, out var item) ) return false;
 			var near = ctx.Hostiles.Where(h => h.Distance <= AttackRange || Combat.Distance(h.GridPos, item) <= AttackRange).ToList();
@@ -454,6 +479,13 @@ namespace AtE {
 				return false;
 			}
 			if ( !Looter.TryLoot(ctx) ) return false;
+			if ( Looter.TakeNoRoomForQuestItem() is string questItem ) {
+				// (a quest item that won't go in: the player makes room)
+				string why = $"no room for the quest item {questItem}: make room in the inventory, then switch the routine on again";
+				Log($"Campaign: stopping: {why}");
+				ctx.Driver.Stop(why);
+				return true;
+			}
 			SetStatus(Looter.Status);
 			return true;
 		}

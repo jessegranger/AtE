@@ -296,8 +296,8 @@ namespace AtE {
 				return Call(new GoToArea(toTown.Destination) { IgnoreMonsters = IgnoreMonsters });
 			}
 			if ( via != null ) {
-				Detail = $"by waypoint to {via}";
-				waypoint = new UseWaypoint(via) { IgnoreMonsters = IgnoreMonsters, GiveUpIfMissing = true };
+				Detail = $"by waypoint to {via.Name}";
+				waypoint = new UseWaypoint(via.Name) { IgnoreMonsters = IgnoreMonsters, GiveUpIfMissing = true, Act = via.Act == here.Act ? 0 : via.Act };
 				return Call(waypoint);
 			}
 			Detail = "walking";
@@ -317,8 +317,10 @@ namespace AtE {
 			return wp == null || Combat.Distance(ctx.Grid, exit.GridPos) < Combat.Distance(ctx.Grid, wp.GridPos) ? exit : null;
 		}
 
-		// the area with a waypoint nearest to Area (by exits), if taking it saves walking: else null
-		private string WaypointVia(WorldArea here) {
+		// the area with a waypoint nearest to Area (by exits), if taking it saves walking: else null. In another act too
+		// (UseWaypoint clicks its tab on the panel; eg, The Way Forward's "Travel to Lioneye's Watch" from The Western
+		// Forest), if that act is reached (CampaignProgress.HighestAct, or before this one).
+		private WorldArea WaypointVia(WorldArea here) {
 			if ( here == null || !(here.HasWaypoint || here.IsTown) ) return null;
 			var walk = WorldArea.FindRoute(here, Area);
 			if ( walk == null || walk.Count < 3 ) return null; // (next door: walk)
@@ -327,9 +329,10 @@ namespace AtE {
 			var seen = new HashSet<WorldArea> { target };
 			var frontier = new List<WorldArea> { target };
 			for ( int hops = 0; hops < walk.Count - 2 && frontier.Count > 0; hops++ ) {
-				var found = frontier.FirstOrDefault(a => (a.HasWaypoint || a.IsTown) && !missing.Contains(a.Name) && a.Act == here.Act
-					&& (a == here || !WaypointPanel.IsKnownLocked(a.Name)));
-				if ( found != null ) return found == here ? null : found.Name;
+				var found = frontier.FirstOrDefault(a => (a.HasWaypoint || a.IsTown) && !missing.Contains(a.Name)
+					&& (a.Act == here.Act || (a.Act > 0 && a.Act <= Math.Max(here.Act, CampaignProgress.HighestAct)))
+					&& (a == here || !WaypointPanel.IsKnownLocked(a.Name, a.Act)));
+				if ( found != null ) return found == here ? null : found;
 				frontier = frontier.SelectMany(a => a.Connections).Where(a => !a.IsHub && seen.Add(a)).ToList();
 			}
 			return null;
@@ -387,6 +390,34 @@ namespace AtE {
 		/// </summary>
 		public static Func<CombatContext, Offsets.Vector2i?> Tile(string tilePathPart) => ctx =>
 			ctx.Terrain.TileFeatures(tilePathPart).OrderBy(f => Combat.Distance(ctx.Grid, f.GridPos)).FirstOrDefault()?.GridPos;
+
+		/// <summary>
+		/// Tile groups to visit in turn (eg, a bandit leader's camp, where they show by name once near): the nearest not
+		/// visited yet of the first tilePathParts that has any, each counted visited once within reach cells; null once all
+		/// are visited (Goal.Search then explores). Each call makes its own record of the visited ones.
+		/// </summary>
+		public static Func<CombatContext, Offsets.Vector2i?> Tiles(float reach, params string[] tilePathParts) {
+			var visited = new HashSet<AreaFeature>(); // TileFeatures' groups are new objects in each area
+			return ctx => {
+				foreach ( var part in tilePathParts ) {
+					var left = ctx.Terrain.TileFeatures(part).Where(f => !visited.Contains(f)).ToList();
+					foreach ( var f in left.Where(f => Combat.Distance(ctx.Grid, f.GridPos) <= reach).ToList() ) {
+						visited.Add(f);
+						left.Remove(f);
+					}
+					if ( left.Count > 0 ) return left.OrderBy(f => Combat.Distance(ctx.Grid, f.GridPos)).First().GridPos;
+				}
+				return null;
+			};
+		}
+
+		/// <summary>
+		/// Where a bandit leader is: their camp's tiles, then any other BanditCamp tile. Seen live (3.29.4): Alira in The
+		/// Western Forest at <1250, 553>, by BanditCamp/treewitch_camp_v01_* (<1241, 517>); Oak in The Wetlands at
+		/// <652, 902>, among the three Features/Tents/forest_tent_* (<588, 906>, <659, 972>, <701, 885>; the area has no
+		/// BanditCamp tiles). Kraityn's (The Broken Bridge) are not known yet: BanditCamp is a guess there.
+		/// </summary>
+		public static Func<CombatContext, Offsets.Vector2i?> BanditCamp() => Tiles(20, "/BanditCamp/treewitch_camp", "/Features/Tents/forest_tent", "/BanditCamp/");
 
 		/// <summary>
 		/// The exit named destination (eg, a door within the area, named by AreaExits.PlacedExitTiles, or seen); else the

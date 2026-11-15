@@ -129,6 +129,11 @@ namespace AtE {
 		public Element BuffsPanel => IsValid(Address) ? getElement(Cache.BuffsPanel) : null;
 		public Element DelveDarkness => IsValid(Address) ? getElement(Cache.DelveDarkness) : null; // Debuffs Panel
 		public Element AreaInstanceUi => IsValid(Address) ? getElement(Cache.AreaInstanceUi) : null;
+		/// <summary>
+		/// A panel holding the Act 2 bandit leaders' dialog (3.29.4, seen live with Oak's: its child 6 shows "If you help
+		/// Oak ...", and the buttons "help oak" at (6, 2, 0) and "kill oak" at (6, 2, 1); the other children are arena/PvP texts).
+		/// </summary>
+		public Element HelpOrKillBandit => IsValid(Address) ? getElement(Cache.HelpOrKillBandit) : null;
 		/// <summary>The augury card selection window, opened by clicking a unique monster with the augury_boss_frozen buff.</summary>
 		public Element AuguryCardSelectionWindow => IsValid(Address) ? getElement(Cache.AuguryCardSelectionWindow) : null;
 		// public Element InteractButtonWrapper => IsValid(Address) ? getElement(Cache.InteractButtonWrapper) : null;

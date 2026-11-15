@@ -123,6 +123,10 @@ namespace AtE {
 			("Forest/Transitions/roadtothickforest_entrance", "The Riverways", "The Western Forest"),
 			("Forest/Transitions/spidergrove_entrance", "The Weaver's Chambers", "The Western Forest"),
 			("Forest/Transitions/forest_mountainpass", "Prisoner's Gate", "The Western Forest"),
+			// The Wetlands (3.29.4, seen live as entities): the bridge at <655, 254> is The Riverways, and the cave entrance at
+			// <655, 1566> The Vaal Ruins
+			("Forest/Transitions/bridgeconnection", "The Riverways", "The Wetlands"),
+			("Forest/Transitions/forest_caveentrance_inca", "The Vaal Ruins", "The Wetlands"),
 			// The Weaver's Chambers (3.29.4, from the tiles): the lit spidergrove_exit at <172, 483> is the way back out to The
 			// Western Forest (the area's only connection); the plain spidergrove_exit tiles are doors within the area (see
 			// PlacedExitTiles)

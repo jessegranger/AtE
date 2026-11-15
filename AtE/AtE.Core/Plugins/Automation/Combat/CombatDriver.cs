@@ -97,6 +97,9 @@ namespace AtE {
 		protected virtual bool TakesInput => false;
 
 		/// <summary>Queue input (eg, Inputs.UseSlot) to go out over the next frames; false (and not queued) if input is still going out.</summary>
+		/// <summary>Use the skill bar's travel skills on straight stretches of the path when walking (TravelSkills, a State of its own, looks at this).</summary>
+		public bool UseTravelSkills = true;
+
 		public bool Send(IState input) {
 			if ( input == null || InputBusy ) return false;
 			inputRunning = true;

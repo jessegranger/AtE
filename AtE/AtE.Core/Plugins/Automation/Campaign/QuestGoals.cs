@@ -149,13 +149,16 @@ namespace AtE {
 		public float Radius = 60;
 		public float Reach = 12;
 		public long WaitMs = 5000;
+		/// <summary>Clicks on it from within Reach that leave it on the ground before stopping for help (no room for it).</summary>
+		public int MaxClicks = 3;
+		private int clicks;
 		private long started, lastClick;
 		private bool seen, gone;
 
 		/// <param name="label">What it is, for the on-screen list (eg, "Hailrake's quest item").</param>
 		public PickUpQuestItem(string label) => Label = label;
 		public override string Name => $"Pick up {Label}";
-		public override void Reset() { base.Reset(); started = 0; seen = gone = false; }
+		public override void Reset() { base.Reset(); started = 0; clicks = 0; seen = gone = false; }
 
 		private (LabelOnGround label, Offsets.Vector2i pos) Find(CombatContext ctx) {
 			var found = OpenQuestChests.QuestItemLabels(ItemPathPart).FirstOrDefault(l => Combat.Distance(ctx.Grid, l.pos) <= Radius);
@@ -184,9 +187,15 @@ namespace AtE {
 				return Call(new Navigate(Label, _ => pos, Reach) { FightRadius = -1 });
 			}
 			ctx.Driver.StopWalking($"picking up {Label}");
-			Detail = "clicking it";
-			if ( Time.ElapsedMilliseconds - lastClick < 1000 || !(Ground.ClickLabel(label, this) is IState click) ) return this;
+			if ( Time.ElapsedMilliseconds - lastClick < 1000 ) return this;
+			if ( clicks >= MaxClicks ) {
+				clicks = 0; // (once the player made room and switched the routine on again, it tries again)
+				return Call(new StopForHelp($"{Label} stayed on the ground after {MaxClicks} clicks: make room in the inventory"));
+			}
+			Detail = $"clicking it (click {clicks + 1})";
+			if ( !(Ground.ClickLabel(label, this) is IState click) ) return this;
 			lastClick = Time.ElapsedMilliseconds;
+			clicks++;
 			return click;
 		}
 	}
@@ -373,7 +382,8 @@ namespace AtE {
 	}
 
 	/// <summary>
-	/// Kill a bandit leader (Act 2: Kraityn, Alira, Oak): find them in their area (a unique monster, named so, that
+	/// Kill a bandit leader (Act 2: Kraityn, Alira, Oak): find them in their area (looking at their camp's tiles first,
+	/// see Search.BanditCamp; a unique monster, named so, that
 	/// CannotBeDamaged until a choice is made), click them to talk, and in the dialog that shows (HelpOrKillBandit, found
 	/// by its text) click "Kill [name]" (never Help): they turn hostile (CannotBeDamaged 0), and are fought as any monster is (Kill: the driver's Engage).
 	/// Done once seen dead (kept while the overlay runs, through new runs), or by DoneWhen (eg, the quest's step no longer
@@ -384,14 +394,19 @@ namespace AtE {
 		private readonly Func<string> skill;
 		private long lastClick;
 		private bool killed;
-		public KillBandit(string bandit, Func<string> skill) { Bandit = bandit; this.skill = skill; }
+		public KillBandit(string bandit, Func<string> skill) { Bandit = bandit; this.skill = skill; SearchAt = AtE.Search.BanditCamp(); }
 		public override string Name => $"Kill {Bandit} (the bandit)";
 
+		// Unique only: their guards' names may hold theirs too (eg, the Stuck in The Western Forest after Alira was in sight)
 		private Entity Find() => GetEntities()?.FirstOrDefault(e => e?.Path is string path && path.StartsWith("Metadata/Monsters/")
+			&& e.GetComponent<ObjectMagicProperties>()?.Rarity == Offsets.MonsterRarity.Unique
 			&& (e.GetComponent<Render>()?.Name?.Contains(Bandit, StringComparison.OrdinalIgnoreCase) ?? false));
 
-		/// <summary>The dialog's "Kill [name]" button, if it shows (searched for from the UI root).</summary>
-		private Element KillButton() => Town.FindByText(PoEMemory.GameRoot?.InGameState?.UIRoot, $"Kill {Bandit}", 16);
+		/// <summary>
+		/// The dialog's "Kill [name]" button (its text "kill oak", 3.29.4), if it shows: in UIElements.HelpOrKillBandit
+		/// (searching from the UI root did not find it: Oak's was clicked on over and over instead).
+		/// </summary>
+		private Element KillButton() => Town.FindByText(GetUI()?.HelpOrKillBandit, $"Kill {Bandit}", 8);
 
 		public override bool CheckDone(CombatContext ctx) => killed;
 

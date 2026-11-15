@@ -227,11 +227,15 @@ namespace AtE {
 			// Western Forest or The Wetlands" after Kraityn), or they were seen dead.
 			// TODO: confirm live: the other steps' text, the bandits' names (Render.Name), the "Kill [name]" button's text
 			const string bandits = "Deal with the Bandits";
-			bool banditDone(string area) => AtReward(bandits)
-				|| (StepOf(bandits) is string s && s.StartsWith("Travel to ", StringComparison.OrdinalIgnoreCase) && s.IndexOf(Bare(area), StringComparison.OrdinalIgnoreCase) < 0);
+			// The step "Eramir wants you to kill [name]" (3.29.4, seen live: "... kill Alira") names the one to go for: the
+			// others count as done while it shows (DoneWhen is asked again each frame, so they come back after).
+			bool banditDone(string name, string area) => AtReward(bandits)
+				|| (StepOf(bandits) is string s && (
+					(s.StartsWith("Travel to ", StringComparison.OrdinalIgnoreCase) && s.IndexOf(Bare(area), StringComparison.OrdinalIgnoreCase) < 0)
+					|| (s.IndexOf(" kill ", StringComparison.OrdinalIgnoreCase) >= 0 && s.IndexOf(name, StringComparison.OrdinalIgnoreCase) < 0)));
 			Goal Bandit(string name, string area) => new Sequence($"{bandits}: {name}",
-				new KillBandit(name, main) { Where = area, DoneWhen = () => banditDone(area) },
-				new PickUpQuestItem($"{name}'s quest item") { Where = area, DoneWhen = () => banditDone(area) });
+				new KillBandit(name, main) { Where = area, DoneWhen = () => banditDone(name, area) },
+				new PickUpQuestItem($"{name}'s quest item") { Where = area, DoneWhen = () => banditDone(name, area) });
 			quests.Handlers.Add(new QuestHandler(bandits, new Sequence(bandits,
 				Bandit("Kraityn", BrokenBridge), Bandit("Alira", WesternForest), Bandit("Oak", Wetlands))) {
 				Active = step => step != null && !FinishAllQuests.IsToTown(step) && !step.EndsWith("for your reward", StringComparison.OrdinalIgnoreCase)

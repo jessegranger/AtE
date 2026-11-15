@@ -106,9 +106,12 @@ namespace AtE {
 		/// built): try the waypoint then. The closed tree is as of when the panel was last open, so a waypoint unlocked
 		/// since may still read as locked (it walks instead, which is only slower).
 		/// </summary>
-		public static bool IsKnownLocked(string name) {
-			string here = GetCurrentArea()?.Name;
+		/// <param name="act">The area's act, if known: the tree shows the current act, so it can't tell for another (0: not known).</param>
+		public static bool IsKnownLocked(string name, int act = 0) {
+			var current = GetCurrentArea();
+			string here = current?.Name;
 			if ( string.IsNullOrEmpty(name) ) return false;
+			if ( act > 0 && current != null && act != current.Act ) return false;
 			var list = DestinationsEvenClosed().ToList();
 			if ( !list.Any(d => IsCurrentArea(d.element) || SameName(d.name, here)) ) return false;
 			return !list.Any(d => SameName(d.name, name) && IsUnlocked(d.element));
@@ -125,6 +128,12 @@ namespace AtE {
 			if ( !list.Any(d => IsCurrentArea(d.element) || SameName(d.name, here)) ) return false;
 			return list.Any(d => SameName(d.name, name) && IsUnlocked(d.element));
 		}
+
+		/// <summary>
+		/// The open panel's tab for act n (its text "Act n", under AreaInstanceUi.Children[2][0], as CampaignProgress
+		/// reads them), or null (the panel is closed, or that act is not reached, or is in the other Part).
+		/// </summary>
+		public static Element ActTab(int act) => Town.FindByText(Panel()?.GetChild(2, 0), $"Act {act}", 8);
 
 		private static IEnumerable<(Element element, string name)> DestinationsIn(Element panel) {
 			var root = panel?.GetChild(2);

@@ -104,12 +104,17 @@ namespace AtE {
 	/// Kill a boss by circling it (eg, Hillock): use the skill at it (standing still until the cast is out), walk to the
 	/// next of four points around it (north, west, south, east on screen, counter-clockwise, Radius cells from it), use
 	/// the skill again, and so on round. If the walk takes longer than MaxWalkMs, it uses the skill on the way and then
-	/// goes on to the same point. A point that can't be walked to, or can't see the boss, is skipped.
+	/// goes on to the same point. A point that can't be walked to, can't see the boss, or is near a wall or obstacle (its
+	/// cell's clearance in the Terrain grid below MinClearance) is skipped; with every point skipped, it uses the skill
+	/// from where it stands (walking only to get in range and sight of it).
 	/// </summary>
 	public class Orbit : Kill {
 		public float Radius;
 		/// <summary>How far from it to circle, in cells, with a melee skill (when Radius is 0).</summary>
 		public float MeleeRadius = 8;
+		/// <summary>The least clearance (Terrain.Clearance: 1 beside a wall, up to 5 in the open) of a point to circle to.</summary>
+		public int MinClearance = 3;
+		private bool allSkipped; // every point was skipped last time (logged once, until one is good again)
 		public long MaxWalkMs = 1500;
 		private int point = -1; // the point being walked to, an index into Cardinal; -1 for none yet
 		private bool castDue = true;
@@ -180,7 +185,8 @@ namespace AtE {
 			}
 			// walk to the point (or the next one that can be walked to and sees it)
 			for ( int tries = 0; tries < Cardinal.Length; tries++ ) {
-				if ( TrySpot(ctx, target.GridPos, dirs[point], radius, out var spot) ) {
+				if ( TrySpot(ctx, target.GridPos, dirs[point], radius, MinClearance, out var spot) ) {
+					allSkipped = false;
 					if ( Combat.Distance(ctx.Grid, spot) <= 3 ) {
 						// there: use the skill again, then on to the next one
 						castDue = true;
@@ -200,8 +206,11 @@ namespace AtE {
 				point = (point + 1) % Cardinal.Length;
 				progressAt = 0;
 			}
-			// nowhere around it to stand: fight it from wherever
-			base.Fight(ctx, target);
+			// nowhere around it to stand clear of walls: use the skill from here (castDue walks only to get in range and sight)
+			if ( !allSkipped ) Log($"Orbit: no point around {Label} is clear of walls (clearance {MinClearance}+): using {skill} from here");
+			allSkipped = true;
+			Detail = "no point around it is clear of walls: attacking from here";
+			castDue = true;
 		}
 
 		/// <summary>Walking to a point counts as blocked when it has not got a cell nearer in this long, with monsters near.</summary>
@@ -244,10 +253,12 @@ namespace AtE {
 			Log($"Orbit: blocked on the way to the {CardinalNames[point]} of {Label}: {skill} toward it");
 		}
 
-		// where to stand on the point in direction dir from center: a cell that can be walked to, near it, that sees center
-		private static bool TrySpot(CombatContext ctx, Offsets.Vector2i center, Vector2 dir, float radius, out Offsets.Vector2i spot) {
+		// where to stand on the point in direction dir from center: a cell that can be walked to, near it, that sees center,
+		// and is at least minClearance from walls and obstacles (Terrain.Clearance)
+		private static bool TrySpot(CombatContext ctx, Offsets.Vector2i center, Vector2 dir, float radius, int minClearance, out Offsets.Vector2i spot) {
 			var want = new Offsets.Vector2i((int)MathF.Round(center.X + (dir.X * radius)), (int)MathF.Round(center.Y + (dir.Y * radius)));
 			return DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, want, out spot)
+				&& ctx.Terrain.Clearance(spot) >= minClearance
 				&& Combat.Distance(spot, want) <= radius * .5f
 				&& ctx.Terrain.HasLineOfSight(spot, center);
 		}

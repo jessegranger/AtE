@@ -13,6 +13,9 @@ namespace AtE {
 	/// 3.29.4, seen live: OptionsPanel.Child(2, 0, 2, 0, 6) is the "Input" tab, and the body, Child(2, 0, 2, 1), holds
 	/// the rows: each with the action at Child(0, 0) (eg "Use Portal Scroll") and its key at Child(1, 0, 0, 0, 0, 1)
 	/// (eg ",", "O", "1").
+	///
+	/// TryReadFromMemory reads them without the panel (see Offsets.UIInput_Bindings: a list of { key, modifier, action }
+	/// kept from the start of the game). TryRead tries that first, so the panel is only opened if it does not work.
 	/// </summary>
 	public static class GameKeys {
 		private static Dictionary<string, string> bindings;
@@ -26,8 +29,84 @@ namespace AtE {
 		public static Element InputTab() => GetUI()?.OptionsPanel?.GetChild(2, 0, 2, 0, 6);
 		public static Element Body() => GetUI()?.OptionsPanel?.GetChild(2, 0, 2, 1);
 
-		/// <summary>Read the rows now (no input); false if none are there (the panel not built, or the tab not shown yet).</summary>
+		/// <summary>Where the bindings were read from, for the memory server's /gamekeys (null: not read).</summary>
+		public static string Source { get; private set; }
+
+		/// <summary>
+		/// The actions by index (Offsets.UIInput_Bindings' action): the Input tab's rows in order, as read live (3.29.4)
+		/// with the default and a few changed keys. Null for the ones that had no key, whose row's name is not known yet.
+		/// </summary>
+		public static readonly string[] BindingActions = {
+			"Use flask in slot 1", "Use flask in slot 2", "Use flask in slot 3", "Use flask in slot 4", "Use flask in slot 5", // 0
+			"Use Temp Bound Skill 1", "Use Temp Bound Skill 2", // 5
+			"Use bound skill 1", "Use bound skill 2", "Use bound skill 3", "Use bound skill 4", "Use bound skill 5", // 7
+			"Use bound skill 6", "Use bound skill 7", "Use bound skill 8", "Use bound skill 9", "Use bound skill 10", // 12
+			"Use bound skill 11", "Use bound skill 12", "Use bound skill 13", // 17
+			"Attack in place", "Weapon swap", null, "Highlight items and objects", "Toggle highlighting", // 20
+			"Enable corpse targeting", "Chat", "Overlay Map", "Options", "Character Screen", // 25
+			"Social Screen", "Ladder Screen", "Inventory", "Challenges/Achievements", "Pantheon Panel", // 30
+			"Cosmetics", "Microtransaction List", null, "World Screen", "Passive Skill Tree", // 35
+			"Atlas Screen", "Atlas Skill Tree", null, "Market Panel", "League Interface", // 40
+			"League Panel", "Help Panel", "Close All User Interface", "Take a screenshot", "Zoom the camera in", // 45
+			"Zoom the camera out", "Toggle Performance Metrics", null, "Toggle Skill Set", "Show Advanced Item Descriptions", // 50
+			"Compare Item Descriptions", "End Delirium Encounter", "Use Alternate Currency", null, null, // 55
+			null, null, null, "Use Sentinel", null, // 60
+			"Return to the Mirage Portal", "Use Portal Scroll", null, "Pin Popups", // 65
+		};
+
+		/// <summary>
+		/// Read the player's bindings from memory (Offsets.UIInput_Bindings: no input, and the Options panel need not have
+		/// been shown); false if they can't be read, or do not look right (the vector's size and count disagree, an action
+		/// index past BindingActions, or a key that is not one).
+		/// </summary>
+		public static bool TryReadFromMemory() {
+			var root = PoEMemory.GameRoot?.InGameState?.UIRoot;
+			if ( !IsValid(root) ) return false;
+			if ( !PoEMemory.TryRead(root.Address + Offsets.UIRoot_Input, out IntPtr input) || !IsValid(input) ) return false;
+			if ( !PoEMemory.TryRead(input + Offsets.UIInput_Bindings, out IntPtr begin)
+				|| !PoEMemory.TryRead(input + Offsets.UIInput_Bindings + 8, out IntPtr end)
+				|| !PoEMemory.TryRead(input + Offsets.UIInput_BindingCount, out int count) || !IsValid(begin) ) return false;
+			long size = end.ToInt64() - begin.ToInt64();
+			if ( count <= 0 || count > 500 || size != count * 12L ) {
+				Log($"GameKeys: the key list does not look right (count {count}, {size} bytes): not read from memory (the game changed?)");
+				return false;
+			}
+			var raw = new int[count * 3];
+			if ( PoEMemory.TryRead(begin, raw) != raw.Length * sizeof(int) ) return false; // (it returns the bytes read)
+			var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			for ( int i = 0; i < count; i++ ) {
+				int code = raw[i * 3], mod = raw[(i * 3) + 1], action = raw[(i * 3) + 2];
+				if ( code <= 0 || code > 0xFF || action < 0 || action >= BindingActions.Length || (mod != 0 && (mod < 0x10 || mod > 0x12)) ) {
+					Log($"GameKeys: the key list's entry {i} does not look right (key {code}, modifier {mod}, action {action}): not read from memory (the game changed?)");
+					return false;
+				}
+				if ( BindingActions[action] != null ) found[BindingActions[action]] = KeyText(code, mod);
+			}
+			bindings = found;
+			Source = "memory (the UI root's key list)";
+			Log($"GameKeys: read {found.Count} key bindings from memory (Use Portal Scroll = {Text("Use Portal Scroll") ?? "none"}, Inventory = {Text("Inventory") ?? "none"})");
+			return true;
+		}
+
+		// a key as text that Parse reads back: "Ctrl+Q", "I", "Oemcomma", "LButton"
+		private static string KeyText(int code, int mod) {
+			string m = mod switch { 0x10 => "Shift+", 0x11 => "Ctrl+", 0x12 => "Alt+", _ => "" };
+			char c = (char)code;
+			string k = (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ? c.ToString() : ((VKey)code).ToString();
+			return m + k;
+		}
+
+		/// <summary>
+		/// Read the bindings now, with no input: from memory (TryReadFromMemory), else from the Options panel's rows; false
+		/// if neither is there (the rows: the panel not built, or the tab not shown yet).
+		/// </summary>
 		public static bool TryRead() {
+			if ( TryReadFromMemory() ) return true;
+			return TryReadRows();
+		}
+
+		/// <summary>Read the Options panel's rows now (no input); false if none are there (the panel not built, or the tab not shown yet).</summary>
+		public static bool TryReadRows() {
 			var body = Body();
 			if ( !IsValid(body) ) return false;
 			var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -40,6 +119,7 @@ namespace AtE {
 			}
 			if ( !found.ContainsKey("Use Portal Scroll") ) return false;
 			bindings = found;
+			Source = "the Options panel's rows";
 			Log($"GameKeys: read {found.Count} key bindings (Use Portal Scroll = {Text("Use Portal Scroll")}, Options = {Text("Options")})");
 			return true;
 		}
@@ -60,6 +140,24 @@ namespace AtE {
 
 		/// <summary>The key text an action is bound to (eg, ","), or null.</summary>
 		public static string Text(string action) => bindings != null && bindings.TryGetValue(action, out string t) ? t : null;
+
+		/// <summary>Every binding read (action, key text), for the memory server's /gamekeys; empty if not read.</summary>
+		public static IEnumerable<KeyValuePair<string, string>> All() => bindings ?? Enumerable.Empty<KeyValuePair<string, string>>();
+
+		/// <summary>
+		/// The key that opens and closes the inventory, from the Options panel (the action named "Inventory Panel" or
+		/// "Inventory", else the first one with "Inventory" in its name, and no "Stash" or "Guild"); VKey.I if the bindings
+		/// are not read yet, or no such action is bound.
+		/// </summary>
+		public static VKey InventoryKey {
+			get {
+				string action = new[] { "Inventory Panel", "Inventory" }.FirstOrDefault(a => Text(a) != null)
+					?? All().Select(kv => kv.Key).FirstOrDefault(a => a.IndexOf("Inventory", StringComparison.OrdinalIgnoreCase) >= 0
+						&& a.IndexOf("Stash", StringComparison.OrdinalIgnoreCase) < 0 && a.IndexOf("Guild", StringComparison.OrdinalIgnoreCase) < 0);
+				var key = action == null ? VKey.None : Key(action);
+				return key == VKey.None ? VKey.I : key;
+			}
+		}
 
 		/// <summary>The key an action is bound to (with modifier bits, eg Ctrl + Q), or VKey.None (not read, not bound, or not understood).</summary>
 		public static VKey Key(string action) => Parse(Text(action));

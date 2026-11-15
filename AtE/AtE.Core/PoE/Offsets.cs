@@ -458,6 +458,20 @@ namespace AtE {
 		public static readonly int Element_Text = 0x358;
 
 		public static readonly int Element_AreaInstanceDestination_Offset = 0x300;
+
+		// 3.29.4, found live (searched memory for the key codes, then for the pointers to them), on a freshly started game
+		// before the Options panel was ever shown: the player's key bindings. The UI root element (InGameState.elemRoot)
+		// + UIRoot_Input points at an object whose UIInput_Bindings is a std::vector (begin, end, capacity end), and
+		// UIInput_BindingCount (just after it, with one pointer between) its count, of 12-byte entries
+		// { int key; int modifier; int action }, one per action that has a key: key a virtual key code, modifier 0x10 /
+		// 0x11 / 0x12 (Shift / Ctrl / Alt) or 0, action the action's index (the Input tab's rows, in order, unbound ones
+		// included: see GameKeys.BindingActions). Path: ingame+0x800*+0xD8*+0x3D0. Not used: a static object of the game
+		// module (ingame+0x398*) holds the default bindings at +0x528, as { int action; int key; int modifier }, all 69;
+		// and once the panel was shown, its Input page has its own copy (ingame+0x290*+0x6A0*+0x428*+0x48*+0x110, 8-byte
+		// { key; modifier } entries in action order).
+		public static readonly int UIRoot_Input = 0xD8;
+		public static readonly int UIInput_Bindings = 0x3D0;
+		public static readonly int UIInput_BindingCount = 0x3F0;
 		// 3.29.4, compared live across the Act 1 destination elements with the panel open in The Submerged Passage:
 		// a byte that is 1 for each area visited (The Twilight Strand ... The Flooded Depths) and 0 for The Ledge (shown,
 		// next door, not visited yet); taken as "can be traveled to". (+0x32C read 1 only on the current area.)

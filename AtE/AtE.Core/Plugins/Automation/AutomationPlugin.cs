@@ -158,6 +158,7 @@ namespace AtE {
 		}
 
 		public override IState OnTick(long dt) {
+			TravelSkills.Start(); // (once: it runs on the default Machine from then on)
 			StartOnLaunch();
 			var current = Current;
 			if ( current != null && ToggleKey.IsReleased && PoEMemory.IsAttached ) {

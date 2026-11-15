@@ -7,13 +7,26 @@ namespace AtE {
 	/// <summary>
 	/// Picks up the items on the ground that show a label (the loot filter lets them through): walk near the nearest,
 	/// click its label, and it is gone once picked up. An item whose label is still there after MaxClicks clicks from
-	/// close by is taken not to fit in the inventory, and left (blacklisted) until the next area.
+	/// close by (or MaxClicks + 1 from anywhere) is taken not to fit in the inventory, and left (blacklisted) until the
+	/// next area. Quest items (their item's path has /QuestItems/) are picked up first; one that does not fit is reported
+	/// (NoRoomForQuestItem) for the routine to stop for help.
 	/// </summary>
 	public class Looter {
 		/// <summary>Click the label (the game walks the rest of the way) when within this many cells of the item; walk nearer first when further.</summary>
 		public float ClickReach = 35;
 		/// <summary>A click from within this many cells that leaves the item on the ground counts toward MaxClicks.</summary>
 		public float Reach = 12;
+		/// <summary>
+		/// The name of a quest item that stayed on the ground after MaxClicks clicks (no room for it), until the routine
+		/// takes it (see TakeNoRoomForQuestItem); null if none.
+		/// </summary>
+		public string NoRoomForQuestItem { get; private set; }
+		/// <summary>NoRoomForQuestItem, cleared.</summary>
+		public string TakeNoRoomForQuestItem() { var s = NoRoomForQuestItem; NoRoomForQuestItem = null; return s; }
+
+		/// <summary>Is the item on the ground (a WorldItem) a quest item?</summary>
+		public static bool IsQuestItem(Entity worldItem) => worldItem?.GetComponent<WorldItem>()?.Item?.Path?.Contains("/QuestItems/") ?? false;
+
 		/// <summary>Leave items further than this many cells away.</summary>
 		public float MaxDistance = 80;
 		/// <summary>Clicks on one item's label, from within Reach, before giving up on it.</summary>
@@ -94,10 +107,12 @@ namespace AtE {
 			return found.item != null;
 		}
 
-		// the item being picked up, if it is still there, else the nearest
+		// the item being picked up, if it is still there, else the nearest; quest items first
 		private (LabelOnGround label, Entity item, Offsets.Vector2i grid, float distance) Target(CombatContext ctx) {
 			var items = Items(ctx).ToList();
 			if ( items.Count == 0 ) return default;
+			var quest = items.Where(i => IsQuestItem(i.item)).ToList();
+			if ( quest.Count > 0 ) items = quest;
 			var found = items.FirstOrDefault(i => i.item.Id == current);
 			return found.item != null ? found : items.OrderBy(i => i.distance).First();
 		}
@@ -125,9 +140,10 @@ namespace AtE {
 			ctx.Driver.StopWalking(Status);
 			clicks.TryGetValue(item.Id, out int n);
 			allClicks.TryGetValue(item.Id, out int all);
-			if ( n >= MaxClicks || all >= MaxClicks + 4 ) { // (+4: clicks from further away, that never got it close, eg, it can't be walked to)
+			if ( n >= MaxClicks || all >= MaxClicks + 1 ) { // (+1: a click from further away, that never got it close, eg, it can't be walked to)
 				// clicked from close by, and still on the ground: no room for it
-				Log($"Looter: {name} was not picked up after {n} clicks, leaving it (no room in the inventory?)");
+				Log($"Looter: {name} was not picked up after {all} clicks ({n} from close by), leaving it (no room in the inventory?)");
+				if ( IsQuestItem(item) ) NoRoomForQuestItem = name;
 				blacklist.Add(item.Id);
 				current = 0;
 				return true;
