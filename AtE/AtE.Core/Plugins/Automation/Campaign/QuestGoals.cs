@@ -270,6 +270,74 @@ namespace AtE {
 	}
 
 	/// <summary>
+	/// Go up a building by stairs within the area (eg, The Ancient Pyramid, 3.29.4: three Dungeon/Stairs/dungeon_stairs_up
+	/// tiles, whose stairs are labelled "Stairs", "Stairs" and "Pyramid Apex", each a transition to the next floor of the
+	/// same area). Each floor is cut off from the others in the walkable grid, so the stairs to take next are on the one
+	/// tile of TilePathPart the player can walk to: walk there, and click the label of the stairs on it. Done once the
+	/// top's tile (TopTilePathPart, eg the boss's) can be walked to.
+	/// </summary>
+	public class ClimbStairs : Goal {
+		public readonly string Label;
+		public readonly string TilePathPart, TopTilePathPart;
+		/// <summary>The labels of the stairs (eg, "Stairs", "Pyramid Apex").</summary>
+		public readonly string[] Labels;
+		/// <summary>How far (cells) from a tile's position the walkable floor beside it (or the stairs' label) may be.</summary>
+		public int TileReach = 25;
+		public float Reach = 12;
+		private long lastClick;
+		private Offsets.Vector2i lastTile;
+
+		public ClimbStairs(string label, string tilePathPart, string topTilePathPart, params string[] labels) {
+			Label = label; TilePathPart = tilePathPart; TopTilePathPart = topTilePathPart; Labels = labels;
+		}
+		public override string Name => $"Climb {Label}";
+		public override bool ProvesEarlier => true;
+
+		private bool CanWalkTo(CombatContext ctx, AreaFeature f) => DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, f.GridPos, out _, TileReach);
+
+		public override bool CheckDone(CombatContext ctx) {
+			if ( Where != null && !GoToArea.Is(GetCurrentArea(), Where) ) return false;
+			return ctx.Terrain.TileFeatures(TopTilePathPart).Any(f => CanWalkTo(ctx, f));
+		}
+
+		protected override IState Step(CombatContext ctx) {
+			var tile = ctx.Terrain.TileFeatures(TilePathPart).Where(f => CanWalkTo(ctx, f))
+				.OrderBy(f => Combat.Distance(ctx.Grid, f.GridPos)).FirstOrDefault();
+			if ( tile == null ) {
+				Detail = $"no \"{TilePathPart}\" tile can be walked to";
+				return FightFirst(ctx) ?? Call(new Explore(Label));
+			}
+			if ( !tile.GridPos.Equals(lastTile) ) {
+				lastTile = tile.GridPos;
+				Log($"Campaign: {Label}: the stairs to take are on the tile at {tile.GridPos}");
+			}
+			// the stairs' label, on (near) that tile
+			var label = (GetUI()?.LabelsOnGround?.GetAllLabels() ?? Enumerable.Empty<LabelOnGround>())
+				.Where(l => Labels.Any(t => string.Equals(Ground.LabelText(l.Label)?.Trim(), t, StringComparison.OrdinalIgnoreCase)))
+				.Select(l => (label: l, pos: l.Item?.GetComponent<Positioned>()))
+				.Where(x => IsValid(x.pos) && Combat.Distance(x.pos.GridPos, tile.GridPos) <= TileReach)
+				.OrderBy(x => Combat.Distance(x.pos.GridPos, tile.GridPos))
+				.FirstOrDefault();
+			if ( label.label == null ) {
+				Detail = $"to the stairs at {tile.GridPos}, {Combat.Distance(ctx.Grid, tile.GridPos):F0} cells away";
+				return Call(new Navigate(Label, c => Approach(c, tile.GridPos), 3) { FightRadius = IgnoreMonsters ? -1 : 0, LegMs = 1000 });
+			}
+			var at = label.pos.GridPos;
+			if ( !IsNear(ctx, at, Reach, out _, out float d) ) {
+				Detail = $"{Ground.LabelText(label.label.Label)?.Trim()}, {d:F0} cells away";
+				return GoTo(Label, at, Reach);
+			}
+			if ( FightFirst(ctx) is IState fight ) return fight;
+			ctx.Driver.StopWalking($"taking the {Ground.LabelText(label.label.Label)?.Trim()}");
+			if ( Time.ElapsedMilliseconds - lastClick < 2000 || !(Ground.ClickLabel(label.label, this) is IState click) ) return this;
+			lastClick = Time.ElapsedMilliseconds;
+			Detail = $"taking the {Ground.LabelText(label.label.Label)?.Trim()} at {at}";
+			Log($"Campaign: {Label}: taking the {Ground.LabelText(label.label.Label)?.Trim()} at {at}");
+			return click;
+		}
+	}
+
+	/// <summary>
 	/// Click a quest object that unlocks something (eg, The Mud Flats' Strange Glyph Wall, which opens the way to The
 	/// Submerged Passage, once the three glyphs are had). Walk toward its tiles (Terrain.TileFeatures) until the object
 	/// is in range, then click its label. Done when the thing it unlocks is in range and targetable (sticky).

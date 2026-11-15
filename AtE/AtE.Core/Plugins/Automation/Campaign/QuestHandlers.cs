@@ -196,6 +196,59 @@ namespace AtE {
 			});
 		}
 
+		/// <summary>
+		/// The Ancient Pyramid, to The City of Sarn (seen live, 3.29.4): up three Dungeon/Stairs/dungeon_stairs_up tiles (the
+		/// stairs on them labelled "Stairs", "Stairs" and "Pyramid Apex", each to the next floor of the same area: only the
+		/// floor the player is on can be walked to, see ClimbStairs) to the apex, where the Dark Altar (entity
+		/// Metadata/Monsters/IncaShadowBoss/IncaBossSpawner, at <2231, 437>) is on the Dungeon/Features/inca_boss_emerge tile
+		/// (<2227, 434>). Click it, wait there (a long time) for the Vaal Oversoul to come out, kill him (Orbit), collect the
+		/// "Crafting Recipe" he leaves near, and take the door to The City of Sarn (entity
+		/// Metadata/QuestObjects/Inca/IncaPyramidTransition, on the Dungeon/Features/dungeon_huangdoor tile at <2230, 535>),
+		/// which may take a few seconds to show after he dies. That door targetable is the boss dead (eg, after a restart).
+		/// </summary>
+		private static Goal[] PyramidGoals(Func<string> skill) {
+			// (the door is told by its entity being targetable, in case it is there before he dies; remembered for the area
+			// instance, for when it is out of range)
+			uint openIn = 0;
+			bool sarnOpen() {
+				uint hash = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
+				if ( hash != 0 && hash == openIn ) return true;
+				bool open = GetEntities()?.Any(e => IsValid(e) && IsValid(e.GetComponent<AreaTransition>())
+					&& string.Equals(e.GetComponent<Render>()?.Name, CityOfSarn, StringComparison.OrdinalIgnoreCase)
+					&& (e.GetComponent<Targetable>()?.IsTargetable ?? false)) ?? false;
+				if ( open && hash != 0 ) { openIn = hash; Log($"Campaign: the door to {CityOfSarn} is open: the Vaal Oversoul is dead"); }
+				return open;
+			}
+			bool bossInSight() => GetEntities()?.Any(e => e != null && IsVaalOversoul(e)) ?? false;
+			var emerge = Search.Tile("/inca_boss_emerge");
+			return new Goal[] {
+				new ClimbStairs("the pyramid", "/Stairs/dungeon_stairs_up", "/inca_boss_emerge", "Stairs", "Pyramid Apex") { Where = AncientPyramid, DoneWhen = sarnOpen },
+				new Activate("Dark Altar") { Where = AncientPyramid, SearchAt = emerge, DoneWhen = () => bossInSight() || sarnOpen() },
+				// (not in sight while he has not come out: Search waits at the tile)
+				new Orbit("the Vaal Oversoul", IsVaalOversoul, skill) { Where = AncientPyramid, SearchAt = emerge, DoneWhen = sarnOpen },
+				// (none to be seen for a while, near where he died: picked up already, eg before a restart)
+				new PickUp(CraftingRecipe) { Where = AncientPyramid, SearchAt = emerge, DoneWhen = NoLabelFor(CraftingRecipe, 8000) },
+				new TakeTransition(CityOfSarn) { Where = AncientPyramid, SearchAt = Search.Tile("/dungeon_huangdoor"), DoneWhen = () => InAny(CityOfSarn) },
+			};
+		}
+		private const string CraftingRecipe = "Crafting Recipe";
+
+		/// <summary>The Vaal Oversoul (Metadata/Monsters/IncaShadowBoss/..., not its spawner, the Dark Altar).</summary>
+		private static bool IsVaalOversoul(Entity e) => e?.Path is string path && path.StartsWith("Metadata/Monsters/")
+			&& ((path.IndexOf("/IncaShadowBoss/", StringComparison.OrdinalIgnoreCase) >= 0 && path.IndexOf("Spawner", StringComparison.OrdinalIgnoreCase) < 0)
+				|| (e.GetComponent<Render>()?.Name?.Contains("Vaal Oversoul", StringComparison.OrdinalIgnoreCase) ?? false));
+
+		/// <summary>True once no label with text in it has been on the ground for ms (counted from when it is first asked).</summary>
+		private static Func<bool> NoLabelFor(string text, long ms) {
+			long since = -1;
+			return () => {
+				bool shown = GetUI()?.LabelsOnGround?.GetAllLabels()?.Any(l => (Ground.LabelText(l.Label)?.IndexOf(text, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0) ?? false;
+				if ( shown ) { since = -1; return false; }
+				if ( since < 0 ) since = Time.ElapsedMilliseconds;
+				return Time.ElapsedMilliseconds - since > ms;
+			};
+		}
+
 		private static bool IsEmperorsRoadStep(string step) => step != null && step.IndexOf("Follow the Emperor's Road", StringComparison.OrdinalIgnoreCase) >= 0;
 
 		private void Act2Quests(FinishAllQuests quests) {
@@ -312,7 +365,21 @@ namespace AtE {
 				// (a "Travel to The Vaal Ruins" too is the handler's: the way is the roots' new exit, not a known route)
 				Active = step => (QuestHandler.DefaultActive(step) || poisoned()) && !(sealDone() && !InAny(VaalRuins)),
 			});
-			quests.Handlers.Add(Stub("Shadow of the Vaal"));
+			// Touching the Ancient Seal (The Root of the Problem) gives it. Its step is "Travel to The Forest Encampment" all the
+			// way, which is ignored in the areas on the way (any step there is the handler's): in The Northern Forest, walk to
+			// its waypoint (to discover it), then take the exit to The Caverns (Forest/Transitions/waterfall_cave_entrance);
+			// in The Caverns, the exit to The Ancient Pyramid (Dungeon/Stairs/dungeon_stairs_up); then up the pyramid, the
+			// Dark Altar, the Vaal Oversoul, and on to The City of Sarn (see PyramidGoals)
+			const string vaal = "Shadow of the Vaal";
+			quests.Handlers.Add(new QuestHandler(vaal, new Sequence(vaal, new Goal[] {
+				new GoToWaypoint() { Where = NorthernForest, DoneWhen = () => WaypointPanel.IsKnownUnlocked(NorthernForest) || InAny(Caverns, AncientPyramid) },
+				new TakeTransition(Caverns) { Where = NorthernForest, SearchAt = Search.Exit(Caverns, "/waterfall_cave_entrance"), DoneWhen = () => InAny(Caverns, AncientPyramid) },
+				new TakeTransition(AncientPyramid) { Where = Caverns, SearchAt = Search.Exit(AncientPyramid, "/dungeon_stairs_up"), DoneWhen = () => InAny(AncientPyramid) },
+			}.Concat(PyramidGoals(main)).ToArray())) {
+				Active = step => step != null && InAny(NorthernForest, Caverns, AncientPyramid),
+				// (once the boss is dead the quest may leave the tracker: the recipe and the way on to Act 3 are still to do)
+				Untracked = () => InAny(AncientPyramid),
+			});
 			quests.Handlers.Add(Stub("The Lord's Labyrinth"));
 			quests.Handlers.Add(Stub("Einhar's Hunt"));
 			quests.Handlers.Add(Stub("Einhar's Menagerie"));

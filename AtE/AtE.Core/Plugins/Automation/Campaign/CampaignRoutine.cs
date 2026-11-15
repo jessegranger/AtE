@@ -85,7 +85,8 @@ namespace AtE {
 			ShipGraveyard = "The Ship Graveyard", ShipGraveyardCave = "The Ship Graveyard Cave",
 			LowerPrison = "The Lower Prison", BrokenBridge = "The Broken Bridge", Wetlands = "The Wetlands", Den = "The Den",
 			ChamberOfSins2 = "The Chamber of Sins Level 2", WeaversChambers = "The Weaver's Chambers",
-			Crypt2 = "The Crypt Level 2", VaalRuins = "The Vaal Ruins", NorthernForest = "The Northern Forest";
+			Crypt2 = "The Crypt Level 2", VaalRuins = "The Vaal Ruins", NorthernForest = "The Northern Forest", Caverns = "The Caverns",
+			CityOfSarn = "The City of Sarn";
 
 		/// <summary>Each act's town, as WorldArea names it with its act (several share a name).</summary>
 		public static string TownOf(int act) => act switch {
@@ -157,15 +158,8 @@ namespace AtE {
 			Func<string> main = BuildPlan.MainSkill;
 			return new Sequence("Complete Act 2",
 				Quests(2),
-				new Sequence("Route to The Ancient Pyramid",
-					new RouteTo(AncientPyramid),
-					new TakeTransition("Stairs") { Where = AncientPyramid },
-					new TakeTransition("Stairs") { Where = AncientPyramid },
-					new TakeTransition("Stairs") { Where = AncientPyramid },
-					new TakeTransition("Pyramid Apex") { Where = AncientPyramid },
-					new Activate("Dark Altar"),
-					new Kill("the Vaal Oversoul", "BossIncaShadow", null),
-					new EnterArea("The City of Sarn"))
+				// (Shadow of the Vaal does it, while in the tracker: this is for when it is not)
+				new Sequence("Route to The City of Sarn", new Goal[] { new RouteTo(AncientPyramid) }.Concat(PyramidGoals(main)).ToArray())
 			) { DoneWhen = () => CampaignProgress.ActDone(2) };
 		}
 

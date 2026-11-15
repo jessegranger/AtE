@@ -69,6 +69,7 @@ namespace AtE {
 			"/church_exit_down", "/church_exit_up",
 			"/spidergrove_exit",
 			"/dungeon_inca_exit",
+			"/Stairs/dungeon_stairs_up", "/dungeon_huangdoor",
 		};
 
 		/// <summary>
@@ -132,6 +133,13 @@ namespace AtE {
 			// Western Forest (the area's only connection); the plain spidergrove_exit tiles are doors within the area (see
 			// PlacedExitTiles)
 			("SpiderGrove/Features/spidergrove_exit_lit", "The Western Forest", "The Weaver's Chambers"),
+			// Shadow of the Vaal's way (3.29.4, from the user, standing there): The Northern Forest's waterfall cave is The
+			// Caverns; The Caverns' stairs up are The Ancient Pyramid; the pyramid's huang door at <2230, 535> (seen live as
+			// an entity, at <2231, 535>, once the Vaal Oversoul died) is The City of Sarn. The pyramid's own stairs up are
+			// within the area ("Stairs", "Pyramid Apex": named once seen, see ClimbStairs)
+			("Forest/Transitions/waterfall_cave_entrance", "The Caverns", "The Northern Forest"),
+			("Dungeon/Stairs/dungeon_stairs_up", "The Ancient Pyramid", "The Caverns"),
+			("Dungeon/Features/dungeon_huangdoor", "The City of Sarn", "The Ancient Pyramid"),
 		};
 
 		/// <summary>
