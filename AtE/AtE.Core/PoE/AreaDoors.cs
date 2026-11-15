@@ -69,6 +69,12 @@ namespace AtE {
 					newPassage |= door.Passage.Count > 0;
 				}
 				door.IsClosed = blockage.IsClosed;
+				// closed, but no slab in the grid as read when the area loaded: the game may have stamped it in since
+				if ( door.IsClosed && door.Passage.Count == 0 && terrain.MergeLiveBlocked(door.GridMin, door.GridMax) ) {
+					door.Passage = FindPassage(terrain, door.GridMin, door.GridMax);
+					Log($"Door {door.EntityId}: blocked in the game's grid since the area loaded, {door.Passage.Count} passage cells");
+					newPassage = true; // (the grid changed: the Navigator re-reads it)
+				}
 				if ( door.IsClosed ) door.OpenSince = 0;
 				else if ( door.OpenSince == 0 ) door.OpenSince = Time.ElapsedMilliseconds;
 				if ( !door.IsClosed && !door.PassageIsExact && TryReadOpenedPassage(terrain, door, out var opened) ) {

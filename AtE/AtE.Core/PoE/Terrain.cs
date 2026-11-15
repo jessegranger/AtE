@@ -204,6 +204,25 @@ namespace AtE {
 			return true;
 		}
 
+		/// <summary>
+		/// Copy into the local grid the cells in the box min..max that the game's grid blocks now but the copy has as
+		/// walkable: some doors are stamped into the game's grid only after the area loaded (when their entity arrives),
+		/// so the copy has their slab as open floor. Returns true if any cell changed.
+		/// </summary>
+		public bool MergeLiveBlocked(Offsets.Vector2i min, Offsets.Vector2i max) {
+			if ( walkable == null || !TryReadLiveWalkable(min, max, out var live) ) return false;
+			bool changed = false;
+			for ( int y = Math.Max(0, min.Y); y <= Math.Min(Height - 1, max.Y); y++ ) {
+				for ( int x = Math.Max(0, min.X); x <= Math.Min(Width - 1, max.X); x++ ) {
+					if ( !IsWalkable(x, y) || live(x, y) ) continue;
+					int i = (y * BytesPerRow) + (x >> 1);
+					walkable[i] = (byte)((x & 1) == 0 ? walkable[i] & 0xF0 : walkable[i] & 0x0F);
+					changed = true;
+				}
+			}
+			return changed;
+		}
+
 		private int Cell(byte[] grid, int x, int y) {
 			if ( grid == null || !InBounds(x, y) ) return 0;
 			byte b = grid[(y * BytesPerRow) + (x >> 1)];
