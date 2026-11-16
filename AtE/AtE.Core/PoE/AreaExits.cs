@@ -73,7 +73,10 @@ namespace AtE {
 			"/battlefield_arch", "/temple_to_battlefront", "/templeclean_exit_down", "/sewerexit",
 			"LargeWallGardens/garden_arch", "LibraryLargeWall/Library_LargeBuilding_entrance",
 			// Act 4 (from the user): The Aqueduct's way to Highgate; The Belly of the Beast's tunnels
-			"/mountiantown_connection", "/belly_tunnel"
+			"/mountiantown_connection", "/belly_tunnel",
+			// Act 5 (from the user): The Slave Pens' way to Overseer's Tower; The Control Blocks' to Oriath Square; The Templar
+			// Courts' to The Chamber of Innocence
+			"/tower_v01", "/security_exit", "/templar_to_innocents"
 		};
 
 		/// <summary>
@@ -170,6 +173,17 @@ namespace AtE {
 			("Features/arena_areatransition", "The Grand Arena", "Daresso's Dream"),
 			("Features/lava_abyss_transition_entrance", "Kaom's Stronghold", "Kaom's Dream"),
 			("Features/belly_tunnel_level2", "The Harvest", "The Belly of the Beast Level 2"),
+			// Act 5 (from the user; not seen live as entities yet)
+			("/tower_v01", "Overseer's Tower", "The Slave Pens"),
+			("/security_exit", "Oriath Square", "The Control Blocks"),
+			("Oriath_AreaTransition_v01_03", "The Templar Courts", "Oriath Square"), // (behind the "Templar Courts Entrance", opened by the Eyes of Zeal)
+			("/templar_to_innocents", "The Chamber of Innocence", "The Templar Courts"),
+			("/transition_chamber_to_courts", "The Torched Courts", "The Chamber of Innocence"),
+			("/templar_oriath_transition", "The Ruined Square", "The Torched Courts"),
+			("Oriath_AreaTransition_v01_04", "The Ossuary", "The Ruined Square"),
+			("Oriath_AreaTransition_v01_02", "The Reliquary", "The Ruined Square"),
+			("/chitus_statuewall_transition", "The Cathedral Rooftop", "The Ruined Square"),
+			("/Ossuary_Part2_transition", "The Ruined Square", "The Ossuary"),
 		};
 
 		/// <summary>

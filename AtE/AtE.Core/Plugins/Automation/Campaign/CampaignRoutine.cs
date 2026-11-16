@@ -102,7 +102,7 @@ namespace AtE {
 		private Sequence Campaign() => new Sequence("Complete the campaign",
 			new ReadCampaignProgress(),
 			new ReadGameKeys(), // (the inventory key, for TrySyncInventory; the Portal Scroll key)
-			new Sequence("Complete Part 1", Act1(), Act2(), Act3(), Act4(), Act(5)) { DoneWhen = () => CampaignProgress.Part1Done },
+			new Sequence("Complete Part 1", Act1(), Act2(), Act3(), Act4(), Act5()) { DoneWhen = () => CampaignProgress.Part1Done },
 			new Sequence("Complete Part 2", Act(6), Act(7), Act(8), Act(9), Act(10)) { DoneWhen = () => CampaignProgress.CampaignDone }
 		) { DoneWhen = () => CampaignProgress.CampaignDone };
 
@@ -174,6 +174,10 @@ namespace AtE {
 		// before stopping, as FinishAllQuests is asked again each time and comes back once a step shows)
 		private Sequence Act4() => new Sequence("Complete Act 4", Quests(4), StopAfter(10000, "the way on to Act 5 (the quests did not get there)")) {
 			DoneWhen = () => CampaignProgress.ActDone(4) };
+
+		// Act 5: its quests (see Act5Quests; The Ravenous God's last step, talking to Lilly Roth, is the way on to Act 6)
+		private Sequence Act5() => new Sequence("Complete Act 5", Quests(5), StopAfter(10000, "the way on to Act 6 (the quests did not get there)")) {
+			DoneWhen = () => CampaignProgress.ActDone(5) };
 
 		/// <summary>Stand still for ms (counted again each time it is come back to), then stop the routine, as NotSpecified does.</summary>
 		private static Goal StopAfter(long ms, string what) {

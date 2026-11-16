@@ -615,16 +615,6 @@ namespace AtE {
 			});
 		}
 
-		private void Act5Quests(FinishAllQuests quests) {
-			quests.Handlers.Add(Stub("Return to Oriath"));
-			quests.Handlers.Add(Stub("The Key to Freedom"));
-			quests.Handlers.Add(Stub("In Service to Science"));
-			quests.Handlers.Add(Stub("Death to Purity"));
-			quests.Handlers.Add(Stub("The King's Feast"));
-			quests.Handlers.Add(Stub("Kitava's Torments"));
-			quests.Handlers.Add(Stub("The Ravenous God"));
-		}
-
 		private void Act6Quests(FinishAllQuests quests) {
 			quests.Handlers.Add(Stub("Fallen from Grace"));
 			quests.Handlers.Add(Stub("Bestel's Epic"));

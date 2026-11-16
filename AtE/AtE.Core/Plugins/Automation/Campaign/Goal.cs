@@ -465,6 +465,9 @@ namespace AtE {
 		public static Func<CombatContext, Offsets.Vector2i?> TileNear(string tilePathPart, int x, int y) => ctx =>
 			ctx.Terrain.TileFeatures(tilePathPart).OrderBy(f => Combat.Distance(new Offsets.Vector2i(x, y), f.GridPos)).FirstOrDefault()?.GridPos;
 
+		/// <summary>A fixed place in the area's layout (eg, the way to The Cathedral Rooftop's boss arena).</summary>
+		public static Func<CombatContext, Offsets.Vector2i?> At(int x, int y) => _ => new Offsets.Vector2i(x, y);
+
 		/// <summary>
 		/// Tile groups to visit in turn (eg, a bandit leader's camp, where they show by name once near): the nearest not
 		/// visited yet of the first tilePathParts that has any, each counted visited once within reach cells; null once all
