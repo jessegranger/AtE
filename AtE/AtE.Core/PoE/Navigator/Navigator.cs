@@ -537,6 +537,18 @@ namespace AtE {
 			return false;
 		}
 
+		/// <summary>
+		/// Which connected part of the walkable grid pos is in (through doors, open or not): two cells with the same number can
+		/// be walked between. -1 if pos is not near a walkable cell. The numbers last only while the grid and the doors stay
+		/// the same (a door found renumbers them): compare them within one frame, not across frames.
+		/// </summary>
+		public int ComponentOf(Terrain terrain, Offsets.Vector2i pos) {
+			if ( terrain == null || !terrain.IsLoaded || !TrySnap(terrain, pos, out pos) ) return -1;
+			Prepare(terrain);
+			int region = cellRegion[Index(pos)];
+			return region < 0 ? -1 : regionComponent[region];
+		}
+
 		public bool IsReachable(Terrain terrain, Offsets.Vector2i a, Offsets.Vector2i b) {
 			if ( terrain == null || !terrain.IsLoaded ) return false;
 			if ( !TrySnap(terrain, a, out a) || !TrySnap(terrain, b, out b) ) return false;

@@ -615,18 +615,6 @@ namespace AtE {
 			});
 		}
 
-		private void Act4Quests(FinishAllQuests quests) {
-			quests.Handlers.Add(Stub("Breaking the Seal"));
-			quests.Handlers.Add(Stub("An Indomitable Spirit"));
-			quests.Handlers.Add(Stub("The King of Fury"));
-			quests.Handlers.Add(Stub("The King of Desire"));
-			quests.Handlers.Add(Stub("Corpus Malachus"));
-			quests.Handlers.Add(Stub("The Eternal Nightmare"));
-			quests.Handlers.Add(Stub("Niko's Fuel"));
-			quests.Handlers.Add(Stub("Niko's Mine"));
-			quests.Handlers.Add(Stub("Niko's Explosives"));
-		}
-
 		private void Act5Quests(FinishAllQuests quests) {
 			quests.Handlers.Add(Stub("Return to Oriath"));
 			quests.Handlers.Add(Stub("The Key to Freedom"));

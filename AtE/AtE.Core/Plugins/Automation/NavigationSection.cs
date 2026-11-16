@@ -24,6 +24,8 @@ namespace AtE {
 		public bool ShowExits = false;
 		public bool ShowDoors = false;
 		public string RouteGoal = "";
+		public string TileSearch = "";
+		private string tileSearchCommitted = "";
 
 		public bool ShowExploration = false;
 		public bool PathToExploreTarget = false;
@@ -127,6 +129,7 @@ namespace AtE {
 				ImGui.SameLine();
 				ImGui.Text($"Waypoint at {waypoint}");
 			} else ImGui.Text("Waypoint: none found");
+			RenderTileSearch(terrain);
 			int i = 0;
 			foreach ( var exit in terrain.Exits ) {
 				if ( ImGui.Button($"Path##exit{i++}") ) {
@@ -136,6 +139,33 @@ namespace AtE {
 				}
 				ImGui.SameLine();
 				ImGui.Text($"{exit}");
+			}
+		}
+
+		private void RenderTileSearch(Terrain terrain) {
+			ImGui.SetNextItemWidth(300);
+			bool entered = ImGui.InputText("##tilesearch", ref TileSearch, 128, ImGuiInputTextFlags.EnterReturnsTrue);
+			ImGui.SameLine();
+			if ( ImGui.Button("Find Tile") || entered ) tileSearchCommitted = TileSearch.Trim();
+			ImGui.SameLine();
+			ImGui_HelpMarker("Part of a tile's .tdt path (eg 'Features/lava_kaom3_transition_entrance'); lists the groups of matching tiles, nearest first, each with a Path button.");
+			if ( string.IsNullOrEmpty(tileSearchCommitted) ) return;
+			var found = terrain.TileFeatures(tileSearchCommitted);
+			if ( found.Count == 0 ) {
+				ImGui.Text($"No tiles with \"{tileSearchCommitted}\" in this area");
+				return;
+			}
+			var p = GetPlayer()?.GetComponent<Positioned>();
+			var from = IsValid(p) ? p.GridPos : default;
+			int i = 0;
+			foreach ( var tile in found.OrderBy(f => Combat.Distance(from, f.GridPos)) ) {
+				if ( ImGui.Button($"Path##tile{i++}") ) {
+					ShowPathToCursor = true;
+					targetPinned = true;
+					pinnedTarget = tile.GridPos;
+				}
+				ImGui.SameLine();
+				ImGui.Text($"{tile} {System.IO.Path.GetFileNameWithoutExtension(tile.TileFile ?? "")} ({Combat.Distance(from, tile.GridPos):F0} away)");
 			}
 		}
 
@@ -256,7 +286,10 @@ namespace AtE {
 			if ( testPath != null ) worstPathMs = Math.Max(worstPathMs, testPath.ElapsedMs);
 
 			if ( TryGridToScreen(target, z, out Vector2 targetScreen) ) DrawCircle(targetScreen, 6, targetPinned ? Color.Magenta : Color.White);
-			if ( testPath == null ) return;
+			if ( testPath == null ) {
+				DrawArrowToward(playerGrid, target, z, Color.OrangeRed);
+				return;
+			}
 			if ( ShowPathCells ) {
 				foreach ( var cell in testPath.Cells ) {
 					if ( TryGridToScreen(cell, z, out Vector2 cellScreen) ) DrawCircle(cellScreen, 1, Color.Gray);
@@ -280,6 +313,29 @@ namespace AtE {
 					DrawTextAt(door + new Vector2(10, -6), "open door", Color.Gold);
 				}
 			}
+		}
+
+		/// <summary>
+		/// When no path was found: an arrow from the player pointing at target (which may be off screen), with its distance.
+		/// </summary>
+		private static void DrawArrowToward(Offsets.Vector2i from, Offsets.Vector2i target, float z, Color color) {
+			float dx = target.X - from.X, dy = target.Y - from.Y;
+			float len = (float)Math.Sqrt(dx * dx + dy * dy);
+			if ( len < 1f ) return;
+			// project a point a little way toward the target, to get the on-screen direction
+			const float probe = 10f; // in grid cells
+			var toward = new Offsets.Vector2i(from.X + (int)Math.Round(dx / len * probe), from.Y + (int)Math.Round(dy / len * probe));
+			if ( !TryGridToScreen(from, z, out Vector2 start) || !TryGridToScreen(toward, z, out Vector2 end) ) return;
+			var dir = end - start;
+			if ( dir.LengthSquared() < 1f ) return;
+			dir = Vector2.Normalize(dir);
+			var tail = start + dir * 40f;
+			var tip = start + dir * 140f;
+			var side = new Vector2(-dir.Y, dir.X);
+			for ( int w = -1; w <= 1; w++ ) DrawLine(tail + side * w, tip + side * w, color); // a bit thicker
+			DrawLine(tip, tip - dir * 20f + side * 12f, color);
+			DrawLine(tip, tip - dir * 20f - side * 12f, color);
+			DrawTextAt(tip + dir * 8f + new Vector2(0, -6), $"no path ({len:F0} cells)", color);
 		}
 
 		private void RenderDoors(Terrain terrain, float z) {

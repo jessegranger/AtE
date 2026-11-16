@@ -102,7 +102,7 @@ namespace AtE {
 		private Sequence Campaign() => new Sequence("Complete the campaign",
 			new ReadCampaignProgress(),
 			new ReadGameKeys(), // (the inventory key, for TrySyncInventory; the Portal Scroll key)
-			new Sequence("Complete Part 1", Act1(), Act2(), Act3(), Act(4), Act(5)) { DoneWhen = () => CampaignProgress.Part1Done },
+			new Sequence("Complete Part 1", Act1(), Act2(), Act3(), Act4(), Act(5)) { DoneWhen = () => CampaignProgress.Part1Done },
 			new Sequence("Complete Part 2", Act(6), Act(7), Act(8), Act(9), Act(10)) { DoneWhen = () => CampaignProgress.CampaignDone }
 		) { DoneWhen = () => CampaignProgress.CampaignDone };
 
@@ -168,6 +168,29 @@ namespace AtE {
 
 		// Act 3: its quests (the ones written so far), then the rest, not written yet
 		private Sequence Act3() => new Sequence("Complete Act 3", Quests(3), new NotSpecified("the rest of Act 3")) { DoneWhen = () => CampaignProgress.ActDone(3) };
+
+		// Act 4: its quests (The Eternal Nightmare, then Return to Oriath, whose Oriath Portal ends the act; see Act4Quests)
+		// (the quests with nothing to do for a moment, eg a step the tracker has not updated yet, is not the end: wait a while
+		// before stopping, as FinishAllQuests is asked again each time and comes back once a step shows)
+		private Sequence Act4() => new Sequence("Complete Act 4", Quests(4), StopAfter(10000, "the way on to Act 5 (the quests did not get there)")) {
+			DoneWhen = () => CampaignProgress.ActDone(4) };
+
+		/// <summary>Stand still for ms (counted again each time it is come back to), then stop the routine, as NotSpecified does.</summary>
+		private static Goal StopAfter(long ms, string what) {
+			long since = 0, lastStep = 0;
+			return new OneOff($"{what} (not specified yet)", _ => false, (self, ctx) => {
+				long now = Time.ElapsedMilliseconds;
+				if ( now - lastStep > 1000 ) since = now; // (not worked on lately: start counting again)
+				lastStep = now;
+				if ( now - since < ms ) {
+					ctx.Driver.StopWalking("waiting for the quest tracker");
+					self.Detail = $"nothing to do: waiting {(ms - (now - since)) / 1000} s for the quest tracker";
+					return self;
+				}
+				ctx.Driver.Stop($"the goals for \"{what}\" are not specified yet");
+				return self;
+			});
+		}
 
 		private static bool IsHailrake(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/")
 			&& string.Equals(e.GetComponent<Render>()?.Name, "Hailrake", StringComparison.OrdinalIgnoreCase);
@@ -247,13 +270,22 @@ namespace AtE {
 			var leaf = Root.Select(ctx);
 			// locked in an arena (its doors closed around the player): fight the waves until they open, whatever the goal
 			// wanted (it would walk at the doors), unless the goal fights here itself (eg, a boss: AvoidSpam is a Kill)
-			CurrentGoal = leaf is Kill || leaf is FightUntil || !ArenaLock.IsLockedIn(ctx) ? leaf : arenaLockdown;
+			CurrentGoal = FightsItself(leaf, ctx) || !ArenaLock.IsLockedIn(ctx) ? leaf : arenaLockdown;
 			if ( CurrentGoal != Runner.Leaf ) {
 				if ( Runner.Leaf != null ) Log($"{Name}: now on {CurrentGoal?.Name ?? "(nothing)"} (was {Runner.Leaf.Name})");
 				Runner.Run(CurrentGoal);
 				ForgetInput();
 			}
 		}
+
+		/// <summary>
+		/// Does the goal fight where it is itself (a Kill, eg a boss with AvoidSpam, or FightUntil), also when it is one chosen
+		/// inside another: the quest goal FinishAllQuests works on, the goal a FirstOf rule picks, a Sequence's current one.
+		/// </summary>
+		private static bool FightsItself(Goal g, CombatContext ctx, int depth = 0) => g != null && depth < 8 && (g is Kill || g is FightUntil
+			|| (g is FinishAllQuests quests && FightsItself(quests.Current, ctx, depth + 1))
+			|| (g is FirstOf rules && FightsItself(rules.Pick(ctx), ctx, depth + 1))
+			|| (g is Sequence seq && FightsItself(seq.Current, ctx, depth + 1)));
 
 		// while off: keep the list up to date (for the display), without running anything
 		private void SelectWhileOff() {

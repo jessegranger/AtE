@@ -57,6 +57,11 @@ namespace AtE {
 		public string Id { get; internal set; }
 		/// <summary>The area it is done in (eg, "The Tidal Island"), traveled to first if the player is elsewhere; null: wherever the player is.</summary>
 		public string Where;
+		/// <summary>
+		/// The area the work it would do next is in (eg, for FirstOf, the rule that applies now): Where, unless it chooses
+		/// among goals of its own. For FinishAllQuests, which works first on a quest's goal in the area the player is in.
+		/// </summary>
+		public virtual string WhereNow(CombatContext ctx) => Where;
 		/// <summary>True if, once done, it stays done (its done-ness can't be read back later); false to check it every time.</summary>
 		public virtual bool Sticky => true;
 		/// <summary>
@@ -256,6 +261,68 @@ namespace AtE {
 	}
 
 	/// <summary>
+	/// Rules, each "when this holds, do that" (eg, a quest's table of area, step and conditions, and what to do): works on
+	/// the goal of the first rule whose condition holds and whose goal is not done. Done when no rule applies. Nothing in
+	/// it is sticky: the rules are asked again each time (a goal handed back by a rule that stopped holding, eg after
+	/// leaving the area, or once the quest item is had), and a rule's goal is Reset when its rule starts to apply again,
+	/// so the same thing can be done more than once (eg, the same exit taken again after a trip to town).
+	/// </summary>
+	public class FirstOf : Goal {
+		private readonly string name;
+		private readonly List<(string label, string area, Func<bool> when, Goal goal)> rules = new List<(string, string, Func<bool>, Goal)>();
+		private Goal last; // the rule's goal picked last, to Reset one that is picked again after another
+
+		public FirstOf(string name) => this.name = name;
+		public override string Name => name;
+		public override bool Sticky => false;
+		public override IEnumerable<Goal> Children => rules.Select(r => r.goal);
+		public override void Reset() { base.Reset(); last = null; foreach ( var r in rules ) r.goal.Reset(); }
+
+		/// <summary>
+		/// Add a rule (in order: the first that holds wins), that holds in area (null: anywhere) when when says so. The goal's
+		/// DoneWhen gets "the rule no longer holds" added, so a goal working when its rule stops holding hands back. The
+		/// rule's area is where its work counts as being (WhereNow), even when the goal goes elsewhere (eg, by waypoint).
+		/// </summary>
+		public FirstOf When(string label, string area, Func<bool> when, Goal goal) {
+			Func<bool> holds = area == null ? when : () => GoToArea.Is(GetCurrentArea(), area) && when();
+			var done = goal.DoneWhen;
+			goal.DoneWhen = done == null ? (() => !holds()) : (() => !holds() || done());
+			rules.Add((label, area, holds, goal));
+			return this;
+		}
+
+		/// <summary>The goal of the first rule that holds whose goal is not done, or null.</summary>
+		public Goal Pick(CombatContext ctx) => PickRule(ctx).goal;
+		private (string area, Goal goal) PickRule(CombatContext ctx) {
+			foreach ( var (_, area, when, goal) in rules ) {
+				if ( when() && !goal.IsDone(ctx) ) return (area, goal);
+			}
+			return (null, null);
+		}
+
+		/// <summary>Which rule holds now (its label), for the on-screen list.</summary>
+		public string Holding() => rules.FirstOrDefault(r => r.when()).label;
+
+		public override string WhereNow(CombatContext ctx) {
+			var (area, goal) = PickRule(ctx);
+			return area ?? goal?.WhereNow(ctx);
+		}
+		public override bool CheckDone(CombatContext ctx) => Pick(ctx) == null;
+
+		protected override IState Step(CombatContext ctx) {
+			var goal = Pick(ctx);
+			if ( goal == null ) return Next;
+			if ( goal != last ) {
+				if ( last != null ) goal.Reset(); // (picked again after another rule's: start it over)
+				last = goal;
+				Log($"Campaign: {name}: {rules.First(r => r.goal == goal).label}: {goal.Name}");
+			}
+			Detail = rules.First(r => r.goal == goal).label;
+			return Call(goal);
+		}
+	}
+
+	/// <summary>
 	/// Be in an area: done once the player is in it (the one goal that is done by being somewhere). Travels there (see TravelTo).
 	/// </summary>
 	public class EnterArea : Goal {
@@ -390,6 +457,13 @@ namespace AtE {
 		/// </summary>
 		public static Func<CombatContext, Offsets.Vector2i?> Tile(string tilePathPart) => ctx =>
 			ctx.Terrain.TileFeatures(tilePathPart).OrderBy(f => Combat.Distance(ctx.Grid, f.GridPos)).FirstOrDefault()?.GridPos;
+
+		/// <summary>
+		/// The group of tiles cut from a .tdt whose path has tilePathPart nearest a place (eg, one of The Harvest's three
+		/// arena doors, all on the same tile, by where each is in the area's fixed layout); null if the area has none.
+		/// </summary>
+		public static Func<CombatContext, Offsets.Vector2i?> TileNear(string tilePathPart, int x, int y) => ctx =>
+			ctx.Terrain.TileFeatures(tilePathPart).OrderBy(f => Combat.Distance(new Offsets.Vector2i(x, y), f.GridPos)).FirstOrDefault()?.GridPos;
 
 		/// <summary>
 		/// Tile groups to visit in turn (eg, a bandit leader's camp, where they show by name once near): the nearest not

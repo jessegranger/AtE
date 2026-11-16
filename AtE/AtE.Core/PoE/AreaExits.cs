@@ -71,7 +71,9 @@ namespace AtE {
 			"/dungeon_inca_exit",
 			"/Stairs/dungeon_stairs_up", "/dungeon_huangdoor",
 			"/battlefield_arch", "/temple_to_battlefront", "/templeclean_exit_down", "/sewerexit",
-			"LargeWallGardens/garden_arch"
+			"LargeWallGardens/garden_arch", "LibraryLargeWall/Library_LargeBuilding_entrance",
+			// Act 4 (from the user): The Aqueduct's way to Highgate; The Belly of the Beast's tunnels
+			"/mountiantown_connection", "/belly_tunnel"
 		};
 
 		/// <summary>
@@ -161,6 +163,13 @@ namespace AtE {
 			("Features/temple_to_battlefront", "The Ebony Barracks", "The Lunaris Temple Level 1"),
 			("Features/templeclean_exit_down", "The Lunaris Temple Level 2", "The Lunaris Temple Level 1"),
 			("LargeWallGardens/garden_arch", "The Imperial Gardens", "The Ebony Barracks"),
+			("LibraryLargeWall/Library_LargeBuilding_entrance", "The Library", "The Imperial Gardens"),
+			// Act 4 (from the user; not seen live as entities yet)
+			("Town/mountiantown_connection", "Highgate", "The Aqueduct"),
+			("Features/mine_areatransition_v03", "The Crystal Veins", "The Mines Level 2"),
+			("Features/arena_areatransition", "The Grand Arena", "Daresso's Dream"),
+			("Features/lava_abyss_transition_entrance", "Kaom's Stronghold", "Kaom's Dream"),
+			("Features/belly_tunnel_level2", "The Harvest", "The Belly of the Beast Level 2"),
 		};
 
 		/// <summary>

@@ -137,10 +137,10 @@ namespace AtE {
 		/// <summary>The current step of the quest called name (eg, "Talk to Tarkleigh for your reward"), or null.</summary>
 		public static string QuestStep(string name) => FindQuest(name)?.GetChild(1)?.GetChild(0)?.GetChild(1)?.Text?.Trim();
 
-		private static readonly Regex RewardStep = new Regex("^Talk to (.+) for your reward$", RegexOptions.IgnoreCase);
+		private static readonly Regex RewardStep = new Regex("^Talk to (.+?)(?: in town)? for your reward$", RegexOptions.IgnoreCase); // (eg, "Talk to Tasuni in town for your reward")
 		// (a reward talked about but not taken: the step becomes just "Talk to Nessa", and her "Merveil Reward" option
 		// opens the reward window again)
-		private static readonly Regex TalkStep = new Regex("^Talk to ([^,.]+)$", RegexOptions.IgnoreCase);
+		private static readonly Regex TalkStep = new Regex("^Talk to ([^,.]+?)(?: in town)?$", RegexOptions.IgnoreCase); // (eg, "Talk to Dialla in town")
 		// a quest item to hand over (eg, Mercy Mission's "Take the Medicine Chest to Nessa"): talking to the NPC does it
 		private static readonly Regex DeliverStep = new Regex("^(?:Take|Bring|Return|Give) .+ to ([^,.]+)$", RegexOptions.IgnoreCase);
 		// (eg, Intruders in Black's "Meet Helena in Town")

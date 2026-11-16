@@ -351,8 +351,13 @@ namespace AtE {
 	/// player jumped (30+ cells) or the area changed after a click.
 	/// </summary>
 	public class TakeTransition : Goal {
+		/// <summary>The label's text; null: any transition's label (an AreaTransition entity) within NearRadius of SearchAt.</summary>
 		public readonly string LabelText;
 		public float Reach = 12;
+		/// <summary>With no LabelText: how near SearchAt (cells) the transition must be.</summary>
+		public float NearRadius = 30;
+		/// <summary>With no LabelText: what to call it, for the on-screen list (eg, "door to Kaom's arena").</summary>
+		public string What;
 		private bool clicked;
 		private Offsets.Vector2i clickedAt;
 		private uint clickedHash;
@@ -363,8 +368,11 @@ namespace AtE {
 		private static readonly List<Offsets.Vector2i> arrivals = new List<Offsets.Vector2i>();
 
 		public TakeTransition(string labelText) => LabelText = labelText;
-		public override string Name => $"Take the {LabelText}";
-		public override void Reset() { base.Reset(); clicked = false; }
+		public override string Name => $"Take the {LabelText ?? What ?? "transition"}";
+		/// <summary>True once taken (the player jumped, or the area changed, after a click), until Reset.</summary>
+		public bool Taken => done;
+		// (done too: a goal Reset may be taken again, eg by a FirstOf rule that holds again; in a Sequence, once complete it stays so)
+		public override void Reset() { base.Reset(); clicked = done = false; }
 
 		private static uint AreaHash => PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
 
@@ -382,10 +390,14 @@ namespace AtE {
 
 		private (LabelOnGround label, Offsets.Vector2i pos) Find(CombatContext ctx) {
 			if ( arrivalsHash != AreaHash ) { arrivalsHash = AreaHash; arrivals.Clear(); }
+			var near = LabelText == null ? SearchAt?.Invoke(ctx) : null;
+			if ( LabelText == null && !near.HasValue ) return (null, default);
 			return (GetUI()?.LabelsOnGround?.GetAllLabels() ?? Enumerable.Empty<LabelOnGround>())
-				.Where(l => string.Equals(Ground.LabelText(l.Label)?.Trim(), LabelText, StringComparison.OrdinalIgnoreCase))
+				.Where(l => LabelText != null ? string.Equals(Ground.LabelText(l.Label)?.Trim(), LabelText, StringComparison.OrdinalIgnoreCase)
+					: IsValid(l.Item?.GetComponent<AreaTransition>()))
 				.Select(l => (label: l, pos: l.Item?.GetComponent<Positioned>()))
-				.Where(x => IsValid(x.pos) && !arrivals.Any(a => Combat.Distance(a, x.pos.GridPos) < 25))
+				.Where(x => IsValid(x.pos) && !arrivals.Any(a => Combat.Distance(a, x.pos.GridPos) < 25)
+					&& (!near.HasValue || Combat.Distance(near.Value, x.pos.GridPos) <= NearRadius))
 				.Select(x => (x.label, x.pos.GridPos))
 				.OrderBy(x => Combat.Distance(ctx.Grid, x.GridPos))
 				.FirstOrDefault();
@@ -393,12 +405,12 @@ namespace AtE {
 
 		protected override IState Step(CombatContext ctx) {
 			var (label, pos) = Find(ctx);
-			if ( label == null ) return Search(ctx, $"the {LabelText}");
+			if ( label == null ) return Search(ctx, $"the {LabelText ?? What ?? "transition"}");
 			if ( !IsNear(ctx, pos, Reach, out _, out float d) ) {
 				Detail = $"{d:F0} cells away";
 				return GoTo(LabelText, pos, Reach);
 			}
-			ctx.Driver.StopWalking($"taking the {LabelText}");
+			ctx.Driver.StopWalking($"taking the {LabelText ?? Ground.LabelText(label.Label)?.Trim()}");
 			if ( Time.ElapsedMilliseconds - lastClick < 2000 || !(Ground.ClickLabel(label, this) is IState click) ) return this;
 			lastClick = Time.ElapsedMilliseconds;
 			clicked = true;
@@ -422,7 +434,7 @@ namespace AtE {
 		public Activate(string labelText) => LabelText = labelText;
 		public override string Name => $"Activate the {LabelText}";
 		public override bool ProvesEarlier => true;
-		public override void Reset() { base.Reset(); }
+		public override void Reset() { base.Reset(); clicks = 0; }
 
 		private LabelOnGround Find() => GetUI()?.LabelsOnGround?.GetAllLabels()
 			.FirstOrDefault(l => string.Equals(Ground.LabelText(l.Label)?.Trim(), LabelText, StringComparison.OrdinalIgnoreCase));
@@ -688,7 +700,9 @@ namespace AtE {
 			if ( TalkToQuestGivers.NotQuestGivers.Any(n => string.Equals(n.TrimStart('/'), npc, StringComparison.OrdinalIgnoreCase)) ) return null;
 			// (a plain "Talk to X" only: "Meet X in town", a delivery or a reward is in town)
 			string step = Town.QuestStep(quest) ?? "";
-			bool plainTalk = step.StartsWith("Talk to ", StringComparison.OrdinalIgnoreCase) && !step.EndsWith("for your reward", StringComparison.OrdinalIgnoreCase);
+			// (not "Talk to X in town": that one is in town, whoever the handler talks to out in an area)
+			bool plainTalk = step.StartsWith("Talk to ", StringComparison.OrdinalIgnoreCase) && !step.EndsWith("for your reward", StringComparison.OrdinalIgnoreCase)
+				&& !step.EndsWith(" in town", StringComparison.OrdinalIgnoreCase);
 			return plainTalk && Handlers.Any(h => h.IsFor(quest) && h.FieldNpcs.Any(f => string.Equals(f, npc, StringComparison.OrdinalIgnoreCase))) ? null : npc;
 		}
 
@@ -804,6 +818,7 @@ namespace AtE {
 			if ( h.DoneBy != null && !h.Active(step) ) return $"nothing here: {h.DoneBy} does it";
 			if ( !h.Active(step) ) return $"nothing at this step ({h.Goal.Name} does other steps)";
 			var leaf = h.Goal is Sequence seq ? seq.Goals.FirstOrDefault(g => !g.IsComplete) : h.Goal;
+			if ( leaf is FirstOf rules ) return $"{h.Goal.Name}: {rules.Holding() ?? "no rule holds"}";
 			return $"{h.Goal.Name}{(leaf == null || leaf == h.Goal ? "" : $": {leaf.Name}{(leaf.Where == null ? "" : $" (in {leaf.Where})")}")}";
 		}
 
@@ -830,7 +845,9 @@ namespace AtE {
 			foreach ( var h in Handlers ) {
 				if ( !h.IsActive(quests.FirstOrDefault(h.IsFor)) ) continue;
 				var next = h.Goal is Sequence s ? s.Select(ctx) : (h.Goal.IsDone(ctx) ? null : h.Goal);
-				if ( next?.Where != null && (GoToArea.Is(here, next.Where) || SamePlace(here, next.Where)) ) return h.Goal;
+				// (WhereNow: eg, a FirstOf's, the area of the rule that holds now)
+				string where = next?.WhereNow(ctx);
+				if ( where != null && (GoToArea.Is(here, where) || SamePlace(here, where)) ) return h.Goal;
 			}
 			if ( quests.Any(q => TownNpc(q) != null && RewardTownOf(q) == null) && !rewards.IsDone(ctx) ) return rewards; // (a reward given up on is passed by)
 			// a reward given in another town (eg, The Way Forward's, by Bestel in Lioneye's Watch): go there for it

@@ -43,6 +43,8 @@ namespace AtE {
 			// object is "HellfireBarrageEffect", matched by its .ao path (see Animated.AnimatedObjectPath). Render.Bounds is
 			// 19.6 x 19.6 x 112 (a narrow falling pillar), so 8 cells is a guess at the blast and its burning ground
 			("Gravicius/ballistastorm.ao", null, 8),
+			// Daresso's sword traps in The Ring of Blades (Act 4; the name from the user, not seen live yet: 8 cells is a guess)
+			("DaressoSwordTrap", null, 8),
 		};
 
 		/// <summary>Where the damaging areas are now. Default: the entities matching HazardPaths.</summary>
