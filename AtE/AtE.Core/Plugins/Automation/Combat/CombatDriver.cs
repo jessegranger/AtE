@@ -18,7 +18,7 @@ namespace AtE {
 	/// A driver for a particular build overrides Attack (and usually AttackRange / NeedsLineOfSight / ChooseTarget).
 	/// Moving the player and attacking both use the mouse, so this waits while the game is not focused.
 	/// </summary>
-	public abstract class CombatDriver : AutomationSection {
+	public abstract class CombatDriver : AutomationSection, ITrapDodger {
 
 		/// <summary>Monsters within this many cells are fought before exploring further.</summary>
 		public int EngageRadius = 60;
@@ -646,6 +646,24 @@ namespace AtE {
 		/// <summary>Stop walking (eg, to click something).</summary>
 		public void StopWalking(string why) {
 			if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, why);
+		}
+
+		/// <summary>The slot of the main skill, tapped to stop the player moving (see StopMoving): by default the slot on Q.</summary>
+		protected virtual SkillSlot MainSkillSlot() => SkillBar.GetSlot(BuildPlan.MainSlot);
+
+		/// <summary>Touching a trap while walking (see PathFollower.TrapTouchMs): a travel skill past it, if UseTravelSkills.</summary>
+		public bool TryDodgeTrap(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i trap, float z) =>
+			UseTravelSkills && TravelSkills.Instance.TryDodge(this, terrain, player, trap, z);
+
+		/// <summary>
+		/// Stop the player at once: tap the main skill for one InputLatency (too short to cast, but it ends the walk), where
+		/// the cursor is. False if there is no main skill on the bar (or it is Movement), or input is still going out.
+		/// </summary>
+		public bool StopMoving() {
+			var slot = MainSkillSlot();
+			if ( slot?.Skill == null || SkillBar.IsMovement(slot.Skill) || slot.Key == VKey.None ) return false;
+			DefaultFollower.ReleaseMouse();
+			return Send(Inputs.UseSlotHere(slot, Inputs.Latency));
 		}
 
 		/// <summary>Set the status line (shown at the bottom left).</summary>

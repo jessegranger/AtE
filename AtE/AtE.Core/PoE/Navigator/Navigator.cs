@@ -35,17 +35,31 @@ namespace AtE {
 		/// (the waypoint before an OpenDoor step is the cell just in front of the door).
 		/// </summary>
 		public List<NavStep> Steps;
+		/// <summary>
+		/// Set when the way to the goal goes through a locked door (AreaDoor.IsLocked): the path first goes to Lever (whose
+		/// UseLever step ends the first LeverIndex + 1 Cells), then from there on to the goal (AfterLeg, planned while the door
+		/// was still locked). LeverLeg is the part up to the lever, which UpdatePath keeps repairing until the lever is used.
+		/// </summary>
+		public AreaLever Lever;
+		public AreaDoor LockedDoor;
+		public int LeverIndex = -1;
+		public NavPath LeverLeg, AfterLeg;
 	}
 
-	public enum NavStepKind { Walk, OpenDoor }
+	public enum NavStepKind { Walk, OpenDoor, UseLever }
 
 	public class NavStep {
 		public NavStepKind Kind;
 		/// <summary>Walk: where to walk to. OpenDoor: the door's position.</summary>
 		public Offsets.Vector2i Target;
-		/// <summary>OpenDoor: the door to open, by clicking its label (AreaDoor.GetLabel).</summary>
+		/// <summary>OpenDoor: the door to open, by clicking its label (AreaDoor.GetLabel). UseLever: the locked door it is for.</summary>
 		public AreaDoor Door;
-		public override string ToString() => Kind == NavStepKind.Walk ? $"walk to {Target}" : $"open door {Door?.EntityId} at {Target}";
+		/// <summary>UseLever: the lever to pull, by clicking its label (AreaLever.GetLabel).</summary>
+		public AreaLever Lever;
+		public override string ToString() =>
+			Kind == NavStepKind.Walk ? $"walk to {Target}"
+			: Kind == NavStepKind.UseLever ? $"use lever {Lever?.EntityId} at {Target} (for door {Door?.EntityId})"
+			: $"open {(Door?.IsLocked == true ? "locked " : "")}door {Door?.EntityId} at {Target}";
 	}
 
 	/// <summary>
@@ -84,6 +98,16 @@ namespace AtE {
 		public int RepairAhead = 16;
 		/// <summary>The extra cost (in cells walked) of going through a closed door, so open ways are preferred.</summary>
 		public float DoorPenalty = 30f;
+		/// <summary>
+		/// The extra cost of going through a locked door (AreaDoor.IsLocked) that is closed: high, so any other way is
+		/// taken first, since getting through means a detour to a lever (see FindPath).
+		/// </summary>
+		public float LockedDoorPenalty = 2000f;
+		/// <summary>How far (in cells) from a locked door to look for levers, and how many of the nearest to try.</summary>
+		public float LeverSearchRadius = 250f;
+		public int MaxLeverCandidates = 6;
+		/// <summary>Why the last FindPath returned null, when it was not simply unreachable (eg, a locked door with no usable lever).</summary>
+		public string LastFailure { get; private set; }
 		/// <summary>The clearance given to the cells of a door's passage.</summary>
 		public byte DoorClearance = 3;
 
@@ -102,6 +126,7 @@ namespace AtE {
 		private ushort[] doorAt;
 		private IReadOnlyList<AreaDoor> doors = Array.Empty<AreaDoor>();
 		private bool[] doorClosed = Array.Empty<bool>(); // a snapshot taken before each search
+		private bool[] doorLocked = Array.Empty<bool>(); // (with doorClosed: locked and closed)
 
 		// fine grid, padded by one blocked cell on every side so neighbors never need a bounds check
 		// cell (x,y) is at index (y + 1) * pw + (x + 1)
@@ -349,6 +374,96 @@ namespace AtE {
 		/// Returns null if there is no path (or the search gave up after MaxExpanded cells).
 		/// </summary>
 		public NavPath FindPath(Terrain terrain, Offsets.Vector2i start, Offsets.Vector2i goal) {
+			LastFailure = null;
+			var path = FindPathCore(terrain, start, goal);
+			return path == null ? null : DetourToLever(terrain, path);
+		}
+
+		private static bool ThroughLockedDoor(NavPath path) =>
+			path.Steps.Exists(s => s.Kind == NavStepKind.OpenDoor && s.Door.IsLocked && s.Door.IsClosed);
+
+		/// <summary>
+		/// If path goes through a closed locked door: splice in a detour to the nearest unused lever (one that can be walked to
+		/// without going through a locked door), and a UseLever step there, then the way on from the lever to the goal.
+		/// Null (with LastFailure set) if there is no such lever. The game does not say which lever opens which door (see
+		/// AreaLever), so this takes the nearest one by walking cost; if pulling it leaves the door locked, the next FindPath
+		/// (the lever is used now) goes on to the next lever.
+		/// </summary>
+		private NavPath DetourToLever(Terrain terrain, NavPath path) {
+			var lockedStep = path.Steps.Find(s => s.Kind == NavStepKind.OpenDoor && s.Door.IsLocked && s.Door.IsClosed);
+			if ( lockedStep == null ) return path;
+			var door = lockedStep.Door;
+			var timer = Stopwatch.StartNew();
+			var start = path.Start;
+			float DoorDistance(AreaLever l) => Octile(l.GridPos.X - door.GridPos.X, l.GridPos.Y - door.GridPos.Y);
+			var candidates = new List<AreaLever>();
+			foreach ( var lever in terrain.Levers ) {
+				if ( !lever.IsUsed && DoorDistance(lever) <= LeverSearchRadius ) candidates.Add(lever);
+			}
+			candidates.Sort((a, b) => DoorDistance(a).CompareTo(DoorDistance(b)));
+			NavPath bestLeg = null;
+			AreaLever bestLever = null;
+			for ( int i = 0; i < candidates.Count && i < MaxLeverCandidates; i++ ) {
+				var lever = candidates[i];
+				// the lever itself is usually on a blocked cell: stand on the nearest cell connected to the start
+				if ( !TrySnapReachable(terrain, start, lever.GridPos, out var stand, 20) ) continue;
+				var leg = FindPathCore(terrain, start, stand);
+				// no good if the way there is through a locked door too (eg, the lever is behind the door it opens)
+				if ( leg == null || ThroughLockedDoor(leg) ) continue;
+				if ( bestLeg == null || leg.Cost < bestLeg.Cost ) { bestLeg = leg; bestLever = lever; }
+			}
+			if ( bestLeg == null ) {
+				LastFailure = $"locked door {door.EntityId} at {door.GridPos}: no unused lever that can be reached ({candidates.Count} unused within {LeverSearchRadius} cells)";
+				Log($"Navigator: {LastFailure}");
+				return null;
+			}
+			var after = FindPathCore(terrain, bestLeg.Goal, path.Goal);
+			if ( after == null ) {
+				LastFailure = $"locked door {door.EntityId}: no way on from lever {bestLever.EntityId} to {path.Goal}";
+				Log($"Navigator: {LastFailure}");
+				return null;
+			}
+			var result = Compose(bestLeg, bestLever, door, after);
+			result.ElapsedMs = path.ElapsedMs + timer.Elapsed.TotalMilliseconds;
+			result.Expanded += path.Expanded;
+			return result;
+		}
+
+		/// <summary>One path of leverLeg, a UseLever step, and after (from the lever to the goal).</summary>
+		private static NavPath Compose(NavPath leverLeg, AreaLever lever, AreaDoor door, NavPath after) {
+			var cells = new List<Offsets.Vector2i>(leverLeg.Cells.Count + after.Cells.Count);
+			cells.AddRange(leverLeg.Cells);
+			int leverIndex = cells.Count - 1;
+			for ( int i = 1; i < after.Cells.Count; i++ ) cells.Add(after.Cells[i]);
+			var indices = new List<int>(leverLeg.WaypointIndices);
+			for ( int i = 1; i < after.WaypointIndices.Count; i++ ) indices.Add(leverIndex + after.WaypointIndices[i]);
+			var steps = new List<NavStep>(leverLeg.Steps) {
+				new NavStep() { Kind = NavStepKind.UseLever, Target = lever.GridPos, Lever = lever, Door = door }
+			};
+			steps.AddRange(after.Steps);
+			return new NavPath() {
+				Cells = cells,
+				Plan = cells,
+				Waypoints = Pick(cells, indices),
+				WaypointIndices = indices,
+				Steps = steps,
+				Start = leverLeg.Start,
+				Goal = after.Goal,
+				Cost = leverLeg.Cost + after.Cost,
+				Expanded = leverLeg.Expanded + after.Expanded,
+				ElapsedMs = leverLeg.ElapsedMs + after.ElapsedMs,
+				Method = $"lever ({leverLeg.Method})",
+				Generation = leverLeg.Generation,
+				DoorGeneration = leverLeg.DoorGeneration,
+				Lever = lever,
+				LockedDoor = door,
+				LeverIndex = leverIndex,
+				LeverLeg = leverLeg,
+				AfterLeg = after,
+			};
+		}
+
+		private NavPath FindPathCore(Terrain terrain, Offsets.Vector2i start, Offsets.Vector2i goal) {
 			if ( terrain == null || !terrain.IsLoaded ) return null;
 			if ( !TrySnap(terrain, start, out start) || !TrySnap(terrain, goal, out goal) ) return null;
 			var timer = Stopwatch.StartNew();
@@ -394,6 +509,17 @@ namespace AtE {
 		public NavPath UpdatePath(NavPath previous, Terrain terrain, Offsets.Vector2i start, Offsets.Vector2i goal) {
 			if ( terrain == null || !terrain.IsLoaded ) return null;
 			_ = terrain.Doors; // (finds any new doors, which changes DoorGeneration)
+			if ( previous?.Lever != null ) {
+				// on the way to a lever: keep repairing the way to it (and keep the rest) until it is used, then plan again
+				if ( previous.Lever.IsUsed || !previous.LockedDoor.IsClosed || previous.Generation != terrain.Generation
+					|| previous.DoorGeneration != terrain.DoorGeneration
+					|| !TrySnap(terrain, goal, out var snapped) || snapped.Id != previous.Goal.Id ) {
+					return FindPath(terrain, start, goal);
+				}
+				var leg = UpdatePath(previous.LeverLeg, terrain, start, previous.LeverLeg.Goal);
+				if ( leg == null || leg.Lever != null || ThroughLockedDoor(leg) ) return FindPath(terrain, start, goal);
+				return Compose(leg, previous.Lever, previous.LockedDoor, previous.AfterLeg);
+			}
 			if ( previous == null || previous.Generation != terrain.Generation || previous.DoorGeneration != terrain.DoorGeneration
 				|| previous.Cells.Count == 0
 				|| !TrySnap(terrain, goal, out goal) || goal.Id != previous.Goal.Id
@@ -453,8 +579,14 @@ namespace AtE {
 		}
 
 		private void SnapshotDoors() {
-			if ( doorClosed.Length != doors.Count ) doorClosed = new bool[doors.Count];
-			for ( int i = 0; i < doors.Count; i++ ) doorClosed[i] = doors[i].IsClosed;
+			if ( doorClosed.Length != doors.Count ) {
+				doorClosed = new bool[doors.Count];
+				doorLocked = new bool[doors.Count];
+			}
+			for ( int i = 0; i < doors.Count; i++ ) {
+				doorClosed[i] = doors[i].IsClosed;
+				doorLocked[i] = doors[i].IsLocked;
+			}
 		}
 
 		private int Index(Offsets.Vector2i cell) => ((cell.Y + 1) * pw) + cell.X + 1;
@@ -713,7 +845,9 @@ namespace AtE {
 					if ( diagonal && (clear[idx + DX[dir]] == 0 || clear[idx + (DY[dir] * pw)] == 0) ) continue;
 					float gNext = gHere + ((diagonal ? Sqrt2 : 1f) * penalty[c]);
 					int door = doorAt[nIdx];
-					if ( door != 0 && door != doorAt[idx] && doorClosed[door - 1] ) gNext += DoorPenalty; // stepping into a closed door
+					if ( door != 0 && door != doorAt[idx] && doorClosed[door - 1] ) { // stepping into a closed door
+						gNext += doorLocked[door - 1] ? LockedDoorPenalty : DoorPenalty;
+					}
 					if ( stamp[nIdx] == openStamp && gNext >= g[nIdx] ) continue;
 					g[nIdx] = gNext;
 					from[nIdx] = (byte)dir;

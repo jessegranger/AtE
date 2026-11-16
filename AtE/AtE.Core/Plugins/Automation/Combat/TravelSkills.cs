@@ -86,15 +86,46 @@ namespace AtE {
 		/// Walking (the follower steering for driver): use a travel skill along the straight stretch ahead, if there is one
 		/// long enough and a skill ready. True if one was used.
 		/// </summary>
-		public bool TryUse(CombatDriver driver, Terrain terrain, Offsets.Vector2i me, float z) {
+		public bool TryUse(CombatDriver driver, Terrain terrain, Offsets.Vector2i me, float z) =>
+			UseAlong(driver, () => driver.InputBusy, driver.Send, terrain, me, z, MinCells, null, "along the path");
+
+		/// <summary>How near (in cells) a dodge may land to the trap it gets past.</summary>
+		public float DodgeClearance = 10;
+		/// <summary>The shortest dodge (in cells).</summary>
+		public float MinDodgeCells = 8;
+
+		/// <summary>
+		/// Touching the trap at trap while walking (see PathFollower.TrapTouchMs): use a travel skill to a cell of the path
+		/// ahead at least DodgeClearance from it (and MinDodgeCells away). True if one was used.
+		/// </summary>
+		public bool TryDodge(CombatDriver driver, Terrain terrain, Offsets.Vector2i me, Offsets.Vector2i trap, float z) =>
+			TryDodge(driver, () => driver.InputBusy, driver.Send, terrain, me, trap, z);
+
+		/// <summary>TryDodge for any owner of the follower: busy says input is still going out, send queues more (false if it can't).</summary>
+		public bool TryDodge(object owner, Func<bool> busy, Func<IState, bool> send, Terrain terrain, Offsets.Vector2i me, Offsets.Vector2i trap, float z) =>
+			UseAlong(owner, busy, send, terrain, me, z, MinDodgeCells, c => Combat.Distance(c, trap) >= DodgeClearance, $"past a trap at {trap}");
+
+		/// <summary>Why the last TryUse / TryDodge used nothing (null if it used a skill).</summary>
+		public string LastNote { get; private set; }
+		private bool Fail(string why) {
+			LastNote = why;
+			return false;
+		}
+
+		// a travel skill to the furthest cell of the path ahead that a straight line reaches, at least minCells away, and
+		// (if landOk is given) where landOk says it may land
+		private bool UseAlong(object owner, Func<bool> busy, Func<IState, bool> send, Terrain terrain, Offsets.Vector2i me, float z, float minCells,
+			Func<Offsets.Vector2i, bool> landOk, string why) {
+			LastNote = null;
+			var notes = new List<string>();
 			Refresh();
-			if ( Skills == null || Skills.Count == 0 ) return false;
-			if ( !DefaultFollower.IsActiveFor(driver) || DefaultFollower.Status != FollowStatus.Walking ) return false;
+			if ( Skills == null || Skills.Count == 0 ) return Fail("no travel skills on the skill bar");
+			if ( !DefaultFollower.IsActiveFor(owner) || DefaultFollower.Status != FollowStatus.Walking ) return Fail($"the follower is not walking for this owner ({DefaultFollower.Status})");
 			long now = Time.ElapsedMilliseconds;
-			if ( driver.InputBusy || now - lastUse < PaceMs ) return false;
-			if ( GetCurrentArea()?.IsTown ?? false ) return false; // (skills are paused in town)
+			if ( busy() || now - lastUse < PaceMs ) return Fail(busy() ? "input still going out" : $"used one {now - lastUse} ms ago (PaceMs {PaceMs})");
+			if ( GetCurrentArea()?.IsTown ?? false ) return Fail("in town"); // (skills are paused in town)
 			var cells = DefaultFollower.Path?.Cells;
-			if ( cells == null || cells.Count < 2 ) return false;
+			if ( cells == null || cells.Count < 2 ) return Fail("no path");
 
 			// where the player is on the path: the nearest of its first cells
 			int start = 0;
@@ -103,7 +134,7 @@ namespace AtE {
 				float d = Combat.Distance(me, cells[i]);
 				if ( d < best ) { best = d; start = i; }
 			}
-			if ( best > 4 ) return false; // (off the path: it is being planned again)
+			if ( best > 4 ) return Fail($"off the path ({best:F1} cells from it)"); // (off the path: it is being planned again)
 
 			// the furthest cell ahead (within MaxCells) a straight line from the player reaches: walking (the path runs
 			// straight, and the line is walkable), and as a projectile flies (for a Blink)
@@ -123,19 +154,22 @@ namespace AtE {
 
 			foreach ( var travel in Skills.OrderByDescending(t => t.Blink) ) {
 				int end = travel.Blink ? Math.Max(walkEnd, blinkEnd) : walkEnd;
-				if ( end < 0 || Combat.Distance(me, cells[end]) < MinCells ) continue;
+				if ( landOk != null ) {
+					while ( end > start && !landOk(cells[end]) ) end -= 1;
+				}
+				if ( end <= start || Combat.Distance(me, cells[end]) < minCells ) { notes.Add($"{travel}: no landing cell (end {end}, start {start})"); continue; }
 				var slot = SkillBar.FindSlot(travel.Name);
 				var skill = slot?.Skill;
-				if ( skill == null || !skill.CanBeUsed || skill.IsOnCooldown ) continue;
-				if ( !TryGridToScreen(cells[end], z, out Vector2 screen) || !PathFollower.IsSafeToClick(screen) ) continue;
+				if ( skill == null || !skill.CanBeUsed || skill.IsOnCooldown ) { notes.Add($"{travel}: {(skill == null ? "not on the bar" : skill.IsOnCooldown ? "on cooldown" : "can't be used")}"); continue; }
+				if ( !TryGridToScreen(cells[end], z, out Vector2 screen) || !PathFollower.IsSafeToClick(screen) ) { notes.Add($"{travel}: landing cell {cells[end]} not safe to click"); continue; }
 				// let go of the walk, and hold it until the key is out (the cursor stays where the skill was aimed)
 				DefaultFollower.Hold(Math.Max(250, SkillBar.CastTimeMs(skill)) + 100);
-				if ( !driver.Send(Inputs.UseSlot(slot, screen, 40)) ) return false;
+				if ( !send(Inputs.UseSlot(slot, screen, 40)) ) return Fail("input refused");
 				lastUse = now;
-				Log($"TravelSkills: {travel} toward {cells[end]}, {Combat.Distance(me, cells[end]):F0} cells along the path");
+				Log($"TravelSkills: {travel} toward {cells[end]}, {Combat.Distance(me, cells[end]):F0} cells {why}");
 				return true;
 			}
-			return false;
+			return Fail(string.Join("; ", notes));
 		}
 
 		// are the path's cells from..to all within StraightTolerance of the line a-b

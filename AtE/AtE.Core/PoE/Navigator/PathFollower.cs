@@ -5,11 +5,25 @@ using static AtE.Globals;
 
 namespace AtE {
 
-	public enum FollowStatus { Idle, Walking, OpeningDoor, Arrived, NoPath, Stuck, WaitingForFocus, Paused }
+	public enum FollowStatus { Idle, Walking, OpeningDoor, UsingLever, AvoidingTrap, Arrived, NoPath, Stuck, WaitingForFocus, Paused }
+
+	/// <summary>
+	/// Whoever walks the player (the PathFollower's Owner) can implement this to help get past traps (see
+	/// PathFollower.TrapTouchMs): with a travel skill, and by stopping the walk at once.
+	/// </summary>
+	public interface ITrapDodger {
+		/// <summary>Use a travel skill to get past the trap at trap along the path ahead; true if one was used.</summary>
+		bool TryDodgeTrap(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i trap, float z);
+		/// <summary>Stop the player moving now (eg, tap the main skill for one InputLatency, too short to cast); true if sent.</summary>
+		bool StopMoving();
+	}
 
 	/// <summary>
 	/// Walks the player along a NavPath to a goal, by holding the left button down and keeping the cursor on the ground a
-	/// little way ahead on the path, and opens closed doors on the way by clicking their labels.
+	/// little way ahead on the path, and opens closed doors on the way by clicking their labels. A locked door is unlocked
+	/// by the lever the Navigator spliced into the path (a UseLever step): pull it, then wait for the door to open.
+	/// Touching a trap (Terrain.Traps) for TrapTouchMs, it gets past with a travel skill (if the Owner is an ITrapDodger
+	/// with one ready), else stops and waits TrapPauseMs for the trap to move on.
 	///
 	/// PoE only moves the player by mouse (clicking, or a skill aimed at the cursor), and only reads the
 	/// mouse while it has focus (see WindowsInputSink), so this waits while the game is not focused.
@@ -32,6 +46,15 @@ namespace AtE {
 		public float DoorReach = 15f;
 		/// <summary>How often to click a door that has not opened yet.</summary>
 		public long DoorClickIntervalMs = 500;
+		/// <summary>Start clicking a lever when this close to it (in cells).</summary>
+		public float LeverReach = 12f;
+		/// <summary>After pulling a lever, wait this long for its locked door to open before planning again (eg, for the next lever).</summary>
+		public long LeverDoorWaitMs = 4000;
+		/// <summary>A trap within this many cells is touching the player.</summary>
+		public float TrapTouchRadius = 6f;
+		/// <summary>Touching a trap this long: get past it (a travel skill), or stop and wait TrapPauseMs for it to move on.</summary>
+		public long TrapTouchMs = 250;
+		public long TrapPauseMs = 250;
 		/// <summary>
 		/// If the game's "Move Only" action is bound to a key, set it here: it is pressed (in the background) instead of a
 		/// left click, so walking never attacks or picks things up. VKey.None means left click.
@@ -50,6 +73,12 @@ namespace AtE {
 		public Vector2 LastAim { get; private set; }
 
 		private long lastClick, lastDoorClick;
+		// the lever pulled last, and when it was first seen used (to wait for its door)
+		private AreaLever pulledLever;
+		private AreaDoor pulledFor;
+		private long pulledAt;
+		// touching a trap since (0: not touching), and waiting for one to move on until
+		private long trapTouchSince, trapPauseUntil;
 		private Offsets.Vector2i progressFrom;
 		private long progressTime;
 		private int stuckCount;
@@ -58,8 +87,28 @@ namespace AtE {
 		private bool held;
 		private long lastTick;
 
-		public void Start(Offsets.Vector2i goal, object owner = null) {
+		/// <summary>Log in detail (eg, traps near, how long they were touched, and what was done about it); set by Start.</summary>
+		public bool Verbose;
+		/// <summary>Verbose: the log is also written here (beside the exe), started over by each Start.</summary>
+		public static string VerboseLogFile => System.IO.Path.Combine(AppContext.BaseDirectory, "follow-verbose.log");
+
+		/// <summary>Log a line for whoever is walking (eg, its ITrapDodger), into the verbose log file too when Verbose.</summary>
+		public void Note(string line) => VLog(line);
+
+		private void VLog(string line) {
+			Log(line);
+			if ( !Verbose ) return;
+			try { System.IO.File.AppendAllText(VerboseLogFile, $"{Time.ElapsedMilliseconds} {line}{Environment.NewLine}"); } catch ( Exception ) { }
+		}
+
+		public void Start(Offsets.Vector2i goal, object owner = null, bool verbose = false) {
 			if ( !IsActive || goal.Id != Goal.Id ) Path = null;
+			Verbose = verbose;
+			if ( verbose ) {
+				try { System.IO.File.WriteAllText(VerboseLogFile, $"{Time.ElapsedMilliseconds} follow to {goal} for {owner?.GetType().Name}, trap radius {TrapTouchRadius}, touch {TrapTouchMs} ms, pause {TrapPauseMs} ms{Environment.NewLine}"); } catch ( Exception ) { }
+			}
+			lastVerboseTrapCount = -1;
+			trapTouchSince = 0;
 			Owner = owner;
 			Goal = goal;
 			IsActive = true;
@@ -82,6 +131,7 @@ namespace AtE {
 
 		public void Stop(FollowStatus status = FollowStatus.Idle, string detail = "") {
 			ReleaseMouse();
+			if ( IsActive && Verbose ) VLog($"PathFollower(v): stopped: {status}: {detail}");
 			IsActive = false;
 			Status = status;
 			Detail = detail;
@@ -117,15 +167,26 @@ namespace AtE {
 			if ( !PoEMemory.TargetHasFocus ) return Wait(FollowStatus.WaitingForFocus, "the game needs focus to use the mouse");
 
 			long now = Time.ElapsedMilliseconds;
+			// a lever was just pulled: give its door a moment to open before planning again (the plan would go to another lever)
+			if ( Path?.Lever != null && Path.Lever.IsUsed && Path.Lever != pulledLever ) {
+				pulledLever = Path.Lever;
+				pulledFor = Path.LockedDoor;
+				pulledAt = now;
+			}
+			if ( pulledLever != null && now - pulledAt < LeverDoorWaitMs && pulledFor.IsClosed ) {
+				_ = terrain.Doors; // (refreshes IsClosed)
+				return Wait(FollowStatus.OpeningDoor, $"lever {pulledLever.EntityId} pulled, waiting for door {pulledFor.EntityId} to unlock");
+			}
 			Path = nav.UpdatePath(Path, terrain, player, Goal);
 			if ( Path == null ) {
-				Stop(FollowStatus.NoPath, $"no path to {Goal}");
+				Stop(FollowStatus.NoPath, $"no path to {Goal}{(nav.LastFailure == null ? "" : $": {nav.LastFailure}")}");
 				return Status;
 			}
 			if ( Distance(player, Path.Goal) <= ArriveRadius ) {
 				Stop(FollowStatus.Arrived, $"at {Path.Goal}");
 				return Status;
 			}
+			if ( AvoidTraps(terrain, player, z, now) ) return Status;
 
 			// stuck: not making progress for a while
 			if ( Distance(player, progressFrom) >= 2 ) {
@@ -143,10 +204,25 @@ namespace AtE {
 				progressTime = now;
 			}
 
-			// a closed door ahead: walk to it, then click it until it opens
-			var doorStep = Path.Steps.FirstOrDefault(s => s.Kind == NavStepKind.OpenDoor);
+			// a closed door (or a lever) ahead: walk to it, then click it until it opens (or is pulled)
+			var doorStep = Path.Steps.FirstOrDefault(s => s.Kind == NavStepKind.OpenDoor || s.Kind == NavStepKind.UseLever);
 			int doorCell = Path.Cells.Count;
-			if ( doorStep != null ) {
+			if ( doorStep?.Kind == NavStepKind.UseLever ) {
+				doorCell = Math.Max(0, Path.LeverIndex);
+				var stand = Path.Cells[doorCell];
+				if ( Distance(player, doorStep.Target) <= LeverReach || Distance(player, stand) <= ArriveRadius ) {
+					ReleaseMouse();
+					Status = FollowStatus.UsingLever;
+					Detail = $"lever {doorStep.Lever.EntityId} (for door {doorStep.Door?.EntityId})";
+					progressTime = now; // (standing at the lever is not being stuck)
+					if ( now - lastDoorClick > DoorClickIntervalMs && TryGetClickPoint(doorStep.Lever.GetLabel(), doorStep.Target, z, out Vector2 at) ) {
+						Click(at);
+						lastDoorClick = now;
+					}
+					doorStep.Lever.Refresh(); // (see it used as soon as it is)
+					return Status;
+				}
+			} else if ( doorStep != null ) {
 				// the cell in front of the door is the Walk step just before the OpenDoor step
 				int i = Path.Steps.IndexOf(doorStep);
 				var front = i > 0 ? Path.Steps[i - 1].Target : player;
@@ -155,7 +231,12 @@ namespace AtE {
 					ReleaseMouse();
 					Status = FollowStatus.OpeningDoor;
 					Detail = $"door {doorStep.Door.EntityId}";
-					if ( now - lastDoorClick > DoorClickIntervalMs && TryGetDoorClickPoint(doorStep, z, out Vector2 at) ) {
+					if ( doorStep.Door.IsLocked ) {
+						// (clicking a locked door does nothing; the plan goes to a lever once the Navigator knows one)
+						Detail = $"door {doorStep.Door.EntityId} is locked";
+						return Status;
+					}
+					if ( now - lastDoorClick > DoorClickIntervalMs && TryGetClickPoint(doorStep.Door.GetLabel(), doorStep.Target, z, out Vector2 at) ) {
 						Click(at);
 						lastDoorClick = now;
 					}
@@ -191,6 +272,70 @@ namespace AtE {
 			return Status;
 		}
 
+		/// <summary>
+		/// Touching a trap for TrapTouchMs: use a travel skill past it (the Owner's ITrapDodger), else stop now and wait
+		/// TrapPauseMs for it to move on. True while waiting (or a skill is going out), so the walk does nothing else.
+		/// </summary>
+		private bool AvoidTraps(Terrain terrain, Offsets.Vector2i player, float z, long now) {
+			if ( now < trapPauseUntil ) {
+				Wait(FollowStatus.AvoidingTrap, $"waiting for a trap to move on ({trapPauseUntil - now} ms)");
+				return true;
+			}
+			var traps = terrain.Traps;
+			if ( Verbose ) LogTrapsNear(traps, player, now);
+			var trap = traps.Count == 0 ? null : AreaTraps.Nearest(traps, player, TrapTouchRadius);
+			if ( trap == null ) {
+				if ( Verbose && trapTouchSince != 0 ) VLog($"PathFollower(v): no longer touching a trap at {player}, after {now - trapTouchSince} ms (radius {TrapTouchRadius})");
+				trapTouchSince = 0;
+				return false;
+			}
+			if ( trapTouchSince == 0 ) {
+				trapTouchSince = now;
+				if ( Verbose ) VLog($"PathFollower(v): touching {trap} at {player}, {Distance(player, trap.GridPos):F1} cells (radius {TrapTouchRadius})");
+			}
+			if ( now - trapTouchSince < TrapTouchMs ) return false;
+			if ( Verbose ) VLog($"PathFollower(v): touching {trap} at {player} for {now - trapTouchSince} ms: avoiding it");
+			trapTouchSince = 0;
+			var dodger = Owner as ITrapDodger;
+			Status = FollowStatus.Walking; // (a travel skill is only used while walking)
+			if ( dodger != null && dodger.TryDodgeTrap(this, terrain, player, trap.GridPos, z) ) {
+				VLog($"PathFollower: touching {trap} at {player} for {TrapTouchMs} ms: used a travel skill past it");
+				Status = FollowStatus.AvoidingTrap;
+				Detail = $"travel skill past {trap}";
+				return true;
+			}
+			if ( Verbose ) VLog($"PathFollower(v): no travel skill: {(dodger == null ? $"the owner ({Owner?.GetType().Name ?? "none"}) can't dodge traps" : TravelSkills.Instance.LastNote ?? "(no reason given)")}");
+			ReleaseMouse();
+			bool stopped = dodger?.StopMoving() ?? false;
+			trapPauseUntil = now + TrapPauseMs;
+			VLog($"PathFollower: touching {trap} at {player} for {TrapTouchMs} ms: {(stopped ? "tapped the main skill to stop" : "let go (no stop tap)")}, waiting {TrapPauseMs} ms for it to move on");
+			Wait(FollowStatus.AvoidingTrap, $"waiting for {trap} to move on");
+			return true;
+		}
+
+		/// <summary>Verbose: within this many cells, traps are logged (at most each VerboseLogMs).</summary>
+		public float VerboseTrapRadius = 25f;
+		public long VerboseLogMs = 100;
+		private long lastVerboseLog;
+		private int lastVerboseTrapCount = -1;
+
+		private void LogTrapsNear(System.Collections.Generic.IReadOnlyList<AreaTrap> traps, Offsets.Vector2i player, long now) {
+			if ( traps.Count != lastVerboseTrapCount ) {
+				lastVerboseTrapCount = traps.Count;
+				VLog($"PathFollower(v): {traps.Count} traps known: {string.Join(", ", traps)}");
+			}
+			if ( now - lastVerboseLog < VerboseLogMs ) return;
+			var near = new System.Collections.Generic.List<string>();
+			foreach ( var t in traps ) {
+				if ( !t.Refresh() ) { near.Add($"{t.EntityId} gone"); continue; }
+				float d = Distance(player, t.GridPos);
+				if ( d <= VerboseTrapRadius ) near.Add($"{t.EntityId} at {t.GridPos} {d:F1}");
+			}
+			if ( near.Count == 0 ) return;
+			lastVerboseLog = now;
+			VLog($"PathFollower(v): player {player}, {Status}; traps near: {string.Join("; ", near)}");
+		}
+
 		private FollowStatus Wait(FollowStatus status, string why) {
 			ReleaseMouse();
 			Status = status;
@@ -211,15 +356,14 @@ namespace AtE {
 			if ( held && Time.ElapsedMilliseconds - lastTick > 250 ) ReleaseMouse();
 		}
 
-		private bool TryGetDoorClickPoint(NavStep step, float z, out Vector2 at) {
-			var label = step.Door.GetLabel();
+		/// <summary>Where to click a door or lever: the middle of its label, or with no label showing, the thing itself.</summary>
+		private static bool TryGetClickPoint(Element label, Offsets.Vector2i target, float z, out Vector2 at) {
 			if ( IsValid(label) ) {
 				var rect = label.GetClientRect();
 				at = new Vector2(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));
 				if ( IsSafeToClick(at) ) return true;
 			}
-			// no label showing: click the door itself
-			return TryGridToScreen(step.Target, z, out at) && IsSafeToClick(at);
+			return TryGridToScreen(target, z, out at) && IsSafeToClick(at);
 		}
 
 		/// <summary>

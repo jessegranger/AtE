@@ -20,7 +20,14 @@ namespace AtE {
 	/// </summary>
 	public class AreaDoor {
 		public uint EntityId;
+		/// <summary>The entity's metadata path (eg, "Metadata/Terrain/Labyrinth/Objects/Puzzle_Parts/Door_Closed").</summary>
+		public string Path;
 		public Offsets.Vector2i GridPos;
+		/// <summary>
+		/// A door that clicking does not open: something else (a lever, see AreaLever) unlocks it. The game says nothing about
+		/// which lever opens which door (3.29, checked live in a Trial of Ascendancy: no reference either way, see AreaLever).
+		/// </summary>
+		public bool IsLocked => AreaDoors.IsLockedDoorPath(Path);
 		/// <summary>The inclusive box of cells the door may block (from TriggerableBlockage).</summary>
 		public Offsets.Vector2i GridMin, GridMax;
 		public bool IsClosed;
@@ -47,10 +54,73 @@ namespace AtE {
 		public Element GetLabel() =>
 			GetUI()?.LabelsOnGround?.GetAllLabels().FirstOrDefault(l => l.Item?.Id == EntityId)?.Label;
 
-		public override string ToString() => $"Door {EntityId} at {GridPos} ({(IsClosed ? "closed" : "open")}, {Passage.Count} passage cells)";
+		public override string ToString() => $"Door {EntityId} at {GridPos} ({(IsClosed ? "closed" : "open")}{(IsLocked ? ", locked" : "")}, {Passage.Count} passage cells)";
+	}
+
+	/// <summary>
+	/// A lever that unlocks a locked door (AreaDoor.IsLocked) somewhere nearby, used once.
+	///
+	/// 3.29, checked live in The Crypt's Trial of Ascendancy (a Puzzle_Parts/Door_Closed and a Puzzle_Parts/Switch_Once):
+	/// neither entity refers to the other (no entity id, no shared object, nothing in the tiles), so which lever opens which
+	/// door is the server's business. Pulling the lever took both its Transitionable.State and the door's from 1 to 2,
+	/// cleared both Targetable.IsTargetable, and cleared the door's TriggerableBlockage.IsClosed; a Puzzle_Parts/Switch_Multi
+	/// next to the door did not change and did not open it.
+	/// </summary>
+	public class AreaLever {
+		public uint EntityId;
+		public string Path;
+		public Offsets.Vector2i GridPos;
+		/// <summary>Already pulled (Transitionable.State moved on from 1, or no longer targetable).</summary>
+		public bool IsUsed;
+
+		public Entity GetEntity() => GetEntities().FirstOrDefault(e => e.Id == EntityId);
+
+		/// <summary>The lever's label on the screen (eg, "Lever"), which is what to click to pull it; null if not shown.</summary>
+		public Element GetLabel() =>
+			GetUI()?.LabelsOnGround?.GetAllLabels().FirstOrDefault(l => l.Item?.Id == EntityId)?.Label;
+
+		/// <summary>Read IsUsed from the entity now, if it is in range.</summary>
+		public void Refresh() {
+			var ent = GetEntity();
+			if ( IsValid(ent) ) IsUsed = AreaDoors.IsLeverUsed(ent);
+		}
+
+		public override string ToString() => $"Lever {EntityId} at {GridPos} ({(IsUsed ? "used" : "unused")})";
 	}
 
 	public static class AreaDoors {
+
+		/// <summary>Entity paths (substrings) of doors that a lever unlocks, rather than a click.</summary>
+		public static string[] LockedDoorPaths = { "/Puzzle_Parts/Door_Closed" };
+		/// <summary>Entity paths (substrings) of the levers that unlock them.</summary>
+		public static string[] LeverPaths = { "/Puzzle_Parts/Switch_Once" };
+
+		public static bool IsLockedDoorPath(string path) => path != null && LockedDoorPaths.Any(p => path.Contains(p));
+		public static bool IsLeverPath(string path) => path != null && LeverPaths.Any(p => path.Contains(p));
+
+		public static bool IsLeverUsed(Entity ent) {
+			var t = ent.GetComponent<Transitionable>();
+			if ( IsValid(t) && t.State > 1 ) return true;
+			var target = ent.GetComponent<Targetable>();
+			return IsValid(target) && !target.IsTargetable;
+		}
+
+		/// <summary>Add (or refresh) the levers in range now.</summary>
+		public static void UpdateLevers(List<AreaLever> levers) {
+			foreach ( var ent in GetEntities() ) {
+				if ( !IsValid(ent) ) continue;
+				var lever = levers.FirstOrDefault(l => l.EntityId == ent.Id);
+				if ( lever == null ) {
+					string path = ent.Path;
+					if ( !IsLeverPath(path) ) continue;
+					var pos = ent.GetComponent<Positioned>();
+					if ( !IsValid(pos) ) continue;
+					lever = new AreaLever() { EntityId = ent.Id, Path = path, GridPos = pos.GridPos };
+					levers.Add(lever);
+				}
+				lever.IsUsed = IsLeverUsed(ent);
+			}
+		}
 
 		/// <summary>
 		/// Add (or refresh) the doors in range now. Returns true if a new passage was found (so navigation data must be rebuilt).
@@ -80,6 +150,7 @@ namespace AtE {
 					if ( !IsValid(pos) ) continue;
 					door = new AreaDoor() {
 						EntityId = ent.Id,
+						Path = ent.Path,
 						GridPos = pos.GridPos,
 						GridMin = blockage.GridMin,
 						GridMax = blockage.GridMax,

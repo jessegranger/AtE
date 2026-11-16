@@ -8,7 +8,7 @@ using System.Text;
 using static AtE.Globals;
 
 namespace AtE {
-	public class NavigationSection : AutomationSection {
+	public class NavigationSection : AutomationSection, ITrapDodger {
 		public override string Name => "Navigation";
 
 		public bool ShowCurrentPath = false;
@@ -68,6 +68,20 @@ namespace AtE {
 				if ( ImGui.Button("Save path for debugging") ) {
 					SavePathDebug();
 				}
+				ImGui.SameLine();
+				if ( DefaultFollower.IsActiveFor(this) ) {
+					if ( ImGui.Button("Stop following") ) DefaultFollower.Stop(FollowStatus.Idle, "stopped from Navigation");
+					ImGui.SameLine();
+					ImGui.Text($"{DefaultFollower.Status}: {DefaultFollower.Detail}");
+				} else if ( DefaultFollower.IsActive ) {
+					ImGui.Text($"(the path follower is busy for {DefaultFollower.Owner})");
+				} else if ( ImGui.Button("Follow path") ) {
+					StartFollowing(testPath.Goal);
+				}
+				ImGui.SameLine();
+				ImGui_HelpMarker("Minimizes the console, focuses the game, and walks this path to its end with the path follower (doors, levers and traps included).");
+			} else if ( DefaultFollower.IsActiveFor(this) ) {
+				if ( ImGui.Button("Stop following") ) DefaultFollower.Stop(FollowStatus.Idle, "stopped from Navigation");
 			} else if ( ShowPathToCursor ) {
 				ImGui.Text("Path: none");
 			}
@@ -242,6 +256,43 @@ namespace AtE {
 			Notify($"Saved {file}");
 		}
 
+		/// <summary>Walk to goal with the path follower (ticked in OnTick), with the console out of the way and the game focused.</summary>
+		private void StartFollowing(Offsets.Vector2i goal) {
+			AtE.Console.CollapseNext = true;
+			if ( !PoEMemory.TargetHasFocus && !Platform.Current.Memory.TryFocusTarget() ) Log("Navigation: could not focus the game");
+			targetPinned = true; // (keep showing the path to this goal after the walk)
+			pinnedTarget = goal;
+			DefaultFollower.Start(goal, this, verbose: true);
+			Log($"Navigation: following the path to {goal}");
+		}
+
+		// input sent for the follower (a travel skill past a trap, or the tap that stops the walk), still going out
+		private bool inputRunning;
+		private bool SendInput(IState input) {
+			if ( input == null || inputRunning ) return false;
+			inputRunning = true;
+			input.Tail().Next = State.NewState(() => inputRunning = false);
+			Run(input);
+			return true;
+		}
+
+		public bool TryDodgeTrap(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i trap, float z) =>
+			TravelSkills.Instance.TryDodge(this, () => inputRunning, SendInput, terrain, player, trap, z);
+
+		/// <summary>Tap the main skill (BuildPlan.MainSkill, else the slot on Q) for one InputLatency: too short to cast, but it stops the walk.</summary>
+		public bool StopMoving() {
+			string main = BuildPlan.MainSkill();
+			var slot = SkillBar.FindSlot(main) ?? SkillBar.GetSlot(BuildPlan.MainSlot);
+			if ( slot?.Skill == null || SkillBar.IsMovement(slot.Skill) || slot.Key == VKey.None ) {
+				DefaultFollower.Note($"Navigation: can't stop with the main skill ({main}): slot {slot?.Index}, skill {(slot?.Skill == null ? "none" : SkillBar.SkillName(slot.Skill))}, key {slot?.Key}");
+				return false;
+			}
+			DefaultFollower.ReleaseMouse();
+			bool sent = SendInput(Inputs.UseSlotHere(slot, Inputs.Latency));
+			DefaultFollower.Note($"Navigation: {(sent ? "tapped" : "could not tap (input still going out)")} {SkillBar.SkillName(slot.Skill)} on {slot.Key} for {Inputs.Latency} ms to stop");
+			return sent;
+		}
+
 		private void RenderPathToCursor(Offsets.Vector2i playerGrid, float z) {
 			var terrain = GetTerrain();
 			if ( terrain == null ) return;
@@ -249,6 +300,8 @@ namespace AtE {
 			Offsets.Vector2i target;
 			if ( follower.IsActive ) {
 				target = follower.Goal; // (the cursor is busy walking)
+			} else if ( !targetPinned && testPath != null && ImGui.GetIO().WantCaptureMouse ) {
+				target = testPathTo; // (the cursor is on the console, eg going to Follow path: keep the target it had in the game)
 			} else {
 				// GridToWorld puts things 80 units above z, so un-project onto that same plane
 				if ( !TryScreenToGrid(Platform.Current.Keys.GetCursorPos() - WindowOffset(), z + 80f, out Offsets.Vector2i cursorGrid) ) return;
@@ -371,6 +424,12 @@ namespace AtE {
 				if ( !IsValid(posComponent) ) return this;
 				var playerPos = Position(p);
 				var playerGrid = posComponent.GridPos;
+
+				// walking a path started by Follow path
+				if ( DefaultFollower.IsActiveFor(this) ) {
+					var status = DefaultFollower.Tick(DefaultNavigator, GetTerrain(), playerGrid, playerPos.Z);
+					if ( !DefaultFollower.IsActive ) Log($"Navigation: following ended: {status}: {DefaultFollower.Detail}");
+				}
 
 				if ( ShowTerrain ) {
 					var terrain = GetTerrain();

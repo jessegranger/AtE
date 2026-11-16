@@ -376,6 +376,7 @@ namespace AtE {
 
 		// for fights where the goal names no skill
 		protected override void Attack(Hostile target, Vector2 screenPos) => UseSkillPaced(BuildPlan.MainSkill(), screenPos);
+		protected override SkillSlot MainSkillSlot() => SkillBar.FindSlot(BuildPlan.MainSkill()) ?? base.MainSkillSlot();
 
 		// ---- dying ----
 

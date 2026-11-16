@@ -198,6 +198,22 @@ namespace AtE {
 					return RunOnMain(() => TilesText(q["filter"]));
 				case "/doors":
 					return RunOnMain(DoorsText);
+				case "/traps":
+					// the traps loaded now (Terrain.Traps), nearest the player first, and the follower's state
+					return RunOnMain(() => {
+						var terrain = GetTerrain();
+						var pos = GetPlayer()?.GetComponent<Positioned>();
+						if ( terrain == null || !IsValid(pos) ) return "no terrain or player" + NL;
+						var me = pos.GridPos;
+						var sb = new StringBuilder();
+						var traps = terrain.Traps.Where(t => t.Refresh()).OrderBy(t => (t.GridPos.X - me.X) * (t.GridPos.X - me.X) + (t.GridPos.Y - me.Y) * (t.GridPos.Y - me.Y)).ToList();
+						sb.AppendLine($"player at {me}; {traps.Count} traps; follower {DefaultFollower.Status}: {DefaultFollower.Detail}");
+						foreach ( var t in traps ) {
+							float d = MathF.Sqrt((t.GridPos.X - me.X) * (t.GridPos.X - me.X) + (t.GridPos.Y - me.Y) * (t.GridPos.Y - me.Y));
+							sb.AppendLine($"  {t}  {d:F1} cells");
+						}
+						return sb.ToString();
+					});
 				case "/path":
 					// plan a path (DefaultNavigator.FindPath, which only reads) from the player to a grid cell, and list its steps
 					return RunOnMain(() => {
@@ -207,10 +223,10 @@ namespace AtE {
 						if ( terrain == null || !IsValid(pos) || parts.Length != 2 || !int.TryParse(parts[0], out int tx) || !int.TryParse(parts[1], out int ty) )
 							return "give to=X,Y (grid cells), with terrain and a player" + NL;
 						var path = DefaultNavigator.FindPath(terrain, pos.GridPos, new Offsets.Vector2i(tx, ty));
-						if ( path == null ) return $"no path from {pos.GridPos} to <{tx}, {ty}>" + NL;
+						if ( path == null ) return $"no path from {pos.GridPos} to <{tx}, {ty}>{(DefaultNavigator.LastFailure == null ? "" : $": {DefaultNavigator.LastFailure}")}" + NL;
 						var sb = new StringBuilder();
 						sb.AppendLine($"from {pos.GridPos} to <{tx}, {ty}>: {path.Cells.Count} cells, {path.Steps.Count} steps, method {path.Method}, {path.ElapsedMs:F1} ms");
-						foreach ( var step in path.Steps ) sb.AppendLine($"  {step.Kind} {step.Target}{(step.Door == null ? "" : $" ({step.Door})")}");
+						foreach ( var step in path.Steps ) sb.AppendLine($"  {step.Kind} {step.Target}{(step.Lever == null ? "" : $" ({step.Lever})")}{(step.Door == null ? "" : $" ({step.Door})")}");
 						return sb.ToString();
 					});
 				case "/labels":

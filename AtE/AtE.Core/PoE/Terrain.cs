@@ -31,6 +31,8 @@ namespace AtE {
 
 		private List<AreaExit> exits = new List<AreaExit>();
 		private List<AreaDoor> doors = new List<AreaDoor>();
+		private List<AreaLever> levers = new List<AreaLever>();
+		private List<AreaTrap> traps = new List<AreaTrap>();
 		private AreaFeature waypoint;
 		private long entitiesUpdated = 0;
 		private void UpdateFromEntities() {
@@ -38,6 +40,8 @@ namespace AtE {
 				AreaExits.UpdateFromEntities(exits);
 				if ( waypoint == null || !waypoint.Seen ) waypoint = AreaExits.UpdateWaypoint(waypoint);
 				if ( AreaDoors.UpdateFromEntities(this, doors) ) DoorGeneration += 1;
+				AreaDoors.UpdateLevers(levers);
+				AreaTraps.Update(traps);
 				entitiesUpdated = Time.ElapsedMilliseconds;
 			}
 		}
@@ -97,6 +101,26 @@ namespace AtE {
 		}
 
 		/// <summary>
+		/// The levers seen so far in this area (see AreaLever), used or not.
+		/// </summary>
+		public IReadOnlyList<AreaLever> Levers {
+			get {
+				UpdateFromEntities();
+				return levers;
+			}
+		}
+
+		/// <summary>
+		/// The traps loaded now (see AreaTrap); found every 500 ms, but their GridPos is only read again by AreaTrap.Refresh.
+		/// </summary>
+		public IReadOnlyList<AreaTrap> Traps {
+			get {
+				UpdateFromEntities();
+				return traps;
+			}
+		}
+
+		/// <summary>
 		/// Goes up each time a door with a new Passage is found, so the Navigator knows to rebuild.
 		/// </summary>
 		public int DoorGeneration { get; private set; } = 0;
@@ -115,6 +139,8 @@ namespace AtE {
 			waypoint = null;
 			features.Clear();
 			doors = new List<AreaDoor>();
+			levers = new List<AreaLever>();
+			traps = new List<AreaTrap>();
 			DoorGeneration += 1;
 			walkable = projectile = null;
 			loadedFrom = IntPtr.Zero;
