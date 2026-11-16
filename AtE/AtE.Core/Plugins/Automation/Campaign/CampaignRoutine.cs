@@ -86,7 +86,10 @@ namespace AtE {
 			LowerPrison = "The Lower Prison", BrokenBridge = "The Broken Bridge", Wetlands = "The Wetlands", Den = "The Den",
 			ChamberOfSins2 = "The Chamber of Sins Level 2", WeaversChambers = "The Weaver's Chambers",
 			Crypt2 = "The Crypt Level 2", VaalRuins = "The Vaal Ruins", NorthernForest = "The Northern Forest", Caverns = "The Caverns",
-			CityOfSarn = "The City of Sarn", SarnEncampment = "The Sarn Encampment", Slums = "The Slums", Crematorium = "The Crematorium";
+			CityOfSarn = "The City of Sarn", SarnEncampment = "The Sarn Encampment", Slums = "The Slums", Crematorium = "The Crematorium",
+			Sewers = "The Sewers", Docks = "The Docks", SolarisTemple2 = "The Solaris Temple Level 2", EbonyBarracks = "The Ebony Barracks",
+			LunarisTemple2 = "The Lunaris Temple Level 2", ImperialGardens = "The Imperial Gardens",
+			SceptreOfGod = "The Sceptre of God", UpperSceptreOfGod = "The Upper Sceptre of God", Aqueduct = "The Aqueduct";
 
 		/// <summary>Each act's town, as WorldArea names it with its act (several share a name).</summary>
 		public static string TownOf(int act) => act switch {
@@ -225,10 +228,14 @@ namespace AtE {
 			StartGoalOver();
 		}
 
+		/// <summary>Worked on in place of the goal while locked in an arena (see Select).</summary>
+		private readonly ArenaLockdown arenaLockdown = new ArenaLockdown(BuildPlan.MainSkill);
+
 		private void StartGoalOver() {
 			Runner.Cancel();
 			ForgetInput();
 			lastSelect = 0;
+			arenaLockdown.Reset();
 			Looter.Reset();
 			FlaskUpgrader.Reset();
 			AuraKeeper.Reset();
@@ -237,7 +244,10 @@ namespace AtE {
 
 		// choose the leaf goal; start its chain if it changed
 		private void Select(CombatContext ctx) {
-			CurrentGoal = Root.Select(ctx);
+			var leaf = Root.Select(ctx);
+			// locked in an arena (its doors closed around the player): fight the waves until they open, whatever the goal
+			// wanted (it would walk at the doors), unless the goal fights here itself (eg, a boss: AvoidSpam is a Kill)
+			CurrentGoal = leaf is Kill || leaf is FightUntil || !ArenaLock.IsLockedIn(ctx) ? leaf : arenaLockdown;
 			if ( CurrentGoal != Runner.Leaf ) {
 				if ( Runner.Leaf != null ) Log($"{Name}: now on {CurrentGoal?.Name ?? "(nothing)"} (was {Runner.Leaf.Name})");
 				Runner.Run(CurrentGoal);

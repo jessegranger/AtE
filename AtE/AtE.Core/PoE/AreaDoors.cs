@@ -30,6 +30,13 @@ namespace AtE {
 		public bool PassageIsExact;
 		/// <summary>When it was first seen open (Time.ElapsedMilliseconds), or 0.</summary>
 		public long OpenSince;
+		/// <summary>
+		/// When it closed after being seen open (Time.ElapsedMilliseconds), or 0: what an arena's gates do when an
+		/// encounter starts (see ArenaLock). A door closed since it was first seen has 0.
+		/// </summary>
+		public long ClosedSince;
+		/// <summary>When its entity was first found missing while the player was near enough to have it loaded, or 0.</summary>
+		public long MissingSince;
 
 		/// <summary>The door's entity, if it is still in range.</summary>
 		public Entity GetEntity() => GetEntities().FirstOrDefault(e => e.Id == EntityId);
@@ -48,12 +55,25 @@ namespace AtE {
 		/// <summary>
 		/// Add (or refresh) the doors in range now. Returns true if a new passage was found (so navigation data must be rebuilt).
 		/// </summary>
+		/// <summary>
+		/// A door whose entity is missing while the player is this close (in cells) is gone (eg, a statue spawner in The
+		/// Imperial Gardens is removed once its statues come alive), so its record is dropped rather than left closed forever.
+		/// Entities stay loaded much farther away than this (over 200 cells).
+		/// </summary>
+		public static float VanishedRadius = 100f;
+		/// <summary>How long a nearby door's entity must stay missing before the door is dropped.</summary>
+		public static long VanishedAfterMs = 1000;
+
 		public static bool UpdateFromEntities(Terrain terrain, List<AreaDoor> doors) {
 			bool newPassage = false;
+			var seen = new HashSet<uint>();
+			int entities = 0;
 			foreach ( var ent in GetEntities() ) {
 				if ( !IsValid(ent) ) continue;
+				entities += 1;
 				var blockage = ent.GetComponent<TriggerableBlockage>();
 				if ( !IsValid(blockage) ) continue;
+				seen.Add(ent.Id);
 				var door = doors.FirstOrDefault(d => d.EntityId == ent.Id);
 				if ( door == null ) {
 					var pos = ent.GetComponent<Positioned>();
@@ -68,7 +88,25 @@ namespace AtE {
 					doors.Add(door);
 					newPassage |= door.Passage.Count > 0;
 				}
+				// a blocker whose box is only set when it closes (3.30, confirmed live: the PitGates of a pit arena in the
+				// Mountain tileset have GridMin = GridMax = <0, 0> while open, and their box when they close): take the new
+				// box, and find its slab again (below)
+				var min = blockage.GridMin; var max = blockage.GridMax;
+				if ( (min.Id != 0 || max.Id != 0) && (min.Id != door.GridMin.Id || max.Id != door.GridMax.Id) ) {
+					Log($"Door {door.EntityId}: its box is now {min}..{max} (was {door.GridMin}..{door.GridMax})");
+					door.GridMin = min;
+					door.GridMax = max;
+					door.Passage = new List<Offsets.Vector2i>();
+					door.PassageIsExact = false;
+					newPassage = true;
+				}
+				bool wasOpen = door.OpenSince != 0;
 				door.IsClosed = blockage.IsClosed;
+				if ( !door.IsClosed ) door.ClosedSince = 0;
+				else if ( wasOpen && door.ClosedSince == 0 ) {
+					door.ClosedSince = Time.ElapsedMilliseconds;
+					Log($"Door {door.EntityId} at {door.GridPos}: closed again");
+				}
 				// closed, but no slab in the grid as read when the area loaded: the game may have stamped it in since
 				if ( door.IsClosed && door.Passage.Count == 0 && terrain.MergeLiveBlocked(door.GridMin, door.GridMax) ) {
 					door.Passage = FindPassage(terrain, door.GridMin, door.GridMax);
@@ -85,8 +123,31 @@ namespace AtE {
 						newPassage = true;
 					}
 				}
+				door.MissingSince = 0;
 			}
+			if ( entities > 0 ) newPassage |= DropVanished(doors, seen); // (no entities read: can't tell gone from not loaded)
 			return newPassage;
+		}
+
+		/// <summary>
+		/// Drop the doors whose entity has been missing for a while although the player is close enough to have it loaded.
+		/// Returns true if any were dropped (so navigation data must be rebuilt).
+		/// </summary>
+		private static bool DropVanished(List<AreaDoor> doors, HashSet<uint> seen) {
+			var player = GetPlayer()?.GetComponent<Positioned>();
+			if ( !IsValid(player) ) return false;
+			var at = player.GridPos;
+			long now = Time.ElapsedMilliseconds;
+			int dropped = doors.RemoveAll(d => {
+				if ( seen.Contains(d.EntityId) ) return false;
+				float dx = d.GridPos.X - at.X, dy = d.GridPos.Y - at.Y;
+				if ( dx * dx + dy * dy > VanishedRadius * VanishedRadius ) { d.MissingSince = 0; return false; }
+				if ( d.MissingSince == 0 ) { d.MissingSince = now; return false; }
+				if ( now - d.MissingSince < VanishedAfterMs ) return false;
+				Log($"Door {d.EntityId} at {d.GridPos}: its entity is gone ({(d.IsClosed ? "closed" : "open")} when last seen), dropped");
+				return true;
+			});
+			return dropped > 0;
 		}
 
 		/// <summary>

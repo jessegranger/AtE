@@ -108,6 +108,11 @@ namespace AtE {
 		public static bool IsCorrupted(InventoryItem item) => IsValid(item) && IsCorrupted(item.Entity);
 		public static bool IsCorrupted(Entity item) => IsValid(item) && (item.GetComponent<Base>()?.IsCorrupted ?? true);
 
+		/// <summary>
+		/// The items in the backpack, whether or not the inventory panel is open (3.30, seen live: with the panel closed, its
+		/// root is not visible but the backpack's item elements are still there, each visible on its own, so Items finds
+		/// them; VisibleItems, which asks every parent, found none). Clicking one still needs the panel open.
+		/// </summary>
 		public static IEnumerable<InventoryItem> BackpackItems(bool includeLeagueBackpack = false) {
 			var ui = GetUI();
 			if( !IsValid(ui) ) {
@@ -118,13 +123,13 @@ namespace AtE {
 				yield break;
 			}
 			if ( includeLeagueBackpack ) {
-				foreach ( var item in panel.LeagueBackpack?.VisibleItems.Take(20) ?? Empty<InventoryItem>() ) {
+				foreach ( var item in panel.LeagueBackpack?.Items.Take(20) ?? Empty<InventoryItem>() ) {
 					if ( IsValid(item) ) {
 						yield return item;
 					}
 				}
 			}
-			foreach ( var item in panel.Backpack?.VisibleItems.Take(60) ?? Empty<InventoryItem>() ) {
+			foreach ( var item in panel.Backpack?.Items.Take(60) ?? Empty<InventoryItem>() ) {
 				if( IsValid(item) ) {
 					yield return item;
 				}

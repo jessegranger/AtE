@@ -12,8 +12,8 @@ namespace AtE {
 	/// of one): walk to the nearest cell outside all of them, preferring one in range of the boss and with line of sight
 	/// to it. Out of range: get in range (Engage).
 	///
-	/// The areas are entities of their own (see HazardPaths): so far Merveil's ice storm; her other phase's is still to
-	/// be found.
+	/// The areas are entities of their own (see HazardPaths): so far Merveil's ice storm and water geysers, and General
+	/// Gravicius's falling fireballs.
 	/// </summary>
 	public class AvoidSpam : Kill {
 		/// <summary>A damaging area on the ground: its center, and radius in cells.</summary>
@@ -26,8 +26,8 @@ namespace AtE {
 		}
 
 		/// <summary>
-		/// The entities that are damaging areas: a part of the metadata path, a buff the entity has (null: any), and the
-		/// area's radius in cells.
+		/// The entities that are damaging areas: a part of the metadata path (or, for an effect entity, of its animated
+		/// object's .ao path), a buff the entity has (null: any), and the area's radius in cells.
 		/// </summary>
 		public static readonly List<(string pathPart, string buff, float radius)> HazardPaths = new List<(string, string, float)> {
 			// Merveil's ice storm (3.29.4, paused in it): a ground effect with ground_ice_chill wherever ice fell, 26 of them
@@ -38,6 +38,11 @@ namespace AtE {
 			// outside them): entities with only Animated, Positioned, Render, Transitionable. Render.Bounds is 19.6 x 19.6 x 289
 			// (about 2 cells across, a tall pillar), so the drawing is narrow: 12 cells is a guess at the damaging radius, on the safe side
 			("merveil/water_geyser/WaterGeyser", null, 12),
+			// General Gravicius's fireballs that fall from the sky (3.29.3, paused with 19 placed, 9-60 cells around him): entities
+			// Metadata/Effects/SleepableServerEffect (Animated, BaseEvents, LimitedLifespan, Positioned, Render) whose animated
+			// object is "HellfireBarrageEffect", matched by its .ao path (see Animated.AnimatedObjectPath). Render.Bounds is
+			// 19.6 x 19.6 x 112 (a narrow falling pillar), so 8 cells is a guess at the blast and its burning ground
+			("Gravicius/ballistastorm.ao", null, 8),
 		};
 
 		/// <summary>Where the damaging areas are now. Default: the entities matching HazardPaths.</summary>
@@ -64,8 +69,10 @@ namespace AtE {
 			foreach ( var e in GetEntities() ?? Enumerable.Empty<Entity>() ) {
 				string path = e?.Path;
 				if ( path == null ) continue;
+				// effects with a generic metadata path (eg, SleepableServerEffect) are told apart by their animated object
+				string aoPath = path.StartsWith("Metadata/Effects/") ? e.GetComponent<Animated>()?.AnimatedObjectPath : null;
 				foreach ( var (part, buff, radius) in HazardPaths ) {
-					if ( !path.Contains(part) || (buff != null && !HasBuff(e, buff)) ) continue;
+					if ( !(path.Contains(part) || (aoPath != null && aoPath.Contains(part))) || (buff != null && !HasBuff(e, buff)) ) continue;
 					var pos = e.GetComponent<Positioned>();
 					if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius);
 					break;

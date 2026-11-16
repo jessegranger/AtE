@@ -750,6 +750,15 @@ namespace AtE {
 		public static string BackpackGems() => string.Join(", ", (GetUI()?.InventoryPanel?.Backpack?.Items ?? Enumerable.Empty<InventoryItem>())
 			.Where(i => i.Entity?.Path?.Contains("/Gems/") ?? false).Select(i => $"{ItemName(i.Entity) ?? "?"} ({i.Entity.Path})"));
 
+		/// <summary>
+		/// Is a quest item called name (eg, "Sewer Keys", "Thaumetic Sulphite": its name has it, or its path has it without
+		/// spaces) in the backpack (open or not)? Quest items are kept there (3.30, seen live: Metadata/Items/QuestItems/
+		/// RibbonSpool, "Ribbon Spool"; SulphiteFlask, "Thaumetic Sulphite").
+		/// </summary>
+		public static bool HasQuestItem(string name) => BackpackItems().Any(i => i.Entity?.Path is string path && path.Contains("/QuestItems/")
+			&& ((ItemName(i.Entity)?.Contains(name, StringComparison.OrdinalIgnoreCase) ?? false)
+				|| path.Contains(name.Replace(" ", ""), StringComparison.OrdinalIgnoreCase)));
+
 		public static bool InBackpack(params string[] pathParts) =>
 			GetUI()?.InventoryPanel?.Backpack?.Items.Any(i => i.Entity?.Path is string path && pathParts.All(path.Contains)) ?? false;
 	}

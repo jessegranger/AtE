@@ -242,6 +242,10 @@ Component_Targetable.IsTargeted
 Component_TimerComponent.TimeLeft
 Component_TimerComponent.entOwner
 
+# Component_Transitionable: arena encounters (pit arenas, Act 3+), not met on the beach
+Component_Transitionable.State
+Component_Transitionable.entOwner
+
 # Component_TriggerableBlockage: not exercised yet
 Component_TriggerableBlockage.UnknownArray
 Component_TriggerableBlockage.entOwner

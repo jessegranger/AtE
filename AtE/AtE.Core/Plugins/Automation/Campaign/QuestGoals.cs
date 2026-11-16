@@ -55,7 +55,6 @@ namespace AtE {
 		public override bool CheckDone(CombatContext ctx) => (spots != null && spots.Count(s => s.Done) >= Count) || QuestItemsInBackpack() >= Count;
 
 		private int QuestItemsInBackpack() => ItemPathPart == null ? 0
-			// (the Items, not BackpackItems(), which only has them while the inventory is shown)
 			: GetUI()?.InventoryPanel?.Backpack?.Items.Count(i => i?.Entity?.Path?.Contains(ItemPathPart) ?? false) ?? 0;
 
 		protected override IState Step(CombatContext ctx) {
@@ -201,6 +200,83 @@ namespace AtE {
 	}
 
 	/// <summary>
+	/// Open a chest near a place (SearchAt: eg, a tile, the waypoint; else where the player is): the nearest one not open
+	/// yet within Radius of it, with a label (LabelText, if given, eg "Blackguard Chest"; else any chest's). Walk to the
+	/// place until one shows, then to it, fight what is near, and click its label. Done once the chest clicked is open (or
+	/// its label is gone, for one that is not a Chest), or after MaxClicks.
+	/// </summary>
+	public class OpenChest : Goal {
+		public readonly string Label;
+		public readonly string LabelText;
+		public float Radius = 40;
+		public float Reach = 12;
+		public float FightRadius = 60;
+		public int MaxClicks = 3;
+		private IntPtr clickedChest;
+		private int clicks;
+		private long lastClick;
+		private bool opened;
+
+		/// <param name="label">What it is, for the on-screen list (eg, "the Blackguard Chest").</param>
+		/// <param name="labelText">Its label on the ground (eg, "Blackguard Chest"); null: any chest.</param>
+		public OpenChest(string label, string labelText = null) { Label = label; LabelText = labelText; }
+		public override string Name => $"Open {Label}";
+		public override bool ProvesEarlier => true;
+		public override void Reset() { base.Reset(); clickedChest = IntPtr.Zero; clicks = 0; }
+
+		public override bool CheckDone(CombatContext ctx) {
+			if ( opened ) return true;
+			if ( clicks == 0 ) return false;
+			var label = GetUI()?.LabelsOnGround?.GetAllLabels()?.FirstOrDefault(l => l.Item?.Address == clickedChest);
+			var chest = label?.Item;
+			if ( chest == null || (IsValid(chest.GetComponent<Chest>()) ? chest.GetComponent<Chest>().IsOpened : !(chest.GetComponent<Targetable>()?.IsTargetable ?? true)) ) {
+				Log($"Campaign: {Name}: open");
+				return opened = true;
+			}
+			return clicks >= MaxClicks && Time.ElapsedMilliseconds - lastClick > 2000;
+		}
+
+		// the chests not open yet, with a label, within Radius of place: nearest it first
+		private (LabelOnGround label, Offsets.Vector2i pos) Find(Offsets.Vector2i place) {
+			foreach ( var l in (GetUI()?.LabelsOnGround?.GetAllLabels() ?? Enumerable.Empty<LabelOnGround>())
+				.Where(l => LabelText == null || string.Equals(Ground.LabelText(l.Label)?.Trim(), LabelText, StringComparison.OrdinalIgnoreCase))
+				.Select(l => (label: l, pos: l.Item?.GetComponent<Positioned>()))
+				.Where(x => IsValid(x.pos) && Combat.Distance(x.pos.GridPos, place) <= Radius)
+				.OrderBy(x => Combat.Distance(x.pos.GridPos, place)) ) {
+				var chest = l.label.Item.GetComponent<Chest>();
+				if ( IsValid(chest) ? !chest.IsOpened : LabelText != null ) return (l.label, l.pos.GridPos);
+			}
+			return (null, default);
+		}
+
+		protected override IState Step(CombatContext ctx) {
+			var at = SearchAt?.Invoke(ctx);
+			var (label, pos) = Find(at ?? ctx.Grid);
+			if ( label == null ) {
+				if ( at.HasValue && !IsNear(ctx, at.Value, Reach, out _, out float far) ) {
+					Detail = $"to where {Label} is, {far:F0} cells away";
+					return GoTo(Label, at.Value, Reach, FightRadius);
+				}
+				if ( at.HasValue ) { ctx.Driver.StopWalking($"no {Label} in sight"); Detail = $"no {Label} in sight here"; return FightFirst(ctx, FightRadius) ?? this; }
+				return Search(ctx, Label);
+			}
+			if ( !IsNear(ctx, pos, Reach, out _, out float d) ) {
+				Detail = $"{d:F0} cells away";
+				return GoTo(Label, pos, Reach, FightRadius);
+			}
+			if ( FightFirst(ctx, FightRadius) is IState fight ) return fight;
+			ctx.Driver.StopWalking($"opening {Label}");
+			if ( Time.ElapsedMilliseconds - lastClick < 2000 || !(Ground.ClickLabel(label, this) is IState click) ) return this;
+			lastClick = Time.ElapsedMilliseconds;
+			clickedChest = label.Item.Address;
+			clicks += 1;
+			Detail = $"clicked it {clicks} times";
+			Log($"Campaign: {Name}: clicking \"{Ground.LabelText(label.Label)?.Trim()}\" at {pos}");
+			return click;
+		}
+	}
+
+	/// <summary>
 	/// Walk to within Reach cells of a group of tiles (Terrain.TileFeatures: the walkable cell nearest the middle of the
 	/// tiles cut from a .tdt whose path has TilePathPart), fighting on the way. Done once there (eg, The Way Forward's
 	/// "Follow the Emperor's Road": near Prisoner's Gate's Beach/Transitions/beach_passageblock tile).
@@ -334,6 +410,36 @@ namespace AtE {
 			Detail = $"taking the {Ground.LabelText(label.label.Label)?.Trim()} at {at}";
 			Log($"Campaign: {Label}: taking the {Ground.LabelText(label.label.Label)?.Trim()} at {at}");
 			return click;
+		}
+	}
+
+	/// <summary>
+	/// Fight in a boss arena until something happens (eg, the Dominus arena on top of The Upper Sceptre of God, until the
+	/// exit to The Aqueduct is targetable): fight the hostiles near (the plain Fight, not Orbit); with none, walk to
+	/// SearchAt (eg, the arena's middle, where the boss wakes up) and wait there. Done when Until says so.
+	/// </summary>
+	public class FightUntil : Goal {
+		public readonly string Label;
+		public readonly Func<bool> Until;
+		/// <summary>The skill to fight with, asked when it is used; null uses the driver's Attack.</summary>
+		public Func<string> SkillOf;
+		/// <summary>How near SearchAt to wait, in cells.</summary>
+		public float Reach = 8;
+
+		public FightUntil(string label, Func<bool> until, Func<string> skill = null) { Label = label; Until = until; SkillOf = skill; }
+		public override string Name => $"Fight in {Label}";
+		public override bool CheckDone(CombatContext ctx) => Until();
+
+		protected override IState Step(CombatContext ctx) {
+			if ( FightFirst(ctx, 0, SkillOf?.Invoke()) is IState fight ) { Detail = "fighting"; return fight; }
+			var at = SearchAt?.Invoke(ctx);
+			if ( at.HasValue && !IsNear(ctx, at.Value, Reach, out _, out float d) ) {
+				Detail = $"no hostiles: to {at.Value}, {d:F0} cells away";
+				return Call(new Navigate(Label, c => Approach(c, at.Value), Reach) { FightRadius = 0, LegMs = 1000 });
+			}
+			ctx.Driver.StopWalking("waiting for hostiles");
+			Detail = "no hostiles: waiting";
+			return this;
 		}
 	}
 

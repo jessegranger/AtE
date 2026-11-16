@@ -70,6 +70,8 @@ namespace AtE {
 			"/spidergrove_exit",
 			"/dungeon_inca_exit",
 			"/Stairs/dungeon_stairs_up", "/dungeon_huangdoor",
+			"/battlefield_arch", "/temple_to_battlefront", "/templeclean_exit_down", "/sewerexit",
+			"LargeWallGardens/garden_arch"
 		};
 
 		/// <summary>
@@ -144,6 +146,21 @@ namespace AtE {
 			("RuinedCity/AreaTransitions/act3_docks_to_town_lower", "The Sarn Encampment", "The City of Sarn"),
 			// The Slums' way to The Crematorium (3.29.4, from the user)
 			("AreaTransitions/act3_prison_entrance", "The Crematorium", "The Slums"),
+			// Sever the Right Hand's way (3.29.4, from the user): The Slums' sewer grating (opened by the Sewer Keys)
+			("Transitions/slum_sewer_entrance", "The Sewers", "The Slums"),
+			// The Marketplace's way to The Battlefront
+			("Transitions/market_to_battlefront", "The Battlefront", "The Marketplace"),
+			("LargeWall/battlefield_arch", "The Docks", "The Battlefront"),
+			("Transitions/act3_temple_entrance", "The Solaris Temple Level 1", "The Battlefront"),
+			("Transitions/market_to_battlefront", "The Marketplace", "The Battlefront"),
+			("Features/temple_to_battlefront", "The Battlefront", "The Solaris Temple Level 1"),
+			("Features/templeclean_exit_down", "The Solaris Temple Level 2", "The Solaris Temple Level 1"),
+			// The Sewers' way to The Ebony Barracks, past the Undying Blockage (3.30, from the user)
+			("Features/sewerexit", "The Ebony Barracks", "The Sewers"),
+			("Transitions/act3_temple_entrance", "The Lunaris Temple Level 1", "The Ebony Barracks"),
+			("Features/temple_to_battlefront", "The Ebony Barracks", "The Lunaris Temple Level 1"),
+			("Features/templeclean_exit_down", "The Lunaris Temple Level 2", "The Lunaris Temple Level 1"),
+			("LargeWallGardens/garden_arch", "The Imperial Gardens", "The Ebony Barracks"),
 		};
 
 		/// <summary>

@@ -1245,7 +1245,18 @@ namespace AtE {
 			[FieldOffset(0x008)] public readonly IntPtr entOwner;
 			// 3.22.1c: 72 new bytes here?
 			// 3.25: 48 new bytes here?
+			/// <summary>
+			/// Points at an AnimatedObjectInfo: the animated object's name and its .ao file path, both unicode (eg, for General
+			/// Gravicius's falling fireballs, "HellfireBarrageEffect" and
+			/// "Metadata/Effects/Spells/monsters_effects/AtlasofWorldsBosses/Gravicius/ballistastorm.ao"). 3.29.3, the same
+			/// on all 19 of those entities, whose own metadata path is only "Metadata/Effects/SleepableServerEffect".
+			/// </summary>
+			[FieldOffset(0x190)] public readonly IntPtr ptrToAnimatedObjectInfo;
 			[FieldOffset(0x260)] public readonly IntPtr ptrToAnimatedEntity;
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct AnimatedObjectInfo {
+			[FieldOffset(0x00)] public readonly IntPtr strName; // unicode, eg "HellfireBarrageEffect"
+			[FieldOffset(0x08)] public readonly IntPtr strPath; // unicode, the .ao file
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_AnimatedRender {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
@@ -1814,6 +1825,17 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_TimerComponent {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			[FieldOffset(0x18)] public readonly float TimeLeft;
+		}
+
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Transitionable {
+			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			/// <summary>
+			/// 3.30, confirmed live in a pit arena (Metadata/Terrain/Mountain/Arena/Pit) as its encounter started: the
+			/// entity's current state, a small number whose meaning depends on the entity. PitGate and PitGateTransition 1 -> 2
+			/// when the gates closed, and back to 1 when they opened after the last wave (PitSpawnerGate stayed 1); the CockerelEmergePitEncounter / CockerelBowEmergePitEncounter
+			/// monsters are 2 while waiting in the pits for their wave and 3 once out (all 12 of each wave).
+			/// </summary>
+			[FieldOffset(0x120)] public readonly int State;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_TriggerableBlockage {

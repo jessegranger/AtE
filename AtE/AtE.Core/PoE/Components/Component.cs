@@ -322,6 +322,20 @@ namespace AtE {
 	public class SkinMesh : Component<Offsets.Component_Empty> { }
 	public class Animated : Component<Offsets.Component_Animated> {
 		public Entity AnimatedObject => IsValid(Address) && EntityCache.TryGetEntity(Cache.ptrToAnimatedEntity, out Entity ent) ? ent : null;
+
+		private string aoPath;
+		/// <summary>
+		/// The animated object's .ao file path (eg, ".../Gravicius/ballistastorm.ao"), or null. Tells apart effect entities
+		/// whose own metadata path is generic (Metadata/Effects/SleepableServerEffect). Read once per component.
+		/// </summary>
+		public string AnimatedObjectPath {
+			get {
+				if ( aoPath != null || !IsValid(Address) ) return aoPath;
+				if ( PoEMemory.TryRead(Cache.ptrToAnimatedObjectInfo, out Offsets.AnimatedObjectInfo info)
+					&& PoEMemory.TryReadString(info.strPath, Encoding.Unicode, out string path, 512) ) aoPath = path;
+				return aoPath;
+			}
+		}
 	}
 
 
@@ -1056,6 +1070,11 @@ namespace AtE {
 
 	public class TimerComponent : Component<Offsets.Component_TimerComponent> {
 		public float TimeLeft => Cache.TimeLeft;
+	}
+
+	/// <summary>An entity that moves through numbered states (eg, an arena's gates, or monsters waiting for their wave).</summary>
+	public class Transitionable : Component<Offsets.Component_Transitionable> {
+		public int State => Cache.State;
 	}
 
 	public class TriggerableBlockage : Component<Offsets.Component_TriggerableBlockage> {
