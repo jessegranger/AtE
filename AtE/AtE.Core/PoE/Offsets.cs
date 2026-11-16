@@ -613,6 +613,8 @@ namespace AtE {
 			}
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InGameState_Data {
+			// 3.30: found live in a Normal Labyrinth (see LabyrinthData). Not yet checked outside the Labyrinth (Labyrinth.Rooms validates what it reads).
+			[FieldOffset(0x048)] public readonly IntPtr ptrLabyrinthData; // ptr LabyrinthData
 			// 3.22.1b: 4 new bytes here
 			// 3.23: 40 new bytes here
 			// 3.24: 8 fewer bytes here
@@ -668,6 +670,46 @@ namespace AtE {
 			// and by drawing both grids in The Coast (blocked/projectile cells line up with walls and water)
 			// 3.29.4: moved 0xBF0 -> 0xC48 (+0x58); the struct itself is unchanged (found by the TilesX/TilesY pair 96x30 followed by an array of 96*30*0x38 bytes)
 			[FieldOffset(0xC48)] public readonly TerrainData Terrain;
+		}
+
+		// 3.30, InGameState_Data.ptrLabyrinthData. Found live in a Normal Labyrinth (Domain Crossing) by searching for pointers to the
+		// LabyrinthSectionLayout rows: a vector (begin, end, capacity) of the run's rooms, 10 of them from Entry_1 to the final Izaro fight;
+		// each room's neighbour pointers matched its layout row's connections, and the pointer after the vector was the room the player stood in.
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LabyrinthData {
+			[FieldOffset(0x00)] public readonly ArrayHandle Rooms; // of LabyrinthRoom
+			[FieldOffset(0x18)] public readonly IntPtr ptrCurrentRoom; // ptr into Rooms
+		}
+
+		// 3.30, one room of the Labyrinth run (LabyrinthData.Rooms). Which of its room type's areas fills it is not known
+		// (bytes 0x58, 0x59 differ between rooms of one type, maybe that); byte 0x5B equals the layout row's connection count.
+		[StructLayout(LayoutKind.Explicit, Pack = 1, Size = 0x60)] public struct LabyrinthRoom {
+			[FieldOffset(0x00)] public readonly IntPtr ptrNeighbour0; // ptrs to the neighbouring rooms (in LabyrinthRooms), zero when fewer
+			[FieldOffset(0x08)] public readonly IntPtr ptrNeighbour1;
+			[FieldOffset(0x10)] public readonly IntPtr ptrNeighbour2;
+			[FieldOffset(0x18)] public readonly IntPtr ptrNeighbour3;
+			[FieldOffset(0x28)] public readonly IntPtr ptrSectionLayout; // a row of LabyrinthSectionLayout.dat
+			[FieldOffset(0x5B)] public readonly byte ConnectionCount;
+		}
+
+		// 3.30, a row of LabyrinthSectionLayout.dat (stride 0x6C; rows are packed: unaligned)
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LabyrinthSectionLayoutRow {
+			[FieldOffset(0x00)] public readonly IntPtr ptrSection; // a row of LabyrinthSection.dat, whose first field is its Id (eg "End_1_BranchN")
+			[FieldOffset(0x10)] public readonly int Index; // 1-based, within the section
+			[FieldOffset(0x14)] public readonly long ConnectedCount; // of the Index of the rooms it connects to
+			[FieldOffset(0x44)] public readonly IntPtr ptrRoomType; // a row of LabyrinthAreas.dat
+		}
+
+		// 3.30, a row of LabyrinthAreas.dat (stride 0x4C): a room type and the areas that can fill it, per difficulty
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LabyrinthAreasRow {
+			[FieldOffset(0x00)] public readonly IntPtr strId; // eg "OutdoorQuad"
+			[FieldOffset(0x08)] public readonly long NormalCount; // then 4 lists (count, ptr) of 16-byte refs (WorldAreaDetails ptr, table ptr):
+			[FieldOffset(0x10)] public readonly IntPtr ptrNormal;  // Normal, Cruel, Merciless, Eternal
+			[FieldOffset(0x18)] public readonly long CruelCount;
+			[FieldOffset(0x20)] public readonly IntPtr ptrCruel;
+			[FieldOffset(0x28)] public readonly long MercilessCount;
+			[FieldOffset(0x30)] public readonly IntPtr ptrMerciless;
+			[FieldOffset(0x38)] public readonly long EternalCount;
+			[FieldOffset(0x40)] public readonly IntPtr ptrEternal;
 		}
 
 		// 3.29.3, InGameState_Data.ServerData. Found by searching ServerData's pointees for arrays of passive ids, and

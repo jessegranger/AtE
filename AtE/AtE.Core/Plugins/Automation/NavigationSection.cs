@@ -129,9 +129,19 @@ namespace AtE {
 			ImGui.SetNextItemWidth(200);
 			ImGui.InputText("Route to Area", ref RouteGoal, 64);
 			ImGui.SameLine();
-			ImGui_HelpMarker("Name (eg 'The Ledge') or id (eg '1_1_5') of an area; shows the areas to walk through, and highlights the exit to take.");
-			var route = string.IsNullOrWhiteSpace(RouteGoal) ? null : WorldArea.FindRoute(area, RouteGoal.Trim());
-			if ( !string.IsNullOrWhiteSpace(RouteGoal) ) {
+			ImGui_HelpMarker("Name (eg 'The Ledge') or id (eg '1_1_5') of an area; shows the areas to walk through, and highlights the exit to take."
+				+ " In the Labyrinth: a room's area (eg 'Domain Crossing'), its type (eg 'OutdoorQuad'), 'Aspirant's Trial' (the nearest trial) or 'Izaro' (the last one).");
+			var labRoom = Labyrinth.CurrentRoom();
+			if ( labRoom != null ) {
+				Labyrinth.LearnFromExits(labRoom, terrain.Exits);
+				ImGui.Text($"Labyrinth room: {labRoom}");
+				ImGui.TextWrapped($"Rooms next to it: {string.Join(", ", labRoom.Neighbours.Select(r => r.DisplayName))}");
+				if ( !string.IsNullOrWhiteSpace(RouteGoal) ) {
+					var labRoute = Labyrinth.FindRoute(RouteGoal);
+					ImGui.TextWrapped(labRoute == null ? "Route: not found" : $"Route: {string.Join(" -> ", labRoute.Select(r => r.DisplayName))}");
+				}
+			} else if ( !string.IsNullOrWhiteSpace(RouteGoal) ) {
+				var route = WorldArea.FindRoute(area, RouteGoal.Trim());
 				ImGui.TextWrapped(route == null ? "Route: not found" : $"Route: {string.Join(" -> ", route.Select(a => a.DisplayName))}");
 			}
 			if ( terrain.Waypoint is AreaFeature waypoint ) {
@@ -188,6 +198,11 @@ namespace AtE {
 		/// </summary>
 		private AreaExit NextRouteExit(Terrain terrain) {
 			if ( string.IsNullOrWhiteSpace(RouteGoal) ) return null;
+			var labRoom = Labyrinth.CurrentRoom();
+			if ( labRoom != null ) {
+				var labRoute = Labyrinth.FindRoute(RouteGoal);
+				return labRoute == null || labRoute.Count < 2 ? null : Labyrinth.ExitTo(labRoom, labRoute[1], terrain.Exits);
+			}
 			var route = WorldArea.FindRoute(GetCurrentArea(), RouteGoal.Trim());
 			if ( route == null || route.Count < 2 ) return null;
 			return terrain.Exits.FirstOrDefault(e => e.Destination == route[1].Name);

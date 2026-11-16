@@ -476,6 +476,21 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 				+ $"{(WaypointPanel.IsKnownLocked(a.Name) ? " (locked)" : WaypointPanel.IsKnownUnlocked(a.Name) ? " (unlocked)" : "")}";
 			sb.AppendLine($"here: {(here == null ? "?" : Describe(here))}");
 			if ( here != null ) sb.AppendLine($"  connections: {string.Join("; ", here.Connections.Select(Describe))}");
+			var labRoom = Labyrinth.CurrentRoom();
+			if ( labRoom != null ) {
+				var terrain = GetTerrain();
+				if ( terrain != null ) Labyrinth.LearnFromExits(labRoom, terrain.Exits);
+				sb.AppendLine("labyrinth rooms (* = here):");
+				foreach ( var r in Labyrinth.Rooms() ) {
+					sb.AppendLine($"  {(r == labRoom ? "*" : " ")} {r}  -> {string.Join("; ", r.Neighbours.Select(n => n.DisplayName))}");
+				}
+				if ( string.IsNullOrEmpty(to) ) return sb.ToString();
+				var labRoute = Labyrinth.FindRoute(to);
+				if ( labRoute == null ) { sb.AppendLine($"no labyrinth route to {to}"); return sb.ToString(); }
+				sb.AppendLine($"route: {string.Join(" -> ", labRoute.Select(r => r.DisplayName))}");
+				if ( terrain != null && labRoute.Count > 1 ) sb.AppendLine($"exit to take: {Labyrinth.ExitTo(labRoom, labRoute[1], terrain.Exits)?.ToString() ?? "not known yet"}");
+				return sb.ToString();
+			}
 			if ( string.IsNullOrEmpty(to) ) return sb.ToString();
 			var route = WorldArea.FindRoute(here, to);
 			if ( route == null ) { sb.AppendLine($"no route to {to}"); return sb.ToString(); }
