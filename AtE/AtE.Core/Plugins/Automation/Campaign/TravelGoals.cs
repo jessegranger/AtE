@@ -336,11 +336,15 @@ namespace AtE {
 
 	/// <summary>
 	/// Use the Books of Skill in the backpack (a quest reward that gives a passive point): open the inventory, right click
-	/// each. Done once the backpack has been seen open (quest items only show then) with none in it.
+	/// each. Done once the backpack has been seen open (quest items only show then) with none in it, and, after using any,
+	/// /passives read again (ReadPassives), so the quests they came from are known done (CampaignProgress.HasPassiveFrom).
 	/// </summary>
 	public class UseBooks : Goal {
 		private long lastAction;
 		private bool looked; // the backpack was seen open since this goal was last reset (quest items only show once it has been)
+		// a book was used, and /passives not read since (to confirm the quest it came from is done; kept through Reset)
+		private bool usedBook;
+		private ReadPassives passives;
 
 		public override string Name => "Use the Books of Skill";
 		public override bool Sticky => false;
@@ -355,7 +359,7 @@ namespace AtE {
 
 		public override bool CheckDone(CombatContext ctx) {
 			if ( BackpackIsOpen() ) looked = true;
-			return looked && Book() == null;
+			return looked && Book() == null && !usedBook;
 		}
 
 		protected override IState Step(CombatContext ctx) {
@@ -365,7 +369,16 @@ namespace AtE {
 			lastAction = now;
 			if ( !BackpackIsOpen() ) { Detail = "opening the inventory"; return Inputs.Press(VKey.I, this); }
 			var book = BackpackItems().FirstOrDefault(i => IsBook(i.Entity));
-			if ( book == null ) return this;
+			if ( book == null ) {
+				if ( !usedBook ) return this;
+				// all used: read /passives again, so the quests they came from are known done (CampaignProgress.HasPassiveFrom)
+				passives ??= new ReadPassives();
+				if ( !passives.IsDone(ctx) ) { Detail = "confirming the books' quests by /passives"; return Call(passives); }
+				usedBook = false;
+				passives = null;
+				return this;
+			}
+			usedBook = true;
 			Detail = "right clicking a Book of Skill";
 			Log("Campaign: using a Book of Skill");
 			return Inputs.RightClick(book.GetClientRect(), this);

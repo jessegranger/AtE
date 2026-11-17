@@ -76,7 +76,9 @@ namespace AtE {
 			"/mountiantown_connection", "/belly_tunnel",
 			// Act 5 (from the user): The Slave Pens' way to Overseer's Tower; The Control Blocks' to Oriath Square; The Templar
 			// Courts' to The Chamber of Innocence
-			"/tower_v01", "/security_exit", "/templar_to_innocents"
+			"/tower_v01", "/security_exit", "/templar_to_innocents",
+			// Act 6 (from the user): The Ridge's way to The Lower Prison; Prisoner's Gate's road to The Western Forest
+			"/ledge_prisonback", "Road/beachroad_v02_07"
 		};
 
 		/// <summary>
@@ -184,6 +186,13 @@ namespace AtE {
 			("Oriath_AreaTransition_v01_02", "The Reliquary", "The Ruined Square"),
 			("/chitus_statuewall_transition", "The Cathedral Rooftop", "The Ruined Square"),
 			("/Ossuary_Part2_transition", "The Ruined Square", "The Ossuary"),
+			// Act 6 (from the user; not seen live as entities yet)
+			("Transitions/beach_karuipools", "The Karui Fortress", "The Mud Flats"),
+			("Transitions/swamp_to_ridge", "The Ridge", "The Karui Fortress"),
+			("Special/ledge_prisonback", "The Lower Prison", "The Ridge"),
+			("Road/beachroad_v02_07", "The Western Forest", "Prisoner's Gate"),
+			("Transitions/forest_to_river", "The Southern Forest", "The Riverways"),
+			("Forest/Transitions/forest_caveentrance_v01", "The Cavern of Anger", "The Southern Forest"),
 		};
 
 		/// <summary>

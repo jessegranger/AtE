@@ -231,7 +231,7 @@ namespace AtE {
 		/// The default: retreat if low on life, else fight, else explore, else stop.
 		/// </summary>
 		protected virtual void Decide(CombatContext ctx) {
-			if ( TryAugury() || TryRetreat(ctx) || TryFight(ctx) ) return;
+			if ( TryAugury() || TryRetreat(ctx) || TryFight(ctx) || TryInteract(ctx) ) return;
 			if ( !TryExplore(ctx) ) Stop("the area is explored and clear");
 		}
 
@@ -318,7 +318,7 @@ namespace AtE {
 		/// While the augury card selection window is open, either:
 		///  - opened by clicking a frozen augury boss (see ClickMonster): click each visible card (the direct children of
 		///    its GetChild(2, 6, 0)) once, to apply them to the boss, then click Confirm (GetChild(2, 9));
-		///  - opened by "Select a Fate" on an AuguryCardObject (see TrySelectFate; or, if not opened that way, when
+		///  - opened by "Select a Fate" on an AuguryCardObject (see Interactables, FateClicked; or, if not opened that way, when
 		///    GetChild(2, 6, 0) shows no cards but GetChild(2, 5, 0) does): click one of the visible cards (the direct
 		///    children of GetChild(2, 5, 0); see ChooseFateCard), then click Confirm (GetChild(2, 9, 1)).
 		/// Confirm is clicked again every AuguryConfirmRetryMs until the window closes. True while it is open.
@@ -422,66 +422,38 @@ namespace AtE {
 		}
 
 		public const string PATH_AUGURY_CARD_OBJECT = "Metadata/Terrain/Leagues/Augury/Objects/AuguryCardObject";
-		/// <summary>How near (in cells) to be to an AuguryCardObject to click its "Select a Fate" (see TrySelectFate).</summary>
-		public float FateReach = 15;
-		/// <summary>How often to click an AuguryCardObject until its window opens.</summary>
-		public long FateClickMs = 1000;
 		/// <summary>How long after clicking an AuguryCardObject its window counts as opened by that click.</summary>
 		public long FateOpenMs = 3000;
-		/// <summary>Clicks on one AuguryCardObject without its window opening before it is given up on.</summary>
-		public int FateMaxClicks = 5;
 		private bool selectingFate;
 		private long lastFateClick;
-		private uint fateArea;
-		private readonly Dictionary<uint, int> fateClicks = new Dictionary<uint, int>(); // entity id: clicks, in this area instance
+
+		/// <summary>
+		/// "Select a Fate" was clicked on an AuguryCardObject (see Interactables' Augury Card): a window opening within
+		/// FateOpenMs is the fate's (TryAugury chooses a card in it).
+		/// </summary>
+		public void FateClicked() {
+			lastFateClick = Time.ElapsedMilliseconds;
+			selectingFate = true;
+		}
 
 		/// <summary>Is e an AuguryCardObject whose fate has not been selected yet (its StateMachine's card_chosen is 0)?</summary>
 		public static bool IsUnusedAuguryCard(Entity e) => IsValid(e) && e.Path == PATH_AUGURY_CARD_OBJECT
 			&& (e.GetComponent<StateMachine>()?.TryGetState("card_chosen", out long chosen) ?? false) && chosen == 0
 			&& (e.GetComponent<Targetable>()?.IsTargetable ?? true);
 
+		private readonly Interactables interactables = new Interactables();
+
 		/// <summary>
-		/// "Select a Fate" from an unused AuguryCardObject in range (see IsUnusedAuguryCard): walk within FateReach of it,
-		/// then click it (its "Select a Fate" label) every FateClickMs, until its augury card selection window opens (then
-		/// TryAugury selects the fate). Not with monsters within AttackRange (fight them first), nor while the window is
-		/// open. One clicked FateMaxClicks times without the window opening is given up on. True while doing so.
+		/// Use the nearest thing worth clicking in range (see Interactables: an augury card's "Select a Fate", a Demonic
+		/// Evocator, a Crafting Recipe, a Shrine, ...; each kind on or off in Combat's Interactables, see CombatSection):
+		/// walk to it and click it. Not with monsters within AttackRange (fight them first), nor with the inventory or the
+		/// augury window open. True while doing so.
 		/// </summary>
-		public bool TrySelectFate(CombatContext ctx) {
-			if ( AuguryIsOpen() || BackpackIsOpen() ) return false;
-			uint area = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
-			if ( area != fateArea ) { fateArea = area; fateClicks.Clear(); }
+		public bool TryInteract(CombatContext ctx) {
+			if ( !Interactables.AnyEnabled || AuguryIsOpen() || BackpackIsOpen() ) return false;
 			if ( ctx.Hostiles.Any(h => h.Distance <= AttackRange) ) return false;
-			var card = GetEntities()?
-				.Where(e => IsUnusedAuguryCard(e) && (!fateClicks.TryGetValue(e.Id, out int n) || n < FateMaxClicks))
-				.Select(e => (e, pos: e.GetComponent<Positioned>()))
-				.Where(x => IsValid(x.pos))
-				.OrderBy(x => Combat.Distance(ctx.Grid, x.pos.GridPos))
-				.FirstOrDefault() ?? default;
-			if ( card.e == null ) return false;
-			var grid = card.pos.GridPos;
-			float d = Combat.Distance(ctx.Grid, grid);
-			if ( d > FateReach ) {
-				var spot = DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, grid, out var s) ? s : grid;
-				if ( Combat.Distance(ctx.Grid, spot) > 3 ) {
-					WalkTo(spot, $"walking to an augury card object to select a fate, {d:F0} cells away");
-					return true;
-				}
-			}
-			StopWalking("selecting a fate");
-			Status = "clicking \"Select a Fate\"";
-			if ( InputBusy || binding || Time.ElapsedMilliseconds - lastFateClick < FateClickMs ) return true;
-			var click = Ground.ClickEntity(card.e);
-			if ( click == null ) {
-				WalkTo(grid, "walking to an augury card object (can't click it from here)");
-				return true;
-			}
-			DefaultFollower.ReleaseMouse();
-			if ( Send(click) ) {
-				lastFateClick = Time.ElapsedMilliseconds;
-				selectingFate = true;
-				fateClicks[card.e.Id] = fateClicks.TryGetValue(card.e.Id, out int clicks) ? clicks + 1 : 1;
-				Log($"{Name}: clicked \"Select a Fate\" on the augury card object {card.e.Id} (click {fateClicks[card.e.Id]})");
-			}
+			if ( !interactables.TryUse(this, ctx) ) return false;
+			Status = interactables.Status;
 			return true;
 		}
 

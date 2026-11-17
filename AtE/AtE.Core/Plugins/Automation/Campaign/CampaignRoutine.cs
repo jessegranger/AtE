@@ -103,7 +103,7 @@ namespace AtE {
 			new ReadCampaignProgress(),
 			new ReadGameKeys(), // (the inventory key, for TrySyncInventory; the Portal Scroll key)
 			new Sequence("Complete Part 1", Act1(), Act2(), Act3(), Act4(), Act5()) { DoneWhen = () => CampaignProgress.Part1Done },
-			new Sequence("Complete Part 2", Act(6), Act(7), Act(8), Act(9), Act(10)) { DoneWhen = () => CampaignProgress.CampaignDone }
+			new Sequence("Complete Part 2", Act6(), Act(7), Act(8), Act(9), Act(10)) { DoneWhen = () => CampaignProgress.CampaignDone }
 		) { DoneWhen = () => CampaignProgress.CampaignDone };
 
 		// an act whose goals are not written yet
@@ -178,6 +178,10 @@ namespace AtE {
 		// Act 5: its quests (see Act5Quests; The Ravenous God's last step, talking to Lilly Roth, is the way on to Act 6)
 		private Sequence Act5() => new Sequence("Complete Act 5", Quests(5), StopAfter(10000, "the way on to Act 6 (the quests did not get there)")) {
 			DoneWhen = () => CampaignProgress.ActDone(5) };
+
+		// Act 6: its quests (see Act6Quests; The Brine King's last step, talking to Weylam Roth, is the way on to Act 7)
+		private Sequence Act6() => new Sequence("Complete Act 6", Quests(6), StopAfter(10000, "the way on to Act 7 (the quests did not get there)")) {
+			DoneWhen = () => CampaignProgress.ActDone(6) };
 
 		/// <summary>Stand still for ms (counted again each time it is come back to), then stop the routine, as NotSpecified does.</summary>
 		private static Goal StopAfter(long ms, string what) {
@@ -343,7 +347,7 @@ namespace AtE {
 			var goal = CurrentGoal;
 			if ( goal == null ) {
 				// all done: what a combat driver does
-				if ( !TryUpgradeFlask(ctx) && !TryKeepAuras(ctx) && !TryLoot(ctx) && !TrySelectFate(ctx) ) base.Decide(ctx);
+				if ( !TryUpgradeFlask(ctx) && !TryKeepAuras(ctx) && !TryLoot(ctx) && !TryInteract(ctx) ) base.Decide(ctx);
 				return;
 			}
 			SetStatus(goal.Name);
@@ -361,8 +365,9 @@ namespace AtE {
 				return;
 			}
 			if ( !goal.UsesInventory && !goal.IgnoreMonsters && TryLoot(ctx) ) return;
-			// an AuguryCardObject's "Select a Fate" (its window is worked on by TryAugury, above)
-			if ( !goal.UsesInventory && !goal.IgnoreMonsters && TrySelectFate(ctx) ) { SetStatus($"{goal.Name}: {Status}"); return; }
+			// a thing worth clicking in passing (an AuguryCardObject's "Select a Fate", whose window is worked on by TryAugury,
+			// above; a Demonic Evocator, a Crafting Recipe, a Shrine, ...; see Interactables)
+			if ( !goal.UsesInventory && !goal.IgnoreMonsters && !FightsItself(goal, ctx) && TryInteract(ctx) ) { SetStatus($"{goal.Name}: {Status}"); return; }
 			if ( !Runner.Tick(ctx, FrameDt) ) lastSelect = 0; // the goal handed back (done): choose again next frame
 			var top = Runner.Stack().OfType<CampaignState>().FirstOrDefault();
 			if ( top != null && top != goal ) SetStatus($"{goal.Name}: {top}");

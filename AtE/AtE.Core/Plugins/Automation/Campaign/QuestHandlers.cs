@@ -615,18 +615,6 @@ namespace AtE {
 			});
 		}
 
-		private void Act6Quests(FinishAllQuests quests) {
-			quests.Handlers.Add(Stub("Fallen from Grace"));
-			quests.Handlers.Add(Stub("Bestel's Epic"));
-			quests.Handlers.Add(Stub("The Father of War"));
-			quests.Handlers.Add(Stub("Essence of Umbra"));
-			quests.Handlers.Add(Stub("The Cloven One"));
-			quests.Handlers.Add(Stub("The Puppet Mistress"));
-			quests.Handlers.Add(Stub("The Brine King"));
-			quests.Handlers.Add(Stub("The Rogue Harbour"));
-			quests.Handlers.Add(Stub("The Lost Expedition"));
-		}
-
 		private void Act7Quests(FinishAllQuests quests) {
 			quests.Handlers.Add(Stub("The Silver Locket"));
 			quests.Handlers.Add(Stub("Essence of the Artist"));

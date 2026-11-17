@@ -193,7 +193,7 @@ namespace AtE {
 		public override string Name => "Read the campaign progress";
 		public override bool Sticky => false;
 		public override bool UsesInventory => true; // (it opens and closes the inventory itself)
-		public override void Reset() { base.Reset(); tries = inventoryTries = passivesTries = 0; bothOpenAt = passivesSentAt = 0; }
+		public override void Reset() { base.Reset(); tries = inventoryTries = 0; bothOpenAt = 0; passives = null; }
 		// did it open the panel / the inventory itself (so it is to close them): the panel is also the waypoint's, and one
 		// a waypoint goal opened must be left open (closing it here made a waypoint goal and this one take turns)
 		private bool openedIt, openedInventory;
@@ -257,35 +257,60 @@ namespace AtE {
 			if ( openedIt && panel != null ) return Press(Key, now, null);
 			// 6. /passives: which quests' passive points the character has (they are done; see CampaignProgress.PassiveQuests)
 			if ( !CampaignProgress.PassivesRead ) {
-				if ( passivesSentAt == 0 ) {
-					if ( ++passivesTries > 2 ) {
-						Log("Campaign: /passives gave no reply: going on without it");
-						CampaignProgress.PassivesRead = true;
-						return this;
-					}
-					Detail = "sending /passives";
-					passivesSentAt = now;
-					passivesMark = ChatCommand.LastMessage();
-					return ChatCommand.Send("/passives", this);
-				}
-				// read the reply as soon as it is in the chat (only messages after the send, so not an older reply)
-				Detail = "reading /passives' reply";
-				if ( CampaignProgress.ReadPassives(ChatCommand.MessagesAfter(passivesMark)) ) return this;
-				if ( now - passivesSentAt > PassivesTimeoutMs ) passivesSentAt = 0; // (no reply: send it again)
+				passives ??= new ReadPassives();
+				if ( !passives.IsDone(ctx) ) return Call(passives);
 			}
 			return this;
 		}
 
-		/// <summary>How long to wait for /passives' reply before sending it again.</summary>
-		public long PassivesTimeoutMs = 2000;
-		private long passivesSentAt;
-		private IntPtr passivesMark;
-		private int passivesTries;
+		private ReadPassives passives;
 
 		private IState Press(VKey key, long now, Action pressed) {
 			lastPress = now;
 			pressed?.Invoke();
 			return Inputs.Press(key, this);
+		}
+	}
+
+	/// <summary>
+	/// Send /passives and read its reply (CampaignProgress.ReadPassives: which quests' passive points the character has).
+	/// Quick, and can be done again at any time (eg, after using a Book of Skill, to confirm the quest it came from is
+	/// done): each one is a new send, and only the messages after it are read, so not an older reply. With no reply after
+	/// MaxSends sends, done anyway (going on with what was read before).
+	/// </summary>
+	public class ReadPassives : Goal {
+		/// <summary>How long to wait for the reply before sending it again.</summary>
+		public long TimeoutMs = 2000;
+		public int MaxSends = 2;
+		private long sentAt;
+		private IntPtr mark;
+		private int sends;
+		private bool done;
+		public override string Name => "Read /passives";
+		public override bool Sticky => false;
+		public override void Reset() { base.Reset(); sentAt = 0; sends = 0; done = false; }
+		public override bool CheckDone(CombatContext ctx) => done;
+
+		protected override IState Step(CombatContext ctx) {
+			ctx.Driver.StopWalking("reading /passives");
+			long now = Time.ElapsedMilliseconds;
+			if ( sentAt == 0 ) {
+				if ( ++sends > MaxSends ) {
+					Log("Campaign: /passives gave no reply: going on without it");
+					CampaignProgress.PassivesRead = true;
+					done = true;
+					return this;
+				}
+				Detail = "sending /passives";
+				sentAt = now;
+				mark = ChatCommand.LastMessage();
+				return ChatCommand.Send("/passives", this);
+			}
+			// read the reply as soon as it is in the chat
+			Detail = "reading /passives' reply";
+			if ( CampaignProgress.ReadPassives(ChatCommand.MessagesAfter(mark)) ) { done = true; return this; }
+			if ( now - sentAt > TimeoutMs ) sentAt = 0; // (no reply: send it again)
+			return this;
 		}
 	}
 

@@ -1,0 +1,145 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using static AtE.Globals;
+
+namespace AtE {
+
+	/// <summary>
+	/// Things out in an area worth clicking whenever a routine passes them (see CombatDriver.TryInteract): walk near the
+	/// nearest within MaxDistance (that can be walked to), click it (its label, else the entity), and go on. One is used
+	/// once it is no longer targetable, its label is gone, or its kind says so (Kind.Used); one clicked MaxClicks times
+	/// and still not used is left until the next area instance.
+	///
+	/// The kinds (Kinds; add more there):
+	///  - an Augury Card: "Select a Fate" on an unused Metadata/Terrain/Leagues/Augury/Objects/AuguryCardObject (see
+	///    CombatDriver.IsUnusedAuguryCard), clicked until its window opens (CombatDriver.TryAugury then chooses a card;
+	///    nothing is clicked while the window is open, see CombatDriver.TryInteract)
+	///  - the Demonic Evocator: Metadata/Monsters/BeyondDemons/BeyondInitiator (3.30, seen live: no name, its label the
+	///    text "Interact to cause slaying enemies close together to attract monsters from Beyond this realm"; it has
+	///    InteractionAction, Targetable, StateMachine, Transitionable)
+	///  - a Crafting Recipe: its label "Crafting Recipe"
+	///  - a Voltaxic Sulphite Vein: Metadata/Terrain/Leagues/Delve/Objects/DelveMineralVein (3.30, seen live: three in an
+	///    area, each with the label "Interact to acquire Voltaxic Sulphite, used within the Azurite Mine"; InteractionAction,
+	///    StateMachine, Targetable; once used, Targetable.IsTargetable goes 1 -> 0 and its label is gone, seen live)
+	///  - a Shrine: Metadata/Shrines/..., used once its Shrine component says it is taken
+	/// TODO: confirm live: the Crafting Recipe's entity and what changes once it is used; a shrine's path, label, and
+	/// Shrine.IsTaken (not seen yet); what the Evocator's state is once used (here: Targetable going false, or its label)
+	/// </summary>
+	public class Interactables {
+		public class Kind {
+			public string Name;
+			/// <summary>A part of the entity's metadata path (null: matched by LabelText).</summary>
+			public string PathPart;
+			/// <summary>A part of its label's text (null: matched by PathPart).</summary>
+			public string LabelText;
+			/// <summary>Used up, from the entity itself (eg, a shrine taken); null: by Targetable and the label only.</summary>
+			public Func<Entity, bool> Used;
+			/// <summary>Clicks on one before it is given up on; 0: Interactables.MaxClicks.</summary>
+			public int MaxClicks;
+			/// <summary>Time for a click to work before clicking again; 0: Interactables.ClickMs.</summary>
+			public long ClickMs;
+			/// <summary>Called after each click sent on one (eg, so the window it opens is known to be its own).</summary>
+			public Action<CombatDriver> Clicked;
+		}
+
+		public static readonly List<Kind> Kinds = new List<Kind>() {
+			new Kind() { Name = "Augury Card (Select a Fate)", PathPart = CombatDriver.PATH_AUGURY_CARD_OBJECT, Used = e => !CombatDriver.IsUnusedAuguryCard(e),
+				MaxClicks = 5, ClickMs = 1000, Clicked = driver => driver.FateClicked() },
+			new Kind() { Name = "Demonic Evocator", PathPart = "BeyondDemons/BeyondInitiator" },
+			new Kind() { Name = "Crafting Recipe", LabelText = "Crafting Recipe" },
+			new Kind() { Name = "Voltaxic Sulphite Vein", PathPart = "Delve/Objects/DelveMineralVein" },
+			new Kind() { Name = "Shrine", PathPart = "Metadata/Shrines/", Used = e => e.GetComponent<Shrine>() is Shrine s && IsValid(s) && !s.IsAvailable },
+		};
+
+		/// <summary>Is the kind switched on (Combat's Interactables settings, see CombatSection)?</summary>
+		public static bool IsEnabled(Kind kind) => GetPlugin<AutomationPlugin>()?.Combat.IsInteractableEnabled(kind.Name) ?? true;
+		/// <summary>Is any kind switched on?</summary>
+		public static bool AnyEnabled => Kinds.Any(IsEnabled);
+
+		/// <summary>Leave ones further than this many cells away.</summary>
+		public float MaxDistance = 60;
+		/// <summary>Click when within this many cells (the click walks the rest of the way).</summary>
+		public float Reach = 15;
+		/// <summary>Clicks on one before it is given up on (for this area instance).</summary>
+		public int MaxClicks = 3;
+		/// <summary>Time for a click to work before clicking the same one again.</summary>
+		public long ClickMs = 1500;
+
+		/// <summary>What it is doing, for the status line.</summary>
+		public string Status { get; private set; } = "";
+
+		private uint area;
+		private readonly Dictionary<uint, int> clicks = new Dictionary<uint, int>(); // entity id: clicks, in this area instance
+		private readonly HashSet<uint> passedOver = new HashSet<uint>(); // (logged once each, in this area instance)
+		private long lastClick;
+
+		/// <summary>Forget the clicks (eg, the routine started over).</summary>
+		public void Reset() { clicks.Clear(); passedOver.Clear(); area = 0; }
+
+		/// <summary>The one to use next: the nearest, not used, not given up on, that can be walked to; null if none.</summary>
+		private (Entity ent, Kind kind, LabelOnGround label, Offsets.Vector2i grid, float distance) Next(CombatContext ctx) {
+			var labels = GetUI()?.LabelsOnGround?.GetAllLabels()?.ToList() ?? new List<LabelOnGround>();
+			var found = new List<(Entity, Kind, LabelOnGround, Offsets.Vector2i, float)>();
+			void Consider(Entity e, Kind kind, LabelOnGround label) {
+				if ( !IsValid(e) ) return;
+				string why = null;
+				var pos = e.GetComponent<Positioned>();
+				float d = IsValid(pos) ? Combat.Distance(ctx.Grid, pos.GridPos) : float.MaxValue;
+				if ( clicks.TryGetValue(e.Id, out int n) && n >= (kind.MaxClicks > 0 ? kind.MaxClicks : MaxClicks) ) why = $"clicked {n} times";
+				else if ( !(e.GetComponent<Targetable>()?.IsTargetable ?? true) ) why = "not targetable";
+				else if ( kind.Used?.Invoke(e) ?? false ) why = "used";
+				else if ( !IsValid(pos) ) why = "no position";
+				else if ( d > MaxDistance ) why = null; // (too far: not said, it comes nearer)
+				else if ( !DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, pos.GridPos, out _, 15) ) why = "can't be walked to";
+				else { found.Add((e, kind, label, pos.GridPos, d)); return; }
+				if ( why != null && passedOver.Add(e.Id) ) Log($"Interactables: passing over the {kind.Name} {e.Id} at {(IsValid(pos) ? pos.GridPos.ToString() : "?")}: {why}");
+			}
+			foreach ( var kind in Kinds.Where(IsEnabled) ) {
+				if ( kind.LabelText != null ) {
+					foreach ( var l in labels ) {
+						if ( (Ground.LabelText(l.Label)?.IndexOf(kind.LabelText, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0 ) Consider(l.Item, kind, l);
+					}
+				} else {
+					foreach ( var e in GetEntities() ?? Enumerable.Empty<Entity>() ) {
+						if ( e != null && (e.Path?.IndexOf(kind.PathPart, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0 )
+							Consider(e, kind, labels.FirstOrDefault(l => l.Item?.Address == e.Address));
+					}
+				}
+			}
+			return found.OrderBy(f => f.Item5).FirstOrDefault();
+		}
+
+		/// <summary>Work on using the nearest one (walking to it, clicking it); false if there is none.</summary>
+		public bool TryUse(CombatDriver driver, CombatContext ctx) {
+			uint hash = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
+			if ( hash != area ) { area = hash; clicks.Clear(); passedOver.Clear(); }
+			var (ent, kind, label, grid, d) = Next(ctx);
+			if ( ent == null ) return false;
+			if ( d > Reach ) {
+				var spot = DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, grid, out var s) ? s : grid;
+				Status = $"walking to a {kind.Name}, {d:F0} cells away";
+				driver.WalkTo(spot, Status);
+				return true;
+			}
+			Status = $"using a {kind.Name}";
+			driver.StopWalking(Status);
+			if ( driver.InputBusy || Time.ElapsedMilliseconds - lastClick < (kind.ClickMs > 0 ? kind.ClickMs : ClickMs) ) return true;
+			var click = label != null ? Ground.ClickLabel(label) : null;
+			click ??= Ground.ClickEntity(ent);
+			if ( click == null ) {
+				Status = $"walking to a {kind.Name} (can't click it from here)";
+				driver.WalkTo(grid, Status);
+				return true;
+			}
+			DefaultFollower.ReleaseMouse();
+			if ( driver.Send(click) ) {
+				lastClick = Time.ElapsedMilliseconds;
+				clicks[ent.Id] = clicks.TryGetValue(ent.Id, out int n) ? n + 1 : 1;
+				kind.Clicked?.Invoke(driver);
+				Log($"{driver.Name}: clicked the {kind.Name} {ent.Id} at {grid} (click {clicks[ent.Id]})");
+			}
+			return true;
+		}
+	}
+}

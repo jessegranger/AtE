@@ -110,6 +110,34 @@ namespace AtE {
 		/// <summary>Starts and stops the chosen routine.</summary>
 		public HotKey ToggleKey = new HotKey(VKey.None);
 
+		/// <summary>Click the things worth clicking when passing them, while a routine runs (see Interactables).</summary>
+		public bool UseInteractables = true;
+		/// <summary>The kinds of Interactables switched off (their names, separated by commas).</summary>
+		public string DisabledInteractables = "";
+
+		/// <summary>Is the kind of Interactables named name switched on?</summary>
+		public bool IsInteractableEnabled(string name) => UseInteractables && !DisabledInteractableNames().Contains(name);
+		private HashSet<string> DisabledInteractableNames() => new HashSet<string>(
+			DisabledInteractables.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0), StringComparer.OrdinalIgnoreCase);
+
+		private void RenderInteractables() {
+			if ( !ImGui.TreeNode("Interactables") ) return;
+			ImGui.Checkbox("Use Interactables", ref UseInteractables);
+			ImGui.SameLine();
+			ImGui_HelpMarker("While a routine runs, walk to and click the kinds checked below when passing them (within 60 cells, with no monsters in attack range).");
+			if ( !UseInteractables ) ImGui.BeginDisabled();
+			var disabled = DisabledInteractableNames();
+			foreach ( var kind in Interactables.Kinds ) {
+				bool on = !disabled.Contains(kind.Name);
+				if ( ImGui.Checkbox(kind.Name, ref on) ) {
+					if ( on ) disabled.Remove(kind.Name); else disabled.Add(kind.Name);
+					DisabledInteractables = string.Join(", ", disabled.OrderBy(n => n));
+				}
+			}
+			if ( !UseInteractables ) ImGui.EndDisabled();
+			ImGui.TreePop();
+		}
+
 		/// <summary>One of each combat driver there is.</summary>
 		[NoPersist]
 		public readonly List<CombatDriver> Routines = typeof(CombatDriver).Assembly.GetTypes()
@@ -134,6 +162,7 @@ namespace AtE {
 				ImGui.SameLine();
 				ImGui.Text(current.IsActive ? $"On: {current.Status}" : $"Off ({current.Status})");
 			}
+			RenderInteractables();
 			ImGui.Separator();
 			current?.Render();
 		}

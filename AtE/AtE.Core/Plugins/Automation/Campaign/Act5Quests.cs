@@ -179,7 +179,8 @@ namespace AtE {
 		private bool tormentsSeen;
 		private bool TormentsDone() {
 			tormentsSeen = tormentsSeen || StepOf(KitavasTorments) != null;
-			// (its passive point, as /passives said at the start of the run; or the quest gone from the tracker after being in it)
+			// (its passive point, as /passives said: at the start of the run, and again after its Book of Skill is used, see
+			// UseBooks; or the quest gone from the tracker after being in it)
 			return CampaignProgress.HasPassiveFrom(KitavasTorments) || (tormentsSeen && StepOf(KitavasTorments) == null);
 		}
 		private static int TormentsHad() => Torments.Count(Equipment.HasQuestItem);
