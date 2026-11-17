@@ -491,7 +491,8 @@ namespace AtE {
 			// When the pointer is over an ImGui element, ImGui sets WantCapture* (from the prior
 			// frame). Turn click-through OFF so input lands on the overlay, ON otherwise — exactly
 			// the gating the Windows backend does in ImGuiController.NewFrame.
-			bool wantInput = io.WantCaptureKeyboard || io.WantCaptureMouse;
+			// Only while the overlay or the game is focused, so clicks meant for other apps pass through.
+			bool wantInput = (io.WantCaptureKeyboard || io.WantCaptureMouse) && Overlay.OverlayOrGameFocused;
 			Platform.Current.Window.SetClickThrough(!wantInput);
 
 			// While click-through is on, the overlay receives no button events, so a release can fall

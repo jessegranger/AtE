@@ -48,6 +48,10 @@ namespace AtE {
 		}
 
 		public static bool HasFocus => Platform.Current.Window.HasFocus;
+
+		/// <summary>True when the overlay or the game is the foreground window: the only time the
+		/// overlay may turn click-through off, so it never swallows clicks meant for other apps.</summary>
+		public static bool OverlayOrGameFocused => HasFocus || Platform.Current.Keys.IsTargetForeground();
 		/// <summary>True while clicks go through the overlay to the game (see IOverlayWindow.IsClickThrough).</summary>
 		public static bool IsClickThrough => Platform.Current.Window.IsClickThrough;
 

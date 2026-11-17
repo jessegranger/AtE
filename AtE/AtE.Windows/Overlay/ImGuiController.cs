@@ -325,8 +325,11 @@ namespace AtE {
 			// When the mouse interacts with an ImGui element, ImGui sets WantCaptureMouse = true.
 			// We then turn click-through OFF so mouse/keyboard events flow into the overlay and get
 			// captured; once the pointer leaves the ImGui element, click-through goes back on. The
-			// seam's setter already no-ops when the state is unchanged.
-			Platform.Current.Window.SetClickThrough(!(IO.WantCaptureKeyboard || IO.WantCaptureMouse));
+			// seam's setter already no-ops when the state is unchanged. Only when the overlay or the
+			// game is focused, though: otherwise the topmost overlay would eat clicks meant for
+			// whatever other app is in front.
+			bool wantInput = (IO.WantCaptureKeyboard || IO.WantCaptureMouse) && Overlay.OverlayOrGameFocused;
+			Platform.Current.Window.SetClickThrough(!wantInput);
 
 
 			ImGui.NewFrame();
