@@ -655,6 +655,12 @@ namespace AtE {
 		public bool TryDodgeTrap(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i trap, float z) =>
 			UseTravelSkills && TravelSkills.Instance.TryDodge(this, terrain, player, trap, z);
 
+		public bool HasTravelSkill => UseTravelSkills && TravelSkills.Instance.HasAny;
+
+		/// <summary>The path goes through a chest or barrel: a travel skill past it (see TravelSkills.TrySkip).</summary>
+		public bool TrySkipObstacle(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i obstacle, int obstacleIndex, float z) =>
+			UseTravelSkills && TravelSkills.Instance.TrySkip(this, () => InputBusy, Send, terrain, player, obstacle, obstacleIndex, z);
+
 		/// <summary>
 		/// Stop the player at once: tap the main skill for one InputLatency (too short to cast, but it ends the walk), where
 		/// the cursor is. False if there is no main skill on the bar (or it is Movement), or input is still going out.

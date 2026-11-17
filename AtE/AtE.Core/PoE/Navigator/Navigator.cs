@@ -46,7 +46,7 @@ namespace AtE {
 		public NavPath LeverLeg, AfterLeg;
 	}
 
-	public enum NavStepKind { Walk, OpenDoor, UseLever }
+	public enum NavStepKind { Walk, OpenDoor, UseLever, SkipObstacle }
 
 	public class NavStep {
 		public NavStepKind Kind;
@@ -56,9 +56,14 @@ namespace AtE {
 		public AreaDoor Door;
 		/// <summary>UseLever: the lever to pull, by clicking its label (AreaLever.GetLabel).</summary>
 		public AreaLever Lever;
+		/// <summary>SkipObstacle: the chest or barrel the path goes through (Target is where it stands), to get past with a travel skill.</summary>
+		public AreaObstacle Obstacle;
+		/// <summary>The index in the path's Cells this step is at (Walk: its target; SkipObstacle: the cell nearest the obstacle).</summary>
+		public int CellIndex = -1;
 		public override string ToString() =>
 			Kind == NavStepKind.Walk ? $"walk to {Target}"
 			: Kind == NavStepKind.UseLever ? $"use lever {Lever?.EntityId} at {Target} (for door {Door?.EntityId})"
+			: Kind == NavStepKind.SkipObstacle ? $"travel skill past {Obstacle}"
 			: $"open {(Door?.IsLocked == true ? "locked " : "")}door {Door?.EntityId} at {Target}";
 	}
 
@@ -108,6 +113,8 @@ namespace AtE {
 		public int MaxLeverCandidates = 6;
 		/// <summary>Why the last FindPath returned null, when it was not simply unreachable (eg, a locked door with no usable lever).</summary>
 		public string LastFailure { get; private set; }
+		/// <summary>A path passing within this many cells of a standing obstacle (Terrain.Obstacles) gets a SkipObstacle step there.</summary>
+		public float ObstacleRadius = 4f;
 		/// <summary>The clearance given to the cells of a door's passage.</summary>
 		public byte DoorClearance = 3;
 
@@ -438,9 +445,12 @@ namespace AtE {
 			var indices = new List<int>(leverLeg.WaypointIndices);
 			for ( int i = 1; i < after.WaypointIndices.Count; i++ ) indices.Add(leverIndex + after.WaypointIndices[i]);
 			var steps = new List<NavStep>(leverLeg.Steps) {
-				new NavStep() { Kind = NavStepKind.UseLever, Target = lever.GridPos, Lever = lever, Door = door }
+				new NavStep() { Kind = NavStepKind.UseLever, Target = lever.GridPos, Lever = lever, Door = door, CellIndex = leverIndex }
 			};
-			steps.AddRange(after.Steps);
+			foreach ( var s in after.Steps ) {
+				steps.Add(new NavStep() { Kind = s.Kind, Target = s.Target, Door = s.Door, Lever = s.Lever, Obstacle = s.Obstacle,
+					CellIndex = s.CellIndex < 0 ? -1 : leverIndex + s.CellIndex });
+			}
 			return new NavPath() {
 				Cells = cells,
 				Plan = cells,
@@ -465,14 +475,20 @@ namespace AtE {
 
 		private NavPath FindPathCore(Terrain terrain, Offsets.Vector2i start, Offsets.Vector2i goal) {
 			if ( terrain == null || !terrain.IsLoaded ) return null;
-			if ( !TrySnap(terrain, start, out start) || !TrySnap(terrain, goal, out goal) ) return null;
+			if ( !TrySnap(terrain, start, out var snappedStart) ) { LastFailure = $"no walkable cell near the start {start}"; return null; }
+			if ( !TrySnap(terrain, goal, out var snappedGoal) ) { LastFailure = $"no walkable cell near the goal {goal}"; return null; }
+			start = snappedStart;
+			goal = snappedGoal;
 			var timer = Stopwatch.StartNew();
 			Prepare(terrain);
 			SnapshotDoors();
 
 			int startR = cellRegion[((start.Y + 1) * pw) + start.X + 1];
 			int goalR = cellRegion[((goal.Y + 1) * pw) + goal.X + 1];
-			if ( regionComponent[startR] != regionComponent[goalR] ) return null; // not connected at all
+			if ( regionComponent[startR] != regionComponent[goalR] ) { // not connected at all
+				LastFailure = $"the start {start} (region {startR}) and goal {goal} (region {goalR}) are not connected";
+				return null;
+			}
 
 			string method = "corridor";
 			List<Offsets.Vector2i> cells = null;
@@ -487,7 +503,7 @@ namespace AtE {
 				method = "full";
 				cells = Search(start, goal, false, null, ref expanded, out cost);
 			}
-			if ( cells == null ) return null;
+			if ( cells == null ) { LastFailure = $"no cells found from {start} to {goal} (corridor and full search)"; return null; }
 			return Finish(new NavPath() {
 				Cells = cells,
 				Plan = cells,
@@ -607,7 +623,7 @@ namespace AtE {
 			var steps = new List<NavStep>();
 			void WalkTo(int index) {
 				waypoints.Add(index);
-				steps.Add(new NavStep() { Kind = NavStepKind.Walk, Target = cells[index] });
+				steps.Add(new NavStep() { Kind = NavStepKind.Walk, Target = cells[index], CellIndex = index });
 			}
 			int pieceStart = 0;
 			for ( int i = 1; i < cells.Count; i++ ) {
@@ -619,18 +635,47 @@ namespace AtE {
 				var piece = SmoothIndices(cells, pieceStart, i - 1);
 				for ( int k = 1; k < piece.Count; k++ ) WalkTo(piece[k]);
 				// open it, then walk through it
-				steps.Add(new NavStep() { Kind = NavStepKind.OpenDoor, Target = doors[door - 1].GridPos, Door = doors[door - 1] });
+				steps.Add(new NavStep() { Kind = NavStepKind.OpenDoor, Target = doors[door - 1].GridPos, Door = doors[door - 1], CellIndex = i });
 				WalkTo(exit);
 				pieceStart = exit;
 				i = exit;
 			}
 			var last = SmoothIndices(cells, pieceStart, cells.Count - 1);
 			for ( int k = 1; k < last.Count; k++ ) WalkTo(last[k]);
+			AddObstacleSteps(cells, steps);
 			path.WaypointIndices = waypoints;
 			path.Waypoints = Pick(cells, waypoints);
 			path.Steps = steps;
 			path.ElapsedMs = timer.Elapsed.TotalMilliseconds;
 			return path;
+		}
+
+		/// <summary>
+		/// A SkipObstacle step (in order along the path) for each standing obstacle (Terrain.Obstacles) the path passes
+		/// within ObstacleRadius of: the path goes as if it were not there, and the follower gets past it with a travel skill.
+		/// </summary>
+		private void AddObstacleSteps(List<Offsets.Vector2i> cells, List<NavStep> steps) {
+			var obstacles = prepared?.Obstacles;
+			if ( obstacles == null || obstacles.Count == 0 || cells.Count < 2 ) return;
+			float r2 = ObstacleRadius * ObstacleRadius;
+			var found = new List<NavStep>();
+			foreach ( var obstacle in obstacles ) {
+				int best = -1;
+				float bestD = r2;
+				for ( int i = 0; i < cells.Count; i++ ) {
+					float dx = cells[i].X - obstacle.GridPos.X, dy = cells[i].Y - obstacle.GridPos.Y;
+					float d = (dx * dx) + (dy * dy);
+					if ( d <= bestD ) { bestD = d; best = i; }
+				}
+				if ( best >= 0 ) found.Add(new NavStep() { Kind = NavStepKind.SkipObstacle, Target = obstacle.GridPos, Obstacle = obstacle, CellIndex = best });
+			}
+			// (several close together, eg a cluster of barrels, are a step each: the follower passes over those a skill already got past)
+			found.Sort((a, b) => a.CellIndex.CompareTo(b.CellIndex));
+			foreach ( var step in found ) {
+				int at = steps.FindIndex(s => s.CellIndex >= step.CellIndex);
+				if ( at < 0 ) at = steps.Count;
+				steps.Insert(at, step);
+			}
 		}
 
 		/// <summary>

@@ -5,7 +5,7 @@ using static AtE.Globals;
 
 namespace AtE {
 
-	public enum FollowStatus { Idle, Walking, OpeningDoor, UsingLever, AvoidingTrap, Arrived, NoPath, Stuck, WaitingForFocus, Paused }
+	public enum FollowStatus { Idle, Walking, OpeningDoor, UsingLever, AvoidingTrap, SkippingObstacle, Arrived, NoPath, Stuck, WaitingForFocus, Paused }
 
 	/// <summary>
 	/// Whoever walks the player (the PathFollower's Owner) can implement this to help get past traps (see
@@ -16,6 +16,10 @@ namespace AtE {
 		bool TryDodgeTrap(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i trap, float z);
 		/// <summary>Stop the player moving now (eg, tap the main skill for one InputLatency, too short to cast); true if sent.</summary>
 		bool StopMoving();
+		/// <summary>True if there is a travel skill to use (ready or not), eg to get past obstacles (see TrySkipObstacle).</summary>
+		bool HasTravelSkill { get; }
+		/// <summary>Use a travel skill past the chest or barrel at obstacle (the path's cell obstacleIndex); true if one was used.</summary>
+		bool TrySkipObstacle(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i obstacle, int obstacleIndex, float z);
 	}
 
 	/// <summary>
@@ -56,6 +60,12 @@ namespace AtE {
 		public long TrapTouchMs = 250;
 		public long TrapPauseMs = 250;
 		/// <summary>
+		/// Within this many cells of a SkipObstacle step's chest or barrel, stop and use a travel skill past it (the Owner's
+		/// ITrapDodger), waiting while the skill is on cooldown; after ObstacleWaitMs (eg, no landing cell) walk on into it.
+		/// </summary>
+		public float ObstacleReach = 14f;
+		public long ObstacleWaitMs = 8000;
+		/// <summary>
 		/// If the game's "Move Only" action is bound to a key, set it here: it is pressed (in the background) instead of a
 		/// left click, so walking never attacks or picks things up. VKey.None means left click.
 		/// </summary>
@@ -79,6 +89,10 @@ namespace AtE {
 		private long pulledAt;
 		// touching a trap since (0: not touching), and waiting for one to move on until
 		private long trapTouchSince, trapPauseUntil;
+		// obstacles (entity ids) a travel skill got past (or that were given up on), and waiting for a skill since
+		private readonly System.Collections.Generic.HashSet<uint> skippedObstacles = new System.Collections.Generic.HashSet<uint>();
+		private long obstacleWaitSince;
+		private uint obstacleWaitFor;
 		private Offsets.Vector2i progressFrom;
 		private long progressTime;
 		private int stuckCount;
@@ -109,6 +123,8 @@ namespace AtE {
 			}
 			lastVerboseTrapCount = -1;
 			trapTouchSince = 0;
+			skippedObstacles.Clear();
+			obstacleWaitSince = 0;
 			Owner = owner;
 			Goal = goal;
 			IsActive = true;
@@ -187,6 +203,7 @@ namespace AtE {
 				return Status;
 			}
 			if ( AvoidTraps(terrain, player, z, now) ) return Status;
+			if ( SkipObstacles(terrain, player, z, now) ) return Status;
 
 			// stuck: not making progress for a while
 			if ( Distance(player, progressFrom) >= 2 ) {
@@ -313,6 +330,66 @@ namespace AtE {
 			return true;
 		}
 
+		/// <summary>
+		/// The next SkipObstacle step (a chest or barrel the path goes through): within ObstacleReach, use a travel skill to
+		/// land past it; while none is ready, stand and wait (up to ObstacleWaitMs). True while waiting or a skill went out.
+		/// </summary>
+		private bool SkipObstacles(Terrain terrain, Offsets.Vector2i player, float z, long now) {
+			NavStep step = null;
+			foreach ( var s in Path.Steps ) {
+				if ( s.Kind != NavStepKind.SkipObstacle || skippedObstacles.Contains(s.Obstacle.EntityId) ) continue;
+				if ( !s.Obstacle.IsStanding() ) {
+					skippedObstacles.Add(s.Obstacle.EntityId);
+					if ( Verbose ) VLog($"PathFollower(v): {s.Obstacle} is opened or broken");
+					continue;
+				}
+				// nearest the path's first cell (where the player is): beside or behind the player, passed it already
+				float away = Distance(player, s.Target);
+				if ( s.CellIndex <= 0 ) {
+					skippedObstacles.Add(s.Obstacle.EntityId);
+					if ( Verbose ) VLog($"PathFollower(v): passed {s.Obstacle} ({away:F1} cells away, beside or behind) without a skill");
+					continue;
+				}
+				step = s;
+				break;
+			}
+			if ( step == null || Distance(player, step.Target) > ObstacleReach ) {
+				obstacleWaitSince = 0;
+				return false;
+			}
+			var obstacle = step.Obstacle;
+			var dodger = Owner as ITrapDodger;
+			if ( dodger == null || !dodger.HasTravelSkill ) {
+				skippedObstacles.Add(obstacle.EntityId);
+				VLog($"PathFollower: the path goes through {obstacle}, but {(dodger == null ? $"the owner ({Owner?.GetType().Name ?? "none"}) has no travel skills" : "there is no travel skill on the skill bar")}: walking on");
+				return false;
+			}
+			if ( obstacleWaitFor != obstacle.EntityId ) {
+				obstacleWaitFor = obstacle.EntityId;
+				obstacleWaitSince = now;
+				if ( Verbose ) VLog($"PathFollower(v): at {player}, {Distance(player, step.Target):F1} cells from {obstacle} (path cell {step.CellIndex}): skipping it with a travel skill");
+			}
+			Status = FollowStatus.Walking; // (a travel skill is only used while walking)
+			if ( dodger.TrySkipObstacle(this, terrain, player, obstacle.GridPos, step.CellIndex, z) ) {
+				skippedObstacles.Add(obstacle.EntityId);
+				VLog($"PathFollower: used a travel skill past {obstacle} from {player} (after {now - obstacleWaitSince} ms)");
+				Status = FollowStatus.SkippingObstacle;
+				Detail = $"travel skill past {obstacle}";
+				return true;
+			}
+			string why = TravelSkills.Instance.LastNote ?? "(no reason given)";
+			if ( now - obstacleWaitSince > ObstacleWaitMs ) {
+				skippedObstacles.Add(obstacle.EntityId);
+				VLog($"PathFollower: no travel skill past {obstacle} in {ObstacleWaitMs} ms ({why}): walking on");
+				return false;
+			}
+			if ( Verbose && now - lastVerboseLog >= 250 ) {
+				lastVerboseLog = now;
+				VLog($"PathFollower(v): waiting at {player} to skip {obstacle}: {why}");
+			}
+			Wait(FollowStatus.SkippingObstacle, $"waiting for a travel skill past {obstacle}: {why}");
+			return true;
+		}
 		/// <summary>Verbose: within this many cells, traps are logged (at most each VerboseLogMs).</summary>
 		public float VerboseTrapRadius = 25f;
 		public long VerboseLogMs = 100;

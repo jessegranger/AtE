@@ -18,6 +18,7 @@ namespace AtE {
 
 		public bool ShowPathToCursor = false;
 		public bool ShowPathCells = false;
+		public bool ShowPathOnMap = false;
 		public float WallPenalty = 3f;
 		public int SmoothClearance = 3;
 
@@ -25,6 +26,8 @@ namespace AtE {
 		public bool ShowDoors = false;
 		public string RouteGoal = "";
 		public string TileSearch = "";
+		public string EntitySearch = "";
+		private string entitySearchCommitted = "";
 		private string tileSearchCommitted = "";
 
 		public bool ShowExploration = false;
@@ -59,6 +62,10 @@ namespace AtE {
 				if ( ImGui.Button("Unpin") ) targetPinned = false;
 			}
 			ImGui.Checkbox("Show Path Cells", ref ShowPathCells);
+			ImGui.SameLine();
+			ImGui.Checkbox("Show Path on Map", ref ShowPathOnMap);
+			ImGui.SameLine();
+			ImGui_HelpMarker("Also draws the current path (to the cursor, or the one being followed) on the minimap and the large map.");
 			ImGui.SliderFloat("Wall Penalty", ref WallPenalty, 0f, 10f);
 			ImGui.SliderInt("Smooth Clearance", ref SmoothClearance, 1, 5);
 			if ( testPath != null ) {
@@ -120,7 +127,7 @@ namespace AtE {
 			ImGui.Checkbox("Show Exits", ref ShowExits);
 			ImGui.SameLine();
 			ImGui.Checkbox("Show Doors", ref ShowDoors);
-			foreach ( var door in terrain.Doors ) ImGui.Text($"{door}");
+			if ( ShowDoors ) foreach ( var door in terrain.Doors ) ImGui.Text($"{door}");
 			var area = GetCurrentArea();
 			ImGui.Text($"Area: {area}");
 			if ( area != null ) {
@@ -154,6 +161,7 @@ namespace AtE {
 				ImGui.Text($"Waypoint at {waypoint}");
 			} else ImGui.Text("Waypoint: none found");
 			RenderTileSearch(terrain);
+			RenderEntitySearch();
 			int i = 0;
 			foreach ( var exit in terrain.Exits ) {
 				if ( ImGui.Button($"Path##exit{i++}") ) {
@@ -164,6 +172,43 @@ namespace AtE {
 				ImGui.SameLine();
 				ImGui.Text($"{exit}");
 			}
+		}
+
+		private void RenderEntitySearch() {
+			ImGui.SetNextItemWidth(300);
+			bool entered = ImGui.InputText("##entitysearch", ref EntitySearch, 128, ImGuiInputTextFlags.EnterReturnsTrue);
+			ImGui.SameLine();
+			if ( ImGui.Button("Find Entity") || entered ) entitySearchCommitted = EntitySearch.Trim();
+			ImGui.SameLine();
+			ImGui_HelpMarker("Part of an entity's metadata path (eg 'Puzzle_Parts/Switch', 'Traps/LabyrinthSawblade'), case-insensitive; lists the loaded entities that match, nearest first, each with a Path button.");
+			if ( string.IsNullOrEmpty(entitySearchCommitted) ) return;
+			var p = GetPlayer()?.GetComponent<Positioned>();
+			var from = IsValid(p) ? p.GridPos : default;
+			var found = new List<(Entity Ent, Offsets.Vector2i Grid)>();
+			foreach ( var ent in GetEntities() ) {
+				if ( !IsValid(ent) ) continue;
+				string path = ent.Path;
+				if ( path == null || path.IndexOf(entitySearchCommitted, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
+				var pos = ent.GetComponent<Positioned>();
+				if ( !IsValid(pos) ) continue;
+				found.Add((ent, pos.GridPos));
+			}
+			if ( found.Count == 0 ) {
+				ImGui.Text($"No loaded entities with \"{entitySearchCommitted}\" in their path");
+				return;
+			}
+			const int maxShown = 30;
+			int i = 0;
+			foreach ( var (ent, grid) in found.OrderBy(f => Combat.Distance(from, f.Grid)).Take(maxShown) ) {
+				if ( ImGui.Button($"Path##entity{i++}") ) {
+					ShowPathToCursor = true;
+					targetPinned = true;
+					pinnedTarget = grid;
+				}
+				ImGui.SameLine();
+				ImGui.Text($"{ent.Id} {ent.Path} at {grid} ({Combat.Distance(from, grid):F0} away)");
+			}
+			if ( found.Count > maxShown ) ImGui.Text($"... and {found.Count - maxShown} more");
 		}
 
 		private void RenderTileSearch(Terrain terrain) {
@@ -294,6 +339,11 @@ namespace AtE {
 		public bool TryDodgeTrap(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i trap, float z) =>
 			TravelSkills.Instance.TryDodge(this, () => inputRunning, SendInput, terrain, player, trap, z);
 
+		public bool HasTravelSkill => TravelSkills.Instance.HasAny;
+
+		public bool TrySkipObstacle(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i obstacle, int obstacleIndex, float z) =>
+			TravelSkills.Instance.TrySkip(this, () => inputRunning, SendInput, terrain, player, obstacle, obstacleIndex, z);
+
 		/// <summary>Tap the main skill (BuildPlan.MainSkill, else the slot on Q) for one InputLatency: too short to cast, but it stops the walk.</summary>
 		public bool StopMoving() {
 			string main = BuildPlan.MainSkill();
@@ -370,6 +420,10 @@ namespace AtE {
 			}
 			// the doors to open on the way: highlight the label to click, or the door if its label is not showing
 			foreach ( var step in testPath.Steps ) {
+				if ( step.Kind == NavStepKind.SkipObstacle && TryGridToScreen(step.Target, z, out Vector2 obstacle) ) {
+					DrawCircle(obstacle, 8, Color.Orange);
+					DrawTextAt(obstacle + new Vector2(10, -6), "travel skill", Color.Orange);
+				}
 				if ( step.Kind != NavStepKind.OpenDoor ) continue;
 				var label = step.Door.GetLabel();
 				if ( IsValid(label) ) {
@@ -421,6 +475,62 @@ namespace AtE {
 					if ( TryGridToScreen(cell, z, out Vector2 dot) ) DrawCircle(dot, 1, color);
 				}
 			}
+		}
+
+		/// <summary>
+		/// Draw path on whichever map is showing: the minimap (clipped to its frame) or the large map.
+		/// </summary>
+		private static void RenderPathOnMap(NavPath path, float z) {
+			var map = GetUI()?.Map;
+			if ( !IsValid(map) ) return;
+			RectangleF clip;
+			var miniMap = map.MiniMap;
+			var largeMap = map.LargeMap;
+			if ( IsValid(largeMap) && largeMap.IsVisibleLocal ) {
+				clip = RectangleF.Empty; // (the large map covers the screen)
+			} else if ( IsValid(miniMap) && miniMap.IsVisibleLocal ) {
+				clip = miniMap.GetClientRect();
+				if ( clip.Width < 1 || clip.Height < 1 ) return;
+			} else return;
+
+			Vector2 ToMap(Offsets.Vector2i cell) => map.WorldToMap(new Vector2(cell.X, cell.Y), new Vector3(0, 0, z));
+			var points = path.Waypoints;
+			if ( points.Count == 0 ) return;
+			Vector2 prev = ToMap(points[0]);
+			for ( int i = 1; i < points.Count; i++ ) {
+				Vector2 next = ToMap(points[i]);
+				Vector2 a = prev, b = next;
+				if ( clip.IsEmpty || ClipSegment(clip, ref a, ref b) ) Platform.Current.Renderer.DrawLine(a, b, Color.Cyan, 2);
+				prev = next;
+			}
+			// the end, and any doors / levers / obstacles on the way
+			Vector2 end = ToMap(points[points.Count - 1]);
+			if ( clip.IsEmpty || clip.Contains(end.X, end.Y) ) DrawCircle(end, 4, Color.White);
+			foreach ( var step in path.Steps ) {
+				if ( step.Kind == NavStepKind.Walk ) continue;
+				Vector2 at = ToMap(step.Target);
+				if ( !clip.IsEmpty && !clip.Contains(at.X, at.Y) ) continue;
+				DrawCircle(at, 4, step.Kind == NavStepKind.SkipObstacle ? Color.Orange : Color.Gold);
+			}
+		}
+
+		/// <summary>Clip the segment a-b to rect (Liang-Barsky); false if none of it is inside.</summary>
+		private static bool ClipSegment(RectangleF rect, ref Vector2 a, ref Vector2 b) {
+			float t0 = 0f, t1 = 1f;
+			float dx = b.X - a.X, dy = b.Y - a.Y;
+			bool Edge(float p, float q) {
+				if ( p == 0 ) return q >= 0;
+				float r = q / p;
+				if ( p < 0 ) { if ( r > t1 ) return false; if ( r > t0 ) t0 = r; }
+				else { if ( r < t0 ) return false; if ( r < t1 ) t1 = r; }
+				return true;
+			}
+			if ( !Edge(-dx, a.X - rect.Left) || !Edge(dx, rect.Right - a.X)
+				|| !Edge(-dy, a.Y - rect.Top) || !Edge(dy, rect.Bottom - a.Y) ) return false;
+			var start = a;
+			a = start + new Vector2(dx, dy) * t0;
+			b = start + new Vector2(dx, dy) * t1;
+			return true;
 		}
 
 		private static Vector2 WindowOffset() =>
@@ -483,6 +593,11 @@ namespace AtE {
 					RenderPathToCursor(playerGrid, playerPos.Z);
 				} else {
 					testPath = null;
+				}
+
+				if ( ShowPathOnMap ) {
+					var mapPath = DefaultFollower.IsActive ? DefaultFollower.Path : testPath;
+					if ( mapPath != null ) RenderPathOnMap(mapPath, playerPos.Z);
 				}
 
 				var pc = p.GetComponent<Pathfinding>();

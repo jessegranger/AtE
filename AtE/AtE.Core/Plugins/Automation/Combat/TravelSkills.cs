@@ -101,9 +101,28 @@ namespace AtE {
 		public bool TryDodge(CombatDriver driver, Terrain terrain, Offsets.Vector2i me, Offsets.Vector2i trap, float z) =>
 			TryDodge(driver, () => driver.InputBusy, driver.Send, terrain, me, trap, z);
 
+		/// <summary>True if there is a travel skill on the skill bar (ready or not).</summary>
+		public bool HasAny {
+			get {
+				Refresh();
+				return Skills != null && Skills.Count > 0;
+			}
+		}
+
+		/// <summary>How far past an obstacle (in cells) a skip must land.</summary>
+		public float ObstacleClearance = 5;
+
+		/// <summary>
+		/// The path goes through a chest or barrel (a SkipObstacle step, at path cell obstacleIndex): use a travel skill to a
+		/// cell of the path beyond it, at least ObstacleClearance from it. True if one was used.
+		/// </summary>
+		public bool TrySkip(object owner, Func<bool> busy, Func<IState, bool> send, Terrain terrain, Offsets.Vector2i me, Offsets.Vector2i obstacle, int obstacleIndex, float z) =>
+			UseAlong(owner, busy, send, terrain, me, z, MinDodgeCells,
+				(k, c) => k > obstacleIndex && Combat.Distance(c, obstacle) >= ObstacleClearance, $"past an obstacle at {obstacle}");
+
 		/// <summary>TryDodge for any owner of the follower: busy says input is still going out, send queues more (false if it can't).</summary>
 		public bool TryDodge(object owner, Func<bool> busy, Func<IState, bool> send, Terrain terrain, Offsets.Vector2i me, Offsets.Vector2i trap, float z) =>
-			UseAlong(owner, busy, send, terrain, me, z, MinDodgeCells, c => Combat.Distance(c, trap) >= DodgeClearance, $"past a trap at {trap}");
+			UseAlong(owner, busy, send, terrain, me, z, MinDodgeCells, (k, c) => Combat.Distance(c, trap) >= DodgeClearance, $"past a trap at {trap}");
 
 		/// <summary>Why the last TryUse / TryDodge used nothing (null if it used a skill).</summary>
 		public string LastNote { get; private set; }
@@ -115,7 +134,7 @@ namespace AtE {
 		// a travel skill to the furthest cell of the path ahead that a straight line reaches, at least minCells away, and
 		// (if landOk is given) where landOk says it may land
 		private bool UseAlong(object owner, Func<bool> busy, Func<IState, bool> send, Terrain terrain, Offsets.Vector2i me, float z, float minCells,
-			Func<Offsets.Vector2i, bool> landOk, string why) {
+			Func<int, Offsets.Vector2i, bool> landOk, string why) {
 			LastNote = null;
 			var notes = new List<string>();
 			Refresh();
@@ -155,7 +174,7 @@ namespace AtE {
 			foreach ( var travel in Skills.OrderByDescending(t => t.Blink) ) {
 				int end = travel.Blink ? Math.Max(walkEnd, blinkEnd) : walkEnd;
 				if ( landOk != null ) {
-					while ( end > start && !landOk(cells[end]) ) end -= 1;
+					while ( end > start && !landOk(end, cells[end]) ) end -= 1;
 				}
 				if ( end <= start || Combat.Distance(me, cells[end]) < minCells ) { notes.Add($"{travel}: no landing cell (end {end}, start {start})"); continue; }
 				var slot = SkillBar.FindSlot(travel.Name);

@@ -198,6 +198,40 @@ namespace AtE {
 					return RunOnMain(() => TilesText(q["filter"]));
 				case "/doors":
 					return RunOnMain(DoorsText);
+				case "/grid":
+					// the walkable grid around at=X,Y (default: the player), r cells each way: clearance digit (0 = blocked '#'),
+					// @ player, B chest/barrel, T trap, D door entity
+					return RunOnMain(() => {
+						var terrain = GetTerrain();
+						if ( terrain == null || !terrain.IsLoaded ) return "no terrain" + NL;
+						var me = GetPlayer()?.GetComponent<Positioned>();
+						var at = IsValid(me) ? me.GridPos : default;
+						var ap = (q["at"] ?? "").Split(',');
+						if ( ap.Length == 2 && int.TryParse(ap[0], out int ax) && int.TryParse(ap[1], out int ay) ) at = new Offsets.Vector2i(ax, ay);
+						int r = int.TryParse(q["r"], out int rr) ? Math.Clamp(rr, 2, 60) : 20;
+						var marks = new Dictionary<long, char>();
+						foreach ( var ent in GetEntities() ) {
+							if ( !IsValid(ent) ) continue;
+							var pos = ent.GetComponent<Positioned>();
+							if ( !IsValid(pos) ) continue;
+							string path = ent.Path ?? "";
+							char c = path.Contains("/Chests/") ? 'B' : AreaTraps.IsTrapPath(path) ? 'T' : path.EndsWith("/Door") || path.Contains("Door_") ? 'D' : '\0';
+							if ( c != '\0' ) marks[((long)pos.GridPos.Y << 32) | (uint)pos.GridPos.X] = c;
+						}
+						if ( IsValid(me) ) marks[((long)me.GridPos.Y << 32) | (uint)me.GridPos.X] = '@';
+						var sb = new StringBuilder();
+						sb.AppendLine($"grid around {at}, x {at.X - r}..{at.X + r} (left to right), y {at.Y - r}..{at.Y + r} (top to bottom)");
+						for ( int y = at.Y - r; y <= at.Y + r; y++ ) {
+							sb.Append($"{y,5} ");
+							for ( int x = at.X - r; x <= at.X + r; x++ ) {
+								if ( marks.TryGetValue(((long)y << 32) | (uint)x, out char m) ) { sb.Append(m); continue; }
+								int cl = terrain.Clearance(x, y);
+								sb.Append(cl <= 0 ? '#' : (char)('0' + Math.Min(9, cl)));
+							}
+							sb.AppendLine();
+						}
+						return sb.ToString();
+					});
 				case "/traps":
 					// the traps loaded now (Terrain.Traps), nearest the player first, and the follower's state
 					return RunOnMain(() => {
@@ -222,10 +256,13 @@ namespace AtE {
 						var parts = (q["to"] ?? "").Split(',');
 						if ( terrain == null || !IsValid(pos) || parts.Length != 2 || !int.TryParse(parts[0], out int tx) || !int.TryParse(parts[1], out int ty) )
 							return "give to=X,Y (grid cells), with terrain and a player" + NL;
-						var path = DefaultNavigator.FindPath(terrain, pos.GridPos, new Offsets.Vector2i(tx, ty));
-						if ( path == null ) return $"no path from {pos.GridPos} to <{tx}, {ty}>{(DefaultNavigator.LastFailure == null ? "" : $": {DefaultNavigator.LastFailure}")}" + NL;
+						var start = pos.GridPos;
+						var fromParts = (q["from"] ?? "").Split(',');
+						if ( fromParts.Length == 2 && int.TryParse(fromParts[0], out int fx) && int.TryParse(fromParts[1], out int fy) ) start = new Offsets.Vector2i(fx, fy);
+						var path = DefaultNavigator.FindPath(terrain, start, new Offsets.Vector2i(tx, ty));
+						if ( path == null ) return $"no path from {start} to <{tx}, {ty}>{(DefaultNavigator.LastFailure == null ? "" : $": {DefaultNavigator.LastFailure}")}" + NL;
 						var sb = new StringBuilder();
-						sb.AppendLine($"from {pos.GridPos} to <{tx}, {ty}>: {path.Cells.Count} cells, {path.Steps.Count} steps, method {path.Method}, {path.ElapsedMs:F1} ms");
+						sb.AppendLine($"from {start} to <{tx}, {ty}>: {path.Cells.Count} cells, {path.Steps.Count} steps, method {path.Method}, {path.ElapsedMs:F1} ms");
 						foreach ( var step in path.Steps ) sb.AppendLine($"  {step.Kind} {step.Target}{(step.Lever == null ? "" : $" ({step.Lever})")}{(step.Door == null ? "" : $" ({step.Door})")}");
 						return sb.ToString();
 					});

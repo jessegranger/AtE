@@ -33,6 +33,7 @@ namespace AtE {
 		private List<AreaDoor> doors = new List<AreaDoor>();
 		private List<AreaLever> levers = new List<AreaLever>();
 		private List<AreaTrap> traps = new List<AreaTrap>();
+		private List<AreaObstacle> obstacles = new List<AreaObstacle>();
 		private AreaFeature waypoint;
 		private long entitiesUpdated = 0;
 		private void UpdateFromEntities() {
@@ -42,6 +43,7 @@ namespace AtE {
 				if ( AreaDoors.UpdateFromEntities(this, doors) ) DoorGeneration += 1;
 				AreaDoors.UpdateLevers(levers);
 				AreaTraps.Update(traps);
+				AreaObstacles.Update(obstacles);
 				entitiesUpdated = Time.ElapsedMilliseconds;
 			}
 		}
@@ -111,6 +113,16 @@ namespace AtE {
 		}
 
 		/// <summary>
+		/// The chests and barrels standing now (see AreaObstacle): not in the walkable grid, so paths go through them.
+		/// </summary>
+		public IReadOnlyList<AreaObstacle> Obstacles {
+			get {
+				UpdateFromEntities();
+				return obstacles;
+			}
+		}
+
+		/// <summary>
 		/// The traps loaded now (see AreaTrap); found every 500 ms, but their GridPos is only read again by AreaTrap.Refresh.
 		/// </summary>
 		public IReadOnlyList<AreaTrap> Traps {
@@ -141,6 +153,7 @@ namespace AtE {
 			doors = new List<AreaDoor>();
 			levers = new List<AreaLever>();
 			traps = new List<AreaTrap>();
+			obstacles = new List<AreaObstacle>();
 			DoorGeneration += 1;
 			walkable = projectile = null;
 			loadedFrom = IntPtr.Zero;
