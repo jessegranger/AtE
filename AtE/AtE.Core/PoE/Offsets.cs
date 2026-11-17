@@ -709,7 +709,8 @@ namespace AtE {
 			[FieldOffset(0x08)] public readonly IntPtr ptrIconTable;
 			[FieldOffset(0x10)] public readonly int IconIndex; // the row's index in MinimapIcons.dat: 4 NPC, 6 QuestObject, 7 QuestItem, 9 StoryGlyph, 19 Entrance
 			[FieldOffset(0x14)] public readonly Vector2i GridPos; // the same cells as Positioned.GridPos
-			[FieldOffset(0xA0)] public readonly uint EntityId;
+			[FieldOffset(0x60)] public readonly IntPtr ptrEntity;
+			[FieldOffset(0xA0)] public readonly uint EntityId; // this id is set even when the Entity is not loaded yet (so ptrEntity can be null)
 			// 0xA8, 0xA9: read 1, 1 in every record seen (not known)
 		}
 
