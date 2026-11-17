@@ -265,19 +265,21 @@ namespace AtE {
 					}
 					Detail = "sending /passives";
 					passivesSentAt = now;
+					passivesMark = ChatCommand.LastMessage();
 					return ChatCommand.Send("/passives", this);
 				}
+				// read the reply as soon as it is in the chat (only messages after the send, so not an older reply)
 				Detail = "reading /passives' reply";
-				if ( now - passivesSentAt < PassivesWaitMs ) return this;
-				if ( CampaignProgress.ReadPassives(ChatCommand.LastMessages(30)) ) return this;
-				if ( now - passivesSentAt > 3 * PassivesWaitMs ) passivesSentAt = 0; // (no reply: send it again)
+				if ( CampaignProgress.ReadPassives(ChatCommand.MessagesAfter(passivesMark)) ) return this;
+				if ( now - passivesSentAt > PassivesTimeoutMs ) passivesSentAt = 0; // (no reply: send it again)
 			}
 			return this;
 		}
 
-		/// <summary>How long after sending /passives to read its reply.</summary>
-		public long PassivesWaitMs = 1000;
+		/// <summary>How long to wait for /passives' reply before sending it again.</summary>
+		public long PassivesTimeoutMs = 2000;
 		private long passivesSentAt;
+		private IntPtr passivesMark;
 		private int passivesTries;
 
 		private IState Press(VKey key, long now, Action pressed) {

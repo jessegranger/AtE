@@ -53,6 +53,14 @@ namespace AtE {
 
 		public bool CanSendInBackground(VKey key) => !IsModifier(key) && GameWindow != IntPtr.Zero;
 
+		// one SendInput call for all of them (none posted: posted keys and SendInput's come by different queues, so they could
+		// arrive out of order), which Windows puts in the input stream together, with nothing between them
+		public void KeySequence(params (VKey key, bool down)[] keys) {
+			var inputs = new Win32.INPUT[keys.Length];
+			for ( int i = 0; i < keys.Length; i++ ) inputs[i] = keys[i].down ? Win32.INPUT_KeyDown(keys[i].key) : Win32.INPUT_KeyUp(keys[i].key);
+			Win32.SendInput(inputs);
+		}
+
 		private static IntPtr GameWindow => (Platform.Current.Memory as WindowsProcessMemory)?.Target?.MainWindowHandle ?? IntPtr.Zero;
 
 		private static bool IsModifier(VKey key) {

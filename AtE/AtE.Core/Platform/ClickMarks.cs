@@ -61,6 +61,7 @@ namespace AtE {
 		public void KeyDown(VKey key) => inner.KeyDown(key);
 		public void KeyUp(VKey key) => inner.KeyUp(key);
 		public bool CanSendInBackground(VKey key) => inner.CanSendInBackground(key);
+		public void KeySequence(params (VKey key, bool down)[] keys) => inner.KeySequence(keys);
 	}
 
 	/// <summary>A platform with its input sink wrapped in a ClickMarkingInput.</summary>

@@ -8,8 +8,7 @@ namespace AtE {
 
 	/// <summary>
 	/// Send a chat command (eg, "/passives") and read the chat's messages. Sending pastes it: the command goes on the
-	/// clipboard, then Enter (opens the chat input), Ctrl + V once the input has focus, Enter. If the input does not get
-	/// focus, nothing is pasted (so no letters go to the game as skill keys).
+	/// clipboard, then Enter (opens the chat input), Ctrl + V, Enter, all at once if it can (see Send).
 	///
 	/// While it types, the game has input focus: CombatDriver lets the chain run on then (see IsTyping), as it would
 	/// otherwise wait on "typing in the game" with the chat open.
@@ -23,8 +22,42 @@ namespace AtE {
 		/// <summary>True while a command is being typed (for at most MaxTypingMs).</summary>
 		public static bool IsTyping => typing && Time.ElapsedMilliseconds - typingSince < MaxTypingMs;
 
-		/// <summary>The input chain to send command, then go on to next.</summary>
+		/// <summary>How long after a burst (see Send) to check the chat input closed again, and to put the clipboard back.</summary>
+		public const uint BurstSettleMs = 150;
+
+		/// <summary>
+		/// The input chain to send command, then go on to next. With the game in front and its chat closed, it is one burst
+		/// (as Awakened PoE Trade does): Enter, Ctrl + V, Enter in one SendInput call, so the game handles them in one frame and
+		/// the chat box is not drawn and does not keep the keyboard. Otherwise (eg, the overlay has focus) it goes step by step,
+		/// waiting for the chat input to open before pasting (see SendStepwise).
+		/// </summary>
 		public static IState Send(string command, IState next) {
+			var game = PoEMemory.GameRoot?.InGameState;
+			if ( !PoEMemory.TargetHasFocus || game == null || game.HasInputFocus ) return SendStepwise(command, next);
+			string saved = null;
+			return State.NewState(() => {
+				saved = ImGui.GetClipboardText();
+				ImGui.SetClipboardText(command);
+				typing = true;
+				typingSince = Time.ElapsedMilliseconds;
+				Platform.Current.Input.KeySequence(
+					(VKey.Enter, true), (VKey.Enter, false),
+					(VKey.LControlKey, true), (VKey.V, true), (VKey.V, false), (VKey.LControlKey, false),
+					(VKey.Enter, true), (VKey.Enter, false));
+			}, new Delay(BurstSettleMs, State.NewState(() => {
+				typing = false;
+				if ( saved != null ) ImGui.SetClipboardText(saved);
+				// the first Enter did not open the chat, so the last one did: shut it (nothing was sent)
+				if ( PoEMemory.GameRoot?.InGameState?.HasInputFocus ?? false ) {
+					Log($"Chat: the chat input stayed open after sending {command}: closing it");
+					Inputs.LastEscapeMs = Time.ElapsedMilliseconds;
+					Platform.Current.Input.KeySequence((VKey.Escape, true), (VKey.Escape, false));
+				}
+			}, next)));
+		}
+
+		/// <summary>Send command a key at a time: Enter, wait for the chat input to have focus, Ctrl + V, Enter.</summary>
+		private static IState SendStepwise(string command, IState next) {
 			var done = State.NewState(() => typing = false, next);
 			var paste = new KeyDown(VKey.LControlKey, new Delay(Inputs.Latency, Inputs.Press(VKey.V,
 				new KeyUp(VKey.LControlKey, new Delay(Inputs.Latency, Inputs.Press(VKey.Enter, new Delay(Inputs.Latency, done)))))));
