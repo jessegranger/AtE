@@ -1624,6 +1624,24 @@ namespace AtE {
 			[FieldOffset(0x04)] public readonly IntPtr ptrType;
 		}
 
+		/// <summary>
+		/// The Movement component of an object the server moves along a set path (3.30, confirmed live on the Act 6 beacon
+		/// payloads, Metadata/QuestObjects/Act6/BeaconPayload, recorded every 100 ms over a 50 s push along its rail).
+		/// </summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Movement {
+			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			/// <summary>
+			/// The grid cell it is moving to next: one cell ahead of Positioned.GridPos while it moves (a payload moves
+			/// about one cell per 100 ms), and equal to GridPos once it stops (at the end of its rail it stays there). Before
+			/// it has ever moved it was (0, 0) on one payload and its own GridPos on the other, so moving is "not (0, 0) and
+			/// not GridPos". A stop partway along the rail (the player leaving its circle) has not been seen.
+			/// </summary>
+			[FieldOffset(0x3C)] public readonly Vector2i NextStep;
+			// +0x30: int 2, int 3 on both payloads (constant). +0x50: float 13, +0x58: float -1 (constant).
+			// +0x74..+0x7B: bytes 00 01 00 01 | 00 01 01 00 while unfinished, 00 00 00 00 | 00 01 01 01 once at the end
+			// of the rail (meaning unknown; Transitionable.State is the confirmed completion flag).
+		}
+
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_NPC {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 			[FieldOffset(0x20)] public readonly byte Hidden;
@@ -1876,6 +1894,9 @@ namespace AtE {
 			/// entity's current state, a small number whose meaning depends on the entity. PitGate and PitGateTransition 1 -> 2
 			/// when the gates closed, and back to 1 when they opened after the last wave (PitSpawnerGate stayed 1); the CockerelEmergePitEncounter / CockerelBowEmergePitEncounter
 			/// monsters are 2 while waiting in the pits for their wave and 3 once out (all 12 of each wave).
+			/// 3.30, confirmed live on the Act 6 beacon payloads (Metadata/QuestObjects/Act6/BeaconPayload, two per area, no
+			/// StateMachine): 1 while unfinished, including while being pushed along its rail; 1 -> 2 on the same 100 ms sample
+			/// that it reached the end of the rail (recorded over a 50 s push); the other payload stayed 1.
 			/// </summary>
 			[FieldOffset(0x120)] public readonly int State;
 		}

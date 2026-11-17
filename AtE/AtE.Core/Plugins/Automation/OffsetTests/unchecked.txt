@@ -189,6 +189,10 @@ Component_Monolith.entOwner
 # Component_Monster: not exercised yet
 Component_Monster.padding
 
+# Component_Movement: the Act 6 beacon payloads (Metadata/QuestObjects/Act6/BeaconPayload), not met on the beach
+Component_Movement.NextStep
+Component_Movement.entOwner
+
 # Component_Pathfinding: components and data not met on the beach (buffs, armour, beams, monoliths, shrines, portals, mods and stats of rare items...): need what meets them
 Component_Pathfinding.ClickToNextPosition
 Component_Pathfinding.IsMoving

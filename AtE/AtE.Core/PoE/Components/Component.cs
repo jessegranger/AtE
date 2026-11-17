@@ -1068,6 +1068,12 @@ namespace AtE {
 	}
 
 
+	/// <summary>An object the server moves along a set path (eg, an Act 6 beacon payload).</summary>
+	public class Movement : Component<Offsets.Component_Movement> {
+		/// <summary>The cell it moves to next; (0, 0) or its own position when it is not moving.</summary>
+		public Offsets.Vector2i NextStep => Cache.NextStep;
+	}
+
 	public class TimerComponent : Component<Offsets.Component_TimerComponent> {
 		public float TimeLeft => Cache.TimeLeft;
 	}
