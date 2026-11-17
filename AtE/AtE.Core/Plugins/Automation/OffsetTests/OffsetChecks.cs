@@ -264,6 +264,37 @@ namespace AtE {
 				c.InRange("FrameCount per second", (now - count0) * 1000.0 / real, 40, 80);
 				return c.Result();
 			}, new[] { "A2.InGameStatePointers" }, timeoutMs: 4000);
+
+			// the area's minimap icons: each names a MinimapIcons.dat row, lies on the terrain, and those of loaded entities are where the entity is
+			yield return Check("A2.MinimapIcons", new[] {
+					"InGameState_Data.ptrMinimapIcons", "MinimapIconList.vtable", "MinimapIconList.Icons", "MinimapIconRecord.ptrIconRow",
+					"MinimapIconRecord.ptrIconTable", "MinimapIconRecord.IconIndex", "MinimapIconRecord.GridPos", "MinimapIconRecord.EntityId" }, c => {
+				var ptr = c.Game.Data.Value.ptrMinimapIcons;
+				if ( !PoEMemory.TryRead(ptr, out Offsets.MinimapIconList list) ) return Outcome.Fail("ptrMinimapIcons did not read (InGameState_Data.ptrMinimapIcons moved)");
+				c.That(Offsets.IsValid(list.vtable), "MinimapIconList vtable is not a pointer");
+				var icons = MinimapIcons.All();
+				c.That(icons.Count > 0, "no minimap icons (Icons is empty or not an array of 0xB0-byte records)");
+				var terrain = GetTerrain();
+				int loaded = 0;
+				foreach ( var icon in icons ) {
+					c.That(icon.Icon != null, $"record {Describe(icon.Address)}: ptrIconRow does not lead to a MinimapIcons Id");
+					if ( terrain != null && terrain.IsLoaded ) {
+						c.That(icon.GridPos.X >= 0 && icon.GridPos.Y >= 0 && icon.GridPos.X < terrain.Width && icon.GridPos.Y < terrain.Height, $"{icon} is off the terrain");
+					}
+					var ent = icon.Entity;
+					if ( IsValid(ent) ) {
+						loaded++;
+						var pos = GridPosition(ent);
+						c.That(Vector2.Distance(pos, icon.GridPos) <= 2, $"{icon}: its entity is at <{pos.X},{pos.Y}>");
+					}
+				}
+				// IconIndex is the row's index, so one index is always one icon name
+				foreach ( var g in icons.GroupBy(i => i.IconIndex) ) c.That(g.Select(i => i.Icon).Distinct().Count() == 1, $"IconIndex {g.Key} names more than one icon: {string.Join("/", g.Select(i => i.Icon).Distinct())}");
+				var tables = new ArrayHandle<Offsets.MinimapIconRecord>(list.Icons).ToArray().Select(r => r.ptrIconTable).Distinct().ToList();
+				c.That(tables.Count == 1 && Offsets.IsValid(tables[0]), "ptrIconTable is not one table pointer shared by every record");
+				c.Note($"{icons.Count} icons, {loaded} of loaded entities: {string.Join(", ", icons.GroupBy(i => i.Icon).Select(g => $"{g.Count()} {g.Key}"))}");
+				return c.Result();
+			}, new[] { "A2.Terrain" });
 		}
 
 		// ---------------------------------------------------------------- A3: the player entity

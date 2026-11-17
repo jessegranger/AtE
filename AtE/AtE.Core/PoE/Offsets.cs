@@ -632,6 +632,9 @@ namespace AtE {
 			[FieldOffset(0x120)] public readonly IntPtr MapStats;
 			// [FieldOffset(0x260)] public readonly long LabDataPtr; //May be incorrect
 
+			// 3.30: found live (Act 7, Fireflies quest), see MinimapIconList
+			[FieldOffset(0x300)] public readonly IntPtr ptrMinimapIcons; // ptr MinimapIconList
+
 			// 16 new bytes here
 			// 3.27: 8 new bytes here
 			// 3.29.3: the Running / Current / Paused pointers (0x8b8, 0x8c0, 0x8c8) read 0, and IsPaused is its own byte (below): removed.
@@ -689,6 +692,25 @@ namespace AtE {
 			[FieldOffset(0x18)] public readonly IntPtr ptrNeighbour3;
 			[FieldOffset(0x28)] public readonly IntPtr ptrSectionLayout; // a row of LabyrinthSectionLayout.dat
 			[FieldOffset(0x5B)] public readonly byte ConnectionCount;
+		}
+
+		// 3.30, InGameState_Data.ptrMinimapIcons: every minimap icon of the area, including those of entities far outside the
+		// entity list's range (the yellow quest markers on the large map). Found live in Act 7 with 5 FireflyChests on the map: a search for
+		// the grid position (491,423) of the one loaded chest (entity 429) found its record, whose +0xA0 was 429; pointer search led
+		// to this vector. 13 records: 6 QuestObject (ids 429..434), the area transitions (id 67 a loaded AreaTransition, Entrance icon), an NPC, ...
+		// Stale copies of the array (with the ids shifted) are left in the heap: only read it through this pointer.
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct MinimapIconList {
+			[FieldOffset(0x00)] public readonly IntPtr vtable;
+			[FieldOffset(0x18)] public readonly ArrayHandle Icons; // of MinimapIconRecord
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1, Size = Size)] public struct MinimapIconRecord {
+			public const int Size = 0xB0;
+			[FieldOffset(0x00)] public readonly IntPtr ptrIconRow; // a row of MinimapIcons.dat (stride 0x22, its first field the Id, eg "QuestObject")
+			[FieldOffset(0x08)] public readonly IntPtr ptrIconTable;
+			[FieldOffset(0x10)] public readonly int IconIndex; // the row's index in MinimapIcons.dat: 4 NPC, 6 QuestObject, 7 QuestItem, 9 StoryGlyph, 19 Entrance
+			[FieldOffset(0x14)] public readonly Vector2i GridPos; // the same cells as Positioned.GridPos
+			[FieldOffset(0xA0)] public readonly uint EntityId;
+			// 0xA8, 0xA9: read 1, 1 in every record seen (not known)
 		}
 
 		// 3.30, a row of LabyrinthSectionLayout.dat (stride 0x6C; rows are packed: unaligned)

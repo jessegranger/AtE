@@ -155,6 +155,9 @@ namespace AtE {
 
 		public IEnumerable<Entity> GetEntities() => EntityCache.GetEntities(); // mostly to make it easy to browse
 
+		/// <summary>Every minimap icon of the area, also for entities out of range (eg far quest chests); see MinimapIcons.</summary>
+		public List<MinimapIconMarker> MinimapIcons => AtE.MinimapIcons.All();
+
 		public WorldData WorldData => Cache.ptrWorldData == IntPtr.Zero ? null :
 			new WorldData() { Address = Cache.ptrWorldData };
 
