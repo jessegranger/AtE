@@ -214,8 +214,15 @@ namespace AtE {
 
 			if ( type.Equals(typeof(Entity)) || type.IsSubclassOf(typeof(Entity)) ) {
 				var ent = (Entity)value;
-				bool ret = ImGui.TreeNode($"{prefix} {type.Name} {ent.Address} [{(IsValid(ent) ? "Valid" : "Invalid")}]");
-				if( IsValid(ent) && ImGui.IsItemHovered() ) {
+				bool valid = IsValid(ent);
+				string pathTail = "";
+				if ( valid ) {
+					string path = ent.Path;
+					if ( !string.IsNullOrEmpty(path) ) pathTail = " " + path.Substring(path.LastIndexOf('/') + 1);
+				}
+				// ## keeps the tree node's ID stable while the path text changes
+				bool ret = ImGui.TreeNode($"{prefix} {type.Name} {ent.Address} [{(valid ? "Valid" : "Invalid")}]{pathTail}##{prefix}{ent.Address}");
+				if( valid && ImGui.IsItemHovered() ) {
 					var r = ent.GetClientRect();
 					DrawFrame(r, Color.Yellow, 3);
 				}
