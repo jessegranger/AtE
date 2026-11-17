@@ -65,7 +65,7 @@ namespace AtE {
 			ImGui.SameLine();
 			ImGui.Checkbox("Show Path on Map", ref ShowPathOnMap);
 			ImGui.SameLine();
-			ImGui_HelpMarker("Also draws the current path (to the cursor, or the one being followed) on the minimap and the large map.");
+			ImGui_HelpMarker("Draws the current path (to the cursor, or the one being followed) on the minimap and the large map, with or without Show Path to Cursor.");
 			ImGui.SliderFloat("Wall Penalty", ref WallPenalty, 0f, 10f);
 			ImGui.SliderInt("Smooth Clearance", ref SmoothClearance, 1, 5);
 			if ( testPath != null ) {
@@ -89,7 +89,7 @@ namespace AtE {
 				ImGui_HelpMarker("Minimizes the console, focuses the game, and walks this path to its end with the path follower (doors, levers and traps included).");
 			} else if ( DefaultFollower.IsActiveFor(this) ) {
 				if ( ImGui.Button("Stop following") ) DefaultFollower.Stop(FollowStatus.Idle, "stopped from Navigation");
-			} else if ( ShowPathToCursor ) {
+			} else if ( ShowPathToCursor || ShowPathOnMap ) {
 				ImGui.Text("Path: none");
 			}
 			ImGui.Separator();
@@ -358,7 +358,7 @@ namespace AtE {
 			return sent;
 		}
 
-		private void RenderPathToCursor(Offsets.Vector2i playerGrid, float z) {
+		private void RenderPathToCursor(Offsets.Vector2i playerGrid, float z, bool drawOnScreen = true) {
 			var terrain = GetTerrain();
 			if ( terrain == null ) return;
 			var follower = DefaultFollower;
@@ -402,6 +402,7 @@ namespace AtE {
 				testPathFrom = playerGrid;
 			}
 			if ( testPath != null ) worstPathMs = Math.Max(worstPathMs, testPath.ElapsedMs);
+			if ( !drawOnScreen ) return; // (only planned, for Show Path on Map)
 
 			if ( TryGridToScreen(target, z, out Vector2 targetScreen) ) DrawCircle(targetScreen, 6, targetPinned ? Color.Magenta : Color.White);
 			if ( testPath == null ) {
@@ -591,6 +592,8 @@ namespace AtE {
 
 				if ( ShowPathToCursor || PathToExploreTarget ) {
 					RenderPathToCursor(playerGrid, playerPos.Z);
+				} else if ( ShowPathOnMap ) {
+					RenderPathToCursor(playerGrid, playerPos.Z, drawOnScreen: false); // (plan the path to the cursor, but draw it only on the map)
 				} else {
 					testPath = null;
 				}
