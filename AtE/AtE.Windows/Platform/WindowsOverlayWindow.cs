@@ -84,7 +84,7 @@ namespace AtE {
 			Form.Location = new Point(left, top);
 		}
 
-		public bool HasFocus => Win32.GetForegroundWindow() == Form.Handle;
+		public bool HasFocus => IsOpen && (Win32.GetForegroundWindow() == Form.Handle);
 
 		public bool IsOpen => !closed && Form != null && !Form.IsDisposed;
 
