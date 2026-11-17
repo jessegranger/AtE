@@ -861,6 +861,7 @@ namespace AtE {
 			// [FieldOffset(0x740)] public readonly IntPtr Unknown740; // LeagueSellPanel
 			[FieldOffset(0x808)] public readonly IntPtr SellWindow;
 			[FieldOffset(0x810)] public readonly IntPtr TradeWindow;
+			[FieldOffset(0x818)] public readonly IntPtr MapDevice;
 			// [FieldOffset(0x758)] public readonly IntPtr Unknown758;
 			// [FieldOffset(0x758)] public readonly IntPtr LabyrinthDivineFontPanel;
 			// [FieldOffset(0x768)] public readonly IntPtr Unknown768;

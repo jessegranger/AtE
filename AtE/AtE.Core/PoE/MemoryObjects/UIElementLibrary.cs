@@ -101,6 +101,8 @@ namespace AtE {
 		public Element Unknown950 => IsValid(Address) ? getElement(Cache.Unknown950) : null;
 		*/
 		public Element TradeWindow => IsValid(Address) ? getElement(Cache.TradeWindow) : null;
+		/// <summary>The Map Device window (also Maligaro's Orrery in Act 7); see MapDevice for its children and plans.</summary>
+		public MapDevice MapDevice => IsValid(Cache.MapDevice) ? new MapDevice() { Address = Cache.MapDevice } : null;
 		// public Element LabyrinthDivineFontPanel => IsValid(Address) ? getElement(Cache.LabyrinthDivineFontPanel) : null;
 		// public Element MapDeviceWindow => IsValid(Address) ? getElement(Cache.MapDeviceWindow) : null;
 		public Element CardTradePanel => IsValid(Address) ? getElement(Cache.CardTradePanel) : null;
