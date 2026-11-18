@@ -192,9 +192,16 @@ namespace AtE {
 			lastData = data;
 			features.Clear();
 			exits = AreaExits.FromTiles(data, this);
+			// doors not seen yet: from their tiles, until their entities come into range (see AreaDoors.FromTiles)
+			doors.RemoveAll(d => d.FromTile);
+			var tileDoors = AreaDoors.FromTiles(data, this)
+				.Where(t => !doors.Any(d => d.GridPos.X >= t.GridMin.X && d.GridPos.X <= t.GridMax.X && d.GridPos.Y >= t.GridMin.Y && d.GridPos.Y <= t.GridMax.Y))
+				.ToList();
+			doors.AddRange(tileDoors);
+			DoorGeneration += 1;
 			Labyrinth.OnTerrainLoaded(exits, GridPosition(GetPlayer()));
 			waypoint = AreaExits.FromTiles<AreaFeature>(data, this, AreaExits.IsWaypointTile).FirstOrDefault();
-			Log($"Terrain: loaded {Width}x{Height} cells ({size} bytes per grid), {exits.Count} exits in the tiles, "
+			Log($"Terrain: loaded {Width}x{Height} cells ({size} bytes per grid), {exits.Count} exits and {tileDoors.Count} closed doors in the tiles, "
 				+ (waypoint == null ? "no waypoint" : $"waypoint at {waypoint.GridPos} ({waypoint.TileFile})"));
 			return true;
 		}

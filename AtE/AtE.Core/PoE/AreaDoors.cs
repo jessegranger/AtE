@@ -19,7 +19,15 @@ namespace AtE {
 	/// So once a blocker is open, its Passage is replaced by the cells in its box that the game has opened (PassageIsExact).
 	/// </summary>
 	public class AreaDoor {
+		/// <summary>The door's entity, or 0 for a door known only from its tile (see FromTile).</summary>
 		public uint EntityId;
+		/// <summary>
+		/// Known only from a door tile (AreaDoors.FromTiles), its entity not seen yet: replaced by the entity's door once that
+		/// comes into range, or dropped if no door entity shows up there when the player is near enough to have it loaded.
+		/// </summary>
+		public bool FromTile => EntityId == 0;
+		/// <summary>The .tdt of the door's tile, for a door FromTile; else null.</summary>
+		public string TileFile;
 		/// <summary>The entity's metadata path (eg, "Metadata/Terrain/Labyrinth/Objects/Puzzle_Parts/Door_Closed").</summary>
 		public string Path;
 		public Offsets.Vector2i GridPos;
@@ -54,7 +62,7 @@ namespace AtE {
 		public Element GetLabel() =>
 			GetUI()?.LabelsOnGround?.GetAllLabels().FirstOrDefault(l => l.Item?.Id == EntityId)?.Label;
 
-		public override string ToString() => $"Door {EntityId} at {GridPos} ({(IsClosed ? "closed" : "open")}{(IsLocked ? ", locked" : "")}, {Passage.Count} passage cells)";
+		public override string ToString() => $"Door {(FromTile ? "(tile)" : EntityId.ToString())} at {GridPos} ({(IsClosed ? "closed" : "open")}{(IsLocked ? ", locked" : "")}, {Passage.Count} passage cells)";
 	}
 
 	/// <summary>
@@ -158,6 +166,9 @@ namespace AtE {
 					door.Passage = FindPassage(terrain, door.GridMin, door.GridMax);
 					doors.Add(door);
 					newPassage |= door.Passage.Count > 0;
+					// the door the tile promised: the entity's door takes its place
+					int replaced = doors.RemoveAll(d => d.FromTile && TileBoxContains(d, door.GridPos));
+					if ( replaced > 0 ) newPassage = true;
 				}
 				// a blocker whose box is only set when it closes (3.30, confirmed live: the PitGates of a pit arena in the
 				// Mountain tileset have GridMin = GridMax = <0, 0> while open, and their box when they close): take the new
@@ -215,11 +226,55 @@ namespace AtE {
 				if ( dx * dx + dy * dy > VanishedRadius * VanishedRadius ) { d.MissingSince = 0; return false; }
 				if ( d.MissingSince == 0 ) { d.MissingSince = now; return false; }
 				if ( now - d.MissingSince < VanishedAfterMs ) return false;
-				Log($"Door {d.EntityId} at {d.GridPos}: its entity is gone ({(d.IsClosed ? "closed" : "open")} when last seen), dropped");
+				Log(d.FromTile ? $"Door from tile {d.TileFile} at {d.GridPos}: no door entity there, dropped"
+					: $"Door {d.EntityId} at {d.GridPos}: its entity is gone ({(d.IsClosed ? "closed" : "open")} when last seen), dropped");
 				return true;
 			});
 			return dropped > 0;
 		}
+
+		/// <summary>
+		/// Tile paths (substrings, any case) cut from a door's .tdt, checked one by one: 3.30, The Labyrinth's prison rooms,
+		/// "Metadata/Terrain/Prison/Features/dungeon_prison_door_v01_01.tdt". Not a general "_door_v": the Labyrinth's garden
+		/// rooms have dozens of "garden_*_path_door" tiles that are open crossings, where the slab finder takes the ends of
+		/// the walls for doors (and would let paths through the walls); "dungeon_prison_doorway_only" has no door; and some
+		/// "door" tiles are exits (eg, "labyrinth_dry_garden_door"), which are never doors here (see IsDoorTile).
+		/// </summary>
+		public static string[] DoorTilePaths = { "/dungeon_prison_door_v" };
+
+		public static bool IsDoorTile(string path) =>
+			path != null
+			&& DoorTilePaths.Any(p => path.IndexOf(p, StringComparison.OrdinalIgnoreCase) >= 0)
+			&& !AreaExits.IsTransitionTile(path);
+
+		/// <summary>
+		/// The doors in the area's door tiles (IsDoorTile) that are closed in the grid as read when the area loaded. A door's
+		/// entity only comes into range when the player is near it, and until then its slab cuts the walkable grid in two, so
+		/// the far side of every door looks unreachable; these let the Navigator plan through them meanwhile.
+		/// </summary>
+		public static List<AreaDoor> FromTiles(Offsets.TerrainData data, Terrain terrain) {
+			const int cellsPerTile = Offsets.TerrainData.CellsPerTile;
+			var result = new List<AreaDoor>();
+			foreach ( var tile in AreaExits.FromTiles<AreaFeature>(data, terrain, IsDoorTile) ) {
+				var min = new Offsets.Vector2i(tile.TileMinX * cellsPerTile, tile.TileMinY * cellsPerTile);
+				var max = new Offsets.Vector2i(((tile.TileMaxX + 1) * cellsPerTile) - 1, ((tile.TileMaxY + 1) * cellsPerTile) - 1);
+				var passage = FindPassage(terrain, min, max);
+				if ( passage.Count == 0 ) continue; // open when the area loaded (or its slab is only stamped when the entity arrives)
+				var center = new Offsets.Vector2i((int)passage.Average(c => c.X), (int)passage.Average(c => c.Y));
+				result.Add(new AreaDoor() {
+					TileFile = tile.TileFile,
+					GridPos = center,
+					GridMin = min,
+					GridMax = max,
+					IsClosed = true,
+					Passage = passage,
+				});
+			}
+			return result;
+		}
+
+		private static bool TileBoxContains(AreaDoor door, Offsets.Vector2i pos) =>
+			pos.X >= door.GridMin.X && pos.X <= door.GridMax.X && pos.Y >= door.GridMin.Y && pos.Y <= door.GridMax.Y;
 
 		/// <summary>
 		/// The cells in the door's box that the game has made walkable since the area loaded. False if the grid can't

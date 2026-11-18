@@ -84,7 +84,10 @@ namespace AtE {
 			// Courts' to The Chamber of Innocence
 			"/tower_v01", "/security_exit", "/templar_to_innocents",
 			// Act 6 (from the user): The Ridge's way to The Lower Prison; Prisoner's Gate's road to The Western Forest
-			"/ledge_prisonback", "Road/beachroad_v02_07"
+			"/ledge_prisonback", "Road/beachroad_v02_07",
+			// The Labyrinth's garden rooms (3.30, from the user): the doors to the next rooms, eg in Domain Crossing,
+			// "Metadata/Terrain/RuinedCity/Labyrinth/labyrinth_dry_garden_door_v01_01.tdt" (one per way out on the map)
+			"/labyrinth_dry_garden_door"
 		};
 
 		/// <summary>
