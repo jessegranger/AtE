@@ -52,6 +52,8 @@ namespace AtE {
 		public long ClosedSince;
 		/// <summary>When its entity was first found missing while the player was near enough to have it loaded, or 0.</summary>
 		public long MissingSince;
+		/// <summary>Until when (Time.ElapsedMilliseconds) to look for its slab in the game's live grid (see AreaDoors.LiveCheckMs).</summary>
+		public long LiveCheckUntil;
 
 		/// <summary>The door's entity, if it is still in range.</summary>
 		public Entity GetEntity() => GetEntities().FirstOrDefault(e => e.Id == EntityId);
@@ -141,6 +143,11 @@ namespace AtE {
 		public static float VanishedRadius = 100f;
 		/// <summary>How long a nearby door's entity must stay missing before the door is dropped.</summary>
 		public static long VanishedAfterMs = 1000;
+		/// <summary>
+		/// For how long after a door (or a new box) is found to look for its slab in the game's live grid, which the game
+		/// may stamp in a little after the entity arrives (each look reads the box's rows, every 500 ms).
+		/// </summary>
+		public static long LiveCheckMs = 5000;
 
 		public static bool UpdateFromEntities(Terrain terrain, List<AreaDoor> doors) {
 			bool newPassage = false;
@@ -164,6 +171,7 @@ namespace AtE {
 						GridMax = blockage.GridMax,
 					};
 					door.Passage = FindPassage(terrain, door.GridMin, door.GridMax);
+					door.LiveCheckUntil = Time.ElapsedMilliseconds + LiveCheckMs;
 					doors.Add(door);
 					newPassage |= door.Passage.Count > 0;
 					// the door the tile promised: the entity's door takes its place
@@ -180,6 +188,7 @@ namespace AtE {
 					door.GridMax = max;
 					door.Passage = new List<Offsets.Vector2i>();
 					door.PassageIsExact = false;
+					door.LiveCheckUntil = Time.ElapsedMilliseconds + LiveCheckMs;
 					newPassage = true;
 				}
 				bool wasOpen = door.OpenSince != 0;
@@ -189,8 +198,12 @@ namespace AtE {
 					door.ClosedSince = Time.ElapsedMilliseconds;
 					Log($"Door {door.EntityId} at {door.GridPos}: closed again");
 				}
-				// closed, but no slab in the grid as read when the area loaded: the game may have stamped it in since
-				if ( door.IsClosed && door.Passage.Count == 0 && terrain.MergeLiveBlocked(door.GridMin, door.GridMax) ) {
+				// closed, but no slab in the grid as read when the area loaded: the game may have stamped it in since (when the
+				// entity arrived). Check while the passage is empty, and for a while after the door (or its box) is new whatever
+				// was guessed: the guess can be bits of the door frame at the box's edges, with the slab itself missing (3.30,
+				// The Lunaris Temple Level 2, a Metadata/MiscellaneousObjects/Door: 35 frame cells, the corridor open across)
+				if ( door.IsClosed && (door.Passage.Count == 0 || Time.ElapsedMilliseconds < door.LiveCheckUntil)
+					&& terrain.MergeLiveBlocked(door.GridMin, door.GridMax) ) {
 					door.Passage = FindPassage(terrain, door.GridMin, door.GridMax);
 					Log($"Door {door.EntityId}: blocked in the game's grid since the area loaded, {door.Passage.Count} passage cells");
 					newPassage = true; // (the grid changed: the Navigator re-reads it)
@@ -237,12 +250,17 @@ namespace AtE {
 		/// Tile paths (substrings, any case) cut from a door's .tdt, checked one by one: 3.30, The Labyrinth's prison rooms,
 		/// "Metadata/Terrain/Prison/Features/dungeon_prison_door_v01_01.tdt"; The Lunaris Temple Level 1,
 		/// "Metadata/Terrain/Temple/Features/templeclean_door_thin_v01_02_FAKE.tdt" (a door entity stands on it; one closed
-		/// ~210 cells from the entrance cut the level off from its waypoint). Not a general "_door_v": the Labyrinth's garden
+		/// ~210 cells from the entrance cut the level off from its waypoint); Level 2's cell doors,
+		/// "Metadata/Terrain/Temple/Features/templeclean_prison_door_v01_01.tdt" (not v01_02, which has no door: the slab
+		/// finder takes the ends of its thin wall for one). Not a general "_door_v": the Labyrinth's garden
 		/// rooms have dozens of "garden_*_path_door" tiles that are open crossings, where the slab finder takes the ends of
 		/// the walls for doors (and would let paths through the walls); "dungeon_prison_doorway_only" has no door; and some
 		/// "door" tiles are exits (eg, "labyrinth_dry_garden_door"), which are never doors here (see IsDoorTile).
 		/// </summary>
-		public static string[] DoorTilePaths = { "/dungeon_prison_door_v", "/templeclean_door_thin" };
+		public static string[] DoorTilePaths = { "/dungeon_prison_door_v", "/templeclean_door_thin", "/templeclean_prison_door_v01_01" };
+
+		/// <summary>A door tile's slab must reach within this many cells of the middle of its tile (see FromTiles).</summary>
+		public static int TileDoorCenterSlack = 2;
 
 		public static bool IsDoorTile(string path) =>
 			path != null
@@ -261,7 +279,11 @@ namespace AtE {
 				var min = new Offsets.Vector2i(tile.TileMinX * cellsPerTile, tile.TileMinY * cellsPerTile);
 				var max = new Offsets.Vector2i(((tile.TileMaxX + 1) * cellsPerTile) - 1, ((tile.TileMaxY + 1) * cellsPerTile) - 1);
 				var passage = FindPassage(terrain, min, max);
-				if ( passage.Count == 0 ) continue; // open when the area loaded (or its slab is only stamped when the entity arrives)
+				// the door is in the middle of its tile: no slab there means it was open when the area loaded (or is only stamped
+				// when the entity arrives), and what was found is the ends of the walls beside the doorway (3.30, The Lunaris
+				// Temple Level 2's cell doors)
+				int cx = (min.X + max.X) / 2, cy = (min.Y + max.Y) / 2;
+				if ( !passage.Exists(c => Math.Abs(c.X - cx) <= TileDoorCenterSlack && Math.Abs(c.Y - cy) <= TileDoorCenterSlack) ) continue;
 				var center = new Offsets.Vector2i((int)passage.Average(c => c.X), (int)passage.Average(c => c.Y));
 				result.Add(new AreaDoor() {
 					TileFile = tile.TileFile,
