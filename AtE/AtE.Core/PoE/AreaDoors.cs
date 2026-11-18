@@ -235,12 +235,14 @@ namespace AtE {
 
 		/// <summary>
 		/// Tile paths (substrings, any case) cut from a door's .tdt, checked one by one: 3.30, The Labyrinth's prison rooms,
-		/// "Metadata/Terrain/Prison/Features/dungeon_prison_door_v01_01.tdt". Not a general "_door_v": the Labyrinth's garden
+		/// "Metadata/Terrain/Prison/Features/dungeon_prison_door_v01_01.tdt"; The Lunaris Temple Level 1,
+		/// "Metadata/Terrain/Temple/Features/templeclean_door_thin_v01_02_FAKE.tdt" (a door entity stands on it; one closed
+		/// ~210 cells from the entrance cut the level off from its waypoint). Not a general "_door_v": the Labyrinth's garden
 		/// rooms have dozens of "garden_*_path_door" tiles that are open crossings, where the slab finder takes the ends of
 		/// the walls for doors (and would let paths through the walls); "dungeon_prison_doorway_only" has no door; and some
 		/// "door" tiles are exits (eg, "labyrinth_dry_garden_door"), which are never doors here (see IsDoorTile).
 		/// </summary>
-		public static string[] DoorTilePaths = { "/dungeon_prison_door_v" };
+		public static string[] DoorTilePaths = { "/dungeon_prison_door_v", "/templeclean_door_thin" };
 
 		public static bool IsDoorTile(string path) =>
 			path != null
