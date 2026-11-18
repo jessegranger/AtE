@@ -681,6 +681,9 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LabyrinthData {
 			[FieldOffset(0x00)] public readonly ArrayHandle Rooms; // of LabyrinthRoom
 			[FieldOffset(0x18)] public readonly IntPtr ptrCurrentRoom; // ptr into Rooms
+			// 0x20: two ints (0x5125, 16 in one run; 0x5127, 19 in another), not known. Nothing after 0x28 belongs to it, and it holds no positions:
+			// the exits' grid positions come from Terrain's transition tiles (and MinimapIconList Entrance icons, but only once an exit has been seen;
+			// LabyrinthDoor icons are puzzle doors, Labyrinth/Objects/Puzzle_Parts/Door_Closed, and that list grows as the room is revealed).
 		}
 
 		// 3.30, one room of the Labyrinth run (LabyrinthData.Rooms). Which of its room type's areas fills it is not known
@@ -707,11 +710,11 @@ namespace AtE {
 			public const int Size = 0xB0;
 			[FieldOffset(0x00)] public readonly IntPtr ptrIconRow; // a row of MinimapIcons.dat (stride 0x22, its first field the Id, eg "QuestObject")
 			[FieldOffset(0x08)] public readonly IntPtr ptrIconTable;
-			[FieldOffset(0x10)] public readonly int IconIndex; // the row's index in MinimapIcons.dat: 4 NPC, 6 QuestObject, 7 QuestItem, 9 StoryGlyph, 19 Entrance
+			[FieldOffset(0x10)] public readonly int IconIndex; // the row's index in MinimapIcons.dat: 4 NPC, 6 QuestObject, 7 QuestItem, 8 Shrine, 9 StoryGlyph, 19 Entrance, 23 LabyrinthDoor, 637 Strongbox
 			[FieldOffset(0x14)] public readonly Vector2i GridPos; // the same cells as Positioned.GridPos
 			[FieldOffset(0x60)] public readonly IntPtr ptrEntity;
 			[FieldOffset(0xA0)] public readonly uint EntityId; // this id is set even when the Entity is not loaded yet (so ptrEntity can be null)
-			// 0xA8, 0xA9: read 1, 1 in every record seen (not known)
+			// 0xA8, 0xA9: read 1, 1 in most records; 0, 0 on a far LabyrinthDoor never approached (3.30, Estate Walkways). Not known (seen/revealed?)
 		}
 
 		// 3.30, a row of LabyrinthSectionLayout.dat (stride 0x6C; rows are packed: unaligned)
@@ -720,6 +723,13 @@ namespace AtE {
 			[FieldOffset(0x10)] public readonly int Index; // 1-based, within the section
 			[FieldOffset(0x14)] public readonly long ConnectedCount; // of the Index of the rooms it connects to
 			[FieldOffset(0x44)] public readonly IntPtr ptrRoomType; // a row of LabyrinthAreas.dat
+			// 3.30: the room's position on the Labyrinth Map panel, within its section (+MapX right, +MapY down; checked against screenshots).
+			// In one Normal run x ran 0..3 with every Boss/FinalBoss room at x=3 (eg Entry_2_SimpleS: EntranceBranch (1,1), IndoorStraightBottleneck
+			// (2,1.5), Boss2 (3,1)). The map is no projection of the room's grid (no fixed rotation fits two rooms), but its ORDER holds: going
+			// clockwise, a room's neighbours come in the same order on the map as their exit tiles do on screen (4 of 4 rooms; see
+			// Labyrinth.NameExitsByOrder).
+			[FieldOffset(0x54)] public readonly float MapX;
+			[FieldOffset(0x58)] public readonly float MapY;
 		}
 
 		// 3.30, a row of LabyrinthAreas.dat (stride 0x4C): a room type and the areas that can fill it, per difficulty

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using static AtE.Globals;
 
@@ -19,6 +20,10 @@ namespace AtE {
 		public List<WorldArea> Candidates = new List<WorldArea>(); // the areas that can fill this room
 		public List<LabyrinthRoom> Neighbours = new List<LabyrinthRoom>();
 		public WorldArea Area; // the area that fills it, once known
+		public float MapX, MapY; // its place on the Labyrinth Map panel, within its section (+x right, +y down; see Offsets.LabyrinthSectionLayoutRow)
+		public int SectionOrder; // 0 for the first section of the run (Entry), 1 for the next, ...
+		/// <summary>Its place on the Labyrinth Map panel across the whole run: MapX shifted right past the sections before it.</summary>
+		public Vector2 MapPos;
 
 		internal IntPtr[] neighbourPtrs;
 
@@ -87,6 +92,8 @@ namespace AtE {
 					Section = section,
 					SectionIndex = layout.Index,
 					RoomType = typeId,
+					MapX = layout.MapX,
+					MapY = layout.MapY,
 					neighbourPtrs = new[] { node.ptrNeighbour0, node.ptrNeighbour1, node.ptrNeighbour2, node.ptrNeighbour3 },
 				};
 				foreach ( var (n, ptr) in new[] { (type.NormalCount, type.ptrNormal), (type.CruelCount, type.ptrCruel),
@@ -100,6 +107,17 @@ namespace AtE {
 					}
 				}
 				rooms.Add(room);
+			}
+			// sections in run order (the vector lists them Entry, Middle, End); each starts right of the one before
+			var sections = rooms.Select(r => r.Section).Distinct().ToList();
+			float offset = 0;
+			foreach ( var section in sections ) {
+				var inSection = rooms.Where(r => r.Section == section).ToList();
+				foreach ( var r in inSection ) {
+					r.SectionOrder = sections.IndexOf(section);
+					r.MapPos = new Vector2(offset + r.MapX, r.MapY);
+				}
+				offset += inSection.Max(r => r.MapX) + 1;
 			}
 			var byAddress = rooms.ToDictionary(r => r.Address);
 			foreach ( var room in rooms ) {
@@ -122,12 +140,97 @@ namespace AtE {
 			return room;
 		}
 
+		/// <summary>The room the player was in before this one, when it is known (it is noted as each area's terrain loads), else null.</summary>
+		public static LabyrinthRoom PreviousRoom { get; private set; }
+		private static LabyrinthRoom lastRoom;
+
+		/// <summary>
+		/// Called by Terrain each time it loads an area's tiles: note the room change (for PreviousRoom), and mark the room exit the
+		/// player stands near as the one they arrived through.
+		/// </summary>
+		public static void OnTerrainLoaded(List<AreaExit> exits, Vector2 playerGrid) {
+			var room = CurrentRoom();
+			if ( room == null ) return; // not in the Labyrinth (or the area is not known yet: the terrain loads again after OnAreaChange)
+			if ( room != lastRoom ) {
+				PreviousRoom = lastRoom != null && room.Neighbours.Contains(lastRoom) ? lastRoom : null;
+				lastRoom = room;
+			}
+			foreach ( var e in exits ) e.IsArrival = false;
+			var arrival = RoomExits(exits)
+				.Select(e => (e, d: Vector2.Distance(new Vector2(e.GridPos.X, e.GridPos.Y), playerGrid)))
+				.OrderBy(t => t.d).FirstOrDefault();
+			if ( arrival.e != null && arrival.d < ArrivalReach ) arrival.e.IsArrival = true;
+		}
+
+		/// <summary>How near (cells) the player must be to an exit, when the area loads, for it to be the one they arrived through.</summary>
+		public const float ArrivalReach = 100;
+
+		/// <summary>
+		/// The exits of a Labyrinth room that lead to other rooms: the "transition" tiles, without the seams between two kinds of ground
+		/// (eg ElegantHouse/Feature/transition_house_to_drygarden, whose file names have "_to_").
+		/// </summary>
+		public static IEnumerable<AreaExit> RoomExits(IEnumerable<AreaExit> exits) =>
+			exits.Where(e => e.TileFile == null
+				|| System.IO.Path.GetFileName(e.TileFile).IndexOf("_to_", StringComparison.OrdinalIgnoreCase) < 0);
+
+		/// <summary>
+		/// Name each exit of the room by the room it leads to (AreaExit.LeadsTo), before any is seen, from the Labyrinth Map's order:
+		/// going clockwise around the room, the neighbours come in the same order on the map (+y down) as their exits do on screen,
+		/// around the exits' centroid. The map is no projection of the room (checked live, 3.30); only this order holds (4 of 4 rooms).
+		/// The circle is lined up by an anchor: the exit the player arrived through (it leads to PreviousRoom, or to the Aspirants' Plaza
+		/// from the run's first room), or an exit already seen whose label names a single neighbour. Nothing is named when the number of
+		/// room exits does not match the number of ways out, or the anchors disagree.
+		/// </summary>
+		public static void NameExitsByOrder(LabyrinthRoom here, IEnumerable<AreaExit> allExits) {
+			if ( here == null ) return;
+			var exits = RoomExits(allExits).ToList();
+			foreach ( var e in exits ) e.LeadsTo = null;
+			var rooms = Rooms();
+			bool first = rooms != null && rooms.Count > 0 && rooms[0] == here;
+			// the ways out on the map; a null room is the Aspirants' Plaza, left of the run's first room
+			var ways = here.Neighbours.Select(r => (room: r, dir: r.MapPos - here.MapPos)).ToList();
+			if ( first ) ways.Add((null, new Vector2(-1, 0)));
+			if ( ways.Count < 2 || exits.Count != ways.Count ) return;
+
+			float cx = (float)exits.Average(e => e.GridPos.X), cy = (float)exits.Average(e => e.GridPos.Y);
+			// grid to screen turns by 45 degrees and flips handedness; the order around a point needs no more of the projection than that
+			float ScreenAngle(AreaExit e) {
+				float dx = e.GridPos.X - cx, dy = e.GridPos.Y - cy;
+				return MathF.Atan2(-(dx + dy), dx - dy); // y down, like the map
+			}
+			var byScreen = exits.OrderBy(ScreenAngle).ToList();
+			var byMap = ways.OrderBy(w => MathF.Atan2(w.dir.Y, w.dir.X)).ToList();
+			int n = ways.Count;
+
+			var shifts = new HashSet<int>();
+			void Anchor(AreaExit e, int wayIndex) {
+				if ( wayIndex >= 0 ) shifts.Add(((wayIndex - byScreen.IndexOf(e)) % n + n) % n);
+			}
+			var arrival = byScreen.FirstOrDefault(e => e.IsArrival);
+			if ( arrival != null ) {
+				if ( PreviousRoom != null ) Anchor(arrival, byMap.FindIndex(w => w.room == PreviousRoom));
+				else if ( first ) Anchor(arrival, byMap.FindIndex(w => w.room == null));
+			}
+			foreach ( var e in byScreen.Where(e => e.Seen && e.Destination != null) ) {
+				var named = byMap.Select((w, i) => (w, i)).Where(t => t.w.room != null && t.w.room.CandidateNames.Contains(e.Destination)).ToList();
+				if ( named.Count == 1 ) Anchor(e, named[0].i);
+			}
+			if ( shifts.Count != 1 ) return; // no anchor, or they disagree
+			int shift = shifts.First();
+			for ( int i = 0; i < n; i++ ) byScreen[i].LeadsTo = byMap[(i + shift) % n].room;
+		}
+
 		/// <summary>
 		/// Learn which areas fill the neighbouring rooms from the labels of the exits (an exit labelled "Mansion Halls" leads to the
 		/// only neighbour that can be Mansion Halls).
 		/// </summary>
 		public static void LearnFromExits(LabyrinthRoom here, IEnumerable<AreaExit> exits) {
 			if ( here == null ) return;
+			NameExitsByOrder(here, exits);
+			foreach ( var e in exits.Where(e => e.Seen && e.Destination != null && e.LeadsTo != null && e.LeadsTo.Area == null) ) {
+				// the room this exit leads to is filled by the area on its label
+				e.LeadsTo.Area = e.LeadsTo.Candidates.FirstOrDefault(a => a.Name == e.Destination);
+			}
 			foreach ( var name in exits.Select(e => e.Destination).Where(d => d != null).Distinct() ) {
 				var fits = here.Neighbours.Where(n => n.Area == null && n.Candidates.Any(a => a.Name == name)).ToList();
 				if ( fits.Count == 1 && !here.Neighbours.Any(n => n.Area?.Name == name) ) {
@@ -172,10 +275,14 @@ namespace AtE {
 		public static AreaExit ExitTo(LabyrinthRoom here, LabyrinthRoom next, IEnumerable<AreaExit> exits) {
 			if ( here == null || next == null ) return null;
 			LearnFromExits(here, exits);
-			if ( next.Area != null ) return exits.FirstOrDefault(e => e.Destination == next.Area.Name);
-			var names = next.CandidateNames.ToHashSet();
-			var others = here.Neighbours.Where(n => n != next).SelectMany(n => n.CandidateNames).ToHashSet();
-			return exits.FirstOrDefault(e => e.Destination != null && names.Contains(e.Destination) && !others.Contains(e.Destination));
+			AreaExit byLabel;
+			if ( next.Area != null ) byLabel = exits.FirstOrDefault(e => e.Destination == next.Area.Name);
+			else {
+				var names = next.CandidateNames.ToHashSet();
+				var others = here.Neighbours.Where(n => n != next).SelectMany(n => n.CandidateNames).ToHashSet();
+				byLabel = exits.FirstOrDefault(e => e.Destination != null && names.Contains(e.Destination) && !others.Contains(e.Destination));
+			}
+			return byLabel ?? exits.FirstOrDefault(e => e.LeadsTo == next); // else by the map's order (see NameExitsByOrder)
 		}
 	}
 }

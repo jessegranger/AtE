@@ -191,6 +191,7 @@ namespace AtE {
 			lastData = data;
 			features.Clear();
 			exits = AreaExits.FromTiles(data, this);
+			Labyrinth.OnTerrainLoaded(exits, GridPosition(GetPlayer()));
 			waypoint = AreaExits.FromTiles<AreaFeature>(data, this, AreaExits.IsWaypointTile).FirstOrDefault();
 			Log($"Terrain: loaded {Width}x{Height} cells ({size} bytes per grid), {exits.Count} exits in the tiles, "
 				+ (waypoint == null ? "no waypoint" : $"waypoint at {waypoint.GridPos} ({waypoint.TileFile})"));

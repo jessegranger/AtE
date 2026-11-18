@@ -39,7 +39,13 @@ namespace AtE {
 		public WorldArea DestinationArea => Destination == null ? null :
 			GetCurrentArea()?.Connections.FirstOrDefault(a => a.Name == Destination);
 
-		public override string ToString() => $"{Destination ?? "(unknown exit)"} at {base.ToString()}";
+		/// <summary>In the Labyrinth: the room this exit leads to, from the Labyrinth Map's order (see Labyrinth.NameExitsByOrder), or null.</summary>
+		public LabyrinthRoom LeadsTo;
+		/// <summary>In the Labyrinth: the exit the player stood near when the area loaded (see Labyrinth.OnTerrainLoaded).</summary>
+		public bool IsArrival;
+
+		public override string ToString() => (Destination ?? (LeadsTo != null ? $"{LeadsTo.DisplayName} (by map order)" : "(unknown exit)"))
+			+ (IsArrival ? " (arrival)" : "") + $" at {base.ToString()}";
 	}
 
 	public static class AreaExits {
