@@ -359,7 +359,8 @@ namespace AtE {
 			// 3.23: 128 new bytes here
 			// 3.23.2: 512 new bytes here
 			// 3.29: 128 new bytes here
-			[FieldOffset(0x3c8)] public readonly long IsLoading;
+			// 3.30: 264 new bytes here
+			[FieldOffset(0x4d0)] public readonly long IsLoading;
 			// 3.29: 8 new bytes here
 			[FieldOffset(0x668)] public readonly IntPtr elemRoot;
 			// 3.22: 24 new bytes here
