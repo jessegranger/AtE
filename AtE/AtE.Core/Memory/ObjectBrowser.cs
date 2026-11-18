@@ -181,6 +181,8 @@ namespace AtE {
 
 			if ( type.Equals(typeof(string)) ) {
 				ImGui.BulletText($"{prefix} string \"{(string)value}\"");
+				ImGui.SameLine();
+				if ( ImGui.SmallButton($"C##copy_{id}_{prefix}") ) ImGui.SetClipboardText((string)value);
 				return false;
 			}
 
@@ -267,6 +269,11 @@ namespace AtE {
 
 			if ( type.IsSubclassOf(typeof(MemoryObject)) ) {
 				return ImGui.TreeNode($"{prefix} as {type.Name} @ {Describe(((MemoryObject)value).Address)}");
+			}
+
+			// a minimap icon shows its Icon (the MinimapIcons.dat Id, eg "QuestObject")
+			if ( value is MinimapIconMarker marker ) {
+				return ImGui.TreeNode($"{prefix} {marker.Icon ?? "null"} as {type.Name}###{prefix} as {type.Name}");
 			}
 
 			// a State shows its Name (which can change, eg a Delay's time left: the ### keeps the node's id the same)
