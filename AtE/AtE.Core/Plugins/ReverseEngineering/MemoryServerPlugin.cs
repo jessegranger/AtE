@@ -492,7 +492,8 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			float Dist(Offsets.Vector2i p) => here.HasValue ? Combat.Distance(here.Value, p) : float.NaN;
 			var labRoom = Labyrinth.CurrentRoom();
 			if ( labRoom != null ) Labyrinth.LearnFromExits(labRoom, terrain.Exits); // also names the room exits by the map's order
-			var sb = new StringBuilder($"area {GetCurrentArea()?.Name}, player at {(here.HasValue ? here.Value.ToString() : "?")}" + NL);
+			var sb = new StringBuilder(labRoom == null ? "" : $"labyrinth room {labRoom}: {Labyrinth.NamingNote}" + NL);
+			sb.Append($"area {GetCurrentArea()?.Name}, player at {(here.HasValue ? here.Value.ToString() : "?")}" + NL);
 			foreach ( var e in terrain.Exits.OrderBy(e => Dist(e.GridPos)) ) sb.Append($"exit: {e}  d={Dist(e.GridPos):F0}  tile={e.TileFile}" + NL);
 			var groups = terrain.AllTileGroups()
 				.Where(g => string.IsNullOrEmpty(filter) || (g.TileFile?.IndexOf(filter, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0)

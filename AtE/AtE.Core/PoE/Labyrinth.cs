@@ -145,10 +145,33 @@ namespace AtE {
 		private static LabyrinthRoom lastRoom;
 
 		/// <summary>
+		/// The name of the area the player was in before this one (from OnAreaChange), or null. Used to find the room they came from when
+		/// PreviousRoom is not known (eg CurrentRoom could not tell which room the last area was).
+		/// </summary>
+		public static string PreviousAreaName { get; private set; }
+		private static string currentAreaName;
+		private static bool areaHooked;
+		/// <summary>Called by Terrain's constructor: follow area changes from the start.</summary>
+		public static void HookAreaChanges() {
+			if ( areaHooked ) return;
+			areaHooked = true;
+			OnAreaChange += (_, name) => {
+				if ( name == currentAreaName ) return;
+				PreviousAreaName = currentAreaName;
+				currentAreaName = name;
+			};
+		}
+
+		/// <summary>Why NameExitsByOrder named the exits or not, the last time it ran (shown by the memory server's /tiles).</summary>
+		public static string NamingNote { get; private set; }
+
+		/// <summary>
 		/// Called by Terrain each time it loads an area's tiles: note the room change (for PreviousRoom), and mark the room exit the
 		/// player stands near as the one they arrived through.
 		/// </summary>
 		public static void OnTerrainLoaded(List<AreaExit> exits, Vector2 playerGrid) {
+			terrainLoadedAt = Time.ElapsedMilliseconds;
+			ArrivalHasNoLabel = false;
 			var room = CurrentRoom();
 			if ( room == null ) return; // not in the Labyrinth (or the area is not known yet: the terrain loads again after OnAreaChange)
 			if ( room != lastRoom ) {
@@ -164,6 +187,17 @@ namespace AtE {
 
 		/// <summary>How near (cells) the player must be to an exit, when the area loads, for it to be the one they arrived through.</summary>
 		public const float ArrivalReach = 100;
+
+		/// <summary>
+		/// True once the exit the player arrived through has shown no label (no AreaTransition entity) while they stood near it, some time
+		/// after the area loaded: it is the door of a completed trial, which is one-way (the user, 3.30; seen live coming out of the
+		/// Aspirant's Trial into Sepulchre Halls: only Labyrinth/Objects/LabyrinthMap stood by the door). Reset each time an area loads.
+		/// </summary>
+		public static bool ArrivalHasNoLabel { get; private set; }
+		private static long terrainLoadedAt;
+		/// <summary>How long after the area loads, and how near the arrival exit the player must be, for its missing label to count.</summary>
+		public const long NoLabelAfterMs = 2000;
+		public const float NoLabelReach = 60;
 
 		/// <summary>
 		/// The exits of a Labyrinth room that lead to other rooms: the "transition" tiles, without the seams between two kinds of ground
@@ -190,7 +224,10 @@ namespace AtE {
 			// the ways out on the map; a null room is the Aspirants' Plaza, left of the run's first room
 			var ways = here.Neighbours.Select(r => (room: r, dir: r.MapPos - here.MapPos)).ToList();
 			if ( first ) ways.Add((null, new Vector2(-1, 0)));
-			if ( ways.Count < 2 || exits.Count != ways.Count ) return;
+			if ( ways.Count < 2 || exits.Count != ways.Count ) {
+				NamingNote = $"not named: {exits.Count} room exits, {ways.Count} ways out on the map";
+				return;
+			}
 
 			float cx = (float)exits.Average(e => e.GridPos.X), cy = (float)exits.Average(e => e.GridPos.Y);
 			// grid to screen turns by 45 degrees and flips handedness; the order around a point needs no more of the projection than that
@@ -207,15 +244,43 @@ namespace AtE {
 				if ( wayIndex >= 0 ) shifts.Add(((wayIndex - byScreen.IndexOf(e)) % n + n) % n);
 			}
 			var arrival = byScreen.FirstOrDefault(e => e.IsArrival);
+			string cameFrom = "unknown";
 			if ( arrival != null ) {
-				if ( PreviousRoom != null ) Anchor(arrival, byMap.FindIndex(w => w.room == PreviousRoom));
-				else if ( first ) Anchor(arrival, byMap.FindIndex(w => w.room == null));
+				int from = PreviousRoom != null ? byMap.FindIndex(w => w.room == PreviousRoom) : -1;
+				if ( from >= 0 ) cameFrom = $"room {PreviousRoom}";
+				else if ( PreviousAreaName != null ) {
+					// the one neighbour that can be the area the player came from
+					var fits = byMap.Select((w, i) => (w, i)).Where(t => t.w.room != null && t.w.room.CandidateNames.Contains(PreviousAreaName)).ToList();
+					if ( fits.Count == 1 ) { from = fits[0].i; cameFrom = $"area {PreviousAreaName}"; }
+				}
+				if ( from < 0 && first ) { from = byMap.FindIndex(w => w.room == null); cameFrom = "the plaza"; }
+				Anchor(arrival, from);
+
+				// an arrival door with no label is a completed trial's (one-way); not in the run's first room, whose arrival is the plaza's door
+				if ( arrival.Seen ) ArrivalHasNoLabel = false;
+				else if ( !ArrivalHasNoLabel && !first && Time.ElapsedMilliseconds - terrainLoadedAt > NoLabelAfterMs ) {
+					var player = GridPosition(GetPlayer());
+					if ( player != Vector2.Zero && Vector2.Distance(player, new Vector2(arrival.GridPos.X, arrival.GridPos.Y)) < NoLabelReach ) ArrivalHasNoLabel = true;
+				}
+				if ( ArrivalHasNoLabel ) {
+					var trials = byMap.Select((w, i) => (w, i)).Where(t => t.w.room != null && t.w.room.IsTrial).ToList();
+					if ( trials.Count == 1 ) {
+						Anchor(arrival, trials[0].i);
+						if ( from < 0 ) cameFrom = "a trial (the arrival door has no label)";
+					}
+				}
 			}
 			foreach ( var e in byScreen.Where(e => e.Seen && e.Destination != null) ) {
 				var named = byMap.Select((w, i) => (w, i)).Where(t => t.w.room != null && t.w.room.CandidateNames.Contains(e.Destination)).ToList();
 				if ( named.Count == 1 ) Anchor(e, named[0].i);
 			}
-			if ( shifts.Count != 1 ) return; // no anchor, or they disagree
+			if ( shifts.Count != 1 ) { // no anchor, or they disagree
+				NamingNote = $"not named: {(shifts.Count == 0 ? "no anchor" : "anchors disagree")} (arrival {(arrival == null ? "not marked" : "marked")}, came from {cameFrom},"
+					+ $" previous room {PreviousRoom?.ToString() ?? "?"}, previous area {PreviousAreaName ?? "?"})";
+				return;
+			}
+			NamingNote = $"named by map order, anchored on {(arrival != null ? $"the arrival (came from {cameFrom})" : "")}{(arrival != null && byScreen.Any(e => e.Seen && e.Destination != null) ? " and " : "")}"
+				+ $"{(byScreen.Any(e => e.Seen && e.Destination != null) ? "seen exits" : "")}";
 			int shift = shifts.First();
 			for ( int i = 0; i < n; i++ ) byScreen[i].LeadsTo = byMap[(i + shift) % n].room;
 		}

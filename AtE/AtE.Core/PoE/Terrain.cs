@@ -27,6 +27,7 @@ namespace AtE {
 
 		public Terrain() {
 			OnAreaChange += (sender, areaName) => Clear();
+			Labyrinth.HookAreaChanges();
 		}
 
 		private List<AreaExit> exits = new List<AreaExit>();

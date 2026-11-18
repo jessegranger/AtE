@@ -254,12 +254,14 @@ namespace AtE {
 		}
 
 		private void RenderExits(Terrain terrain, float z) {
+			var labRoom = Labyrinth.CurrentRoom();
+			if ( labRoom != null ) Labyrinth.LearnFromExits(labRoom, terrain.Exits); // names the room exits by the Labyrinth Map's order
 			var next = NextRouteExit(terrain);
 			foreach ( var exit in terrain.Exits ) {
 				if ( !TryGridToScreen(exit.GridPos, z, out Vector2 screen) ) continue; // behind the camera
 				Color color = exit == next ? Color.Gold : exit.Seen ? Color.White : Color.Orange;
 				DrawCircle(screen, 10, color);
-				DrawTextAt(screen + new Vector2(12, -6), exit.Destination ?? "exit?", color);
+				DrawTextAt(screen + new Vector2(12, -6), exit.Destination ?? (exit.LeadsTo != null ? exit.LeadsTo.DisplayName + " (map)" : "exit?"), color);
 			}
 			if ( terrain.Waypoint is AreaFeature waypoint && TryGridToScreen(waypoint.GridPos, z, out Vector2 at) ) {
 				Color color = waypoint.Seen ? Color.SkyBlue : Color.Orange;
