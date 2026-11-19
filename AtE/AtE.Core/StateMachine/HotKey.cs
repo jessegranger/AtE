@@ -69,7 +69,13 @@ namespace AtE {
 
 	public class KeyPicker : State {
 		public HotKey Target;
+
+		/// <summary>The frame a KeyPicker last drew its modal: while one is open the overlay keeps the keyboard (see Overlay.ReturnFocusToGame).</summary>
+		private static long lastOpenFrame = -10;
+		public static bool IsOpen => Overlay.FrameCount - lastOpenFrame <= 1;
+
 		public override IState OnTick(long dt) {
+			lastOpenFrame = Overlay.FrameCount;
 			ImGui.SetNextWindowSize(new Vector2(Overlay.Width, Overlay.Height));
 			ImGui.SetNextWindowPos(new Vector2(Overlay.Left, Overlay.Top));
 			if ( ImGui.Begin("HotKeyModal", ImGuiWindowFlags.Modal
@@ -79,20 +85,24 @@ namespace AtE {
 				) {
 				var center = ImGui.GetMainViewport().GetCenter();
 				ImGui.SetNextWindowPos(center, ImGuiCond.Always, new Vector2(0.5f, 0.5f));
+				VKey picked = VKey.None;
 				if( ImGui.Begin("HotKeyCenter", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMouseInputs | ImGuiWindowFlags.Modal ) ) {
 					ImGui.Text("Press the new key for the binding...");
 					var io = ImGui.GetIO();
-					for ( int i = 0; i < io.KeyMap.Count; i++ ) {
+					for ( int i = 0; i < io.KeyMap.Count && picked == VKey.None; i++ ) {
 						var key = io.KeyMap[i];
-						if ( key != 0 && Platform.Current.Keys.IsKeyDown((VKey)key) ) {
-							Target.Key = (VKey)key;
-							return Next;
-						}
-						ImGui.End();
+						if ( key != 0 && Platform.Current.Keys.IsKeyDown((VKey)key) ) picked = (VKey)key;
 					}
 				}
 				ImGui.End();
+				ImGui.End();
+				if ( picked != VKey.None ) {
+					Target.Key = picked;
+					return Next;
+				}
+				return base.OnTick(dt);
 			}
+			ImGui.End();
 			return base.OnTick(dt);
 		}
 	}

@@ -1,3 +1,4 @@
+using ImGuiNET;
 using System;
 using System.Threading;
 using static AtE.Globals;
@@ -66,6 +67,23 @@ namespace AtE {
 
 		public static double FPS { get; private set; }
 
+		/// <summary>True when the overlay needs the keyboard itself: ImGui is editing text, or a key binding modal is open.</summary>
+		public static bool WantsKeyboard => ImGui.GetIO().WantTextInput || KeyPicker.IsOpen;
+
+		private static long nextFocusAttempt;
+		/// <summary>
+		/// Clicking an overlay window makes the overlay the foreground window, and then every key goes to it
+		/// instead of the game. So once the click is over, unless the overlay needs the keyboard itself
+		/// (see WantsKeyboard), give the foreground back to the game, so keys pass straight through to it.
+		/// </summary>
+		private static void ReturnFocusToGame() {
+			if ( !HasFocus || WantsKeyboard || !PoEMemory.IsAttached ) return;
+			// not mid-click or mid-drag (moving a window, dragging a slider): the overlay keeps the mouse until it's let go
+			if ( ImGui.IsAnyMouseDown() ) return;
+			if ( Time.ElapsedMilliseconds < nextFocusAttempt ) return;
+			if ( !Platform.Current.Memory.TryFocusTarget() ) nextFocusAttempt = Time.ElapsedMilliseconds + 500; // don't retry every frame if it's refused
+		}
+
 		public static void RenderLoop() {
 			Log("Starting Render loop...");
 			long lastRenderTime = Time.ElapsedMilliseconds - 16;
@@ -90,6 +108,7 @@ namespace AtE {
 
 					// Render the accumulated draw lists to the GPU and present (VSync inside)
 					Platform.Current.Renderer.EndFrame();
+					ReturnFocusToGame();
 					FrameLock.Set();
 				});
 			} finally {
