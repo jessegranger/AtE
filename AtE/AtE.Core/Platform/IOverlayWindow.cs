@@ -74,6 +74,15 @@ namespace AtE {
 		/// <summary>True while the overlay window itself is the foreground/active window.</summary>
 		bool HasFocus { get; }
 
+		/// <summary>
+		/// Whether clicking the overlay may make it the foreground window (Windows: clears/sets <c>WS_EX_NOACTIVATE</c>).
+		/// Normally off, so clicks on overlay widgets leave the game in the foreground and keys keep going to it.
+		/// </summary>
+		void SetActivatable(bool enabled) { }
+
+		/// <summary>Make the overlay the foreground window, so it gets the keyboard (eg, to type in a text field). True if it has the focus afterwards.</summary>
+		bool TryTakeFocus() => false;
+
 		/// <summary>False once the window has been closed or disposed (used as a liveness check).</summary>
 		bool IsOpen { get; }
 

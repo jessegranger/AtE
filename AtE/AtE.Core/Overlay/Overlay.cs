@@ -71,13 +71,25 @@ namespace AtE {
 		public static bool WantsKeyboard => ImGui.GetIO().WantTextInput || KeyPicker.IsOpen;
 
 		private static long nextFocusAttempt;
+		private static bool wantedKeyboard;
 		/// <summary>
-		/// Clicking an overlay window makes the overlay the foreground window, and then every key goes to it
-		/// instead of the game. So once the click is over, unless the overlay needs the keyboard itself
-		/// (see WantsKeyboard), give the foreground back to the game, so keys pass straight through to it.
+		/// Keys go to the foreground window, so the overlay only takes the foreground while it needs the keyboard
+		/// itself (see WantsKeyboard); the rest of the time keys pass straight through to the game.
+		/// Clicks on overlay widgets don't activate it (see IOverlayWindow.SetActivatable): swapping the foreground
+		/// to the overlay and back on every click made the game flicker.
 		/// </summary>
-		private static void ReturnFocusToGame() {
-			if ( !HasFocus || WantsKeyboard || !PoEMemory.IsAttached ) return;
+		private static void UpdateKeyboardFocus() {
+			bool wants = WantsKeyboard;
+			bool started = wants && !wantedKeyboard;
+			wantedKeyboard = wants;
+			Platform.Current.Window.SetActivatable(wants);
+			if ( wants ) {
+				// take the keyboard when a text field or key picker opens, which a click on the overlay just did;
+				// only then, so clicking away to the game (with the text field still active) leaves the game in front
+				if ( started && OverlayOrGameFocused ) Platform.Current.Window.TryTakeFocus();
+				return;
+			}
+			if ( !HasFocus || !PoEMemory.IsAttached ) return;
 			// not mid-click or mid-drag (moving a window, dragging a slider): the overlay keeps the mouse until it's let go
 			if ( ImGui.IsAnyMouseDown() ) return;
 			if ( Time.ElapsedMilliseconds < nextFocusAttempt ) return;
@@ -108,7 +120,7 @@ namespace AtE {
 
 					// Render the accumulated draw lists to the GPU and present (VSync inside)
 					Platform.Current.Renderer.EndFrame();
-					ReturnFocusToGame();
+					UpdateKeyboardFocus();
 					FrameLock.Set();
 				});
 			} finally {

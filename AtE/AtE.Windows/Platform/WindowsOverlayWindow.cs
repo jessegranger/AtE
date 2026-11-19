@@ -86,6 +86,21 @@ namespace AtE {
 
 		public bool HasFocus => IsOpen && (Win32.GetForegroundWindow() == Form.Handle);
 
+		public void SetActivatable(bool enabled) => Form.IsActivatable = enabled;
+
+		public bool TryTakeFocus() {
+			if ( !IsOpen ) return false;
+			IntPtr hWnd = Form.Handle;
+			if ( Win32.GetForegroundWindow() == hWnd ) return true;
+			// Windows lets only the foreground thread hand the foreground to another window: share its input queue for the call
+			uint foregroundThread = Win32.GetWindowThreadProcessId(Win32.GetForegroundWindow(), out _);
+			uint thisThread = Win32.GetCurrentThreadId();
+			bool attached = foregroundThread != 0 && foregroundThread != thisThread && Win32.AttachThreadInput(thisThread, foregroundThread, true);
+			bool ok = Win32.SetForegroundWindow(hWnd);
+			if ( attached ) Win32.AttachThreadInput(thisThread, foregroundThread, false);
+			return ok;
+		}
+
 		public bool IsOpen => !closed && Form != null && !Form.IsDisposed;
 
 		public void RunMessageLoop(Action onFrame) {

@@ -65,15 +65,52 @@ namespace AtE {
 			set {
 				if( value != trans ) {
 					trans = value;
-					if( trans ) {
-						SetWindowLong(Handle, GWL_STYLE, new IntPtr(WS_VISIBLE));
-						SetWindowLong(Handle, GWL_EXSTYLE, new IntPtr(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST));
-					} else {
-						SetWindowLong(Handle, GWL_STYLE, new IntPtr(WS_VISIBLE));
-						SetWindowLong(Handle, GWL_EXSTYLE, new IntPtr(WS_EX_LAYERED | WS_EX_TOPMOST));
-					}
+					ApplyStyles();
 				}
 			}
+		}
+
+		private bool activatable = false;
+		/// <summary>
+		/// When false (the default), clicking the overlay does not make it the foreground window (WS_EX_NOACTIVATE),
+		/// so the game keeps the foreground, and the keyboard, while overlay widgets are clicked. Swapping the
+		/// foreground back and forth on every click made the game flicker.
+		/// </summary>
+		[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+		public bool IsActivatable {
+			get => activatable;
+			set {
+				if ( value != activatable ) {
+					activatable = value;
+					ApplyStyles();
+				}
+			}
+		}
+
+		private void ApplyStyles() {
+			int exStyle = WS_EX_LAYERED | WS_EX_TOPMOST;
+			if ( trans ) exStyle |= WS_EX_TRANSPARENT;
+			if ( !activatable ) exStyle |= WS_EX_NOACTIVATE;
+			SetWindowLong(Handle, GWL_STYLE, new IntPtr(WS_VISIBLE));
+			SetWindowLong(Handle, GWL_EXSTYLE, new IntPtr(exStyle));
+		}
+
+		protected override bool ShowWithoutActivation => true;
+
+		protected override CreateParams CreateParams {
+			get {
+				var cp = base.CreateParams;
+				cp.ExStyle |= WS_EX_NOACTIVATE;
+				return cp;
+			}
+		}
+
+		protected override void WndProc(ref Message m) {
+			if ( m.Msg == WM_MOUSEACTIVATE && !activatable ) {
+				m.Result = new IntPtr(MA_NOACTIVATE);
+				return;
+			}
+			base.WndProc(ref m);
 		}
 
 		/// <summary>

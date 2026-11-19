@@ -66,6 +66,9 @@ namespace AtE {
 		public const int WS_EX_LAYERED = 0x80000;
 		public const int WS_EX_TRANSPARENT = 0x20;
 		public const int WS_EX_TOPMOST = 0x00000008;
+		public const int WS_EX_NOACTIVATE = 0x08000000;
+		public const int WM_MOUSEACTIVATE = 0x0021;
+		public const int MA_NOACTIVATE = 3;
 		public const int WS_VISIBLE = 0x10000000;
 
 
