@@ -46,6 +46,18 @@ namespace AtE {
 			}
 		}
 		private static ConcurrentQueue<uint> entsToBeRemoved = new ConcurrentQueue<uint>();
+
+		/// <summary>
+		/// The projectiles in flight, as of the last walk of the entity list. Their ids have the high bit set (0x80000000
+		/// to 0xBFFFFFFF; seen 3.30.0c: Metadata/Projectiles/CorruptedBallLightning, WandProjectile), so they are not among
+		/// GetEntities, which skips every id with the high bit set (the client-only entities, 0xC0000000 and up: doodads,
+		/// critters, client-side ground effects).
+		/// </summary>
+		public static IReadOnlyList<Entity> GetProjectiles() => projectiles;
+		private static volatile Entity[] projectiles = Array.Empty<Entity>();
+		// the projectile Entity made for each address (so one keeps its cached components from walk to walk)
+		private static readonly Dictionary<IntPtr, Entity> projectilesByAddress = new Dictionary<IntPtr, Entity>();
+		private static bool IsProjectileId(uint id) => (id & 0xC0000000) == 0x80000000;
 		private static void removeAllPending() {
 			while( entsToBeRemoved.TryDequeue(out uint id) ) {
 				if( EntitiesById.TryRemove(id, out Entity ent) ) {
@@ -113,6 +125,7 @@ namespace AtE {
 					}
 					// we are going to skip reading the Ent from the first (head) node
 					bool skippedOne = false;
+					var foundProjectiles = new List<Entity>();
 					while ( frontier.Count > 0 && deduper.Count < 2000 ) {
 						var node = frontier.Dequeue();
 						IntPtr entPtr = node.Entity;
@@ -124,7 +137,10 @@ namespace AtE {
 						if( skippedOne == false ) {
 							skippedOne = true;
 						} else if ( PoEMemory.TryRead(entPtr + idOffset, out uint id)) {
-							if ( id == 0 || ((int)id < 0) ) {
+							if ( IsProjectileId(id) ) {
+								if ( !projectilesByAddress.TryGetValue(entPtr, out Entity proj) ) projectilesByAddress[entPtr] = proj = new Entity() { Address = entPtr };
+								if ( IsValid(proj) ) foundProjectiles.Add(proj);
+							} else if ( id == 0 || ((int)id < 0) ) {
 								// Log($"EntityCache[id={id}] Failed to produce a valid ent, rejecting.");
 							} else {
 								// attempt to construct and cache an Entity instance from this ptr
@@ -152,6 +168,11 @@ namespace AtE {
 						}
 					}
 					// now, frontier is empty, and incomingIds is full
+					projectiles = foundProjectiles.ToArray();
+					if ( projectilesByAddress.Count > foundProjectiles.Count ) {
+						var keep = new HashSet<IntPtr>(foundProjectiles.Select(e => e.Address));
+						foreach ( var gone in projectilesByAddress.Keys.Where(a => !keep.Contains(a)).ToArray() ) projectilesByAddress.Remove(gone);
+					}
 					var toRemove = EntitiesById.Keys.Where(k => !incomingIds.Contains(k)).ToArray();
 					foreach ( var id in toRemove ) {
 						// note, that we dont remove from EntitiesById, but mark as Invalid

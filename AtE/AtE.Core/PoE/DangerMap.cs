@@ -406,12 +406,19 @@ namespace AtE {
 
 		// ---- debugging ----
 
+		/// <summary>Describe with rotate: the grid cells across one character.</summary>
+		public static float RotatedColumnCells = 0.75f;
+
 		/// <summary>
 		/// A text picture of the map r cells each way around at (default: Center), with its hazards: each cell is '#'
 		/// blocked, '.' safe, or a digit for the danger (Now + Soon) in steps of 10% of Max (Soon-only cells as letters
-		/// a-j instead), '@' the center; then the hazards over the middle cell, if cellInfo.
+		/// a-j instead), '@' the center; then the hazards over the middle cell, if cellInfo. Given project (a grid cell to
+		/// its screen position, false if it can't), the picture gets a frame with N, E, S and W where the screen's top,
+		/// right, bottom and left lie from the middle (the grid is turned on the screen), and a legend beside it; or, if
+		/// rotate, the picture is drawn turned to match the screen instead (up is the screen's top; each character is about
+		/// RotatedColumnCells across, a line twice that, as characters are about twice as tall as wide).
 		/// </summary>
-		public string Describe(Offsets.Vector2i? at, int r, bool cellInfo) {
+		public string Describe(Offsets.Vector2i? at, int r, bool cellInfo, Func<Offsets.Vector2i, (bool ok, Vector2 screen)> project = null, bool rotate = false) {
 			var mid = at ?? Center;
 			var sb = new StringBuilder();
 			long age = Time.ElapsedMilliseconds - BuiltAt;
@@ -423,19 +430,91 @@ namespace AtE {
 				sb.AppendLine($"cell {mid}: now {NowAt(mid)}, soon {SoonAt(mid)}, total {Total(mid)}{(IsSafe(mid) ? " (safe)" : "")}");
 				foreach ( var h in HazardsAt(mid) ) sb.AppendLine($"  under {h}{(h.Covers(mid, 0) ? "" : " (margin)")}");
 			}
+			char Glyph(Offsets.Vector2i c) {
+				if ( c.X == mid.X && c.Y == mid.Y ) return '@';
+				int t = Total(c);
+				if ( t == Blocked ) return '#';
+				if ( t < SafeLevel ) return '.';
+				int d = Math.Min(9, t * 10 / Max);
+				return NowAt(c) < SafeLevel ? (char)('a' + d) : (char)('0' + d);
+			}
+			// the grid per screen pixel along the screen's right and down (from project, at the middle)
+			Vector2 perRight = default, perDown = default;
+			bool turned = false;
+			if ( project != null ) {
+				var (ok0, s0) = project(mid);
+				var (okx, sx) = project(new Offsets.Vector2i(mid.X + 10, mid.Y));
+				var (oky, sy) = project(new Offsets.Vector2i(mid.X, mid.Y + 10));
+				Vector2 ex = (sx - s0) / 10, ey = (sy - s0) / 10; // (screen per cell of +X, of +Y)
+				float det = (ex.X * ey.Y) - (ex.Y * ey.X);
+				if ( ok0 && okx && oky && Math.Abs(det) > 1e-6 ) {
+					// the grid (a, b) that goes v on the screen: a * ex + b * ey = v
+					Vector2 Grid(Vector2 v) => new Vector2(((v.X * ey.Y) - (v.Y * ey.X)) / det, ((ex.X * v.Y) - (ex.Y * v.X)) / det);
+					perRight = Grid(new Vector2(1, 0));
+					perDown = Grid(new Vector2(0, 1));
+					turned = true;
+				}
+			}
+			if ( rotate && turned ) {
+				// each character RotatedColumnCells of grid along the screen's right; each line twice as many pixels down
+				float px = RotatedColumnCells / perRight.Length();
+				int cols = (int)Math.Ceiling(r / RotatedColumnCells), rows = (int)Math.Ceiling(r / (2 * px * perDown.Length()));
+				sb.AppendLine($"turned to the screen (up: the screen's top; a character {RotatedColumnCells} cells across, a line {2 * px * perDown.Length():F1} cells down), about {r} cells around {mid}; # blocked, . safe, 0-9 danger/10% (a-j: Soon only), @ {(at.HasValue ? "the cell" : "the player")}");
+				sb.AppendLine("  screen top");
+				for ( int v = -rows; v <= rows; v++ ) {
+					sb.Append(v == 0 ? "L " : "  ");
+					for ( int u = -cols; u <= cols; u++ ) {
+						var g = (perRight * (u * px)) + (perDown * (v * 2 * px));
+						var c = new Offsets.Vector2i(mid.X + (int)Math.Round(g.X), mid.Y + (int)Math.Round(g.Y));
+						sb.Append(u == 0 && v == 0 ? '@' : Glyph(c));
+					}
+					sb.AppendLine(v == 0 ? " R" : "");
+				}
+				sb.AppendLine("  screen bottom (L: screen left, R: screen right)");
+				return sb.ToString();
+			}
+			if ( rotate ) sb.AppendLine("(not turned: no camera)");
 			sb.AppendLine($"x {mid.X - r}..{mid.X + r} (left to right), y {mid.Y - r}..{mid.Y + r} (top to bottom); # blocked, . safe, 0-9 danger/10% (a-j: Soon only), @ {(at.HasValue ? "the cell" : "the player")}");
+			// the frame: a letter where each screen direction leaves the picture
+			var frame = new Dictionary<(int dx, int dy), char>();
+			var legend = new List<string>();
+			if ( turned ) {
+				{
+					foreach ( var (letter, v, name) in new[] { ('N', -perDown, "top"), ('E', perRight, "right"), ('S', perDown, "bottom"), ('W', -perRight, "left") } ) {
+						float a = v.X, b = v.Y;
+						float m = Math.Max(Math.Abs(a), Math.Abs(b));
+						if ( m < 1e-6 ) continue;
+						// where the ray from the middle leaves the frame (one ring outside the picture)
+						int fx = (int)Math.Round(a / m * (r + 1)), fy = (int)Math.Round(b / m * (r + 1));
+						frame[(fx, fy)] = letter;
+						legend.Add($"{letter} = screen {name} (grid {a / m:+0.00;-0.00}, {b / m:+0.00;-0.00})");
+					}
+				}
+			}
+			if ( legend.Count == 0 && project != null ) legend.Add("(screen directions unknown: no camera)");
+			string Ring(int dy) {
+				var row = new StringBuilder("      ");
+				for ( int dx = -r - 1; dx <= r + 1; dx++ ) row.Append(frame.TryGetValue((dx, dy), out char ch) ? ch : (dx == -r - 1 || dx == r + 1) ? '+' : '-');
+				return row.ToString();
+			}
+			if ( project != null ) sb.AppendLine(Ring(-r - 1));
 			for ( int y = mid.Y - r; y <= mid.Y + r; y++ ) {
+				int dy = y - mid.Y;
 				sb.Append($"{y,5} ");
+				if ( project != null ) sb.Append(frame.TryGetValue((-r - 1, dy), out char left) ? left : '|');
 				for ( int x = mid.X - r; x <= mid.X + r; x++ ) {
-					var c = new Offsets.Vector2i(x, y);
-					if ( x == mid.X && y == mid.Y ) { sb.Append('@'); continue; }
-					int t = Total(c);
-					if ( t == Blocked ) { sb.Append('#'); continue; }
-					if ( t < SafeLevel ) { sb.Append('.'); continue; }
-					int d = Math.Min(9, t * 10 / Max);
-					sb.Append(NowAt(c) < SafeLevel ? (char)('a' + d) : (char)('0' + d));
+					sb.Append(Glyph(new Offsets.Vector2i(x, y)));
+				}
+				if ( project != null ) {
+					sb.Append(frame.TryGetValue((r + 1, dy), out char right) ? right : '|');
+					int li = dy + r; // (the legend down the right, from the top row)
+					if ( li < legend.Count ) sb.Append("   ").Append(legend[li]);
 				}
 				sb.AppendLine();
+			}
+			if ( project != null ) {
+				sb.AppendLine(Ring(r + 1));
+				for ( int li = (2 * r) + 1; li < legend.Count; li++ ) sb.AppendLine(legend[li]); // (a picture too short for it)
 			}
 			return sb.ToString();
 		}

@@ -143,11 +143,68 @@ namespace AtE {
 			// Renkarr's fire bombs (same pause): Monsters/Daemon/VilentaCarpetBombDaemonMap, using VilentaBombTossFire aimed at
 			// a cell near the player (12 cells from them). Not seen landing: a circle of 12 cells is a guess
 			("VilentaBombToss", false, 12, 0, 50),
+			// Nightmare Manifest's orb (PietyBeastMapBoss; 3.30.0c, paused as the user saw an orb about to pop beside him):
+			// PietyCorruptedBallLightningMaps, aimed at a cell 33 cells from him (no Target entity), which the user placed
+			// "screen-left of him, screen-down from the player". Not seen popping: 15 cells is a guess
+			("PietyCorruptedBallLightning", false, 15, 0, 80),
 		};
 
-		/// <summary>The slices of the HazardSkills, and the AimedSkills, being used now by any monster in ents.</summary>
+		/// <summary>
+		/// Beams a monster channels along the way it faces (Positioned.Rotation, 0 facing -Y), turning as it goes: a part of
+		/// the skill's name, the beam's length and half-width in cells, its weight (on the Now layer), and how far ahead
+		/// (ms) of it to keep out of as it turns (on the Soon layer, at half its weight). The turn rate is measured from
+		/// frame to frame (see turning); until it is known (or while it doesn't turn), UnknownSweepDeg either side.
+		/// </summary>
+		public static readonly List<(string skillPart, float length, float halfWidth, byte weight, long lookaheadMs)> RotatingBeamSkills = new List<(string, float, float, byte, long)> {
+			// Nightmare Manifest (Metadata/Monsters/Axis/PietyBeastMapBoss, a map boss; 3.30.0c, paused mid-beam):
+			// PietyCorruptedLightningBeamMaps, a lightning beam that turns around him, very damaging. No entity of its own
+			// (no Beam component, no effect near it): only his action. The action's Destination was 6 cells +Y of him (toward
+			// the player, 25 cells +Y), while his rotation (0.405) said he faced (0.39, -0.92): taken as the beam having
+			// turned since it was aimed. In a later pause (rotation 1.079) the user saw the beam drawn along his facing (by
+			// DangerDisplay) lie on the real one. Which way it turns is not confirmed. Length and width are guesses (Piety's
+			// own beam is taken as 70 x 4)
+			("PietyCorruptedLightningBeam", 90, 5, 120, 1200),
+		};
+		/// <summary>Not knowing which way a RotatingBeamSkills beam turns: keep out of this many degrees either side of it (on the Soon layer).</summary>
+		public static float UnknownSweepDeg = 45;
+		// per caster (entity id): its rotation when last seen, when, and its turn rate (radians/s, smoothed; NaN unknown)
+		private static readonly Dictionary<uint, (float rotation, long at, float rate)> turning = new Dictionary<uint, (float, long, float)>();
+
+		private static IEnumerable<Hazard> RotatingBeam(Entity e, Positioned pos, string part, float length, float halfWidth, byte weight, long lookaheadMs) {
+			long now = Time.ElapsedMilliseconds;
+			float r = pos.Rotation; // 0: facing -Y
+			float rate = float.NaN;
+			if ( turning.TryGetValue(e.Id, out var seen) && now - seen.at < 1000 ) {
+				rate = seen.rate;
+				if ( now > seen.at ) {
+					float d = r - seen.rotation;
+					while ( d > Math.PI ) d -= (float)(2 * Math.PI);
+					while ( d < -Math.PI ) d += (float)(2 * Math.PI);
+					if ( d != 0 ) {
+						float measured = d * 1000f / (now - seen.at);
+						rate = float.IsNaN(rate) ? measured : (rate * .7f) + (measured * .3f);
+					}
+				}
+			}
+			turning[e.Id] = (r, now, rate);
+			var facing = new Vector2((float)Math.Sin(r), -(float)Math.Cos(r));
+			var end = new Offsets.Vector2i(pos.GridPos.X + (int)Math.Round(facing.X * length), pos.GridPos.Y + (int)Math.Round(facing.Y * length));
+			yield return new Hazard(pos.GridPos, end, halfWidth) { Layer = DangerLayer.Now, Weight = weight, Source = part };
+			// where it turns next. A sector's angles are positive toward the caster's left, Left = (-Dir.Y, Dir.X); a
+			// growing rotation turns facing (sin r, -cos r) toward (cos r, sin r) = Left: so the same sign
+			const float rad = (float)(Math.PI / 180);
+			float from = -UnknownSweepDeg * rad, to = UnknownSweepDeg * rad;
+			if ( !float.IsNaN(rate) && rate != 0 ) {
+				float ahead = Math.Clamp(rate * lookaheadMs / 1000f, -(float)Math.PI, (float)Math.PI);
+				from = Math.Min(0, ahead);
+				to = Math.Max(0, ahead);
+			}
+			yield return new Hazard(pos.GridPos, length, facing, from, to) { Layer = DangerLayer.Soon, Weight = (byte)(weight / 2), Source = part + " (turning)" };
+		}
+
+		/// <summary>The slices of the HazardSkills, the AimedSkills and RotatingBeamSkills, being used now by any monster in ents.</summary>
 		public static IEnumerable<Hazard> SkillHazards(List<Entity> ents) {
-			if ( HazardSkills.Count == 0 && AimedSkills.Count == 0 ) yield break;
+			if ( HazardSkills.Count == 0 && AimedSkills.Count == 0 && RotatingBeamSkills.Count == 0 ) yield break;
 			foreach ( var e in ents ) {
 				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
 				var actor = e.GetComponent<Actor>();
@@ -156,6 +213,14 @@ namespace AtE {
 				string name = action?.SkillOf(actor)?.Name;
 				if ( name == null ) continue;
 				bool aimed = false;
+				foreach ( var (part, length, halfWidth, weight, lookaheadMs) in RotatingBeamSkills ) {
+					if ( name.IndexOf(part, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
+					aimed = true;
+					var pos = e.GetComponent<Positioned>();
+					if ( IsValid(pos) ) foreach ( var h in RotatingBeam(e, pos, part, length, halfWidth, weight, lookaheadMs) ) yield return h;
+					break;
+				}
+				if ( aimed ) continue;
 				foreach ( var (part, line, size, halfWidth, weight) in AimedSkills ) {
 					if ( name.IndexOf(part, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
 					aimed = true;
@@ -226,6 +291,14 @@ namespace AtE {
 			// .../League_Augury/Boss_Empowerments/OrbitalVisceraBeam/viscera_beam.ao. Render.Bounds 19.6 x 19.6 like the
 			// geysers; 12 cells is a guess at the blast
 			("OrbitalVisceraBeam/viscera_beam.ao", null, 12, DangerLayer.Soon, 60),
+			// its marker, before the beam lands (3.30.0c, on the Nightmare Manifest: a Metadata/Effects/ServerEffect whose
+			// animated object is .../OrbitalVisceraBeam/viscera_beam_marker.ao, 1.7 s old): where the beam will hit, the same 12
+			("OrbitalVisceraBeam/viscera_beam_marker.ao", null, 12, DangerLayer.Soon, 60),
+			// Nightmare Manifest's orbs (PietyCorruptedBallLightningMaps, see AimedSkills; 3.30.0c, paused with 4 out): projectiles
+			// Metadata/Projectiles/CorruptedBallLightning (.../act4/piety/sticky_orb/travel/orb_travel.ao), one at the cast's
+			// aimed cell, two where the user saw two big lightning orbs on screen. Not among the entities: see
+			// EntityCache.GetProjectiles. On the screenshot an orb is about 20 cells across: radius 14 with slack
+			("Projectiles/CorruptedBallLightning", null, 14, DangerLayer.Now, 80),
 			// Augury empowerment "Blackfire Wall" (3.30, seen on Kitava: a wave of fire that leaves the player burning with
 			// Blackfire). Monsters/Augury/Daemon/BlackfireWallDaemon (sits on the boss, StateMachine have_wall, tier) lays a
 			// line of Metadata/Monsters/Daemon/Augury/BlackfireWallObject segments (Animated, BaseEvents, Buffs, Positioned,
@@ -297,6 +370,8 @@ namespace AtE {
 			foreach ( var h in BeamHazards(ents) ) yield return h;
 			foreach ( var h in SkillHazards(ents) ) yield return h;
 			foreach ( var h in PathHazards(ents) ) yield return h;
+			// (projectiles are not among the entities, see EntityCache.GetProjectiles)
+			foreach ( var h in PathHazards(EntityCache.GetProjectiles().ToList()) ) yield return h;
 		}
 
 		/// <summary>The entities in ents matching HazardPaths.</summary>

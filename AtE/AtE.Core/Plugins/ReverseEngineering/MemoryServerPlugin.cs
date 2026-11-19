@@ -232,6 +232,38 @@ namespace AtE {
 						}
 						return sb.ToString();
 					});
+				case "/localents":
+					// the entities EntityCache skips: those in the game's entity list with the high bit of their id set (taken
+					// to be client-side), with their path, grid cell and animated object; filter by a part of either path
+					return RunOnMain(() => {
+						var sb = new StringBuilder();
+						var frontier = new Queue<Offsets.EntityListNode>();
+						var seen = new HashSet<IntPtr>();
+						frontier.Enqueue(PoEMemory.GameRoot.InGameState.EntityListHead);
+						int idAt = (int)System.Runtime.InteropServices.Marshal.OffsetOf<Offsets.Entity>("Id");
+						bool first = true;
+						int count = 0;
+						string filter = q["filter"];
+						while ( frontier.Count > 0 && seen.Count < 4000 ) {
+							var node = frontier.Dequeue();
+							if ( !seen.Add(node.Entity) ) continue;
+							if ( first ) first = false; // (the head node has no entity)
+							else if ( PoEMemory.TryRead(node.Entity + idAt, out uint id) && id != 0 && (int)id < 0 ) {
+								count += 1;
+								var ent = new Entity() { Address = node.Entity };
+								string path = ent.Path ?? "?";
+								var anim = ent.GetComponent<Animated>();
+								string ao = IsValid(anim) ? anim.AnimatedObjectPath : null;
+								var pos = ent.GetComponent<Positioned>();
+								if ( filter == null || path.Contains(filter, StringComparison.OrdinalIgnoreCase) || (ao?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false) )
+									sb.AppendLine($"id=0x{id:X8} addr=0x{node.Entity.ToInt64():X} {path}{(IsValid(pos) ? $" at={pos.GridPos}" : "")}{(ao != null ? $" ao={ao}" : "")}");
+							}
+							if ( PoEMemory.TryRead(node.First, out Offsets.EntityListNode a) ) frontier.Enqueue(a);
+							if ( PoEMemory.TryRead(node.Second, out Offsets.EntityListNode b) ) frontier.Enqueue(b);
+							if ( PoEMemory.TryRead(node.Third, out Offsets.EntityListNode c) ) frontier.Enqueue(c);
+						}
+						return $"{count} entities with a negative id ({seen.Count} nodes walked)" + NL + sb;
+					});
 				case "/danger":
 					// the DangerMap (DangerMap.Describe): its hazards, and the cells r each way around at=X,Y (default: the player)
 					return RunOnMain(() => {
@@ -241,7 +273,8 @@ namespace AtE {
 						var ap = (q["at"] ?? "").Split(',');
 						if ( ap.Length == 2 && int.TryParse(ap[0], out int ax) && int.TryParse(ap[1], out int ay) ) at = new Offsets.Vector2i(ax, ay);
 						int r = int.TryParse(q["r"], out int rr) ? Math.Clamp(rr, 2, 100) : 30;
-						return map.Describe(at, r, true);
+						float z = Position(GetPlayer()).Z;
+						return map.Describe(at, r, true, c => (TryGridToScreen(c, z, out var screen), screen), q["rotate"] == "1");
 					});
 				case "/traps":
 					// the traps loaded now (Terrain.Traps), nearest the player first, and the follower's state
@@ -421,7 +454,7 @@ namespace AtE {
   /waypoints                    the destinations on the waypoint panel, open or closed (read from its element tree): name, unlocked (visited), element, screen rect
   /tiles[?filter=]              the current area's tile files (.tdt): groups of neighboring tiles per file and where, and the exits known
   /doors                        the doors Terrain knows (closed/open, passage cells), each with a map of its box in the walkable grid
-  /danger[?at=X,Y&r=30]         the DangerMap (AvoidSpam's hazards; built now if old): its hazards, the danger at a cell (default the player) and what covers it, and a picture r cells each way
+  /danger[?at=X,Y&r=30&rotate=1]   the DangerMap (AvoidSpam's hazards; built now if old): its hazards, the danger at a cell (default the player) and what covers it, and a picture r cells each way (framed with the screen's directions; rotate=1: turned to match the screen)
   /labels                       the labels on the ground: entity id and path, text, screen rect, and the entity's screen position
   /skillbar[?stats=1]           the skill bar's slots: key, skill name, internal name, id, use time, tags (stats=1: each skill's stats)
   /gamekeys                     the game's key bindings from its Options panel (GameKeys; read from its tree now, if not yet), and the inventory key chosen
