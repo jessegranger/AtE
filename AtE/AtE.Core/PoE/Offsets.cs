@@ -21,12 +21,12 @@ namespace AtE {
 		/// The current version of this file.
 		/// </summary>
 		public const int VersionMajor = 1;
-		public const int VersionMinor = 14;
+		public const int VersionMinor = 15;
 
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.30";
+		public const string PoEVersion = "3.30.0c";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -208,6 +208,25 @@ namespace AtE {
 		// then, ptr = Read<IntPtr>(match + localOffset) is address of a GameRoot_Ref struct
 		// so, the final game state base ptr is, Read<GameRoot_Ref>(ptr).ptrToGameStateBasePtr
 
+		// 3.30.0c: the running game's build string, "release tags/3.30.0c 329528" (branch/tag, then the build number), is a global
+		// narrow std::string (MSVC layout: inline buffer or ptr at 0x00, length 0x10, capacity 0x18) at base+0x3ACBE18, beside the other
+		// startup globals (the command line, the Documents path and the install folder, all std::wstrings). It is the "Build\n%s"
+		// line of the crash report; this pattern is that snprintf call (unique in 3.30.0c, at base+0xDF1EFB):
+		//   lea r9, [build]  /  cmp qword [build.capacity], 0Fh  /  cmova r9, [build]  /  lea r8, ["\nBuild\n%s"]  /  mov edx, 200h
+		// The global is at match + 7 + Read<int>(match + 3). If the pattern stops matching, PoEMemory falls back to looking for a
+		// std::string in the module image whose text starts with "release " (exactly one in 3.30.0c).
+		// The login screen's bottom-right label shows the same version as "PoE1 3.30.0c" (see LoginGameState.elemVersionLabel).
+		// A second global std::string, "PoE release/tags/3.30.0c Windows x64" (the HTTP User-Agent), is at base+0x47A93A8.
+		public readonly static string GameBuild_SearchMask = "xxx????xxx????xxxxx????xxx????xxxxx";
+		public readonly static byte[] GameBuild_SearchPattern = new byte[] {
+			0x4c, 0x8d, 0x0d, 0x00, 0x00, 0x00, 0x00,
+			0x48, 0x83, 0x3d, 0x00, 0x00, 0x00, 0x00, 0x0f,
+			0x4c, 0x0f, 0x47, 0x0d, 0x00, 0x00, 0x00, 0x00,
+			0x4c, 0x8d, 0x05, 0x00, 0x00, 0x00, 0x00,
+			0xba, 0x00, 0x02, 0x00, 0x00
+		};
+		public readonly static string GameBuild_Prefix = "release ";
+
 		public readonly static string FileRoot_SearchMask = "xxxxxx????xxx";
 		public readonly static byte[] FileRoot_SearchPattern = new byte[] {
 			  /* From the original ExileApi notes: FileRoot Pointer
@@ -368,10 +387,23 @@ namespace AtE {
 			// 3.25: 256 new bytes here
 			// 3.28: 8 fewer bytes here
 			// 3.29: 16 new bytes here
-			[FieldOffset(0xa50)] public readonly IntPtr strAreaName;
+			// 3.30.0c: 8 new bytes here
+			[FieldOffset(0xa58)] public readonly IntPtr strAreaName;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct LoginGameState {
+			// 3.30.0c, confirmed live on the login screen: elemRoot is an unnamed 2560x1600 element, child [1] of the shared "root"
+			// element, and the parent of login_frame, connecting_frame, login_queue_frame and the version label. While the game is
+			// in-game this field is stale: it then points at some small element inside the InGameState UI tree, so check that
+			// LoginState is among GameRoot.ActiveGameStates before trusting it.
 			[FieldOffset(0x2D0)] public readonly IntPtr elemRoot;
+			[FieldOffset(0x2D8)] public readonly IntPtr elemLoginFrame; // "login_frame", elemRoot.Children[2]
+			[FieldOffset(0x2E0)] public readonly IntPtr elemLoginButton; // "login_button"
+			[FieldOffset(0x388)] public readonly IntPtr elemPasswordTextbox; // "password_textbox"
+			[FieldOffset(0x398)] public readonly IntPtr elemUsernameTextbox; // "username_textbox", Element_Text is the remembered login
+			[FieldOffset(0x3A8)] public readonly IntPtr elemLoginQueueFrame; // "login_queue_frame"
+			[FieldOffset(0x3C0)] public readonly IntPtr elemConnectingFrame; // "connecting_frame"
+			// unnamed 143x32 element at (2367, 1550), elemRoot.Children[6]; Element_Text is "PoE1 3.30.0c" (also at +0x498 and +0x540)
+			[FieldOffset(0x3F0)] public readonly IntPtr elemVersionLabel;
 		}
 
 		// Element members:
@@ -391,24 +423,26 @@ namespace AtE {
 			// 3.29: 4 new bytes here
 			// 3.29.4: Scale, elemParent, the flags and Size moved by 8 bytes (Scale up, the rest down); checked over a tree of 120 live elements
 			// 3.29.4: the element's id ("root", "login_frame", "username_textbox"...), a unicode std::wstring; most elements have none (length 0)
-			[FieldOffset(0x1b0)] public readonly StringHandle strName;
 			// 3.29.4: most elements now store 1.0 here, meaning "the same as the parent" (the orbs, the experience bar and the panels read 1.0 under the HUD's
 			// 0.75: that only puts them in the window if they are drawn at 0.75). Element.Scale resolves it; this is the raw value.
 			[FieldOffset(0x1a0)] public readonly float Scale; // should always be 0.75f? or is that just at my resolution?
+			// 3.30.0c: 8 new bytes here
+			[FieldOffset(0x1b8)] public readonly StringHandle strName;
 			// 3.24.3: 8 new bytes here
-			[FieldOffset(0x1d8)] public readonly IntPtr elemParent; // ptr to Element
+			[FieldOffset(0x1e0)] public readonly IntPtr elemParent; // ptr to Element
 
 			// 3.29.4: Position moved 0x150 -> 0x144 (-0xc): life_orb (18, 1285), mana_orb (2229, 1285) and experience_bar (816, 1570) read as the
 			// orbs' and the bar's places in the 2560x1600 layout. 0x150 still holds a float (18, 16, 816) that is not the position.
+			// 3.30.0c: 8 bytes removed here
 			[FieldOffset(0x144)] public readonly Vector2 Position;
 			[FieldOffset(0x144)] public readonly float X;
 			[FieldOffset(0x148)] public readonly float Y;
 			// 3.23: 32 fewer bytes here again
-			[FieldOffset(0x1e1)] public readonly byte IsVisibleByte; // 3.29.4: bit 8 varies between elements here (0x2e vs 0x26), not yet checked against one known to be shown or hidden
+			[FieldOffset(0x1e9)] public readonly byte IsVisibleByte; // 3.29.4: bit 8 varies between elements here (0x2e vs 0x26), not yet checked against one known to be shown or hidden
 			public bool IsVisibleLocal => (IsVisibleByte & 8) == 8;
 			// 3.29.4: 0x61 on the GemLvlUpPanel's buttons (level up all, and each gem's), 0x01 on everything else there
 			// (text, gem icons, bars, containers), compared over its 29 elements; not yet checked on other panels' buttons
-			[FieldOffset(0x1e3)] public readonly byte IsButtonByte;
+			[FieldOffset(0x1eb)] public readonly byte IsButtonByte;
 			public bool IsButton => IsButtonByte == 0x61;
 
 			// [FieldOffset(0x160)] public readonly uint ElementBorderColor;
@@ -417,9 +451,9 @@ namespace AtE {
 
 			// 3.23: 16 new bytes (+ the 64 prior) added here
 			// 3.26: 56 new bytes here
-			[FieldOffset(0x260)] public readonly Vector2 Size;
-			[FieldOffset(0x260)] public readonly float Width;
-			[FieldOffset(0x264)] public readonly float Height;
+			[FieldOffset(0x268)] public readonly Vector2 Size;
+			[FieldOffset(0x268)] public readonly float Width;
+			[FieldOffset(0x26c)] public readonly float Height;
 
 			// For elements used as Waypoint destination clicks on the AreaInstanceUI, this holds a link to the destination
 			// [FieldOffset(0x300)] public readonly Vector2 AreaInstanceElementDestination;
@@ -456,7 +490,9 @@ namespace AtE {
 		/// </summary>
 		// 3.28.0: 136 bytes above here (inherited from Element)
 		// 3.29.4: moved 0x338 -> 0x358 (+0x20): the clock's label reads "13:56" there. The same text is also at 0x490 and 0x538 (and "Fontin", the font, at 0x310 and 0x570): not placed.
-		public static readonly int Element_Text = 0x358;
+		// 3.30.0c: moved 0x358 -> 0x360 (+8, with the rest of Element): on the login screen every label, button caption and textbox
+		// reads at 0x360 ("Email", "log in", "Texas (US)", "PoE1 3.30.0c"...) and 0x358 is empty or garbage. The copies moved to 0x498 and 0x540.
+		public static readonly int Element_Text = 0x360;
 
 		public static readonly int Element_AreaInstanceDestination_Offset = 0x300;
 
@@ -839,152 +875,173 @@ namespace AtE {
 			// 3.29: 24 new bytes here
 			// 3.29.4: every field from GameUI to RootBuffPanel moved +0x28 (checked by Element.strName and sizes: GameUI is "HUD", LifeBubble "life_orb" 315x315, Flasks "flask_bar" 340x136,
 			// SkillBar "skills_bar", HiddenSkillBar "skills_list", ...). The fields after RootBuffPanel (NpcDialog...) are NOT shifted by the same amount (four item selectors were inserted) and are unverified.
-			[FieldOffset(0x360)] public readonly IntPtr GameUI;
-			[FieldOffset(0x378)] public readonly IntPtr LifeBubble;
-			[FieldOffset(0x380)] public readonly IntPtr ManaBubble;
-			[FieldOffset(0x3a0)] public readonly IntPtr Flasks;
-			[FieldOffset(0x3a8)] public readonly IntPtr ExperienceBar;
-			[FieldOffset(0x3c0)] public readonly IntPtr OpenMenuPopoutButton ;
-			[FieldOffset(0x3d8)] public readonly IntPtr CurrentTime;
+			[FieldOffset(0x360)] public readonly IntPtr PopupManager; // Name = "PopupManager"
+			// 3.30.0c: 8 new bytes above here (added PopupManager)
+			[FieldOffset(0x368)] public readonly IntPtr GameUI; // Name = "HUD"
+			[FieldOffset(0x370)] public readonly IntPtr autoHUDLeft; // Name = "HUDLeft"
+			[FieldOffset(0x378)] public readonly IntPtr autoHUDRight; // Name = "HUDRight"
+			[FieldOffset(0x380)] public readonly IntPtr LifeBubble; // Name = "life_orb"
+			[FieldOffset(0x388)] public readonly IntPtr ManaBubble; // Name = "mana_orb"
+			[FieldOffset(0x390)] public readonly IntPtr autoPlayerShield; // Name = "player_shield"
+			[FieldOffset(0x398)] public readonly IntPtr autoPlayerShieldOverMana; // Name = "player_shield_over_mana"
+			[FieldOffset(0x3a8)] public readonly IntPtr Flasks; // Name = "flask_bar"
+			[FieldOffset(0x3b0)] public readonly IntPtr ExperienceBar; // Name = "experience_bar"
+			[FieldOffset(0x3c0)] public readonly IntPtr autoMenu; // Name = "menu"
+			[FieldOffset(0x3c8)] public readonly IntPtr OpenMenuPopoutButton; // Name = "menu_button"
+			[FieldOffset(0x3e0)] public readonly IntPtr CurrentTime; // Name = "clock"
+			[FieldOffset(0x3e8)] public readonly IntPtr autoOptionsButton; // Name = "optionsButton"
+			[FieldOffset(0x3f0)] public readonly IntPtr autoSocialButton; // Name = "socialButton"
+			[FieldOffset(0x3f8)] public readonly IntPtr autoCharacterButton; // Name = "characterButton"
+			[FieldOffset(0x400)] public readonly IntPtr autoPassiveButton; // Name = "passiveButton"
+			[FieldOffset(0x408)] public readonly IntPtr autoInventoryButton; // Name = "inventoryButton"
+			[FieldOffset(0x410)] public readonly IntPtr autoCosmeticsButton; // Name = "cosmeticsButton"
+			[FieldOffset(0x418)] public readonly IntPtr autoMtxstashButton; // Name = "mtxstashButton"
+			[FieldOffset(0x420)] public readonly IntPtr autoChallengesButton; // Name = "challenges_button"
+			[FieldOffset(0x428)] public readonly IntPtr autoEventsPanelButton; // Name = "events_panel_button"
+			[FieldOffset(0x430)] public readonly IntPtr autoWorldButton; // Name = "worldButton"
+			[FieldOffset(0x438)] public readonly IntPtr autoAtlasButton; // Name = "atlas_button"
+			[FieldOffset(0x440)] public readonly IntPtr autoPantheonButton; // Name = "pantheon_button"
+			[FieldOffset(0x448)] public readonly IntPtr autoBattlePassButton; // Name = "battle_pass_button"
+			[FieldOffset(0x450)] public readonly IntPtr autoMarketButton; // Name = "market_button"
+			[FieldOffset(0x458)] public readonly IntPtr autoMarketBrowserButton; // Name = "market_browser_button"
+			[FieldOffset(0x460)] public readonly IntPtr autoMapButton; // Name = "mapButton"
 			// 3.23.2: 8 fewer bytes here
 			// 3.27: 8 new bytes here
-			[FieldOffset(0x470)] public readonly IntPtr GreenShopButton;
-			[FieldOffset(0x478)] public readonly IntPtr HelpPanelButton;
-			[FieldOffset(0x488)] public readonly IntPtr SkipAllTutorials;
-			[FieldOffset(0x4b0)] public readonly IntPtr Mouse;
+			[FieldOffset(0x478)] public readonly IntPtr GreenShopButton; // Name = "buyButton"
+			[FieldOffset(0x480)] public readonly IntPtr HelpPanelButton; // Name = "tutorial_panel_button"
+			[FieldOffset(0x490)] public readonly IntPtr SkipAllTutorials; // Name = "skip_all_tutorials_button"
+			[FieldOffset(0x4a8)] public readonly IntPtr autoChatButton; // Name = "chatButton"
+			[FieldOffset(0x4b8)] public readonly IntPtr Mouse; // Name = null
+			[FieldOffset(0x4c0)] public readonly IntPtr SkillBar; // Name = "skills_bar"
+			[FieldOffset(0x4c8)] public readonly IntPtr HiddenSkillBar; // Name = "skills_list"
+			[FieldOffset(0x4f0)] public readonly IntPtr autoPvpNotificationManager; // Name = "pvp_notification_manager"
+			[FieldOffset(0x520)] public readonly IntPtr autoSpectatingBanner; // Name = "spectating_banner"
+			[FieldOffset(0x528)] public readonly IntPtr autoWaitingBanner; // Name = "waiting_banner"
+			[FieldOffset(0x530)] public readonly IntPtr autoHideoutEditModeBanner; // Name = "hideout_edit_mode_banner"
+			[FieldOffset(0x538)] public readonly IntPtr autoCountdownManager; // Name = "countdown_manager"
+			[FieldOffset(0x540)] public readonly IntPtr autoBotleftButtonsLayout; // Name = "botleft_buttons_layout"
 			// 3.29.3: the level-up button (GameUI[3][0]), shown while there are passive points to spend: Child[1].Text is
 			// how many ("1" with one point). +0x3D0 has another element with the same text, in a hidden panel.
-			[FieldOffset(0x540)] public readonly IntPtr PassivePointsButton;
-			[FieldOffset(0x4b8)] public readonly IntPtr SkillBar;
-			[FieldOffset(0x4c0)] public readonly IntPtr HiddenSkillBar;
+			[FieldOffset(0x548)] public readonly IntPtr PassivePointsButton; // Name = "available_points_button"
+			[FieldOffset(0x550)] public readonly IntPtr autoQuestStateChangedButton; // Name = "quest_state_changed_button"
+			[FieldOffset(0x558)] public readonly IntPtr autoAtlasSkillPointsButton; // Name = "atlas_skill_points_button"
+			[FieldOffset(0x560)] public readonly IntPtr autoAtlasPassUnclaimedRewardsButton; // Name = "atlas_pass_unclaimed_rewards_button"
+			[FieldOffset(0x568)] public readonly IntPtr autoWeaponTreeSkillUnlockedButton; // Name = "weapon_tree_skill_unlocked_button"
 			// Crucible: 8 new bytes here
 			// 3.26: 8 new bytes here
-			[FieldOffset(0x568)] public readonly IntPtr ChatBoxRoot;
+			[FieldOffset(0x570)] public readonly IntPtr ChatBoxRoot; // Name = null
+			[FieldOffset(0x590)] public readonly IntPtr autoBestiaryMasterMissionDisplay; // Name = "bestiary_master_mission_display"
+			[FieldOffset(0x598)] public readonly IntPtr autoBestiaryCaptureNotification; // Name = "bestiary_capture_notification"
+			[FieldOffset(0x5a0)] public readonly IntPtr autoResourceBarsLayout; // Name = "resource_bars_layout"
+			[FieldOffset(0x5a8)] public readonly IntPtr autoDelveEnergyBar; // Name = "delve_energy_bar"
 
-			// 3.30.1: 16 new bytes here
-			[FieldOffset(0x5a8)] public readonly IntPtr QuestTracker;
-			[FieldOffset(0x630)] public readonly IntPtr OpenLeftPanel;
-			[FieldOffset(0x638)] public readonly IntPtr OpenRightPanel;
-			[FieldOffset(0x660)] public readonly IntPtr InventoryPanel;
-			[FieldOffset(0x668)] public readonly IntPtr StashElement;
-			[FieldOffset(0x670)] public readonly IntPtr GuildStashElement;
-			[FieldOffset(0x680)] public readonly IntPtr SocialPanel;
-			[FieldOffset(0x688)] public readonly IntPtr SkillTree;
-			// [FieldOffset(0x618)] public readonly IntPtr AtlasPanel;
-			// [FieldOffset(0x620)] public readonly IntPtr AtlasSkillPanel;
-			// [FieldOffset(0x650)] public readonly IntPtr WorldMap;
-			[FieldOffset(0x6a8)] public readonly IntPtr CharacterPanel;
-			[FieldOffset(0x6b0)] public readonly IntPtr OptionsPanel;
-			[FieldOffset(0x6b8)] public readonly IntPtr ChallengesPanel;
-			[FieldOffset(0x6c0)] public readonly IntPtr PantheonPanel;
-			[FieldOffset(0x6c8)] public readonly IntPtr PvPPanel;
-			[FieldOffset(0x6d0)] public readonly IntPtr AreaInstanceUi;
+			// 3.30.0c: 16 new bytes here
+			[FieldOffset(0x5b0)] public readonly IntPtr QuestTracker; // Name = null
+			[FieldOffset(0x5f0)] public readonly IntPtr autoHideoutUnlockNotification; // Name = "hideout_unlock_notification"
+			[FieldOffset(0x638)] public readonly IntPtr OpenLeftPanel; // Name = (not an Element: 0)
+			[FieldOffset(0x640)] public readonly IntPtr OpenRightPanel; // Name = (not an Element: 0)
+			[FieldOffset(0x668)] public readonly IntPtr InventoryPanel; // Name = null
+			[FieldOffset(0x670)] public readonly IntPtr StashElement; // Name = null
+			[FieldOffset(0x678)] public readonly IntPtr GuildStashElement; // Name = null
+			[FieldOffset(0x688)] public readonly IntPtr SocialPanel; // Name = null
+			[FieldOffset(0x690)] public readonly IntPtr SkillTree; // Name = null
+			[FieldOffset(0x6b0)] public readonly IntPtr CharacterPanel; // Name = null
+			[FieldOffset(0x6b8)] public readonly IntPtr OptionsPanel; // Name = null
+			[FieldOffset(0x6c0)] public readonly IntPtr ChallengesPanel; // Name = null
+			[FieldOffset(0x6c8)] public readonly IntPtr PantheonPanel; // Name = null
+			[FieldOffset(0x6d0)] public readonly IntPtr PvPPanel; // Name = null
+			[FieldOffset(0x6d8)] public readonly IntPtr AreaInstanceUi; // Name = null
+			[FieldOffset(0x6f0)] public readonly IntPtr autoTutorialPanel; // Name = "tutorial_panel"
 
-			[FieldOffset(0x710)] public readonly IntPtr RelicPanel;
-			[FieldOffset(0x718)] public readonly IntPtr Map;
-			[FieldOffset(0x720)] public readonly IntPtr ItemsOnGroundLabelElement;
-			//[FieldOffset(0x628)] public readonly IntPtr GameViewport; // playable area not blocked by open left/right panel
-			[FieldOffset(0x7a0)] public readonly IntPtr RootBuffPanel;
-			[FieldOffset(0x7a8)] public readonly IntPtr HelpOrKillBandit;
-			[FieldOffset(0x7d0)] public readonly IntPtr NpcDialog;
-			[FieldOffset(0x7d8)] public readonly IntPtr NpcOptions;
-			// [FieldOffset(0x728)] public readonly IntPtr LeagueInteractButtonPanel;
-			[FieldOffset(0x7e8)] public readonly IntPtr QuestRewardWindow;
-			// [FieldOffset(0x730)] public readonly IntPtr Unknown730;
-			[FieldOffset(0x7f8)] public readonly IntPtr PurchaseWindow;
-			// [FieldOffset(0x740)] public readonly IntPtr Unknown740; // LeagueSellPanel
-			[FieldOffset(0x808)] public readonly IntPtr SellWindow;
-			[FieldOffset(0x810)] public readonly IntPtr TradeWindow;
-			[FieldOffset(0x818)] public readonly IntPtr MapDevice;
-			// [FieldOffset(0x758)] public readonly IntPtr Unknown758;
-			// [FieldOffset(0x758)] public readonly IntPtr LabyrinthDivineFontPanel;
-			// [FieldOffset(0x768)] public readonly IntPtr Unknown768;
-			// [FieldOffset(0x7d8)] public readonly IntPtr MapDeviceWindow; // re-worked/removed in 3.28
-			// [FieldOffset(0x778)] public readonly IntPtr Unknown778;
-			// [FieldOffset(0x780)] public readonly IntPtr Unknown780;
-			// [FieldOffset(0x788)] public readonly IntPtr Unknown788;
-			// [FieldOffset(0x790)] public readonly IntPtr Unknown790;
-			// [FieldOffset(0x798)] public readonly IntPtr Unknown798;
-			// [FieldOffset(0x7a0)] public readonly IntPtr Unknown7a0;
-			// [FieldOffset(0x7a8)] public readonly IntPtr Unknown7a8;
-			// [FieldOffset(0x7b0)] public readonly IntPtr Unknown7b0;
-			// [FieldOffset(0x7b8)] public readonly IntPtr Unknown7b8;
-			[FieldOffset(0x840)] public readonly IntPtr CardTradePanel;
-			// [FieldOffset(0x7C8)] public readonly IntPtr Unknown7C8;
-			// [FieldOffset(0x7c8)] public readonly IntPtr IncursionAltarOfSacrificePanel;
-			// [FieldOffset(0x7D0)] public readonly IntPtr IncursionLapidaryLensPanel;
-			// [FieldOffset(0x7E0)] public readonly IntPtr DelveWindow;
-			// [FieldOffset(0x7F0)] public readonly IntPtr Unknown7F0;
-			// [FieldOffset(0x7F0)] public readonly IntPtr ZanaMissionChoice; // KiracMissionPanel
-			// [FieldOffset(0x800)] public readonly IntPtr Unknown800; // KiracMissionPanel
-			// [FieldOffset(0x800)] public readonly IntPtr BetrayalWindow;
-			// [FieldOffset(0x810)] public readonly IntPtr Unknown810;
-			[FieldOffset(0x890)] public readonly IntPtr CraftBench;
-			[FieldOffset(0x898)] public readonly IntPtr UnveilWindow;
-			// [FieldOffset(0x828)] public readonly IntPtr Unknown828;
-			// [FieldOffset(0x830)] public readonly IntPtr Unknown830;
-			// [FieldOffset(0x838)] public readonly IntPtr Unknown838;
-			// [FieldOffset(0x838)] public readonly IntPtr BlightAnointItemPanel;
-			// [FieldOffset(0x840)] public readonly IntPtr MetamorphWindow;
-			// [FieldOffset(0x848)] public readonly IntPtr TanesMetamorphPanel;
-			// [FieldOffset(0x850)] public readonly IntPtr HorticraftingHideoutPanel;
-			// [FieldOffset(0x858)] public readonly IntPtr HeistContractWindow;
-			// [FieldOffset(0x860)] public readonly IntPtr HeistRevealWindow;
-			// [FieldOffset(0x868)] public readonly IntPtr HeistAllyEquipmentWindow;
-			// [FieldOffset(0x870)] public readonly IntPtr HeistBlueprintWindow;
-			// [FieldOffset(0x878)] public readonly IntPtr HeistLockerWindow;
-			// [FieldOffset(0x880)] public readonly IntPtr RitualWindow;
-			// [FieldOffset(0x888)] public readonly IntPtr RitualFavourWindow;
-			// [FieldOffset(0x890)] public readonly IntPtr UltimatumProgressWindow;
-			// [FieldOffset(0x898)] public readonly IntPtr ExpeditionSelectPanel;
-			// [FieldOffset(0x8A0)] public readonly IntPtr LogbookReceptaclePanel;
-			// [FieldOffset(0x8a8)] public readonly IntPtr ExpeditionLockerPanel;
-			// [FieldOffset(0x8B8)] public readonly IntPtr KalandraMirroredTabletPanel;
-			// [FieldOffset(0x8C0)] public readonly IntPtr KalandraReflectionPanel;
-			// [FieldOffset(0x8C8)] public readonly IntPtr Unknown8C8;
-			// [FieldOffset(0x8D0)] public readonly IntPtr Unknown8D0;
-			// [FieldOffset(0x8D8)] public readonly IntPtr Unknown8D8;
-			// [FieldOffset(0x8E0)] public readonly IntPtr Unknown8E0;
-			[FieldOffset(0x9b0)] public readonly IntPtr BuffsPanel;
-			[FieldOffset(0x9c8)] public readonly IntPtr DelveDarkness; // Debuffs Panel
-			// [FieldOffset(0x8F8)] public readonly IntPtr Unknown8F8;
-			// [FieldOffset(0x900)] public readonly IntPtr Unknown900;
-			// [FieldOffset(0x908)] public readonly IntPtr Unknown908;
-			// [FieldOffset(0x910)] public readonly IntPtr Unknown910;
-			// [FieldOffset(0x918)] public readonly IntPtr Unknown918;
-			// [FieldOffset(0x920)] public readonly IntPtr Unknown920;
-			// [FieldOffset(0x920)] public readonly IntPtr AreaInstanceUi;
-			// [FieldOffset(0x930)] public readonly IntPtr Unknown930;
-			// [FieldOffset(0x938)] public readonly IntPtr Unknown938;
-			// [FieldOffset(0x940)] public readonly IntPtr Unknown940;
-			// [FieldOffset(0x948)] public readonly IntPtr Unknown948;
-			// 00[FieldOffset(0x950)] public readonly IntPtr Unknown950;
-			// [FieldOffset(0x958)] public readonly IntPtr Unknown958;
-			// [FieldOffset(0x960)] public readonly IntPtr Unknown960;
-			// [FieldOffset(0x968)] public readonly IntPtr Unknown968;
-			// [FieldOffset(0x970)] public readonly IntPtr Unknown970;
-			// [FieldOffset(0x978)] public readonly IntPtr Unknown978;
-			// [FieldOffset(0x980)] public readonly IntPtr Unknown980;
-			// [FieldOffset(0x988)] public readonly IntPtr InteractButtonWrapper;
-			// [FieldOffset(0x990)] public readonly IntPtr SkipAheadButton;
-			// [FieldOffset(0x998)] public readonly IntPtr SyndicateHelpButton;
-			// [FieldOffset(0x9a0)] public readonly IntPtr SyndicateReleasePanel;
-			// [FieldOffset(0x9a8)] public readonly IntPtr LeagueInteractPanel;
-			// [FieldOffset(0x9b0)] public readonly IntPtr MetamorphInteractPanel;
-			// [FieldOffset(0x9b8)] public readonly IntPtr RitualInteractPanel;
-			// [FieldOffset(0x9c0)] public readonly IntPtr ExpeditionInteractPanel;
-			// [FieldOffset(0x9C8)] public readonly IntPtr Unknown9C8;
-			// [FieldOffset(0x9D0)] public readonly IntPtr Unknown9D0;
-			// [FieldOffset(0x9D8)] public readonly IntPtr Unknown9D8;
-			// [FieldOffset(0x9E0)] public readonly IntPtr Unknown9E0;
-			// [FieldOffset(0x9E8)] public readonly IntPtr Unknown9E8;
-			// [FieldOffset(0x9F0)] public readonly IntPtr Unknown9F0;
-			// [FieldOffset(0x9f8)] public readonly IntPtr InvitesPanel;
-			[FieldOffset(0xAC8)] public readonly IntPtr AuguryCardSelectionWindow; // opened by clicking a unique with the augury_boss_frozen buff (3.29.4, from the user; not checked live yet)
-			// 3.30: 104 new bytes here
-			[FieldOffset(0xCE0)] public readonly IntPtr GemLvlUpPanel;
+			[FieldOffset(0x718)] public readonly IntPtr RelicPanel; // Name = null
+			[FieldOffset(0x720)] public readonly IntPtr Map; // Name = "map_overlay"
+			[FieldOffset(0x728)] public readonly IntPtr ItemsOnGroundLabelElement; // Name = null
+			[FieldOffset(0x760)] public readonly IntPtr autoModalDialogOverlay; // Name = "modal_dialog_overlay"
+			[FieldOffset(0x7a8)] public readonly IntPtr RootBuffPanel; // Name = (not a pointer: 0x000100003F800000)
+			[FieldOffset(0x7b0)] public readonly IntPtr HelpOrKillBandit; // Name = (not an Element: points at a pair of equal pointers)
+			[FieldOffset(0x7d8)] public readonly IntPtr NpcDialog; // Name = (not a pointer: 0x7)
+			[FieldOffset(0x7e0)] public readonly IntPtr NpcOptions; // Name = (not a pointer: 0x8)
+			[FieldOffset(0x7e8)] public readonly IntPtr autoTopIconsLayout; // Name = "top_icons_layout"
+			[FieldOffset(0x7f0)] public readonly IntPtr QuestRewardWindow; // Name = null
+			[FieldOffset(0x7f8)] public readonly IntPtr autoInventoryViewItemSelector; // Name = "InventoryViewItemSelector"
+			[FieldOffset(0x800)] public readonly IntPtr PurchaseWindow; // Name = "InPlaceCraftingItemSlotItemSelector"
+			[FieldOffset(0x808)] public readonly IntPtr autoItemSelector; // Name = "ItemSelector"
+			[FieldOffset(0x810)] public readonly IntPtr SellWindow; // Name = "NumericValueEditor"
+			[FieldOffset(0x818)] public readonly IntPtr TradeWindow; // Name = null
+			[FieldOffset(0x820)] public readonly IntPtr MapDevice; // Name = null
+			[FieldOffset(0x828)] public readonly IntPtr autoLoreAudioInterface; // Name = "lore_audio_interface"
+			[FieldOffset(0x848)] public readonly IntPtr CardTradePanel; // Name = null
+			[FieldOffset(0x898)] public readonly IntPtr CraftBench; // Name = null
+			[FieldOffset(0x8a0)] public readonly IntPtr UnveilWindow; // Name = null
+			[FieldOffset(0x8e8)] public readonly IntPtr autoDelveMap; // Name = "delve_map_window"
+			[FieldOffset(0x9b0)] public readonly IntPtr autoSentinelDroneDisplay; // Name = "sentinel_drone_display"
+			[FieldOffset(0x9b8)] public readonly IntPtr BuffsPanel; // Name = null
+			[FieldOffset(0x9d0)] public readonly IntPtr DelveDarkness; // Name = null; Debuffs Panel
+			[FieldOffset(0xa18)] public readonly IntPtr autoAncestralNotificationManager; // Name = "ancestral_notification_manager"
+			[FieldOffset(0xa48)] public readonly IntPtr autoKalguurRecruitment; // Name = "KalguurRecruitmentWindow"
+			[FieldOffset(0xac0)] public readonly IntPtr autoBrequelSkillTree; // Name = "brequel_skill_tree_window"
+			[FieldOffset(0xAD0)] public readonly IntPtr AuguryCardSelectionWindow; // Name = "deepwater_charts_window"; opened by clicking a unique with the augury_boss_frozen buff (3.29.4, from the user; not checked live yet)
+			[FieldOffset(0xad8)] public readonly IntPtr autoDeepwaterCrafting; // Name = "deepwater_crafting_window"
+			[FieldOffset(0xae0)] public readonly IntPtr autoDeepwaterExtraction; // Name = "deepwater_extraction_window"
+			[FieldOffset(0xae8)] public readonly IntPtr autoDeepwaterCollection; // Name = "deepwater_collection_window"
+			[FieldOffset(0xaf0)] public readonly IntPtr autoDeepwaterActiveVoyage; // Name = "deepwater_active_voyage_window"
+			[FieldOffset(0xaf8)] public readonly IntPtr autoDeepwaterOpenActiveVoyageButton; // Name = "deepwater_open_active_voyage_button"
+			[FieldOffset(0xb00)] public readonly IntPtr autoDeepwaterVoyage; // Name = "deepwater_voyage_window"
+			[FieldOffset(0xb08)] public readonly IntPtr autoBottledItemReveal; // Name = "bottled_item_reveal_window"
+			[FieldOffset(0xb10)] public readonly IntPtr autoAuguryCardSelection; // Name = "augury_card_selection_window"
+			[FieldOffset(0xb18)] public readonly IntPtr autoAuguryPinnacleCardCollection; // Name = "augury_pinnacle_card_collection_window"
+			[FieldOffset(0xb20)] public readonly IntPtr autoAuguryEffigyViscera; // Name = "augury_effigy_viscera_window"
+			[FieldOffset(0xb58)] public readonly IntPtr autoAncestralTrialRespawnTotemHealthDisplay; // Name = "ancestral_trial_respawn_totem_health_display"
+			[FieldOffset(0xb60)] public readonly IntPtr autoMinionDisplay; // Name = "minion_display"
+			[FieldOffset(0xb68)] public readonly IntPtr autoSigilDisplay; // Name = "sigil_display"
+			[FieldOffset(0xb70)] public readonly IntPtr autoBuffDisplay; // Name = "buff_display"
+			[FieldOffset(0xb78)] public readonly IntPtr autoDebuffDisplay; // Name = "debuff_display"
+			[FieldOffset(0xba0)] public readonly IntPtr autoTabEditor; // Name = "tab_editor"
+			[FieldOffset(0xba8)] public readonly IntPtr autoItemNoteEditor; // Name = "item_note_editor"
+			[FieldOffset(0xbb0)] public readonly IntPtr autoUnstack; // Name = "unstack_window"
+			[FieldOffset(0xbb8)] public readonly IntPtr autoAsyncTradePriceItemDialog; // Name = "async_trade_price_item_dialog"
+			[FieldOffset(0xbc0)] public readonly IntPtr autoAtlasTreeEditor; // Name = "atlas_tree_editor"
+			[FieldOffset(0xbd0)] public readonly IntPtr autoInstanceChooser; // Name = "instance_chooser_window"
 			// [FieldOffset(0xA58)] public readonly IntPtr SkillBarNotifyPanel1;
-			[FieldOffset(0xBD0)] public readonly IntPtr ItemOnGroundTooltip;
+			[FieldOffset(0xBD8)] public readonly IntPtr ItemOnGroundTooltip; // Name = "waiting_for_trade_window"
+			[FieldOffset(0xbe8)] public readonly IntPtr autoMysteryBox; // Name = "mystery_box_window"
+			[FieldOffset(0xbf8)] public readonly IntPtr autoReclaimMtx; // Name = "reclaim_mtx_window"
+			[FieldOffset(0xc00)] public readonly IntPtr autoMtxCombine; // Name = "mtx_combine_window"
+			[FieldOffset(0xc30)] public readonly IntPtr autoDeathScreen; // Name = "death_screen"
+			[FieldOffset(0xc38)] public readonly IntPtr autoShowIncursionTempleButton; // Name = "show_incursion_temple_button"
+			[FieldOffset(0xc40)] public readonly IntPtr autoBetrayalLegendButton; // Name = "betrayal_legend_button"
+			[FieldOffset(0xc48)] public readonly IntPtr autoSkipButtonLayout; // Name = "skip_button_layout"
+			[FieldOffset(0xc50)] public readonly IntPtr autoAuguryShowCardsButton; // Name = "augury_show_cards_button"
+			[FieldOffset(0xc58)] public readonly IntPtr autoDeliriumSkipDelayButton; // Name = "delirium_skip_delay_button"
+			[FieldOffset(0xc60)] public readonly IntPtr autoBlightSkipDelayButton; // Name = "blight_skip_delay_button"
+			[FieldOffset(0xc68)] public readonly IntPtr autoReturnFromUnownedHideoutButton; // Name = "return_from_unowned_hideout_button"
+			[FieldOffset(0xc70)] public readonly IntPtr autoReturnFromUnownedHideoutButton2; // Name = "return_from_unowned_hideout_button"
+			[FieldOffset(0xc78)] public readonly IntPtr autoToggleLakeMapButton; // Name = "toggle_lake_map_button"
+			[FieldOffset(0xc80)] public readonly IntPtr autoKalguurTownMapButton; // Name = "kalguur_town_map_button"
+			[FieldOffset(0xc90)] public readonly IntPtr autoOpenWindowButtonLayout; // Name = "open_window_button_layout"
+			[FieldOffset(0xc98)] public readonly IntPtr autoRitualOpenShopButton; // Name = "ritual_open_shop_button"
+			[FieldOffset(0xca0)] public readonly IntPtr autoExpeditionHudDisplay; // Name = "expedition_hud_display"
+			[FieldOffset(0xcd0)] public readonly IntPtr autoChangingAreaMessage; // Name = "changing_area_message"
+			[FieldOffset(0xcd8)] public readonly IntPtr autoNotificationDisplay; // Name = "notification_display"
+			// 3.30: 104 new bytes here
+			[FieldOffset(0xCE8)] public readonly IntPtr GemLvlUpPanel; // Name = (not a pointer: 0x000000083F800000)
+			[FieldOffset(0xd30)] public readonly IntPtr autoTutorialDisplay; // Name = "tutorial_display"
+			[FieldOffset(0xd38)] public readonly IntPtr autoAdditionalTutorialDisplay; // Name = "additional_tutorial_display"
+			[FieldOffset(0xd40)] public readonly IntPtr autoTutorialPopup; // Name = "tutorial_popup"
+			[FieldOffset(0xd48)] public readonly IntPtr autoTutorialPopupLabel; // Name = "tutorial_popup_label"
+			[FieldOffset(0xd70)] public readonly IntPtr autoFadeFromBlack; // Name = "fade_from_black"
+			[FieldOffset(0xe00)] public readonly IntPtr autoLegionCocoon; // Name = "legion_cocoon_window"
+			[FieldOffset(0xe48)] public readonly IntPtr autoCadiroOffer; // Name = "cadiro_offer_window"
+			[FieldOffset(0xe50)] public readonly IntPtr autoMtxStopWatchMapDeviceDisplay; // Name = "mtx_stop_watch_map_device_display"
+			[FieldOffset(0xe58)] public readonly IntPtr autoMtxLeaderboardMapDeviceHudElement; // Name = "mtx_leaderboard_map_device_hud_element"
+			[FieldOffset(0xe60)] public readonly IntPtr autoMtxMapDeviceKillTrackerHudElement; // Name = "mtx_map_device_kill_tracker_hud_element"
+			[FieldOffset(0xe68)] public readonly IntPtr autoMtxMercilessMapDeviceKillTrackerHudElement; // Name = "mtx_merciless_map_device_kill_tracker_hud_element"
+			[FieldOffset(0xe70)] public readonly IntPtr autoMtxSanctumHourglassMapDeviceHudElement; // Name = "mtx_sanctum_hourglass_map_device_hud_element"
+			[FieldOffset(0xe78)] public readonly IntPtr autoMtxPrisonerAltarMapDeviceHudElement; // Name = "mtx_prisoner_altar_map_device_hud_element"
+			[FieldOffset(0xe80)] public readonly IntPtr autoSacrificeHideoutHudElement; // Name = "SacrificeHideoutHudElement"
+			[FieldOffset(0xe88)] public readonly IntPtr autoAtlasPass; // Name = "atlas_pass_window"
+			[FieldOffset(0xe90)] public readonly IntPtr autoAtlasPassRewardReceivedModal; // Name = "atlas_pass_reward_received_modal"
+			[FieldOffset(0xE98)] public readonly IntPtr LastElement;
 
 		}
 
