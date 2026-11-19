@@ -151,6 +151,17 @@ namespace AtE.Plugins {
 					havePrev = ok;
 				}
 				if ( h.IsSector && havePrev && TryGridToScreen(h.Center, z, out Vector2 apex) ) DrawLine(prev, apex, color);
+				if ( h.IsRing && h.Inner > 0 ) {
+					havePrev = false;
+					for ( int i = 0; i <= segments; i++ ) {
+						double t = 2 * Math.PI * i / segments;
+						var cell = new Offsets.Vector2i(h.Center.X + (int)Math.Round(Math.Cos(t) * h.Inner), h.Center.Y + (int)Math.Round(Math.Sin(t) * h.Inner));
+						bool ok = TryGridToScreen(cell, z, out Vector2 p);
+						if ( ok && havePrev ) DrawLine(prev, p, color);
+						prev = p;
+						havePrev = ok;
+					}
+				}
 			}
 		}
 	}

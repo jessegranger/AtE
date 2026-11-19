@@ -79,6 +79,8 @@ namespace AtE.Tests {
 				new Hazard(C(50, 50), 7),
 				new Hazard(C(40, 45), C(62, 58), 3),
 				new Hazard(C(50, 50), 25, new System.Numerics.Vector2(0.6f, -0.8f), -1.2f, 0.4f),
+				new Hazard(C(50, 50), 12, 20, true),
+				new Hazard(C(50, 50), 2, 9, true),
 			};
 			foreach ( var h in shapes ) {
 				for ( int y = 15; y <= 85; y++ ) {
@@ -89,6 +91,18 @@ namespace AtE.Tests {
 					}
 				}
 			}
+		}
+
+		[Fact]
+		public void RingLeavesItsMiddle() {
+			var map = Build(Field(100, 100), C(50, 50), new Hazard(C(50, 50), 12, 20, true) { Weight = 60, Source = "ring" });
+			Assert.Equal(0, map.NowAt(C(50, 50)));
+			Assert.Equal(30, map.NowAt(C(59, 50))); // (inside, within Margin of the inner edge)
+			Assert.Equal(60, map.NowAt(C(65, 50)));
+			Assert.Equal(30, map.NowAt(C(73, 50)));
+			Assert.Equal(0, map.NowAt(C(75, 50)));
+			Assert.True(map.TryFindSafest(C(65, 50), null, out var best, out _));
+			Assert.True(map.IsSafe(best));
 		}
 
 		[Fact]

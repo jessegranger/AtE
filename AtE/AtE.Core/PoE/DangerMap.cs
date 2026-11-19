@@ -30,6 +30,9 @@ namespace AtE {
 		public readonly bool IsSector;
 		public readonly Offsets.Vector2i End;
 		public readonly bool IsBeam;
+		/// <summary>A ring: the cells from Inner to Radius cells from Center (not the middle).</summary>
+		public readonly bool IsRing;
+		public readonly float Inner;
 		public DangerLayer Layer { get; init; }
 		/// <summary>How much it adds to each cell it covers (half that in the Margin ring around it); 0 means DangerMap.DefaultWeight.</summary>
 		public byte Weight { get; init; }
@@ -44,11 +47,19 @@ namespace AtE {
 		public Hazard(Offsets.Vector2i start, Offsets.Vector2i end, float halfWidth) : this() {
 			Center = start; End = end; Radius = halfWidth; IsBeam = true;
 		}
+		/// <summary>A ring: the cells from inner to outer cells from center.</summary>
+		public Hazard(Offsets.Vector2i center, float inner, float outer, bool ring) : this() {
+			Center = center; End = center; Radius = outer; Inner = Math.Max(0, inner); IsRing = ring;
+		}
 		public byte EffectiveWeight => Weight == 0 ? DangerMap.DefaultWeight : Weight;
 		/// <summary>The caster's left, when it faces Dir (Dir (0,-1): (1,0); see AvoidSpam.HazardSkills).</summary>
 		public Vector2 Left => new Vector2(-Dir.Y, Dir.X);
 		/// <summary>Cells from cell to the area's edge (negative inside); for a sector, to its circle's edge.</summary>
-		public float EdgeDistance(Offsets.Vector2i cell) => (IsBeam ? BeamDistance(cell) : Combat.Distance(cell, Center)) - Radius;
+		public float EdgeDistance(Offsets.Vector2i cell) {
+			if ( IsBeam ) return BeamDistance(cell) - Radius;
+			float d = Combat.Distance(cell, Center);
+			return IsRing && d < Inner ? Inner - d : d - Radius;
+		}
 		private float BeamDistance(Offsets.Vector2i cell) {
 			var a = new Vector2(Center.X, Center.Y);
 			var ab = new Vector2(End.X, End.Y) - a;
@@ -61,6 +72,7 @@ namespace AtE {
 			if ( IsBeam ) return BeamDistance(cell) <= Radius + margin;
 			float d = Combat.Distance(cell, Center);
 			if ( d > Radius + margin ) return false;
+			if ( IsRing ) return d >= Inner - margin;
 			if ( !IsSector || d <= margin ) return true;
 			var v = new Vector2(cell.X - Center.X, cell.Y - Center.Y);
 			double angle = Math.Atan2(Vector2.Dot(v, Left), Vector2.Dot(v, Dir));
@@ -82,6 +94,11 @@ namespace AtE {
 			}
 			float d2 = (px * px) + (py * py);
 			if ( d2 > outer * outer ) return 0;
+			if ( IsRing ) {
+				float innerEdge = Inner - margin;
+				if ( innerEdge > 0 && d2 < innerEdge * innerEdge ) return 0;
+				return d2 <= Radius * Radius && d2 >= Inner * Inner ? 2 : 1;
+			}
 			if ( !IsSector ) return d2 <= Radius * Radius ? 2 : 1;
 			if ( d2 == 0 ) return 2;
 			float d = MathF.Sqrt(d2);
@@ -99,6 +116,7 @@ namespace AtE {
 		}
 		public string Shape => IsBeam ? $"beam {Center} to {End}, {Radius:F0} either side"
 			: IsSector ? $"{Center} sector {Radius:F0} facing ({Dir.X:F2}, {Dir.Y:F2}), {From * 180 / Math.PI:F0} to {To * 180 / Math.PI:F0} deg"
+			: IsRing ? $"{Center} ring r{Inner:F0}-{Radius:F0}"
 			: $"{Center} r{Radius:F0}";
 		public override string ToString() => $"{Source ?? "?"} {Layer} {EffectiveWeight}: {Shape}";
 	}

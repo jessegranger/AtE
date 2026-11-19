@@ -132,22 +132,55 @@ namespace AtE {
 		/// Skills aimed at a cell (the action's Destination, Actor+0x1B0 +0x130) that land there, or along the way to it,
 		/// when the cast ends (no entity of their own until then): a part of the skill's name, and the ground it covers:
 		/// a line (from the caster toward the cell, size cells long, halfWidth either side) or a circle (size cells around
-		/// the cell); and how it goes on the DangerMap (on the Soon layer: the cast is not over yet).
+		/// the cell); and how it goes on the DangerMap (on the Soon layer: the cast is not over yet). With a casterPart, only
+		/// a caster whose metadata path has it (for a skill with a common name, eg "Melee").
 		/// </summary>
-		public static readonly List<(string skillPart, bool line, float size, float halfWidth, byte weight)> AimedSkills = new List<(string, bool, float, float, byte)> {
+		public static readonly List<(string skillPart, string casterPart, bool line, float size, float halfWidth, byte weight)> AimedSkills = new List<(string, string, bool, float, float, byte)> {
 			// Augury empowerment "Bloodbone" (3.30.0c, seen on Renkarr in the Silo map, paused as the user saw a wave of bone
 			// spikes about to go from him (center-left) across the arena): Monsters/Augury/Daemon/BloodboneProjectileDaemon
 			// (BloodBoneDaemon.ao) sits on the boss, using GPSBloodboneProjectileMed aimed at the player (Target the player
 			// entity, Destination the player's cell). The spikes run past the player: 80 cells and 4 either side are guesses
-			("GPSBloodboneProjectile", true, 80, 4, 60),
+			("GPSBloodboneProjectile", null, true, 80, 4, 60),
 			// Renkarr's fire bombs (same pause): Monsters/Daemon/VilentaCarpetBombDaemonMap, using VilentaBombTossFire aimed at
 			// a cell near the player (12 cells from them). Not seen landing: a circle of 12 cells is a guess
-			("VilentaBombToss", false, 12, 0, 50),
+			("VilentaBombToss", null, false, 12, 0, 50),
 			// Nightmare Manifest's orb (PietyBeastMapBoss; 3.30.0c, paused as the user saw an orb about to pop beside him):
 			// PietyCorruptedBallLightningMaps, aimed at a cell 33 cells from him (no Target entity), which the user placed
 			// "screen-left of him, screen-down from the player". Not seen popping: 15 cells is a guess
-			("PietyCorruptedBallLightning", false, 15, 0, 80),
+			("PietyCorruptedBallLightning", null, false, 15, 0, 80),
+			// Tore, Towering Ancient (Metadata/Monsters/Viking/VikingMapBoss, a map boss; 3.30.0c, paused as the user saw him
+			// about to do a big slam): his action was Melee, aimed at the player's cell (6 cells from him). His other skills:
+			// VikingCycloneMapBoss, VikingUpheavalMapBoss. Not seen landing: 15 cells around the cell was drawn slightly
+			// smaller than the slam's mark on the ground (the user, with a screenshot): 18
+			("Melee", "Viking/VikingMapBoss", false, 18, 0, 80),
 		};
+
+		/// <summary>
+		/// Buffs that put a damaging area around the monster that has them (no entity of their own): the buff's name, the
+		/// area's inner and outer radius in cells (a ring; inner 0: a circle), and how it goes on the DangerMap.
+		/// </summary>
+		public static readonly List<(string buff, float inner, float outer, DangerLayer layer, byte weight)> BuffHazards = new List<(string, float, float, DangerLayer, byte)> {
+			// Augury empowerment "Blood Donut" (3.30.0c, seen on Tore, Towering Ancient, paused): a ring of blood around the
+			// boss, harmless in the middle (from the user). Monsters/Augury/Daemon/BloodDonutDaemon (StateMachine donut=1, tier)
+			// sits on him and gives him the buff augury_blood_donut (no radius among its stats). 20 to 30 cells, a guess,
+			// matched the ring on the user's screenshot
+			("augury_blood_donut", 20, 30, DangerLayer.Now, 60),
+		};
+
+		/// <summary>The BuffHazards around the monsters in ents.</summary>
+		public static IEnumerable<Hazard> BuffAreaHazards(List<Entity> ents) {
+			if ( BuffHazards.Count == 0 ) yield break;
+			foreach ( var e in ents ) {
+				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
+				foreach ( var (buff, inner, outer, layer, weight) in BuffHazards ) {
+					if ( !HasBuff(e, buff) ) continue;
+					var pos = e.GetComponent<Positioned>();
+					if ( !IsValid(pos) ) break;
+					var shape = inner > 0 ? new Hazard(pos.GridPos, inner, outer, true) : new Hazard(pos.GridPos, outer);
+					yield return shape with { Layer = layer, Weight = weight, Source = buff };
+				}
+			}
+		}
 
 		/// <summary>
 		/// Beams a monster channels along the way it faces (Positioned.Rotation, 0 facing -Y), turning as it goes: a part of
@@ -221,8 +254,8 @@ namespace AtE {
 					break;
 				}
 				if ( aimed ) continue;
-				foreach ( var (part, line, size, halfWidth, weight) in AimedSkills ) {
-					if ( name.IndexOf(part, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
+				foreach ( var (part, casterPart, line, size, halfWidth, weight) in AimedSkills ) {
+					if ( name.IndexOf(part, StringComparison.OrdinalIgnoreCase) < 0 || (casterPart != null && !e.Path.Contains(casterPart)) ) continue;
 					aimed = true;
 					var pos = e.GetComponent<Positioned>();
 					if ( !IsValid(pos) ) break;
@@ -377,6 +410,7 @@ namespace AtE {
 			foreach ( var h in BeamHazards(ents) ) yield return h;
 			foreach ( var h in SkillHazards(ents) ) yield return h;
 			foreach ( var h in PathHazards(ents) ) yield return h;
+			foreach ( var h in BuffAreaHazards(ents) ) yield return h;
 			// (projectiles are not among the entities, see EntityCache.GetProjectiles)
 			foreach ( var h in PathHazards(EntityCache.GetProjectiles().ToList()) ) yield return h;
 		}
