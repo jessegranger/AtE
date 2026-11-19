@@ -12,6 +12,8 @@ namespace AtE {
 		public override string Name => "Navigation";
 
 		public bool ShowCurrentPath = false;
+		/// <summary>Write the player's grid cell in the bottom-left text every frame.</summary>
+		public bool ShowPlayerCell = true;
 		public bool ShowTerrain = false;
 		public int TerrainRadius = 30; // in grid cells
 		public int TerrainStep = 2; // draw every Nth cell
@@ -50,6 +52,9 @@ namespace AtE {
 		public override void Render() {
 			base.Render();
 			ImGui.Checkbox("Show Current Path", ref ShowCurrentPath);
+			ImGui.Checkbox("Show Player Cell", ref ShowPlayerCell);
+			ImGui.SameLine();
+			ImGui_HelpMarker("Writes the player's grid cell <X, Y> in the bottom-left text, all the time (eg, to walk to a cell, or to type it in the tile search below).");
 			ImGui.Checkbox("Show Terrain", ref ShowTerrain);
 			ImGui.SliderInt("Terrain Radius", ref TerrainRadius, 5, 100);
 			ImGui.SliderInt("Terrain Step", ref TerrainStep, 1, 5);
@@ -217,15 +222,27 @@ namespace AtE {
 			ImGui.SameLine();
 			if ( ImGui.Button("Find Tile") || entered ) tileSearchCommitted = TileSearch.Trim();
 			ImGui.SameLine();
-			ImGui_HelpMarker("Part of a tile's .tdt path (eg 'Features/lava_kaom3_transition_entrance'); lists the groups of matching tiles, nearest first, each with a Path button.");
+			ImGui_HelpMarker("Part of a tile's .tdt path (eg 'Features/lava_kaom3_transition_entrance'); lists the groups of matching tiles, nearest first, each with a Path button."
+				+ " Or a grid cell, as '<X, Y>' or 'X, Y' (eg '946, 1360'), with a Path button to it.");
 			if ( string.IsNullOrEmpty(tileSearchCommitted) ) return;
+			var p = GetPlayer()?.GetComponent<Positioned>();
+			var from = IsValid(p) ? p.GridPos : default;
+			if ( TryParseCell(tileSearchCommitted, out var cell) ) {
+				if ( ImGui.Button("Path##tilecell") ) {
+					ShowPathToCursor = true;
+					targetPinned = true;
+					pinnedTarget = cell;
+				}
+				ImGui.SameLine();
+				string where = !terrain.InBounds(cell.X, cell.Y) ? "outside the area" : terrain.IsWalkable(cell) ? "walkable" : "blocked";
+				ImGui.Text($"Cell {cell} ({where}, {Combat.Distance(from, cell):F0} away)");
+				return;
+			}
 			var found = terrain.TileFeatures(tileSearchCommitted);
 			if ( found.Count == 0 ) {
 				ImGui.Text($"No tiles with \"{tileSearchCommitted}\" in this area");
 				return;
 			}
-			var p = GetPlayer()?.GetComponent<Positioned>();
-			var from = IsValid(p) ? p.GridPos : default;
 			int i = 0;
 			foreach ( var tile in found.OrderBy(f => Combat.Distance(from, f.GridPos)) ) {
 				if ( ImGui.Button($"Path##tile{i++}") ) {
@@ -236,6 +253,15 @@ namespace AtE {
 				ImGui.SameLine();
 				ImGui.Text($"{tile} {System.IO.Path.GetFileNameWithoutExtension(tile.TileFile ?? "")} ({Combat.Distance(from, tile.GridPos):F0} away)");
 			}
+		}
+
+		/// <summary>A grid cell typed as "&lt;X, Y&gt;", "X, Y" or "X Y" (as Vector2i prints it, so it can be pasted back).</summary>
+		private static bool TryParseCell(string text, out Offsets.Vector2i cell) {
+			cell = default;
+			var parts = text.Trim().TrimStart('<').TrimEnd('>').Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+			if ( parts.Length != 2 || !int.TryParse(parts[0], out int x) || !int.TryParse(parts[1], out int y) ) return false;
+			cell = new Offsets.Vector2i(x, y);
+			return true;
 		}
 
 		/// <summary>
@@ -552,6 +578,7 @@ namespace AtE {
 				if ( !IsValid(posComponent) ) return this;
 				var playerPos = Position(p);
 				var playerGrid = posComponent.GridPos;
+				if ( ShowPlayerCell ) DrawBottomLeftText($"Player cell: {playerGrid}", Color.White);
 
 				// walking a path started by Follow path
 				if ( DefaultFollower.IsActiveFor(this) ) {
