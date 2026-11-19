@@ -154,6 +154,10 @@ namespace AtE {
 		public Element UIRoot => IsValid(Address) && ElementCache.TryGetElement(Cache.elemRoot, out Element root) ? root : null;
 
 		public IEnumerable<Entity> GetEntities() => EntityCache.GetEntities(); // mostly to make it easy to browse
+		/// <summary>The entities GetEntities skips (ids with the high bit set): projectiles and client-only ones (see EntityCache.GetLocalEntities).</summary>
+		public IEnumerable<Entity> GetLocalEntities() => EntityCache.GetLocalEntities();
+		/// <summary>The projectiles in flight (see EntityCache.GetProjectiles).</summary>
+		public IEnumerable<Entity> GetProjectiles() => EntityCache.GetProjectiles();
 
 		/// <summary>Every minimap icon of the area, also for entities out of range (eg far quest chests); see MinimapIcons.</summary>
 		public List<MinimapIconMarker> MinimapIcons => AtE.MinimapIcons.All();

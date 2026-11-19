@@ -55,8 +55,15 @@ namespace AtE {
 		/// </summary>
 		public static IReadOnlyList<Entity> GetProjectiles() => projectiles;
 		private static volatile Entity[] projectiles = Array.Empty<Entity>();
-		// the projectile Entity made for each address (so one keeps its cached components from walk to walk)
-		private static readonly Dictionary<IntPtr, Entity> projectilesByAddress = new Dictionary<IntPtr, Entity>();
+		/// <summary>
+		/// Every entity of the last walk of the entity list that GetEntities skips, its id having the high bit set: the
+		/// projectiles (see GetProjectiles) and the client-only entities (0xC0000000 and up: doodads, critters, client-side
+		/// ground effects).
+		/// </summary>
+		public static IReadOnlyList<Entity> GetLocalEntities() => localEntities;
+		private static volatile Entity[] localEntities = Array.Empty<Entity>();
+		// the Entity made for each address of those (so one keeps its cached components from walk to walk)
+		private static readonly Dictionary<IntPtr, Entity> localByAddress = new Dictionary<IntPtr, Entity>();
 		private static bool IsProjectileId(uint id) => (id & 0xC0000000) == 0x80000000;
 		private static void removeAllPending() {
 			while( entsToBeRemoved.TryDequeue(out uint id) ) {
@@ -126,6 +133,7 @@ namespace AtE {
 					// we are going to skip reading the Ent from the first (head) node
 					bool skippedOne = false;
 					var foundProjectiles = new List<Entity>();
+					var foundLocal = new List<Entity>();
 					while ( frontier.Count > 0 && deduper.Count < 2000 ) {
 						var node = frontier.Dequeue();
 						IntPtr entPtr = node.Entity;
@@ -137,10 +145,13 @@ namespace AtE {
 						if( skippedOne == false ) {
 							skippedOne = true;
 						} else if ( PoEMemory.TryRead(entPtr + idOffset, out uint id)) {
-							if ( IsProjectileId(id) ) {
-								if ( !projectilesByAddress.TryGetValue(entPtr, out Entity proj) ) projectilesByAddress[entPtr] = proj = new Entity() { Address = entPtr };
-								if ( IsValid(proj) ) foundProjectiles.Add(proj);
-							} else if ( id == 0 || ((int)id < 0) ) {
+							if ( (int)id < 0 ) {
+								if ( !localByAddress.TryGetValue(entPtr, out Entity local) ) localByAddress[entPtr] = local = new Entity() { Address = entPtr };
+								if ( IsValid(local) ) {
+									foundLocal.Add(local);
+									if ( IsProjectileId(id) ) foundProjectiles.Add(local);
+								}
+							} else if ( id == 0 ) {
 								// Log($"EntityCache[id={id}] Failed to produce a valid ent, rejecting.");
 							} else {
 								// attempt to construct and cache an Entity instance from this ptr
@@ -169,9 +180,10 @@ namespace AtE {
 					}
 					// now, frontier is empty, and incomingIds is full
 					projectiles = foundProjectiles.ToArray();
-					if ( projectilesByAddress.Count > foundProjectiles.Count ) {
-						var keep = new HashSet<IntPtr>(foundProjectiles.Select(e => e.Address));
-						foreach ( var gone in projectilesByAddress.Keys.Where(a => !keep.Contains(a)).ToArray() ) projectilesByAddress.Remove(gone);
+					localEntities = foundLocal.ToArray();
+					if ( localByAddress.Count > foundLocal.Count ) {
+						var keep = new HashSet<IntPtr>(foundLocal.Select(e => e.Address));
+						foreach ( var gone in localByAddress.Keys.Where(a => !keep.Contains(a)).ToArray() ) localByAddress.Remove(gone);
 					}
 					var toRemove = EntitiesById.Keys.Where(k => !incomingIds.Contains(k)).ToArray();
 					foreach ( var id in toRemove ) {

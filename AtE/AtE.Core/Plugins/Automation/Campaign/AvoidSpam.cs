@@ -375,6 +375,25 @@ namespace AtE {
 		}
 
 		/// <summary>The entities in ents matching HazardPaths.</summary>
+		/// <summary>
+		/// HazardPaths entries (by their path part) whose entities stay in the entity list after they are gone: the most
+		/// seconds one lasts, by its animated object's clock (ClientAnimationController.TimeSpentAnimating, which keeps
+		/// running after it is gone); an older one is not a hazard.
+		/// </summary>
+		public static readonly Dictionary<string, float> HazardMaxAgeSec = new Dictionary<string, float> {
+			// the Nightmare Manifest's orbs (3.30.0c): paused after 2 s of fighting, the user saw only the two newest, one
+			// flying (0.2 s old) and one landed (1.9 s); the next was 5.2 s old and gone. Nothing else told them apart (their
+			// Projectile, Animated, Positioned and Render matched once landed), and the gone ones stayed listed for 45 s and more
+			["Projectiles/CorruptedBallLightning"] = 5,
+		};
+
+		// the animated object's clock (s), or NaN
+		private static float AnimationAge(Entity e) {
+			var anim = e.GetComponent<Animated>();
+			var cac = IsValid(anim) ? anim.AnimatedObject?.GetComponent<ClientAnimationController>() : null;
+			return IsValid(cac) ? cac.TimeSpentAnimating : float.NaN;
+		}
+
 		public static IEnumerable<Hazard> PathHazards(List<Entity> ents) {
 			if ( HazardPaths.Count == 0 ) yield break;
 			foreach ( var e in ents ) {
@@ -384,6 +403,7 @@ namespace AtE {
 				string aoPath = path.StartsWith("Metadata/Effects/") ? e.GetComponent<Animated>()?.AnimatedObjectPath : null;
 				foreach ( var (part, buff, radius, layer, weight) in HazardPaths ) {
 					if ( !(path.Contains(part) || (aoPath != null && aoPath.Contains(part))) || (buff != null && !HasBuff(e, buff)) ) continue;
+					if ( HazardMaxAgeSec.TryGetValue(part, out float maxAge) && !(AnimationAge(e) <= maxAge) ) break; // (gone; or no clock, taken as gone)
 					var pos = e.GetComponent<Positioned>();
 					if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius) { Layer = layer, Weight = weight, Source = buff ?? part };
 					break;

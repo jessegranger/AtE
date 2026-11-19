@@ -256,7 +256,12 @@ namespace AtE {
 								string ao = IsValid(anim) ? anim.AnimatedObjectPath : null;
 								var pos = ent.GetComponent<Positioned>();
 								if ( filter == null || path.Contains(filter, StringComparison.OrdinalIgnoreCase) || (ao?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false) )
-									sb.AppendLine($"id=0x{id:X8} addr=0x{node.Entity.ToInt64():X} {path}{(IsValid(pos) ? $" at={pos.GridPos}" : "")}{(ao != null ? $" ao={ao}" : "")}");
+								{
+									var cac = IsValid(anim) ? anim.AnimatedObject?.GetComponent<ClientAnimationController>() : null;
+									string animTime = IsValid(cac) ? $" anim={cac.TimeSpentAnimating:F2}s#{cac.AnimationId}" : "";
+									sb.AppendLine($"id=0x{id:X8} addr=0x{node.Entity.ToInt64():X} {path}{(IsValid(pos) ? $" at={pos.GridPos}" : "")}{animTime}{(ao != null ? $" ao={ao}" : "")}");
+									if ( q["comps"] == "1" ) foreach ( var kv in (ent.GetComponents() ?? new Dictionary<string, IntPtr>()).OrderBy(k => k.Key) ) sb.AppendLine($"    {kv.Key} = 0x{kv.Value.ToInt64():X}");
+								}
 							}
 							if ( PoEMemory.TryRead(node.First, out Offsets.EntityListNode a) ) frontier.Enqueue(a);
 							if ( PoEMemory.TryRead(node.Second, out Offsets.EntityListNode b) ) frontier.Enqueue(b);
