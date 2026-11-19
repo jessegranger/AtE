@@ -128,15 +128,56 @@ namespace AtE {
 		/// <summary>The weight of a BeamSkills beam, on the Now layer.</summary>
 		public static byte BeamWeight = 60;
 
-		/// <summary>The slices of the HazardSkills being used now, by any monster in ents.</summary>
+		/// <summary>
+		/// Skills aimed at a cell (the action's Destination, Actor+0x1B0 +0x130) that land there, or along the way to it,
+		/// when the cast ends (no entity of their own until then): a part of the skill's name, and the ground it covers:
+		/// a line (from the caster toward the cell, size cells long, halfWidth either side) or a circle (size cells around
+		/// the cell); and how it goes on the DangerMap (on the Soon layer: the cast is not over yet).
+		/// </summary>
+		public static readonly List<(string skillPart, bool line, float size, float halfWidth, byte weight)> AimedSkills = new List<(string, bool, float, float, byte)> {
+			// Augury empowerment "Bloodbone" (3.30.0c, seen on Renkarr in the Silo map, paused as the user saw a wave of bone
+			// spikes about to go from him (center-left) across the arena): Monsters/Augury/Daemon/BloodboneProjectileDaemon
+			// (BloodBoneDaemon.ao) sits on the boss, using GPSBloodboneProjectileMed aimed at the player (Target the player
+			// entity, Destination the player's cell). The spikes run past the player: 80 cells and 4 either side are guesses
+			("GPSBloodboneProjectile", true, 80, 4, 60),
+			// Renkarr's fire bombs (same pause): Monsters/Daemon/VilentaCarpetBombDaemonMap, using VilentaBombTossFire aimed at
+			// a cell near the player (12 cells from them). Not seen landing: a circle of 12 cells is a guess
+			("VilentaBombToss", false, 12, 0, 50),
+		};
+
+		/// <summary>The slices of the HazardSkills, and the AimedSkills, being used now by any monster in ents.</summary>
 		public static IEnumerable<Hazard> SkillHazards(List<Entity> ents) {
-			if ( HazardSkills.Count == 0 ) yield break;
+			if ( HazardSkills.Count == 0 && AimedSkills.Count == 0 ) yield break;
 			foreach ( var e in ents ) {
 				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
 				var actor = e.GetComponent<Actor>();
 				if ( !IsValid(actor) || (actor.ActionFlags & Offsets.Component_ActionFlags.UsingAbility) == 0 ) continue;
-				string name = actor.CurrentAction?.SkillOf(actor)?.Name;
+				var action = actor.CurrentAction;
+				string name = action?.SkillOf(actor)?.Name;
 				if ( name == null ) continue;
+				bool aimed = false;
+				foreach ( var (part, line, size, halfWidth, weight) in AimedSkills ) {
+					if ( name.IndexOf(part, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
+					aimed = true;
+					var pos = e.GetComponent<Positioned>();
+					if ( !IsValid(pos) ) break;
+					var at = action.Destination;
+					if ( Combat.Distance(at, pos.GridPos) < 1 ) { // (no cell: at the target entity)
+						var target = action.Target?.GetComponent<Positioned>();
+						if ( IsValid(target) ) at = target.GridPos;
+					}
+					if ( !line ) {
+						yield return new Hazard(at, size) { Layer = DangerLayer.Soon, Weight = weight, Source = part };
+						break;
+					}
+					var dir = new Vector2(at.X - pos.GridPos.X, at.Y - pos.GridPos.Y);
+					if ( dir.LengthSquared() < 1 ) break;
+					dir = Vector2.Normalize(dir) * size;
+					var end = new Offsets.Vector2i(pos.GridPos.X + (int)Math.Round(dir.X), pos.GridPos.Y + (int)Math.Round(dir.Y));
+					yield return new Hazard(pos.GridPos, end, halfWidth) { Layer = DangerLayer.Soon, Weight = weight, Source = part };
+					break;
+				}
+				if ( aimed ) continue;
 				foreach ( var (part, length, fromDeg, toDeg) in HazardSkills ) {
 					if ( name.IndexOf(part, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
 					var pos = e.GetComponent<Positioned>();
@@ -198,6 +239,12 @@ namespace AtE {
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
 			// Render.Bounds 30 x 30. 10 cells is a guess at the blast
 			("Daemon/Augury/CrowBombObject", null, 10, DangerLayer.Soon, 40),
+			// Augury empowerment "Blood Geysers" (3.30.0c, seen on Renkarr in the Silo map, paused, not seen erupting yet):
+			// Monsters/Augury/Daemon/TriggeredBloodGeyserDaemon (sits on the boss) places
+			// Metadata/Monsters/Daemon/Augury/TriggeredBloodGeysersObject (Animated, BaseEvents, Positioned, Render,
+			// StateMachine hit_count=0, tier), animated object .../Boss_Empowerments/BloodGeysers/blood_geyser_grd.ao, under
+			// the player (1 cell away, 0.66 s old). Taken as about to erupt: 10 cells is a guess
+			("Daemon/Augury/TriggeredBloodGeysersObject", null, 10, DangerLayer.Soon, 50),
 			// Daresso's sword traps in The Ring of Blades (Act 4; the name from the user, not seen live yet: 8 cells is a guess)
 			("DaressoSwordTrap", null, 8, DangerLayer.Now, 40),
 		};
