@@ -351,6 +351,15 @@ namespace AtE {
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
 			// Render.Bounds 30 x 30. 10 cells is a guess at the blast
 			("Daemon/Augury/CrowBombObject", null, 10, DangerLayer.Soon, 40),
+			// ice flowers (3.30.0c, from the Bestiary mod Monsters/Daemon/DaemonIceFlowerFrogBestiaryMod on a monster near the
+			// player, paused with 14 out): client-only Metadata/Effects/Effect entities (see EntityCache.GetLocalEntities) with
+			// the Elder Guardian's arena animations, .../arena_mechanics/ice_flower/Main/main_ice_flower.ao (3) and
+			// Small/small_ice_flower.ao (11), which bloom about 2 s and then burst: Small/small_blast.ao stood on the four
+			// 2.05 s old small flowers, 0.07 s old. The blasts first (the first entry matching wins). The sizes, guesses,
+			// matched the flowers on screen (the user); the ages are guesses (see HazardMaxAgeSec)
+			("arena_mechanics/ice_flower/Small/small_blast", null, 7, DangerLayer.Now, 60),
+			("arena_mechanics/ice_flower/Main/main_ice_flower", null, 10, DangerLayer.Soon, 60),
+			("arena_mechanics/ice_flower/Small/small_ice_flower", null, 7, DangerLayer.Soon, 60),
 			// Augury Darktongue Matron's pustules (Monsters/Augury/CauldronCrone, a rare one; 3.30.0c, paused as the user saw
 			// "a line of ground orbs starting at the player's feet"): Metadata/Monsters/LeagueAugury/CauldronCrone/
 			// CauldronCronePustule (Animated, BaseEvents, Brackets, Positioned, Render, StateMachine pop=1), animated object
@@ -417,8 +426,8 @@ namespace AtE {
 			foreach ( var h in SkillHazards(ents) ) yield return h;
 			foreach ( var h in PathHazards(ents) ) yield return h;
 			foreach ( var h in BuffAreaHazards(ents) ) yield return h;
-			// (projectiles are not among the entities, see EntityCache.GetProjectiles)
-			foreach ( var h in PathHazards(EntityCache.GetProjectiles().ToList()) ) yield return h;
+			// (projectiles and client-only effects are not among the entities, see EntityCache.GetLocalEntities)
+			foreach ( var h in PathHazards(EntityCache.GetLocalEntities().ToList()) ) yield return h;
 		}
 
 		/// <summary>The entities in ents matching HazardPaths.</summary>
@@ -432,6 +441,10 @@ namespace AtE {
 			// flying (0.2 s old) and one landed (1.9 s); the next was 5.2 s old and gone. Nothing else told them apart (their
 			// Projectile, Animated, Positioned and Render matched once landed), and the gone ones stayed listed for 45 s and more
 			["Projectiles/CorruptedBallLightning"] = 5,
+			// the ice flowers (see HazardPaths): a small one burst at 2.05 s, so 2.5 s to a flower; a burst is brief
+			["arena_mechanics/ice_flower/Small/small_blast"] = 0.6f,
+			["arena_mechanics/ice_flower/Main/main_ice_flower"] = 2.5f,
+			["arena_mechanics/ice_flower/Small/small_ice_flower"] = 2.5f,
 		};
 
 		/// <summary>
