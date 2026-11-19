@@ -312,6 +312,13 @@ namespace AtE {
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
 			// Render.Bounds 30 x 30. 10 cells is a guess at the blast
 			("Daemon/Augury/CrowBombObject", null, 10, DangerLayer.Soon, 40),
+			// Augury Darktongue Matron's pustules (Monsters/Augury/CauldronCrone, a rare one; 3.30.0c, paused as the user saw
+			// "a line of ground orbs starting at the player's feet"): Metadata/Monsters/LeagueAugury/CauldronCrone/
+			// CauldronCronePustule (Animated, BaseEvents, Brackets, Positioned, Render, StateMachine pop=1), animated object
+			// .../League_Augury/CauldronCrone/cauldron_pustule_02.ao. Four in a line from the player outward, about 16
+			// cells apart, placed 0.13 s after each other; Render.Bounds 30 x 30 (3 cells). Not seen popping: radius 8 is
+			// a guess (about half the spacing, so they join into a strip). Soon until they pop (see HazardNowStates)
+			("LeagueAugury/CauldronCrone/CauldronCronePustule", null, 8, DangerLayer.Soon, 60),
 			// Augury empowerment "Blood Geysers" (3.30.0c, seen on Renkarr in the Silo map, paused, not seen erupting yet):
 			// Monsters/Augury/Daemon/TriggeredBloodGeyserDaemon (sits on the boss) places
 			// Metadata/Monsters/Daemon/Augury/TriggeredBloodGeysersObject (Animated, BaseEvents, Positioned, Render,
@@ -387,6 +394,15 @@ namespace AtE {
 			["Projectiles/CorruptedBallLightning"] = 5,
 		};
 
+		/// <summary>
+		/// HazardPaths entries (by their path part) that go on the Now layer, whatever their entry says, while their
+		/// StateMachine has a state at a value: eg, a blast that is Soon while it winds up and Now once it goes off.
+		/// </summary>
+		public static readonly Dictionary<string, (string state, long value)> HazardNowStates = new Dictionary<string, (string, long)> {
+			// the Darktongue Matron's pustules: pop is 0 while they wait, 1 when they go off (from the user)
+			["LeagueAugury/CauldronCrone/CauldronCronePustule"] = ("pop", 1),
+		};
+
 		// the animated object's clock (s), or NaN
 		private static float AnimationAge(Entity e) {
 			var anim = e.GetComponent<Animated>();
@@ -405,7 +421,9 @@ namespace AtE {
 					if ( !(path.Contains(part) || (aoPath != null && aoPath.Contains(part))) || (buff != null && !HasBuff(e, buff)) ) continue;
 					if ( HazardMaxAgeSec.TryGetValue(part, out float maxAge) && !(AnimationAge(e) <= maxAge) ) break; // (gone; or no clock, taken as gone)
 					var pos = e.GetComponent<Positioned>();
-					if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius) { Layer = layer, Weight = weight, Source = buff ?? part };
+					var at = layer;
+					if ( HazardNowStates.TryGetValue(part, out var now) && (e.GetComponent<StateMachine>()?.TryGetState(now.state, out long v) ?? false) && v == now.value ) at = DangerLayer.Now;
+					if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius) { Layer = at, Weight = weight, Source = buff ?? part };
 					break;
 				}
 			}
