@@ -20,7 +20,8 @@ namespace AtE {
 		/// <summary>
 		/// A damaging area on the ground: its center, and radius in cells; or, for a sector (eg, a breath), its apex
 		/// (Center), length (Radius), the direction the caster faces (Dir, normalized), and the slice it covers: from From to
-		/// To radians off Dir, positive toward the caster's left.
+		/// To radians off Dir, positive toward the caster's left; or, for a beam, a band Radius cells either side of the
+		/// line from Center to End.
 		/// </summary>
 		public readonly struct Hazard {
 			public readonly Offsets.Vector2i Center;
@@ -28,14 +29,31 @@ namespace AtE {
 			public readonly Vector2 Dir;
 			public readonly float From, To;
 			public readonly bool IsSector;
-			public Hazard(Offsets.Vector2i center, float radius) { Center = center; Radius = radius; Dir = default; From = To = 0; IsSector = false; }
+			public readonly Offsets.Vector2i End;
+			public readonly bool IsBeam;
+			public Hazard(Offsets.Vector2i center, float radius) { Center = center; Radius = radius; Dir = default; From = To = 0; IsSector = false; End = center; IsBeam = false; }
 			public Hazard(Offsets.Vector2i apex, float length, Vector2 facing, float from, float to) {
 				Center = apex; Radius = length; Dir = facing.LengthSquared() > 0 ? Vector2.Normalize(facing) : new Vector2(0, -1);
-				From = from; To = to; IsSector = true;
+				From = from; To = to; IsSector = true; End = apex; IsBeam = false;
+			}
+			/// <summary>A beam: the cells within halfWidth of the line from start to end.</summary>
+			public Hazard(Offsets.Vector2i start, Offsets.Vector2i end, float halfWidth) {
+				Center = start; End = end; Radius = halfWidth; Dir = default; From = To = 0; IsSector = false; IsBeam = true;
 			}
 			/// <summary>The caster's left, when it faces Dir (Dir (0,-1): (1,0); see HazardSkills).</summary>
 			public Vector2 Left => new Vector2(-Dir.Y, Dir.X);
+			/// <summary>Cells from cell to the area's edge (negative inside); for a sector, to its circle's edge.</summary>
+			public float EdgeDistance(Offsets.Vector2i cell) => (IsBeam ? BeamDistance(cell) : Combat.Distance(cell, Center)) - Radius;
+			private float BeamDistance(Offsets.Vector2i cell) {
+				var a = new Vector2(Center.X, Center.Y);
+				var ab = new Vector2(End.X, End.Y) - a;
+				var p = new Vector2(cell.X, cell.Y);
+				float len2 = ab.LengthSquared();
+				float t = len2 == 0 ? 0 : Math.Clamp(Vector2.Dot(p - a, ab) / len2, 0, 1);
+				return Vector2.Distance(p, a + t * ab);
+			}
 			public bool Covers(Offsets.Vector2i cell, float margin) {
+				if ( IsBeam ) return BeamDistance(cell) <= Radius + margin;
 				float d = Combat.Distance(cell, Center);
 				if ( d > Radius + margin ) return false;
 				if ( !IsSector || d <= margin ) return true;
@@ -45,8 +63,8 @@ namespace AtE {
 				double widen = Math.Atan2(margin, d);
 				return angle >= From - widen && angle <= To + widen;
 			}
-			public override string ToString() => IsSector
-				? $"{Center} sector {Radius:F0} facing ({Dir.X:F2}, {Dir.Y:F2}), {From * 180 / Math.PI:F0} to {To * 180 / Math.PI:F0} deg"
+			public override string ToString() => IsBeam ? $"beam {Center} to {End}, {Radius:F0} either side"
+				: IsSector ? $"{Center} sector {Radius:F0} facing ({Dir.X:F2}, {Dir.Y:F2}), {From * 180 / Math.PI:F0} to {To * 180 / Math.PI:F0} deg"
 				: $"{Center} r{Radius:F0}";
 		}
 
@@ -76,10 +94,90 @@ namespace AtE {
 			("DeathBreathMiddle", 150, -45, 45),
 		};
 
-		/// <summary>The slices of the HazardSkills being used now, by any monster near.</summary>
+		/// <summary>
+		/// Skills that light a network of beams between reflectors (no entity of their own): a part of the skill's name, a
+		/// part of the reflectors' metadata path, the beams' half-width in cells, and how long (ms) after a monster was last
+		/// seen using the skill to keep avoiding them. While it lasts: the beam from the caster to the reflector its action
+		/// targets (ActorAction.Target), and, from every reflector within ReflectorRange of the caster, the beam along the
+		/// way it faces (Positioned.Rotation, 0 facing -Y), to the reflector it faces (within ReflectorAimDeg), or else
+		/// ReflectorRayCells long.
+		/// </summary>
+		public static readonly List<(string skillPart, string reflectorPath, float halfWidth, long lingerMs)> BeamSkills = new List<(string, string, float, long)> {
+			// Renkarr, the Kiln Keeper (the Silo map boss, Monsters/Vilenta/VilentaMap_; 3.30.0c, paused twice):
+			// VilentaReflectionMap, red fire beams that give vilenta_reflection_beam_degen_fire. His action targets one of the
+			// 12 pylons around the arena walls (Monsters/AtlasBosses/TheElder/ArenaObjects/Tower/BeamTarget1-4,
+			// vilenta_pylon.ao; first pylon 8 at the north wall, later pylon 10 in the north-east corner). The pylons never
+			// turn (the same Positioned.Rotation in both pauses, a few seconds of fighting apart), and 10 of the 12 face
+			// another pylon within 4 degrees: those lines, projected onto the user's screenshot of the second pause, are the
+			// star of beams on screen (eg, 11 to 8, 9 to 14, 15 to 8, 4 to 10). Which pylons are lit was not found (no
+			// per-pylon state told them apart), so all of the lines are avoided. The beams look about 3 cells wide; how long
+			// they last after the channel is a guess
+			("VilentaReflection", "ArenaObjects/Tower/BeamTarget", 3, 6000),
+		};
+		/// <summary>Reflectors (see BeamSkills) within this many cells of the caster are part of its beam network.</summary>
+		public static float ReflectorRange = 200;
+		/// <summary>A reflector faces another reflector when it lies within this many degrees of the way it faces.</summary>
+		public static float ReflectorAimDeg = 10;
+		/// <summary>The length of the beam from a reflector that faces no other reflector.</summary>
+		public static float ReflectorRayCells = 30;
+		// per BeamSkills entry: when, and where, a monster was last seen using it
+		private static readonly Dictionary<string, (long when, Offsets.Vector2i caster)> beamSeen = new Dictionary<string, (long, Offsets.Vector2i)>();
+
+		/// <summary>The beams of the BeamSkills in use now, or lately (see BeamSkills).</summary>
+		public static IEnumerable<Hazard> BeamHazards(List<Entity> ents) {
+			if ( BeamSkills.Count == 0 ) yield break;
+			long now = Time.ElapsedMilliseconds;
+			// the beam from each caster to its target
+			foreach ( var e in ents ) {
+				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
+				var actor = e.GetComponent<Actor>();
+				if ( !IsValid(actor) || (actor.ActionFlags & Offsets.Component_ActionFlags.UsingAbility) == 0 ) continue;
+				var action = actor.CurrentAction;
+				string name = action?.SkillOf(actor)?.Name;
+				if ( name == null ) continue;
+				foreach ( var (part, _, halfWidth, _) in BeamSkills ) {
+					if ( name.IndexOf(part, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
+					var pos = e.GetComponent<Positioned>();
+					if ( !IsValid(pos) ) break;
+					beamSeen[part] = (now, pos.GridPos);
+					var target = action.Target?.GetComponent<Positioned>();
+					if ( IsValid(target) && Combat.Distance(target.GridPos, pos.GridPos) > 2 ) yield return new Hazard(pos.GridPos, target.GridPos, halfWidth);
+					break;
+				}
+			}
+			// the network of beams between the reflectors
+			foreach ( var (part, reflectorPath, halfWidth, lingerMs) in BeamSkills ) {
+				if ( !beamSeen.TryGetValue(part, out var seen) || now - seen.when > lingerMs ) continue;
+				var reflectors = new List<(Offsets.Vector2i at, Vector2 facing)>();
+				foreach ( var e in ents ) {
+					if ( e?.Path == null || !e.Path.Contains(reflectorPath) ) continue;
+					var pos = e.GetComponent<Positioned>();
+					if ( !IsValid(pos) || Combat.Distance(pos.GridPos, seen.caster) > ReflectorRange ) continue;
+					float r = pos.Rotation; // 0: facing -Y
+					reflectors.Add((pos.GridPos, new Vector2((float)Math.Sin(r), -(float)Math.Cos(r))));
+				}
+				foreach ( var (at, facing) in reflectors ) {
+					Offsets.Vector2i end = default;
+					double bestAngle = ReflectorAimDeg * Math.PI / 180;
+					bool found = false;
+					foreach ( var (other, _) in reflectors ) {
+						var v = new Vector2(other.X - at.X, other.Y - at.Y);
+						if ( v.LengthSquared() < 4 ) continue;
+						double angle = Math.Abs(Math.Atan2(facing.X * v.Y - facing.Y * v.X, Vector2.Dot(facing, v)));
+						if ( angle <= bestAngle ) { bestAngle = angle; end = other; found = true; }
+					}
+					if ( !found ) end = new Offsets.Vector2i(at.X + (int)Math.Round(facing.X * ReflectorRayCells), at.Y + (int)Math.Round(facing.Y * ReflectorRayCells));
+					yield return new Hazard(at, end, halfWidth);
+				}
+			}
+		}
+
+		/// <summary>The slices of the HazardSkills being used now, by any monster near, and the beams of the BeamSkills (see BeamHazards).</summary>
 		public static IEnumerable<Hazard> SkillHazards() {
+			var ents = (GetEntities() ?? Enumerable.Empty<Entity>()).ToList();
+			foreach ( var h in BeamHazards(ents) ) yield return h;
 			if ( HazardSkills.Count == 0 ) yield break;
-			foreach ( var e in GetEntities() ?? Enumerable.Empty<Entity>() ) {
+			foreach ( var e in ents ) {
 				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
 				var actor = e.GetComponent<Actor>();
 				if ( !IsValid(actor) || (actor.ActionFlags & Offsets.Component_ActionFlags.UsingAbility) == 0 ) continue;
@@ -107,6 +205,10 @@ namespace AtE {
 			// within 25 cells of her. Each has 10 at GroundEffect+0x38, taken as its radius in cells (the player stood just
 			// outside, 10 cells from the nearest). (The SleepableServerEffect entities on the same spots are the falling ice.)
 			("ground_effects/FillGroundEffect", "ground_ice_chill", 10),
+			// burning ground (ground_fire_burn), eg Renkarr's in the Silo map (3.30.0c, his skill CGEVilentaMapBurningGround):
+			// the same FillGroundEffect, 10 at GroundEffect+0x38 again, but the player was burning 12 cells from its center,
+			// so the radius is taken as 14
+			("ground_effects/FillGroundEffect", "ground_fire_burn", 14),
 			// her second phase's water geysers (3.29.4, paused with 10 placed, the nearest 23-27 cells from the player, who was
 			// outside them): entities with only Animated, Positioned, Render, Transitionable. Render.Bounds is 19.6 x 19.6 x 289
 			// (about 2 cells across, a tall pillar), so the drawing is narrow: 12 cells is a guess at the damaging radius, on the safe side
@@ -192,7 +294,7 @@ namespace AtE {
 			if ( hazards.Count != Math.Max(0, lastHazardCount) && Time.ElapsedMilliseconds - lastHazardLog >= HazardLogMs ) {
 				lastHazardCount = hazards.Count;
 				lastHazardLog = Time.ElapsedMilliseconds;
-				string nearest = hazards.Count == 0 ? "" : $", the nearest {hazards.Min(h => Combat.Distance(ctx.Grid, h.Center) - h.Radius):F0} cells from its edge";
+				string nearest = hazards.Count == 0 ? "" : $", the nearest {hazards.Min(h => h.EdgeDistance(ctx.Grid)):F0} cells from its edge";
 				Log($"AvoidSpam: {hazards.Count} damaging areas near {Label}{nearest}");
 			}
 
