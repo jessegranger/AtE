@@ -24,7 +24,7 @@ namespace AtE {
 
 		/// <summary>The doors that have closed again near the player (empty if it is not locked in).</summary>
 		public static List<AreaDoor> LockingDoors(Terrain terrain, Offsets.Vector2i at) =>
-			terrain?.Doors.Where(d => d.IsClosed && d.ClosedSince != 0 && Combat.Distance(at, d.GridPos) <= Radius).ToList()
+			terrain?.Doors.Where(d => d.IsClosed && !d.PassThrough && d.ClosedSince != 0 && Combat.Distance(at, d.GridPos) <= Radius).ToList()
 			?? new List<AreaDoor>();
 
 		public static bool IsLockedIn(CombatContext ctx) => LockingDoors(ctx.Terrain, ctx.Grid).Count > 0;

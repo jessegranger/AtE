@@ -600,7 +600,7 @@ namespace AtE {
 				doorLocked = new bool[doors.Count];
 			}
 			for ( int i = 0; i < doors.Count; i++ ) {
-				doorClosed[i] = doors[i].IsClosed;
+				doorClosed[i] = doors[i].IsClosed && !doors[i].PassThrough; // (a pass-through blocker is walked through like open ground)
 				doorLocked[i] = doors[i].IsLocked;
 			}
 		}

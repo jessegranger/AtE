@@ -36,6 +36,11 @@ namespace AtE {
 		/// which lever opens which door (3.29, checked live in a Trial of Ascendancy: no reference either way, see AreaLever).
 		/// </summary>
 		public bool IsLocked => AreaDoors.IsLockedDoorPath(Path);
+		/// <summary>
+		/// A blocker that goes away by itself as the player comes near (AreaDoors.PassThroughPaths, eg a Breach's walls): the
+		/// Navigator walks through its Passage as open ground, with no door to click and no extra cost.
+		/// </summary>
+		public bool PassThrough => AreaDoors.IsPassThroughPath(Path);
 		/// <summary>The inclusive box of cells the door may block (from TriggerableBlockage).</summary>
 		public Offsets.Vector2i GridMin, GridMax;
 		public bool IsClosed;
@@ -106,6 +111,56 @@ namespace AtE {
 		public static string[] LeverPaths = { "/Puzzle_Parts/Switch_Once" };
 
 		public static bool IsLockedDoorPath(string path) => path != null && LockedDoorPaths.Any(p => path.Contains(p));
+
+		/// <summary>
+		/// Entity paths (substrings) of blockers to walk through as if they were not there (AreaDoor.PassThrough): a Breach's
+		/// walls (3.30, The Canals, from the user: "Metadata/MiscellaneousObjects/Brequel/BrequelBlocker", dozens in a ring
+		/// around the Breach, each a blob about 10 cells across in the walkable grid), which go away as the player comes near.
+		/// </summary>
+		public static string[] PassThroughPaths = { "/Brequel/BrequelBlocker" };
+		public static bool IsPassThroughPath(string path) => path != null && PassThroughPaths.Any(p => path.Contains(p));
+
+		/// <summary>The cells a blocker blocks while closed: its blob for a pass-through one (FindBlob), else its slab (FindPassage).</summary>
+		private static List<Offsets.Vector2i> GuessPassage(Terrain terrain, AreaDoor door) =>
+			door.PassThrough ? FindBlob(terrain, door.GridMin, door.GridMax, door.GridPos) : FindPassage(terrain, door.GridMin, door.GridMax);
+
+		/// <summary>
+		/// The blocked cells joined (4-connected) to the one at pos (or the nearest blocked cell within 3), inside the box
+		/// min..max and within half the box's size of pos, so the real walls in the box's corners are left out.
+		/// </summary>
+		public static List<Offsets.Vector2i> FindBlob(Terrain terrain, Offsets.Vector2i min, Offsets.Vector2i max, Offsets.Vector2i pos) {
+			var blob = new List<Offsets.Vector2i>();
+			float radius = (Math.Min(max.X - min.X, max.Y - min.Y) / 2f) + 1;
+			bool Inside(int x, int y) {
+				float dx = x - pos.X, dy = y - pos.Y;
+				return x >= min.X && x <= max.X && y >= min.Y && y <= max.Y && terrain.InBounds(x, y)
+					&& (dx * dx) + (dy * dy) <= radius * radius && !terrain.IsWalkable(x, y);
+			}
+			var start = pos;
+			if ( !Inside(start.X, start.Y) ) {
+				bool found = false;
+				for ( int r = 1; r <= 3 && !found; r++ ) {
+					for ( int dy = -r; dy <= r && !found; dy++ ) {
+						for ( int dx = -r; dx <= r && !found; dx++ ) {
+							if ( Inside(pos.X + dx, pos.Y + dy) ) { start = new Offsets.Vector2i(pos.X + dx, pos.Y + dy); found = true; }
+						}
+					}
+				}
+				if ( !found ) return blob; // not stamped in the grid (yet)
+			}
+			var seen = new HashSet<long> { start.Id };
+			var stack = new Stack<Offsets.Vector2i>();
+			stack.Push(start);
+			while ( stack.Count > 0 ) {
+				var c = stack.Pop();
+				blob.Add(c);
+				foreach ( var (nx, ny) in new[] { (c.X + 1, c.Y), (c.X - 1, c.Y), (c.X, c.Y + 1), (c.X, c.Y - 1) } ) {
+					var n = new Offsets.Vector2i(nx, ny);
+					if ( Inside(nx, ny) && seen.Add(n.Id) ) stack.Push(n);
+				}
+			}
+			return blob;
+		}
 		public static bool IsLeverPath(string path) => path != null && LeverPaths.Any(p => path.Contains(p));
 
 		public static bool IsLeverUsed(Entity ent) {
@@ -170,7 +225,7 @@ namespace AtE {
 						GridMin = blockage.GridMin,
 						GridMax = blockage.GridMax,
 					};
-					door.Passage = FindPassage(terrain, door.GridMin, door.GridMax);
+					door.Passage = GuessPassage(terrain, door);
 					door.LiveCheckUntil = Time.ElapsedMilliseconds + LiveCheckMs;
 					doors.Add(door);
 					newPassage |= door.Passage.Count > 0;
@@ -204,7 +259,7 @@ namespace AtE {
 				// The Lunaris Temple Level 2, a Metadata/MiscellaneousObjects/Door: 35 frame cells, the corridor open across)
 				if ( door.IsClosed && (door.Passage.Count == 0 || Time.ElapsedMilliseconds < door.LiveCheckUntil)
 					&& terrain.MergeLiveBlocked(door.GridMin, door.GridMax) ) {
-					door.Passage = FindPassage(terrain, door.GridMin, door.GridMax);
+					door.Passage = GuessPassage(terrain, door);
 					Log($"Door {door.EntityId}: blocked in the game's grid since the area loaded, {door.Passage.Count} passage cells");
 					newPassage = true; // (the grid changed: the Navigator re-reads it)
 				}
