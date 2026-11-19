@@ -724,6 +724,10 @@ namespace AtE {
 		public bool TrySkipObstacle(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i obstacle, int obstacleIndex, float z) =>
 			UseTravelSkills && TravelSkills.Instance.TrySkip(this, () => InputBusy, Send, terrain, player, obstacle, obstacleIndex, z);
 
+		/// <summary>The path crosses danger: a travel skill over it (see TravelSkills.TrySkipDanger).</summary>
+		public bool TrySkipDanger(PathFollower follower, Terrain terrain, Offsets.Vector2i player, int landIndex, float z) =>
+			UseTravelSkills && TravelSkills.Instance.TrySkipDanger(this, () => InputBusy, Send, terrain, player, landIndex, z);
+
 		/// <summary>
 		/// Stop the player at once: tap the main skill for one InputLatency (too short to cast, but it ends the walk), where
 		/// the cursor is. False if there is no main skill on the bar (or it is Movement), or input is still going out.

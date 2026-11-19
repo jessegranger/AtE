@@ -46,7 +46,7 @@ namespace AtE {
 		private bool hadBeam;
 
 		public PietyKill(string label, Func<Entity, bool> match, Func<string> skill) : base(label, match, skill) {
-			Hazards = ctx => DefaultHazards(ctx).Concat(Circles());
+			ExtraHazards = Circles;
 		}
 
 		public override string Name => $"Kill {Label} with {Skill}, out of her circles and her beam";

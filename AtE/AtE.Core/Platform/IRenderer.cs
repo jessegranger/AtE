@@ -138,6 +138,9 @@ namespace AtE {
 		/// <summary>Draw a line segment.</summary>
 		void DrawLine(Vector2 start, Vector2 end, Color color, int thickness);
 
+		/// <summary>Draw a filled quad (corners in order around it; eg, a grid cell projected onto the screen).</summary>
+		void DrawQuadFilled(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color color);
+
 		/// <summary>Draw a sprite from the atlas filling the given screen rectangle.</summary>
 		void DrawSprite(SpriteIcon icon, RectangleF rect);
 	}

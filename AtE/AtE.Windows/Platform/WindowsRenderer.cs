@@ -223,6 +223,9 @@ namespace AtE {
 		public void DrawLine(System.Numerics.Vector2 start, System.Numerics.Vector2 end, System.Drawing.Color color, int thickness) =>
 			ImGuiController.DrawLine(start, end, color, thickness);
 
+		public void DrawQuadFilled(System.Numerics.Vector2 a, System.Numerics.Vector2 b, System.Numerics.Vector2 c, System.Numerics.Vector2 d, System.Drawing.Color color) =>
+			ImGuiController.DrawQuadFilled(a, b, c, d, color);
+
 		public void DrawSprite(SpriteIcon icon, System.Drawing.RectangleF rect) =>
 			SpriteController.DrawSprite(icon, rect);
 	}

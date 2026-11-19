@@ -39,6 +39,9 @@ namespace AtE {
 		public static void DrawLine(Vector2 start, Vector2 end, Color color) =>
 			Platform.Current.Renderer.DrawLine(start, end, color, 1);
 
+		public static void DrawQuadFilled(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color color) =>
+			Platform.Current.Renderer.DrawQuadFilled(a, b, c, d, color);
+
 		public static int ToRGBA(Color color) => (color.A << 24) | (color.B << 16) | (color.G << 8) | color.R;
 
 		public static void DrawSprite(SpriteIcon icon, Vector2 pos, float w, float h) =>

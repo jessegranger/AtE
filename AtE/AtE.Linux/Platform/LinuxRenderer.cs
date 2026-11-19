@@ -832,6 +832,9 @@ namespace AtE {
 		public void DrawLine(Vector2 start, Vector2 end, Color color, int thickness) =>
 			backgroundDrawList.AddLine(start, end, (uint)ToRGBA(color), thickness);
 
+		public void DrawQuadFilled(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color color) =>
+			backgroundDrawList.AddQuadFilled(a, b, c, d, (uint)ToRGBA(color));
+
 		// ---- sprites (atlas quad accumulation, mirroring SpriteController.DrawSprite) -----------
 
 		public void DrawSprite(SpriteIcon icon, RectangleF rect) {

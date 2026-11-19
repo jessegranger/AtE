@@ -120,6 +120,16 @@ namespace AtE {
 			UseAlong(owner, busy, send, terrain, me, z, MinDodgeCells,
 				(k, c) => k > obstacleIndex && Combat.Distance(c, obstacle) >= ObstacleClearance, $"past an obstacle at {obstacle}");
 
+		/// <summary>
+		/// The path crosses danger (a SkipDanger step, see Navigator.AddDangerSteps): use a travel skill to a safe cell
+		/// (DangerMap.IsSafe) of the path at or past landIndex. True if one was used.
+		/// </summary>
+		public bool TrySkipDanger(object owner, Func<bool> busy, Func<IState, bool> send, Terrain terrain, Offsets.Vector2i me, int landIndex, float z) {
+			var map = DangerMap.Current;
+			return UseAlong(owner, busy, send, terrain, me, z, MinDodgeCells,
+				(k, c) => k >= landIndex && (map == null || map.IsSafe(c)), $"over danger, to path cell {landIndex}");
+		}
+
 		/// <summary>TryDodge for any owner of the follower: busy says input is still going out, send queues more (false if it can't).</summary>
 		public bool TryDodge(object owner, Func<bool> busy, Func<IState, bool> send, Terrain terrain, Offsets.Vector2i me, Offsets.Vector2i trap, float z) =>
 			UseAlong(owner, busy, send, terrain, me, z, MinDodgeCells, (k, c) => Combat.Distance(c, trap) >= DodgeClearance, $"past a trap at {trap}");

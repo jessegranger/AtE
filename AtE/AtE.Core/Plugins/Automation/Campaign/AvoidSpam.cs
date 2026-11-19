@@ -9,65 +9,16 @@ namespace AtE {
 	/// <summary>
 	/// The default way to fight any monster, normal to unique (Fight calls one per target, see Fight.AvoidSpamTarget), and
 	/// bosses that cover the ground near them with lasting damaging areas (eg, Merveil, one kind in each phase): stay
-	/// out of the areas, and otherwise stand still and spam the skill at it. Standing in an area (or within Margin cells
-	/// of one): walk to the nearest cell outside all of them, preferring one in range of the boss and with line of sight
-	/// to it. Out of range: get in range (Engage).
+	/// out of the areas, and otherwise stand still and spam the skill at it. The areas go on the DangerMap (this class
+	/// holds the catalog of them, see CatalogHazards). Standing in danger (an area, or its margin): walk to the best cell
+	/// (DangerMap.TryFindSafest: near, safe, in range of the boss and with line of sight to it). Out of range: with areas
+	/// about, walk to the best safe cell in range; else (or with none near) get in range (Engage). The walk itself is
+	/// planned without regard to danger: the path follower uses a travel skill over a dangerous stretch (SkipDanger).
 	///
-	/// The areas are entities of their own (see HazardPaths): so far Merveil's ice storm and water geysers, and General
-	/// Gravicius's falling fireballs.
+	/// The areas are skills being used (HazardSkills, BeamSkills) and entities of their own (HazardPaths), eg Merveil's
+	/// ice storm and water geysers, and General Gravicius's falling fireballs.
 	/// </summary>
 	public class AvoidSpam : Kill {
-		/// <summary>
-		/// A damaging area on the ground: its center, and radius in cells; or, for a sector (eg, a breath), its apex
-		/// (Center), length (Radius), the direction the caster faces (Dir, normalized), and the slice it covers: from From to
-		/// To radians off Dir, positive toward the caster's left; or, for a beam, a band Radius cells either side of the
-		/// line from Center to End.
-		/// </summary>
-		public readonly struct Hazard {
-			public readonly Offsets.Vector2i Center;
-			public readonly float Radius;
-			public readonly Vector2 Dir;
-			public readonly float From, To;
-			public readonly bool IsSector;
-			public readonly Offsets.Vector2i End;
-			public readonly bool IsBeam;
-			public Hazard(Offsets.Vector2i center, float radius) { Center = center; Radius = radius; Dir = default; From = To = 0; IsSector = false; End = center; IsBeam = false; }
-			public Hazard(Offsets.Vector2i apex, float length, Vector2 facing, float from, float to) {
-				Center = apex; Radius = length; Dir = facing.LengthSquared() > 0 ? Vector2.Normalize(facing) : new Vector2(0, -1);
-				From = from; To = to; IsSector = true; End = apex; IsBeam = false;
-			}
-			/// <summary>A beam: the cells within halfWidth of the line from start to end.</summary>
-			public Hazard(Offsets.Vector2i start, Offsets.Vector2i end, float halfWidth) {
-				Center = start; End = end; Radius = halfWidth; Dir = default; From = To = 0; IsSector = false; IsBeam = true;
-			}
-			/// <summary>The caster's left, when it faces Dir (Dir (0,-1): (1,0); see HazardSkills).</summary>
-			public Vector2 Left => new Vector2(-Dir.Y, Dir.X);
-			/// <summary>Cells from cell to the area's edge (negative inside); for a sector, to its circle's edge.</summary>
-			public float EdgeDistance(Offsets.Vector2i cell) => (IsBeam ? BeamDistance(cell) : Combat.Distance(cell, Center)) - Radius;
-			private float BeamDistance(Offsets.Vector2i cell) {
-				var a = new Vector2(Center.X, Center.Y);
-				var ab = new Vector2(End.X, End.Y) - a;
-				var p = new Vector2(cell.X, cell.Y);
-				float len2 = ab.LengthSquared();
-				float t = len2 == 0 ? 0 : Math.Clamp(Vector2.Dot(p - a, ab) / len2, 0, 1);
-				return Vector2.Distance(p, a + t * ab);
-			}
-			public bool Covers(Offsets.Vector2i cell, float margin) {
-				if ( IsBeam ) return BeamDistance(cell) <= Radius + margin;
-				float d = Combat.Distance(cell, Center);
-				if ( d > Radius + margin ) return false;
-				if ( !IsSector || d <= margin ) return true;
-				var v = new Vector2(cell.X - Center.X, cell.Y - Center.Y);
-				double angle = Math.Atan2(Vector2.Dot(v, Left), Vector2.Dot(v, Dir));
-				// (the margin widens the slice by the angle it makes at this distance)
-				double widen = Math.Atan2(margin, d);
-				return angle >= From - widen && angle <= To + widen;
-			}
-			public override string ToString() => IsBeam ? $"beam {Center} to {End}, {Radius:F0} either side"
-				: IsSector ? $"{Center} sector {Radius:F0} facing ({Dir.X:F2}, {Dir.Y:F2}), {From * 180 / Math.PI:F0} to {To * 180 / Math.PI:F0} deg"
-				: $"{Center} r{Radius:F0}";
-		}
-
 		/// <summary>
 		/// Skills that are damaging areas while a monster is using them (no entity of their own until they land): a part of
 		/// the skill's name (see Actor.CurrentAction, ActorAction.SkillOf; the first entry that matches is used, so longer
@@ -141,7 +92,7 @@ namespace AtE {
 					if ( !IsValid(pos) ) break;
 					beamSeen[part] = (now, pos.GridPos);
 					var target = action.Target?.GetComponent<Positioned>();
-					if ( IsValid(target) && Combat.Distance(target.GridPos, pos.GridPos) > 2 ) yield return new Hazard(pos.GridPos, target.GridPos, halfWidth);
+					if ( IsValid(target) && Combat.Distance(target.GridPos, pos.GridPos) > 2 ) yield return new Hazard(pos.GridPos, target.GridPos, halfWidth) { Layer = DangerLayer.Now, Weight = BeamWeight, Source = part };
 					break;
 				}
 			}
@@ -167,15 +118,18 @@ namespace AtE {
 						if ( angle <= bestAngle ) { bestAngle = angle; end = other; found = true; }
 					}
 					if ( !found ) end = new Offsets.Vector2i(at.X + (int)Math.Round(facing.X * ReflectorRayCells), at.Y + (int)Math.Round(facing.Y * ReflectorRayCells));
-					yield return new Hazard(at, end, halfWidth);
+					yield return new Hazard(at, end, halfWidth) { Layer = DangerLayer.Now, Weight = BeamWeight, Source = part };
 				}
 			}
 		}
 
-		/// <summary>The slices of the HazardSkills being used now, by any monster near, and the beams of the BeamSkills (see BeamHazards).</summary>
-		public static IEnumerable<Hazard> SkillHazards() {
-			var ents = (GetEntities() ?? Enumerable.Empty<Entity>()).ToList();
-			foreach ( var h in BeamHazards(ents) ) yield return h;
+		/// <summary>The weight (see DangerMap) of a HazardSkills slice, on the Soon layer (the skill is being cast: it lands at the end).</summary>
+		public static byte SkillWeight = 100;
+		/// <summary>The weight of a BeamSkills beam, on the Now layer.</summary>
+		public static byte BeamWeight = 60;
+
+		/// <summary>The slices of the HazardSkills being used now, by any monster in ents.</summary>
+		public static IEnumerable<Hazard> SkillHazards(List<Entity> ents) {
 			if ( HazardSkills.Count == 0 ) yield break;
 			foreach ( var e in ents ) {
 				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
@@ -190,7 +144,7 @@ namespace AtE {
 					float r = pos.Rotation; // 0: facing -Y (see HazardSkills)
 					var facing = new Vector2((float)Math.Sin(r), -(float)Math.Cos(r));
 					const float rad = (float)(Math.PI / 180);
-					yield return new Hazard(pos.GridPos, length, facing, fromDeg * rad, toDeg * rad);
+					yield return new Hazard(pos.GridPos, length, facing, fromDeg * rad, toDeg * rad) { Layer = DangerLayer.Soon, Weight = SkillWeight, Source = part };
 					break;
 				}
 			}
@@ -198,37 +152,39 @@ namespace AtE {
 
 		/// <summary>
 		/// The entities that are damaging areas: a part of the metadata path (or, for an effect entity, of its animated
-		/// object's .ao path), a buff the entity has (null: any), and the area's radius in cells.
+		/// object's .ao path), a buff the entity has (null: any), the area's radius in cells, and how it goes on the DangerMap:
+		/// its layer (Now: it hurts now; Soon: it is about to land or go off) and weight (at least 2 * DangerMap.SafeLevel,
+		/// so the Margin ring, at half weight, is not safe either; about 100 for a lethal one, 30 for burning ground).
 		/// </summary>
-		public static readonly List<(string pathPart, string buff, float radius)> HazardPaths = new List<(string, string, float)> {
+		public static readonly List<(string pathPart, string buff, float radius, DangerLayer layer, byte weight)> HazardPaths = new List<(string, string, float, DangerLayer, byte)> {
 			// Merveil's ice storm (3.29.4, paused in it): a ground effect with ground_ice_chill wherever ice fell, 26 of them
 			// within 25 cells of her. Each has 10 at GroundEffect+0x38, taken as its radius in cells (the player stood just
 			// outside, 10 cells from the nearest). (The SleepableServerEffect entities on the same spots are the falling ice.)
-			("ground_effects/FillGroundEffect", "ground_ice_chill", 10),
+			("ground_effects/FillGroundEffect", "ground_ice_chill", 10, DangerLayer.Now, 30),
 			// burning ground (ground_fire_burn), eg Renkarr's in the Silo map (3.30.0c, his skill CGEVilentaMapBurningGround):
 			// the same FillGroundEffect, 10 at GroundEffect+0x38 again, but the player was burning 12 cells from its center,
 			// so the radius is taken as 14
-			("ground_effects/FillGroundEffect", "ground_fire_burn", 14),
+			("ground_effects/FillGroundEffect", "ground_fire_burn", 14, DangerLayer.Now, 30),
 			// her second phase's water geysers (3.29.4, paused with 10 placed, the nearest 23-27 cells from the player, who was
 			// outside them): entities with only Animated, Positioned, Render, Transitionable. Render.Bounds is 19.6 x 19.6 x 289
 			// (about 2 cells across, a tall pillar), so the drawing is narrow: 12 cells is a guess at the damaging radius, on the safe side
-			("merveil/water_geyser/WaterGeyser", null, 12),
+			("merveil/water_geyser/WaterGeyser", null, 12, DangerLayer.Now, 40),
 			// General Gravicius's fireballs that fall from the sky (3.29.3, paused with 19 placed, 9-60 cells around him): entities
 			// Metadata/Effects/SleepableServerEffect (Animated, BaseEvents, LimitedLifespan, Positioned, Render) whose animated
 			// object is "HellfireBarrageEffect", matched by its .ao path (see Animated.AnimatedObjectPath). Render.Bounds is
 			// 19.6 x 19.6 x 112 (a narrow falling pillar), so 8 cells is a guess at the blast and its burning ground
-			("Gravicius/ballistastorm.ao", null, 8),
+			("Gravicius/ballistastorm.ao", null, 8, DangerLayer.Soon, 40),
 			// Kitava's bloody pools (physical damage over time) in his final fight (3.30, paused with 19 placed, 28-100 cells from
 			// the player): Metadata/Effects/Spells/ground_effects/VisibleServerGroundEffect (Animated, BaseEvents, Buffs,
 			// GroundEffect, Positioned, Render) with the buff ground_devouring_darkness, animated object
 			// ground_effects/devouring_darkness/ground_rig.ao. GroundEffect+0x38 is 10, as for Merveil's ice: radius 10
-			("ground_effects/VisibleServerGroundEffect", "ground_devouring_darkness", 10),
+			("ground_effects/VisibleServerGroundEffect", "ground_devouring_darkness", 10, DangerLayer.Now, 30),
 			// Augury league boss empowerment "Orbital Viscera Cannon" (3.30, seen on Kitava): a Daemon monster
 			// (Monsters/Augury/Daemon/OrbitalVisceraCannonDaemon_, sitting on the boss, StateMachine beam_begin/tier) fires a
 			// Metadata/Effects/ServerEffect (LimitedLifespan) whose animated object is
 			// .../League_Augury/Boss_Empowerments/OrbitalVisceraBeam/viscera_beam.ao. Render.Bounds 19.6 x 19.6 like the
 			// geysers; 12 cells is a guess at the blast
-			("OrbitalVisceraBeam/viscera_beam.ao", null, 12),
+			("OrbitalVisceraBeam/viscera_beam.ao", null, 12, DangerLayer.Soon, 60),
 			// Augury empowerment "Blackfire Wall" (3.30, seen on Kitava: a wave of fire that leaves the player burning with
 			// Blackfire). Monsters/Augury/Daemon/BlackfireWallDaemon (sits on the boss, StateMachine have_wall, tier) lays a
 			// line of Metadata/Monsters/Daemon/Augury/BlackfireWallObject segments (Animated, BaseEvents, Buffs, Positioned,
@@ -236,25 +192,32 @@ namespace AtE {
 			// each with the buff blackfire_wall_daemon_burn, which the player standing in it gets too: the segments are the
 			// source of Blackfire. Paused mid-deploy: 3 segments about 10 cells apart, Render.Bounds 30 x 30 (about 3
 			// cells), the last one on the player. Radius 6 so the circles join into the wall
-			("Daemon/Augury/BlackfireWallObject", null, 6),
+			("Daemon/Augury/BlackfireWallObject", null, 6, DangerLayer.Now, 50),
 			// Augury empowerment "Crow Bombs" (3.30, seen on Kitava alongside the wall, not seen exploding yet):
 			// Monsters/Augury/Daemon/CrowBombDaemon places Metadata/Monsters/Daemon/Augury/CrowBombObject (Animated,
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
 			// Render.Bounds 30 x 30. 10 cells is a guess at the blast
-			("Daemon/Augury/CrowBombObject", null, 10),
+			("Daemon/Augury/CrowBombObject", null, 10, DangerLayer.Soon, 40),
 			// Daresso's sword traps in The Ring of Blades (Act 4; the name from the user, not seen live yet: 8 cells is a guess)
-			("DaressoSwordTrap", null, 8),
+			("DaressoSwordTrap", null, 8, DangerLayer.Now, 40),
 		};
 
-		/// <summary>Where the damaging areas are now. Default: the skills in HazardSkills being used, and the entities matching HazardPaths.</summary>
-		public Func<CombatContext, IEnumerable<Hazard>> Hazards = DefaultHazards;
+		/// <summary>
+		/// This fight's own damaging areas, beyond the catalog (eg, PietyKill's circles): put on the DangerMap (see
+		/// DangerMap.SetExtra) while it fights. Null: none.
+		/// </summary>
+		public Func<IEnumerable<Hazard>> ExtraHazards;
 
-		/// <summary>Stay this many cells further out than an area's radius.</summary>
+		/// <summary>Stay this many cells further out than an area's radius (PietyKill's own beam; the DangerMap has its own Margin).</summary>
 		public float Margin = 4;
-		/// <summary>How far from the player (cells) to look for a safe cell.</summary>
+		/// <summary>How far from the player (cells) to look for a safe cell (PietyKill's own search).</summary>
 		public int SearchRadius = 60;
-		/// <summary>How far to look when no cell within SearchRadius is safe.</summary>
+		/// <summary>How far (cells) the DangerMap search for a safe cell may go.</summary>
 		public int FarSearchRadius = 150;
+		/// <summary>Keep walking to the cell chosen before while its score is within this many (cells walked) of the best now.</summary>
+		public float GoalHysteresis = 8;
+		/// <summary>Forget the cell chosen before after this long.</summary>
+		public long GoalKeepMs = 2000;
 		/// <summary>Range to use the skill from, in cells; 0 for 80% of the driver's AttackRange.</summary>
 		public float SpamRange;
 
@@ -266,19 +229,41 @@ namespace AtE {
 		public long HazardLogMs = 5000;
 		private int lastHazardCount = -1;
 		private long lastHazardLog;
+		// the cell walked to last (to keep it, see GoalHysteresis), and when it was chosen
+		private Offsets.Vector2i goal;
+		private long goalAt = -1000000;
+		// the last search (see TryFindGoal): on which map, from where, at what target, and whether it found a safe cell
+		private int searchedMap = -1;
+		private Offsets.Vector2i searchedFrom, searchedTarget;
+		private bool searchedSafe;
 
-		public static IEnumerable<Hazard> DefaultHazards(CombatContext ctx) {
-			foreach ( var h in SkillHazards() ) yield return h;
+		/// <summary>The cell some AvoidSpam last chose to walk to (out of danger, or safe in range), and when (for DangerDisplay).</summary>
+		public static Offsets.Vector2i LastGoal { get; private set; }
+		public static long LastGoalAt { get; private set; } = -1000000;
+
+		/// <summary>
+		/// Every catalog hazard now (from one walk over the entities): the BeamSkills beams, the HazardSkills being used, and
+		/// the entities matching HazardPaths. DangerMap builds from these.
+		/// </summary>
+		public static IEnumerable<Hazard> CatalogHazards() {
+			var ents = (GetEntities() ?? Enumerable.Empty<Entity>()).ToList();
+			foreach ( var h in BeamHazards(ents) ) yield return h;
+			foreach ( var h in SkillHazards(ents) ) yield return h;
+			foreach ( var h in PathHazards(ents) ) yield return h;
+		}
+
+		/// <summary>The entities in ents matching HazardPaths.</summary>
+		public static IEnumerable<Hazard> PathHazards(List<Entity> ents) {
 			if ( HazardPaths.Count == 0 ) yield break;
-			foreach ( var e in GetEntities() ?? Enumerable.Empty<Entity>() ) {
+			foreach ( var e in ents ) {
 				string path = e?.Path;
 				if ( path == null ) continue;
 				// effects with a generic metadata path (eg, SleepableServerEffect) are told apart by their animated object
 				string aoPath = path.StartsWith("Metadata/Effects/") ? e.GetComponent<Animated>()?.AnimatedObjectPath : null;
-				foreach ( var (part, buff, radius) in HazardPaths ) {
+				foreach ( var (part, buff, radius, layer, weight) in HazardPaths ) {
 					if ( !(path.Contains(part) || (aoPath != null && aoPath.Contains(part))) || (buff != null && !HasBuff(e, buff)) ) continue;
 					var pos = e.GetComponent<Positioned>();
-					if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius);
+					if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius) { Layer = layer, Weight = weight, Source = buff ?? part };
 					break;
 				}
 			}
@@ -289,7 +274,10 @@ namespace AtE {
 			if ( ctx.Driver.TryRetreat(ctx) ) { Detail = "retreating"; return; }
 			string skill = Skill;
 			float range = SpamRange > 0 ? SpamRange : ctx.Driver.AttackRange * .8f;
-			var hazards = Hazards(ctx).ToList();
+			DangerMap.SetExtra(this, ExtraHazards);
+			var map = DangerMap.Get();
+			if ( map == null ) { Detail = "no danger map (no terrain?)"; base.Fight(ctx, target); return; }
+			var hazards = map.Hazards;
 			// (no line for "0 areas" until there were some: it runs for every monster fought)
 			if ( hazards.Count != Math.Max(0, lastHazardCount) && Time.ElapsedMilliseconds - lastHazardLog >= HazardLogMs ) {
 				lastHazardCount = hazards.Count;
@@ -297,12 +285,15 @@ namespace AtE {
 				string nearest = hazards.Count == 0 ? "" : $", the nearest {hazards.Min(h => h.EdgeDistance(ctx.Grid)):F0} cells from its edge";
 				Log($"AvoidSpam: {hazards.Count} damaging areas near {Label}{nearest}");
 			}
+			bool Good(Offsets.Vector2i c) => Combat.Distance(c, target.GridPos) <= range && ctx.Terrain.HasLineOfSight(c, target.GridPos);
 
-			// in (or at the edge of) an area: get out first
-			if ( hazards.Any(h => h.Covers(ctx.Grid, Margin)) ) {
-				if ( TryFindSafeCell(ctx, hazards, target, range, out var safe) ) {
-					Detail = $"stepping out of a damaging area, to {safe}";
-					ctx.Driver.WalkTo(safe, $"avoiding {Label}'s damaging area");
+			// in danger (an area, or its margin): get out first, to the best cell (see DangerMap.TryFindSafest)
+			int here = map.IsBlocked(ctx.Grid) ? map.SoonAt(ctx.Grid) : map.Total(ctx.Grid); // (the grid may block the player's own cell, near a wall)
+			if ( here >= DangerMap.SafeLevel ) {
+				bool safe = TryFindGoal(ctx, map, Good, target.GridPos, out var cell);
+				if ( cell.Id != ctx.Grid.Id && (safe || map.Total(cell) < here) ) {
+					Detail = safe ? $"stepping out of a damaging area, to {cell}" : $"in a damaging area, nowhere safe near: to the least bad cell, {cell}";
+					ctx.Driver.WalkTo(cell, $"avoiding {Label}'s damaging area");
 				} else {
 					Detail = "in a damaging area, with nowhere safe near";
 					base.Fight(ctx, target);
@@ -310,10 +301,15 @@ namespace AtE {
 				return;
 			}
 
-			// out of range or sight: get in range (TODO: keep the walk out of the areas, not just where it ends)
-			bool inRange = Combat.Distance(ctx.Grid, target.GridPos) <= range && ctx.Terrain.HasLineOfSight(ctx.Grid, target.GridPos);
+			// out of range or sight: get in range; with hazards about, to the best safe cell in range (if there is one near)
+			bool inRange = Good(ctx.Grid);
 			if ( !inRange || !TryWorldToScreen(target.WorldPos, out Vector2 screen) || !PathFollower.IsSafeToClick(screen) ) {
 				Detail = $"getting in range, {target.Distance:F0} cells away";
+				if ( !inRange && hazards.Count > 0 && TryFindGoal(ctx, map, Good, target.GridPos, out var cell) && Good(cell) ) {
+					Detail = $"getting in range, {target.Distance:F0} cells away, to a safe cell {cell}";
+					ctx.Driver.WalkTo(cell, $"getting in range of {Label}, out of its damaging areas");
+					return;
+				}
 				if ( !ctx.Driver.Engage(ctx, target, skill, range, true) ) base.Fight(ctx, target);
 				return;
 			}
@@ -326,28 +322,32 @@ namespace AtE {
 		}
 
 		/// <summary>
-		/// The nearest walkable cell (that can be walked to) out of all the areas (by Margin), within SearchRadius:
-		/// preferring one in range of the target with line of sight to it.
+		/// The best cell to stand on (DangerMap.TryFindSafest, good: in range of the target with line of sight), keeping the
+		/// one chosen before while it scores within GoalHysteresis of the best. True if it is safe.
 		/// </summary>
-		private bool TryFindSafeCell(CombatContext ctx, List<Hazard> hazards, Hostile target, float range, out Offsets.Vector2i best) {
-			best = default;
-			float bestScore = float.MaxValue;
-			// past SearchRadius only while nothing safe is found (eg, Kitava's ultimate breath: the only safe strip is along
-			// the far edge of the arena)
-			for ( int r = 3; r <= SearchRadius || (bestScore == float.MaxValue && r <= FarSearchRadius); r += 3 ) {
-				int steps = Math.Max(8, r);
-				for ( int i = 0; i < steps; i++ ) {
-					double a = 2 * Math.PI * i / steps;
-					var cell = new Offsets.Vector2i(ctx.Grid.X + (int)Math.Round(r * Math.Cos(a)), ctx.Grid.Y + (int)Math.Round(r * Math.Sin(a)));
-					if ( !ctx.Terrain.IsWalkable(cell) || hazards.Any(h => h.Covers(cell, Margin)) ) continue;
-					if ( !DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, cell) ) continue;
-					bool good = Combat.Distance(cell, target.GridPos) <= range && ctx.Terrain.HasLineOfSight(cell, target.GridPos);
-					float score = r + (good ? 0 : 1000);
-					if ( score < bestScore ) { bestScore = score; best = cell; }
-				}
-				if ( bestScore < 1000 ) return true; // (the nearest ring with a good cell)
+		private bool TryFindGoal(CombatContext ctx, DangerMap map, Func<Offsets.Vector2i, bool> good, Offsets.Vector2i target, out Offsets.Vector2i cell) {
+			long now = Time.ElapsedMilliseconds;
+			// (the same map, from the same cell, at the same target: the same answer; the search runs at most once per map)
+			if ( map.Number == searchedMap && ctx.Grid.Id == searchedFrom.Id && target.Id == searchedTarget.Id ) {
+				cell = goal;
+				goalAt = now;
+				return searchedSafe;
 			}
-			return bestScore < float.MaxValue;
+			bool safe = map.TryFindSafest(ctx.Grid, good, out cell, out float score, FarSearchRadius);
+			searchedMap = map.Number;
+			searchedFrom = ctx.Grid;
+			searchedTarget = target;
+			searchedSafe = safe;
+			if ( now - goalAt < GoalKeepMs && goal.Id != cell.Id && map.IsSafe(goal) == safe
+				&& map.Score(goal, good(goal)) <= score + GoalHysteresis ) {
+				cell = goal;
+			} else if ( goal.Id != cell.Id ) {
+				goal = cell;
+			}
+			goalAt = now;
+			LastGoal = cell;
+			LastGoalAt = now;
+			return safe;
 		}
 	}
 }

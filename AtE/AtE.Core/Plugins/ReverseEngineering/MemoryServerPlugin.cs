@@ -232,6 +232,17 @@ namespace AtE {
 						}
 						return sb.ToString();
 					});
+				case "/danger":
+					// the DangerMap (DangerMap.Describe): its hazards, and the cells r each way around at=X,Y (default: the player)
+					return RunOnMain(() => {
+						var map = DangerMap.Get();
+						if ( map == null ) return "no danger map (no terrain or player)" + NL;
+						Offsets.Vector2i? at = null;
+						var ap = (q["at"] ?? "").Split(',');
+						if ( ap.Length == 2 && int.TryParse(ap[0], out int ax) && int.TryParse(ap[1], out int ay) ) at = new Offsets.Vector2i(ax, ay);
+						int r = int.TryParse(q["r"], out int rr) ? Math.Clamp(rr, 2, 100) : 30;
+						return map.Describe(at, r, true);
+					});
 				case "/traps":
 					// the traps loaded now (Terrain.Traps), nearest the player first, and the follower's state
 					return RunOnMain(() => {
@@ -410,6 +421,7 @@ namespace AtE {
   /waypoints                    the destinations on the waypoint panel, open or closed (read from its element tree): name, unlocked (visited), element, screen rect
   /tiles[?filter=]              the current area's tile files (.tdt): groups of neighboring tiles per file and where, and the exits known
   /doors                        the doors Terrain knows (closed/open, passage cells), each with a map of its box in the walkable grid
+  /danger[?at=X,Y&r=30]         the DangerMap (AvoidSpam's hazards; built now if old): its hazards, the danger at a cell (default the player) and what covers it, and a picture r cells each way
   /labels                       the labels on the ground: entity id and path, text, screen rect, and the entity's screen position
   /skillbar[?stats=1]           the skill bar's slots: key, skill name, internal name, id, use time, tags (stats=1: each skill's stats)
   /gamekeys                     the game's key bindings from its Options panel (GameKeys; read from its tree now, if not yet), and the inventory key chosen

@@ -46,7 +46,7 @@ namespace AtE {
 		public NavPath LeverLeg, AfterLeg;
 	}
 
-	public enum NavStepKind { Walk, OpenDoor, UseLever, SkipObstacle }
+	public enum NavStepKind { Walk, OpenDoor, UseLever, SkipObstacle, SkipDanger }
 
 	public class NavStep {
 		public NavStepKind Kind;
@@ -58,12 +58,18 @@ namespace AtE {
 		public AreaLever Lever;
 		/// <summary>SkipObstacle: the chest or barrel the path goes through (Target is where it stands), to get past with a travel skill.</summary>
 		public AreaObstacle Obstacle;
-		/// <summary>The index in the path's Cells this step is at (Walk: its target; SkipObstacle: the cell nearest the obstacle).</summary>
+		/// <summary>
+		/// The index in the path's Cells this step is at (Walk: its target; SkipObstacle: the cell nearest the obstacle;
+		/// SkipDanger: the first dangerous cell).
+		/// </summary>
 		public int CellIndex = -1;
+		/// <summary>SkipDanger: the index in the path's Cells of the first safe cell past the danger (where to land).</summary>
+		public int EndIndex = -1;
 		public override string ToString() =>
 			Kind == NavStepKind.Walk ? $"walk to {Target}"
 			: Kind == NavStepKind.UseLever ? $"use lever {Lever?.EntityId} at {Target} (for door {Door?.EntityId})"
 			: Kind == NavStepKind.SkipObstacle ? $"travel skill past {Obstacle}"
+			: Kind == NavStepKind.SkipDanger ? $"travel skill over danger at {Target}, to path cell {EndIndex}"
 			: $"open {(Door?.IsLocked == true ? "locked " : "")}door {Door?.EntityId} at {Target}";
 	}
 
@@ -643,11 +649,40 @@ namespace AtE {
 			var last = SmoothIndices(cells, pieceStart, cells.Count - 1);
 			for ( int k = 1; k < last.Count; k++ ) WalkTo(last[k]);
 			AddObstacleSteps(cells, steps);
+			AddDangerSteps(cells, steps);
 			path.WaypointIndices = waypoints;
 			path.Waypoints = Pick(cells, waypoints);
 			path.Steps = steps;
 			path.ElapsedMs = timer.Elapsed.TotalMilliseconds;
 			return path;
+		}
+
+		/// <summary>How far along a path (in cells of it) to look for danger (see AddDangerSteps).</summary>
+		public int DangerLookAhead = 60;
+		/// <summary>A DangerMap older than this (ms) is not used for SkipDanger steps.</summary>
+		public long DangerMapMaxAgeMs = 500;
+
+		/// <summary>
+		/// A SkipDanger step for each stretch of the first DangerLookAhead cells of the path that crosses danger: a cell
+		/// with at least DangerMap.SkipLevel on the Now layer, up to the first safe cell after it (where a travel skill
+		/// should land). The path is planned as if there were no danger (it moves too fast to plan around); the follower
+		/// gets over it with a travel skill (see PathFollower.SkipDanger). A stretch with no safe cell after it gets none.
+		/// </summary>
+		private void AddDangerSteps(List<Offsets.Vector2i> cells, List<NavStep> steps) {
+			var map = DangerMap.Current;
+			if ( map == null || cells.Count < 2 || Time.ElapsedMilliseconds - map.BuiltAt > DangerMapMaxAgeMs ) return;
+			int end = Math.Min(cells.Count, DangerLookAhead);
+			for ( int i = 0; i < end; i++ ) {
+				int now = map.NowAt(cells[i]);
+				if ( now == DangerMap.Blocked || now < DangerMap.SkipLevel ) continue;
+				int exit = i + 1;
+				while ( exit < cells.Count && !map.IsSafe(cells[exit]) ) exit += 1;
+				if ( exit >= cells.Count ) return;
+				var step = new NavStep() { Kind = NavStepKind.SkipDanger, Target = cells[i], CellIndex = i, EndIndex = exit };
+				int at = steps.FindIndex(s => s.CellIndex > i);
+				steps.Insert(at < 0 ? steps.Count : at, step);
+				i = exit;
+			}
 		}
 
 		/// <summary>

@@ -372,6 +372,9 @@ namespace AtE {
 		public bool TrySkipObstacle(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i obstacle, int obstacleIndex, float z) =>
 			TravelSkills.Instance.TrySkip(this, () => inputRunning, SendInput, terrain, player, obstacle, obstacleIndex, z);
 
+		public bool TrySkipDanger(PathFollower follower, Terrain terrain, Offsets.Vector2i player, int landIndex, float z) =>
+			TravelSkills.Instance.TrySkipDanger(this, () => inputRunning, SendInput, terrain, player, landIndex, z);
+
 		/// <summary>Tap the main skill (BuildPlan.MainSkill, else the slot on Q) for one InputLatency: too short to cast, but it stops the walk.</summary>
 		public bool StopMoving() {
 			string main = BuildPlan.MainSkill();
@@ -539,7 +542,7 @@ namespace AtE {
 				if ( step.Kind == NavStepKind.Walk ) continue;
 				Vector2 at = ToMap(step.Target);
 				if ( !clip.IsEmpty && !clip.Contains(at.X, at.Y) ) continue;
-				DrawCircle(at, 4, step.Kind == NavStepKind.SkipObstacle ? Color.Orange : Color.Gold);
+				DrawCircle(at, 4, step.Kind == NavStepKind.SkipObstacle ? Color.Orange : step.Kind == NavStepKind.SkipDanger ? Color.Red : Color.Gold);
 			}
 		}
 

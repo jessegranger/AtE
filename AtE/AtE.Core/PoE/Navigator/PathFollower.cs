@@ -5,7 +5,7 @@ using static AtE.Globals;
 
 namespace AtE {
 
-	public enum FollowStatus { Idle, Walking, OpeningDoor, UsingLever, AvoidingTrap, SkippingObstacle, Arrived, NoPath, Stuck, WaitingForFocus, Paused }
+	public enum FollowStatus { Idle, Walking, OpeningDoor, UsingLever, AvoidingTrap, SkippingObstacle, SkippingDanger, Arrived, NoPath, Stuck, WaitingForFocus, Paused }
 
 	/// <summary>
 	/// Whoever walks the player (the PathFollower's Owner) can implement this to help get past traps (see
@@ -20,6 +20,8 @@ namespace AtE {
 		bool HasTravelSkill { get; }
 		/// <summary>Use a travel skill past the chest or barrel at obstacle (the path's cell obstacleIndex); true if one was used.</summary>
 		bool TrySkipObstacle(PathFollower follower, Terrain terrain, Offsets.Vector2i player, Offsets.Vector2i obstacle, int obstacleIndex, float z);
+		/// <summary>Use a travel skill over the danger ahead, to a safe cell of the path at or past landIndex (see NavStepKind.SkipDanger); true if one was used.</summary>
+		bool TrySkipDanger(PathFollower follower, Terrain terrain, Offsets.Vector2i player, int landIndex, float z);
 	}
 
 	/// <summary>
@@ -65,6 +67,14 @@ namespace AtE {
 		/// </summary>
 		public float ObstacleReach = 14f;
 		public long ObstacleWaitMs = 8000;
+		/// <summary>
+		/// Within this many cells of a SkipDanger step (the path crosses danger, see DangerMap), use a travel skill over it
+		/// (the Owner's ITrapDodger), waiting outside it up to DangerWaitMs for one to be ready; then walk on through, and
+		/// don't wait again for DangerGiveUpMs. Already in the danger: use one if ready, else walk on out.
+		/// </summary>
+		public float DangerReach = 10f;
+		public long DangerWaitMs = 1500;
+		public long DangerGiveUpMs = 3000;
 		/// <summary>
 		/// If the game's "Move Only" action is bound to a key, set it here: it is pressed (in the background) instead of a
 		/// left click, so walking never attacks or picks things up. VKey.None means left click.
@@ -193,6 +203,7 @@ namespace AtE {
 				_ = terrain.Doors; // (refreshes IsClosed)
 				return Wait(FollowStatus.OpeningDoor, $"lever {pulledLever.EntityId} pulled, waiting for door {pulledFor.EntityId} to unlock");
 			}
+			DangerMap.Get(); // (fresh, for the path's SkipDanger steps)
 			Path = nav.UpdatePath(Path, terrain, player, Goal);
 			if ( Path == null ) {
 				Stop(FollowStatus.NoPath, $"no path to {Goal}{(nav.LastFailure == null ? "" : $": {nav.LastFailure}")}");
@@ -204,6 +215,7 @@ namespace AtE {
 			}
 			if ( AvoidTraps(terrain, player, z, now) ) return Status;
 			if ( SkipObstacles(terrain, player, z, now) ) return Status;
+			if ( SkipDanger(terrain, player, z, now) ) return Status;
 
 			// stuck: not making progress for a while
 			if ( Distance(player, progressFrom) >= 2 ) {
@@ -390,6 +402,45 @@ namespace AtE {
 			Wait(FollowStatus.SkippingObstacle, $"waiting for a travel skill past {obstacle}: {why}");
 			return true;
 		}
+		private long dangerWaitSince, dangerGiveUpUntil;
+
+		/// <summary>
+		/// The next SkipDanger step (the path crosses danger, see Navigator.AddDangerSteps): within DangerReach, use a travel
+		/// skill over it; while none is ready, stand outside it (up to DangerWaitMs). True while waiting or a skill went out.
+		/// </summary>
+		private bool SkipDanger(Terrain terrain, Offsets.Vector2i player, float z, long now) {
+			var step = Path.Steps.FirstOrDefault(s => s.Kind == NavStepKind.SkipDanger);
+			bool inside = step != null && step.CellIndex == 0;
+			if ( step == null || now < dangerGiveUpUntil || (!inside && Distance(player, step.Target) > DangerReach) ) {
+				dangerWaitSince = 0;
+				return false;
+			}
+			var dodger = Owner as ITrapDodger;
+			if ( dodger == null || !dodger.HasTravelSkill ) return false; // (walk through it)
+			if ( dangerWaitSince == 0 ) {
+				dangerWaitSince = now;
+				if ( Verbose ) VLog($"PathFollower(v): at {player}, the path crosses danger at {step.Target} (path cells {step.CellIndex} to {step.EndIndex}): skipping it with a travel skill");
+			}
+			Status = FollowStatus.Walking; // (a travel skill is only used while walking)
+			if ( dodger.TrySkipDanger(this, terrain, player, step.EndIndex, z) ) {
+				VLog($"PathFollower: used a travel skill over danger at {step.Target} from {player} (after {now - dangerWaitSince} ms)");
+				dangerWaitSince = 0;
+				Status = FollowStatus.SkippingDanger;
+				Detail = $"travel skill over danger at {step.Target}";
+				return true;
+			}
+			if ( inside ) return false; // (in it already: walk on out rather than stand in it)
+			string why = TravelSkills.Instance.LastNote ?? "(no reason given)";
+			if ( now - dangerWaitSince > DangerWaitMs ) {
+				dangerGiveUpUntil = now + DangerGiveUpMs;
+				dangerWaitSince = 0;
+				VLog($"PathFollower: no travel skill over danger at {step.Target} in {DangerWaitMs} ms ({why}): walking through");
+				return false;
+			}
+			Wait(FollowStatus.SkippingDanger, $"waiting for a travel skill over danger at {step.Target}: {why}");
+			return true;
+		}
+
 		/// <summary>Verbose: within this many cells, traps are logged (at most each VerboseLogMs).</summary>
 		public float VerboseTrapRadius = 25f;
 		public long VerboseLogMs = 100;
