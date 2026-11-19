@@ -163,8 +163,9 @@ namespace AtE {
 			// Augury empowerment "Blood Donut" (3.30.0c, seen on Tore, Towering Ancient, paused): a ring of blood around the
 			// boss, harmless in the middle (from the user). Monsters/Augury/Daemon/BloodDonutDaemon (StateMachine donut=1, tier)
 			// sits on him and gives him the buff augury_blood_donut (no radius among its stats). 20 to 30 cells, a guess,
-			// matched the ring on the user's screenshot
-			("augury_blood_donut", 20, 30, DangerLayer.Now, 60),
+			// matched the outer edge on the user's screenshots, but the band was drawn too wide inward (the safe middle too
+			// small): inner 24
+			("augury_blood_donut", 24, 30, DangerLayer.Now, 60),
 		};
 
 		/// <summary>The BuffHazards around the monsters in ents.</summary>
