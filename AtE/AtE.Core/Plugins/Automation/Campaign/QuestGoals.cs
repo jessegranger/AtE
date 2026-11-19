@@ -216,6 +216,8 @@ namespace AtE {
 		private int clicks;
 		private long lastClick;
 		private bool opened;
+		/// <summary>True once the chest was seen open after a click (this run; Reset keeps it).</summary>
+		public bool Opened => opened;
 
 		/// <param name="label">What it is, for the on-screen list (eg, "the Blackguard Chest").</param>
 		/// <param name="labelText">Its label on the ground (eg, "Blackguard Chest"); null: any chest.</param>
