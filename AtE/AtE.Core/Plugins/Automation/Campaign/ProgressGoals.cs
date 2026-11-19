@@ -80,7 +80,7 @@ namespace AtE {
 		/// Read it without opening it: the AreaInstanceUI keeps its element tree, with each tab's visibility, while it
 		/// is closed (3.29.4). False (nothing read) if no "Part" tab shows there (eg, the tree is not built yet). It is
 		/// not kept up to date while closed: what it shows is as of the last time the panel was open (so the run's
-		/// ReadCampaignProgress opens it instead; only the memory server's /progress reads it this way).
+		/// ReadCampaignProgress opens and closes it first, then reads it this way; the memory server's /progress reads it as is).
 		/// </summary>
 		public static bool TryReadClosed() {
 			var panel = GetUI()?.AreaInstanceUi;
@@ -175,87 +175,54 @@ namespace AtE {
 	}
 
 	/// <summary>
-	/// At the start of a run: open the AreaInstanceUI (U) and the inventory (I) together, read the campaign progress
-	/// (see CampaignProgress), then close the inventory (I) and the AreaInstanceUI (U). The panel is not read while
-	/// closed: its closed tree is only as of when it was last open (eg, an act behind if the player went on without
-	/// opening it since). The inventory is opened so the game's view of the worn items is up to date (the looter picks
-	/// up normal items for a slot it thinks is empty, see Looter.RareOrEmptySlot).
+	/// At the start of a run: toggle the AreaInstanceUI (U) and the inventory (I), each open and shut again by two
+	/// PressKey states, then read the campaign progress from the panel's closed tree (see CampaignProgress.TryReadClosed:
+	/// the tree keeps what it showed when last open, and opening it brings it up to date). The inventory is toggled so
+	/// the game's view of the worn items is up to date (the looter picks up normal items for a slot it thinks is empty,
+	/// see Looter.RareOrEmptySlot). A panel or inventory already open is only closed (one press). Then /passives.
 	/// </summary>
 	public class ReadCampaignProgress : Goal {
 		public VKey Key = VKey.U;
 		public VKey InventoryKey = VKey.I;
-		/// <summary>How long to keep both open before reading and closing them.</summary>
-		public long OpenMs = 500;
-		/// <summary>The least time between key presses (for the panel to show or hide).</summary>
-		public long PressMs = 700;
-		private long lastPress, bothOpenAt;
-		private int tries, inventoryTries;
+		/// <summary>How many toggles to try before giving up on the panel's tree (eg, the game did not take the keys).</summary>
+		public int MaxTries = 3;
+		private int tries;
+		private bool toggled;
 		public override string Name => "Read the campaign progress";
 		public override bool Sticky => false;
 		public override bool UsesInventory => true; // (it opens and closes the inventory itself)
-		public override void Reset() { base.Reset(); tries = inventoryTries = 0; bothOpenAt = 0; passives = null; }
-		// did it open the panel / the inventory itself (so it is to close them): the panel is also the waypoint's, and one
-		// a waypoint goal opened must be left open (closing it here made a waypoint goal and this one take turns)
-		private bool openedIt, openedInventory;
+		public override void Reset() { base.Reset(); tries = 0; toggled = false; passives = null; }
 
 		private static bool Read => CampaignProgress.Scanned && CampaignProgress.EquipmentRefreshed;
 
-		public override bool CheckDone(CombatContext ctx) {
-			if ( !Read ) return false;
-			if ( openedIt && WaypointPanel.Panel() != null ) return false;
-			if ( openedInventory && BackpackIsOpen() ) return false;
-			if ( !CampaignProgress.PassivesRead ) return false;
-			openedIt = openedInventory = false;
-			return true;
-		}
+		public override bool CheckDone(CombatContext ctx) => Read && CampaignProgress.PassivesRead;
 
 		protected override IState Step(CombatContext ctx) {
 			ctx.Driver.StopWalking("reading the campaign progress");
-			var panel = WaypointPanel.Panel();
-			bool inventory = BackpackIsOpen();
-			long now = Time.ElapsedMilliseconds;
-			bool paced = now - lastPress >= PressMs;
 			if ( !Read ) {
-				// 1. open the AreaInstanceUI (U)
-				if ( panel == null ) {
-					Detail = "opening the AreaInstanceUI";
-					if ( !paced ) return this;
-					if ( ++tries > 3 ) {
-						CampaignProgress.Failed($"{Key} did not open the AreaInstanceUI");
-						CampaignProgress.EquipmentRefreshed = true;
-						return this;
-					}
-					return Press(Key, now, () => openedIt = true);
+				// 1. open and close the AreaInstanceUI, then the inventory: one press each way, no wait between
+				if ( !toggled ) {
+					toggled = true;
+					tries += 1;
+					Detail = "toggling the AreaInstanceUI and the inventory";
+					uint hold = Inputs.Latency;
+					// (one already open has its tree up to date: just close it)
+					IState inventory = BackpackIsOpen() ? new PressKey(InventoryKey, hold, this)
+						: new PressKey(InventoryKey, hold, new PressKey(InventoryKey, hold, this));
+					return WaypointPanel.Panel() != null ? new PressKey(Key, hold, inventory)
+						: new PressKey(Key, hold, new PressKey(Key, hold, inventory));
 				}
-				// 2. open the inventory (I), with the panel open
-				if ( !inventory ) {
-					Detail = "opening the inventory";
-					if ( !paced ) return this;
-					if ( ++inventoryTries > 3 ) {
-						Log($"Campaign: {InventoryKey} did not open the inventory: going on with the worn items as they read");
-						CampaignProgress.Read(panel);
-						CampaignProgress.EquipmentRefreshed = true;
-						return this;
-					}
-					bothOpenAt = 0;
-					return Press(InventoryKey, now, () => openedInventory = true);
+				// 2. read the panel's tree, closed
+				if ( !CampaignProgress.TryReadClosed() ) {
+					if ( tries < MaxTries ) { toggled = false; Detail = "the AreaInstanceUI's tree did not read: toggling it again"; return this; }
+					CampaignProgress.Failed($"{Key} did not build the AreaInstanceUI");
 				}
-				// 3. both open: a moment, then read
-				if ( bothOpenAt == 0 ) bothOpenAt = now;
-				Detail = "reading the campaign progress and the equipment";
-				if ( now - bothOpenAt < OpenMs ) return this;
-				CampaignProgress.Read(panel);
 				CampaignProgress.EquipmentRefreshed = true;
-				Log($"Campaign: worn (with the inventory open): {string.Join(", ", Equipment.WornSlots().Where(s => s.inventory.Items.Any(i => i?.Entity != null)).Select(s => s.name))}");
-				lastPress = now - PressMs; // (close at once)
+				Log($"Campaign: worn (after the inventory was toggled): {string.Join(", ", Equipment.WornSlots().Where(s => s.inventory.Items.Any(i => i?.Entity != null)).Select(s => s.name))}");
 				return this;
 			}
 			Detail = CampaignProgress.Summary;
-			if ( !paced ) return this;
-			// 4. close the inventory (I), then 5. the AreaInstanceUI (U), each only if it opened it
-			if ( openedInventory && inventory ) return Press(InventoryKey, now, null);
-			if ( openedIt && panel != null ) return Press(Key, now, null);
-			// 6. /passives: which quests' passive points the character has (they are done; see CampaignProgress.PassiveQuests)
+			// 3. /passives: which quests' passive points the character has (they are done; see CampaignProgress.PassiveQuests)
 			if ( !CampaignProgress.PassivesRead ) {
 				passives ??= new ReadPassives();
 				if ( !passives.IsDone(ctx) ) return Call(passives);
@@ -264,12 +231,6 @@ namespace AtE {
 		}
 
 		private ReadPassives passives;
-
-		private IState Press(VKey key, long now, Action pressed) {
-			lastPress = now;
-			pressed?.Invoke();
-			return Inputs.Press(key, this);
-		}
 	}
 
 	/// <summary>
