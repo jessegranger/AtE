@@ -166,6 +166,11 @@ namespace AtE {
 			// matched the outer edge on the user's screenshots, but the band was drawn too wide inward (the safe middle too
 			// small): inner 24
 			("augury_blood_donut", 24, 30, DangerLayer.Now, 60),
+			// Archnemesis "Mana Siphoner" (3.30.0c, seen on a rare Fenumal Widow, paused): a blue ring around the monster
+			// that drains mana and does lightning damage (from the user). Monsters/Daemon/Archnemesis/ManaDonutDaemon sits on
+			// it, with the buff archnemesis_mana_donut itself (StateMachine donut=1; no radius among its stats). The blood
+			// ring's 24 to 30 was the right width but drawn too far in on the user's screenshot: 28 to 34
+			("archnemesis_mana_donut", 28, 34, DangerLayer.Now, 50),
 		};
 
 		/// <summary>The BuffHazards around the monsters in ents.</summary>
