@@ -48,6 +48,11 @@ namespace AtE {
 			ImGui.Checkbox("Show Performance Window", ref ShowPerformanceWindow);
 			ImGui.SliderInt("Input Latency", ref InputLatency, 10, 100);
 			ImGui.Text($"Offsets: {Offsets.VersionMajor}.{Offsets.VersionMinor} for PoE {Offsets.PoEVersion}");
+			if ( PoEMemory.GameVersion != null ) {
+				ImGui.SameLine();
+				if ( PoEMemory.GameVersion == Offsets.PoEVersion ) ImGui.Text($"(running {PoEMemory.GameVersion})");
+				else ImGui.TextColored(new System.Numerics.Vector4(1f, 0.4f, 0.4f, 1f), $"(running {PoEMemory.GameVersion}: mismatch)");
+			}
 			ImGui.AlignTextToFramePadding();
 			ImGui.Text($"Attached: {PoEMemory.IsAttached}");
 			if ( PoEMemory.IsAttached ) {

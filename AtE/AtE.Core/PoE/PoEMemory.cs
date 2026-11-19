@@ -294,6 +294,8 @@ namespace AtE {
 
 		public static void Detach() {
 			OnAreaChange = null;
+			GameBuild = null;
+			GameVersion = null;
 			Memory.Detach();
 			if ( GameRoot != null ) {
 				GameRoot.Address = IntPtr.Zero;
@@ -397,6 +399,61 @@ namespace AtE {
 			return false;
 		}
 
+		/// <summary>The running game's build string, eg "release tags/3.30.0c 329528", or null when not attached or not found.</summary>
+		public static string GameBuild;
+		/// <summary>The running game's version, eg "3.30.0c" (from GameBuild), to compare with Offsets.PoEVersion.</summary>
+		public static string GameVersion;
+
+		/// <summary>"release tags/3.30.0c 329528" -> "3.30.0c": the word after the last '/' of the first word after "release ".</summary>
+		internal static string ParseGameVersion(string build) {
+			if ( build == null ) return null;
+			string[] words = build.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+			string tag = words.Length > 1 ? words[1] : words.FirstOrDefault();
+			return tag?.Substring(tag.LastIndexOf('/') + 1);
+		}
+
+		/// <summary>Read a narrow MSVC std::string (inline buffer or ptr at 0x00, length 0x10, capacity 0x18).</summary>
+		private static bool TryReadStdString(IntPtr loc, out string value) {
+			value = null;
+			if ( !TryRead(loc + 0x10, out long length) || !TryRead(loc + 0x18, out long capacity)
+				|| length <= 0 || length > capacity || capacity > 0x1000 ) return false;
+			IntPtr text = loc;
+			if ( capacity >= 16 && (!TryRead(loc, out text) || !IsValid(text)) ) return false;
+			return TryReadString(text, Encoding.ASCII, out value, (int)length) && value != null && value.Length == length;
+		}
+
+		/// <summary>
+		/// Find the global std::string that holds the game's build string (see Offsets.GameBuild_SearchPattern).
+		/// Tries the code pattern first, then any std::string in the module image whose text starts with Offsets.GameBuild_Prefix.
+		/// </summary>
+		private static bool TryLocateGameBuild(out string build) {
+			build = null;
+			if ( TryFindPatternInExe(out IntPtr match, IntPtr.Zero, IntPtr.Zero, Offsets.GameBuild_SearchMask, Offsets.GameBuild_SearchPattern)
+				&& TryRead(match + 3, out int disp)
+				&& TryReadStdString(match + 7 + disp, out build)
+				&& build.StartsWith(Offsets.GameBuild_Prefix) ) {
+				Log($"PoEMemory: Game build string found via code pattern, global at {Describe(match + 7 + disp)}");
+				return true;
+			}
+			build = null;
+			if ( !Memory.TryReadImage(out byte[] image) || image == null ) return false;
+			long moduleBase = Memory.BaseAddress.ToInt64();
+			long moduleEnd = moduleBase + image.Length;
+			var slots = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, long>(image);
+			for ( int i = 0; i + 3 < slots.Length; i++ ) {
+				long ptr = slots[i], length = slots[i + 2], capacity = slots[i + 3];
+				if ( capacity < 16 || capacity > 0x100 || length < Offsets.GameBuild_Prefix.Length || length > capacity ) continue;
+				if ( ptr < 0x10000 || ptr > 0x00007FFFFFFFFFFFL || (ptr >= moduleBase && ptr < moduleEnd) ) continue;
+				IntPtr loc = new IntPtr(moduleBase + i * 8L);
+				if ( TryReadStdString(loc, out string s) && s.StartsWith(Offsets.GameBuild_Prefix) ) {
+					Log($"PoEMemory: Game build string found via image scan, global at base+0x{i * 8L:X}");
+					build = s;
+					return true;
+				}
+			}
+			return false;
+		}
+
 		// The process is already open (via IProcessMemory.TryAttach); locate the GameStateBase
 		// by scanning the module image, which is the platform-neutral half of attaching.
 		private static void AttachGameRoot(int pid) {
@@ -417,6 +474,16 @@ namespace AtE {
 			}
 
 			OnAreaChange += (_, area) => Log("OnAreaChange: " + area);
+
+			if ( TryLocateGameBuild(out GameBuild) ) {
+				GameVersion = ParseGameVersion(GameBuild);
+				Log($"PoEMemory: Running PoE {GameVersion} (build string \"{GameBuild}\"), Offsets are for {Offsets.PoEVersion}");
+				if ( GameVersion != Offsets.PoEVersion ) {
+					Log($"PoEMemory: WARNING: the running game ({GameVersion}) is not the version these Offsets were made for ({Offsets.PoEVersion})");
+				}
+			} else {
+				Log($"PoEMemory: Could not find the game's build string.");
+			}
 
 			OnAttach?.Invoke(null, null);
 
