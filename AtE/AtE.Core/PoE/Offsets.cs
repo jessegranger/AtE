@@ -945,6 +945,7 @@ namespace AtE {
 			[FieldOffset(0x678)] public readonly IntPtr GuildStashElement; // Name = null
 			[FieldOffset(0x688)] public readonly IntPtr SocialPanel; // Name = null
 			[FieldOffset(0x690)] public readonly IntPtr SkillTree; // Name = null
+			[FieldOffset(0x6a0)] public readonly IntPtr MapDevice; // Name = null
 			[FieldOffset(0x6b0)] public readonly IntPtr CharacterPanel; // Name = null
 			[FieldOffset(0x6b8)] public readonly IntPtr OptionsPanel; // Name = null
 			[FieldOffset(0x6c0)] public readonly IntPtr ChallengesPanel; // Name = null
@@ -959,8 +960,8 @@ namespace AtE {
 			[FieldOffset(0x760)] public readonly IntPtr autoModalDialogOverlay; // Name = "modal_dialog_overlay"
 			[FieldOffset(0x7a8)] public readonly IntPtr RootBuffPanel; // Name = (not a pointer: 0x000100003F800000)
 			[FieldOffset(0x7b0)] public readonly IntPtr HelpOrKillBandit; // Name = (not an Element: points at a pair of equal pointers)
-			[FieldOffset(0x7d8)] public readonly IntPtr NpcDialog; // Name = (not a pointer: 0x7)
-			[FieldOffset(0x7e0)] public readonly IntPtr NpcOptions; // Name = (not a pointer: 0x8)
+			// [FieldOffset(0x7d8)] public readonly IntPtr NpcDialog; // Name = (not a pointer: 0x7)
+			// [FieldOffset(0x7e0)] public readonly IntPtr NpcOptions; // Name = (not a pointer: 0x8)
 			[FieldOffset(0x7e8)] public readonly IntPtr autoTopIconsLayout; // Name = "top_icons_layout"
 			[FieldOffset(0x7f0)] public readonly IntPtr QuestRewardWindow; // Name = null
 			[FieldOffset(0x7f8)] public readonly IntPtr autoInventoryViewItemSelector; // Name = "InventoryViewItemSelector"
@@ -968,7 +969,7 @@ namespace AtE {
 			[FieldOffset(0x808)] public readonly IntPtr autoItemSelector; // Name = "ItemSelector"
 			[FieldOffset(0x810)] public readonly IntPtr SellWindow; // Name = "NumericValueEditor"
 			[FieldOffset(0x818)] public readonly IntPtr TradeWindow; // Name = null
-			[FieldOffset(0x820)] public readonly IntPtr MapDevice; // Name = null
+			[FieldOffset(0x820)] public readonly IntPtr NpcOptions; // Name = null
 			[FieldOffset(0x828)] public readonly IntPtr autoLoreAudioInterface; // Name = "lore_audio_interface"
 			[FieldOffset(0x848)] public readonly IntPtr CardTradePanel; // Name = null
 			[FieldOffset(0x898)] public readonly IntPtr CraftBench; // Name = null
@@ -980,7 +981,7 @@ namespace AtE {
 			[FieldOffset(0xa18)] public readonly IntPtr autoAncestralNotificationManager; // Name = "ancestral_notification_manager"
 			[FieldOffset(0xa48)] public readonly IntPtr autoKalguurRecruitment; // Name = "KalguurRecruitmentWindow"
 			[FieldOffset(0xac0)] public readonly IntPtr autoBrequelSkillTree; // Name = "brequel_skill_tree_window"
-			[FieldOffset(0xAD0)] public readonly IntPtr AuguryCardSelectionWindow; // Name = "deepwater_charts_window"; opened by clicking a unique with the augury_boss_frozen buff (3.29.4, from the user; not checked live yet)
+			[FieldOffset(0xAD0)] public readonly IntPtr autoDeepWaterCharts; // Name = "deepwater_charts_window"; opened by clicking a unique with the augury_boss_frozen buff (3.29.4, from the user; not checked live yet)
 			[FieldOffset(0xad8)] public readonly IntPtr autoDeepwaterCrafting; // Name = "deepwater_crafting_window"
 			[FieldOffset(0xae0)] public readonly IntPtr autoDeepwaterExtraction; // Name = "deepwater_extraction_window"
 			[FieldOffset(0xae8)] public readonly IntPtr autoDeepwaterCollection; // Name = "deepwater_collection_window"
@@ -988,7 +989,7 @@ namespace AtE {
 			[FieldOffset(0xaf8)] public readonly IntPtr autoDeepwaterOpenActiveVoyageButton; // Name = "deepwater_open_active_voyage_button"
 			[FieldOffset(0xb00)] public readonly IntPtr autoDeepwaterVoyage; // Name = "deepwater_voyage_window"
 			[FieldOffset(0xb08)] public readonly IntPtr autoBottledItemReveal; // Name = "bottled_item_reveal_window"
-			[FieldOffset(0xb10)] public readonly IntPtr autoAuguryCardSelection; // Name = "augury_card_selection_window"
+			[FieldOffset(0xb10)] public readonly IntPtr AuguryCardSelectionWindow; // Name = "augury_card_selection_window"
 			[FieldOffset(0xb18)] public readonly IntPtr autoAuguryPinnacleCardCollection; // Name = "augury_pinnacle_card_collection_window"
 			[FieldOffset(0xb20)] public readonly IntPtr autoAuguryEffigyViscera; // Name = "augury_effigy_viscera_window"
 			[FieldOffset(0xb58)] public readonly IntPtr autoAncestralTrialRespawnTotemHealthDisplay; // Name = "ancestral_trial_respawn_totem_health_display"
@@ -1003,7 +1004,7 @@ namespace AtE {
 			[FieldOffset(0xbc0)] public readonly IntPtr autoAtlasTreeEditor; // Name = "atlas_tree_editor"
 			[FieldOffset(0xbd0)] public readonly IntPtr autoInstanceChooser; // Name = "instance_chooser_window"
 			// [FieldOffset(0xA58)] public readonly IntPtr SkillBarNotifyPanel1;
-			[FieldOffset(0xBD8)] public readonly IntPtr ItemOnGroundTooltip; // Name = "waiting_for_trade_window"
+			[FieldOffset(0xBD8)] public readonly IntPtr autoWaitingForTrade; // Name = "waiting_for_trade_window"
 			[FieldOffset(0xbe8)] public readonly IntPtr autoMysteryBox; // Name = "mystery_box_window"
 			[FieldOffset(0xbf8)] public readonly IntPtr autoReclaimMtx; // Name = "reclaim_mtx_window"
 			[FieldOffset(0xc00)] public readonly IntPtr autoMtxCombine; // Name = "mtx_combine_window"
@@ -1175,7 +1176,9 @@ namespace AtE {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner; // Entity
 			// 3.22.1c: 8 new bytes here
 			// 3.24: 8 new bytes here
-			[FieldOffset(0x1B8)] public readonly IntPtr ptrAction; // ptr Component_Actor_Action
+			// 3.30.0c: moved 0x1B8 -> 0x1B0 (0x1B8 is now null while acting): Kitava, mid KitavaDeathBreathRight, points
+			// from here at an object whose fields (see Component_Actor_Action) name his target, its cell and the skill
+			[FieldOffset(0x1B0)] public readonly IntPtr ptrAction; // ptr Component_Actor_Action
 			[FieldOffset(0x218)] public readonly Component_ActionFlags ActionFlags;
 
 			[FieldOffset(0x244)] public readonly int AnimationId;
@@ -1212,9 +1215,15 @@ namespace AtE {
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Actor_Action {
-			[FieldOffset(0xB0)] public readonly IntPtr Target; // ptr Entity?
-			[FieldOffset(0x150)] public readonly long Skill;
-			[FieldOffset(0x170)] public readonly Vector2 Destination;
+			// 3.30.0c, re-found live (the old Target 0xB0, Skill 0x150, Destination 0x170 read nothing meaningful):
+			// ptrSkill: Kitava mid-cast, pointed at his ActorSkill KitavaDeathBreathRight (Id 16390 at +0x50; the pointer
+			// matched entry 19 of his ActorSkillsHandle). Confirmed on one actor only.
+			[FieldOffset(0xF8)] public readonly IntPtr ptrSkill; // ptr ActorSkill
+			// Target / TargetGrid: Kitava -> the player entity and the player's cell; Sin and Innocence (idle) -> themselves
+			// and their own cells. CasterGrid: the actor's own cell (Kitava, Sin, Innocence).
+			[FieldOffset(0x128)] public readonly IntPtr Target; // ptr Entity
+			[FieldOffset(0x130)] public readonly Vector2i TargetGrid;
+			[FieldOffset(0x158)] public readonly Vector2i CasterGrid;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ActorSkill {
@@ -2145,18 +2154,19 @@ namespace AtE {
 			// 3.29: 16 new bytes here
 			// 3.29.4: the four fields below moved +0x28 (the flask slots: entItem at 0x448 leads to Metadata/Items/Flasks/FlaskLife1 and FlaskMana1,
 			// Width and Height read 1 and 2 at 0x4ec and 0x4f0). spriteDetails moved with them, unchecked.
-			[FieldOffset(0x448)] public readonly IntPtr entItem;
+			// 3.30.0c: 8 new bytes here
+			[FieldOffset(0x450)] public readonly IntPtr entItem;
 			// [FieldOffset(0x378)] public readonly IntPtr unkNearPtr0x378;
 			// [FieldOffset(0x380)] public readonly int unkInt0x380;
 			// [FieldOffset(0x384)] public readonly short unkShort0x384;
 			// [FieldOffset(0x386)] public readonly short unkShort0x386;
 			// [FieldOffset(0x388)] public readonly IntPtr unkFarPtr0x388;
-			[FieldOffset(0x468)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
+			[FieldOffset(0x470)] public readonly IntPtr spriteDetails; // ptr to SpriteDetails struct
 			// [FieldOffset(0x3D0)] public readonly int unkInt0x3D0;
 			// 3.21.2b: 72 new bytes here?
 			// 3.29.3: Width and Height (in cells: 1x1 scroll, 1x3 wand, 1x4 sword) were at 0x4cc and 0x4d0, 8 bytes further on than they are
-			[FieldOffset(0x4ec)] public readonly int Width;
-			[FieldOffset(0x4f0)] public readonly int Height;
+			[FieldOffset(0x4f4)] public readonly int Width;
+			[FieldOffset(0x4f8)] public readonly int Height;
 			// [FieldOffset(0x3E0)] public readonly int unkInt0x3E0;
 			// 3.29.3: InventPosition (0x4a4) read pointer halves, and no pair of ints holds the grid position of every item: removed. (The position
 			// is Element.Position over the cell size, see InventoryItem.X and Y.)
@@ -2182,9 +2192,10 @@ namespace AtE {
 			// 3.29: 16 new bytes here
 			// 3.29.4: all three moved +0x28. DefaultShift at 0x350 reads <0, 0> on the small map and <0, -20> on the large one, as their goldens say; Zoom (0.5 on the small
 			// map) is at 0x388; Shift is placed next to DefaultShift as it was, unchecked (it reads <0, 0>). The vector at 0x320 (3320.65, 6798.91) is the player's world position.
-			[FieldOffset(0x348)] public readonly Vector2 Shift;
-			[FieldOffset(0x350)] public readonly Vector2 DefaultShift; // historically, always < 0, -20 >
-			[FieldOffset(0x388)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
+			// 3.30.0c: 8 new bytes here
+			[FieldOffset(0x350)] public readonly Vector2 Shift;
+			[FieldOffset(0x358)] public readonly Vector2 DefaultShift; // historically, always < 0, -20 >
+			[FieldOffset(0x390)] public readonly float Zoom; // from 0.5 (zoomed out) to 1.5 (zoomed in)
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct File_RootHeader {

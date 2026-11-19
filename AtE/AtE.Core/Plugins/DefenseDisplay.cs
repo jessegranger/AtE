@@ -200,7 +200,7 @@ namespace AtE.Plugins {
 								DrawTextAt(ent.Id, textPos, $"Animation: {actor.AnimationId} {actor.ActionFlags}", Color.White);
 								if( action != null ) {
 									DrawTextAt(ent.Id, textPos,
-										$"Action: {action.Skill} at {action.Destination} target {(IsValid(action.Target) ? "valid" : "invalid")}",
+										$"Action: {action.SkillOf(actor)?.Name} at {action.Destination} target {(IsValid(action.Target) ? "valid" : "invalid")}",
 										Color.White);
 								}
 							}

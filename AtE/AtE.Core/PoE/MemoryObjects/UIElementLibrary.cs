@@ -58,7 +58,7 @@ namespace AtE {
 		// public Element BanditDialog => IsValid(Address) ? getElement(Cache.BanditDialog) : null;
 		// public Element Viewport => IsValid(Address) ? getElement(Cache.GameViewport) : null;
 		public Element RootBuffPanel => IsValid(Address) ? getElement(Cache.RootBuffPanel) : null;
-		public Element NpcDialog => IsValid(Address) ? getElement(Cache.NpcDialog) : null;
+		// public Element NpcDialog => IsValid(Address) ? getElement(Cache.NpcDialog) : null;
 		public Element NpcOptions => IsValid(Address) ? getElement(Cache.NpcOptions) : null;
 		// public Element LeagueInteractButtonPanel => IsValid(Address) ? getElement(Cache.LeagueInteractButtonPanel) : null;
 		public Element QuestRewardWindow => IsValid(Address) ? getElement(Cache.QuestRewardWindow) : null;
@@ -149,7 +149,7 @@ namespace AtE {
 		// public Element InvitesPanel => IsValid(Address) ? getElement(Cache.InvitesPanel) : null;
 		public Element GemLvlUpPanel => IsValid(Address) ? getElement(Cache.GemLvlUpPanel) : null;
 		// public Element SkillBarNotifyPanel1 => IsValid(Address) ? getElement(Cache.SkillBarNotifyPanel1) : null;
-		public Element ItemOnGroundTooltip => IsValid(Address) ? getElement(Cache.ItemOnGroundTooltip) : null;
+		// public Element ItemOnGroundTooltip => IsValid(Address) ? getElement(Cache.ItemOnGroundTooltip) : null;
 	}
 
 

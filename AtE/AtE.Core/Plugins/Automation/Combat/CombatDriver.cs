@@ -72,6 +72,7 @@ namespace AtE {
 		public void Stop(string why) {
 			IsActive = false;
 			Status = why;
+			ReleaseChannel(why);
 			Target = null;
 			if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, why);
 		}
@@ -102,6 +103,7 @@ namespace AtE {
 
 		public bool Send(IState input) {
 			if ( input == null || InputBusy ) return false;
+			ReleaseChannel("other input"); // (a click or key with the channelling key still down would go wrong)
 			inputRunning = true;
 			input.Tail().Next = State.NewState(() => inputRunning = false);
 			pendingInput = input;
@@ -121,8 +123,8 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			FrameDt = dt;
 			if ( !TakesInput && pendingInput != null ) Run(TakeInput());
-			if ( !PoEMemory.IsAttached ) return this;
-			if ( !IsActive ) return this;
+			if ( !PoEMemory.IsAttached ) { ReleaseChannel("detached"); return this; }
+			if ( !IsActive ) { ReleaseChannel("off"); return this; }
 
 			var game = PoEMemory.GameRoot?.InGameState;
 			var terrain = GetTerrain();
@@ -130,6 +132,7 @@ namespace AtE {
 			var pos = player?.GetComponent<Positioned>();
 			if ( game == null || terrain == null || !IsValid(pos) ) return Wait("no terrain or player");
 			if ( !IsAlive(player) ) {
+				ReleaseChannel("dead");
 				if ( !OnPlayerDead() ) Stop("the player died");
 				DrawBottomLeftText($"{Name}: {Status}", Color.Orange);
 				return this;
@@ -182,6 +185,7 @@ namespace AtE {
 			try {
 				Decide(ctx);
 			} finally {
+				CheckChannel();
 				// walk, if walking was decided on
 				if ( DefaultFollower.IsActiveFor(this) ) {
 					DefaultFollower.Tick(DefaultNavigator, terrain, ctx.Grid, ctx.Z);
@@ -557,13 +561,93 @@ namespace AtE {
 		}
 
 		private long lastPacedUse;
-		/// <summary>UseSkill, but no more often than the skill's cast time (and at least 150 ms apart).</summary>
+		/// <summary>
+		/// UseSkill, but no more often than the skill's cast time (and at least 150 ms apart). A channelling skill (see
+		/// IsChannelling) is held down instead (see TryHoldChannel).
+		/// </summary>
 		public bool UseSkillPaced(string skill, Vector2 screenPos) {
+			if ( TryHoldChannel(skill, screenPos, out bool held) ) return held;
 			int interval = Math.Max(150, SkillBar.CastTimeMs(SkillBar.FindSlot(skill)?.Skill));
 			if ( Time.ElapsedMilliseconds - lastPacedUse < interval ) return false;
 			if ( !UseSkill(skill, screenPos) ) return false;
 			lastPacedUse = Time.ElapsedMilliseconds;
 			return true;
+		}
+
+		/// <summary>Is skill a channelling skill (the Channelling tag, or the SkillIsChannelled stat): used by holding its key down.</summary>
+		public static bool IsChannelling(ActorSkill skill) {
+			if ( skill == null ) return false;
+			if ( skill.TryGetStat(Offsets.GameStat.SkillIsChannelled, out int c) && c != 0 ) return true;
+			return SkillBar.SkillTags(skill).Any(t => string.Equals(t, "Channelling", StringComparison.OrdinalIgnoreCase)
+				|| string.Equals(t, "Channeling", StringComparison.OrdinalIgnoreCase) || string.Equals(t, "Channel", StringComparison.OrdinalIgnoreCase));
+		}
+
+		/// <summary>
+		/// The channelling skill's slot whose key (or mouse button) is held down now (see TryHoldChannel), or null. It is let
+		/// go (ReleaseChannel) once the player walks, other input is sent, the driver waits or stops, or nothing has asked
+		/// for it to be held for ChannelIdleMs.
+		/// </summary>
+		private SkillSlot heldSlot;
+		private Vector2 heldAim;
+		private long lastHoldCall;
+		/// <summary>A held channelling skill not asked for (by UseSkillPaced) for this long is let go.</summary>
+		public long ChannelIdleMs = 300;
+		/// <summary>Move the cursor after the target (while channelling) once it is this many pixels from where it aims.</summary>
+		public float ChannelAimPixels = 8;
+
+		/// <summary>True while a channelling skill is held down (see TryHoldChannel).</summary>
+		public bool IsChannellingNow => heldSlot != null;
+
+		/// <summary>
+		/// If skill is a channelling skill on the skill bar (on a key with no modifiers, or a mouse button): hold its key
+		/// down aimed at screenPos, or, if it is held already, keep the cursor on screenPos; true (handled), with held true
+		/// once it is down. False for any other skill (use it as usual).
+		/// </summary>
+		public bool TryHoldChannel(string skill, Vector2 screenPos, out bool held) {
+			held = false;
+			if ( binding || string.IsNullOrEmpty(skill) ) return false;
+			var slot = SkillBar.FindSlot(skill);
+			if ( slot?.Skill == null || slot.Key == VKey.None || (slot.Key & (VKey.Control | VKey.Shift | VKey.Alt)) != 0 ) return false;
+			if ( !IsChannelling(slot.Skill) ) return false;
+			lastHoldCall = Time.ElapsedMilliseconds;
+			if ( heldSlot != null && heldSlot.Index == slot.Index && heldSlot.Key == slot.Key ) {
+				if ( Vector2.Distance(screenPos, heldAim) > ChannelAimPixels ) {
+					SkillBar.MouseTo(screenPos);
+					heldAim = screenPos;
+				}
+				held = true;
+				return true;
+			}
+			ReleaseChannel("another skill");
+			if ( InputBusy ) return true; // (once the input going out is done)
+			DefaultFollower.ReleaseMouse(); // (walking holds the left button)
+			SkillBar.MouseTo(screenPos);
+			var button = SkillBar.ToMouseButton(slot.KeyCode);
+			if ( button.HasValue ) Platform.Current.Input.MouseButton(button.Value, true);
+			else Platform.Current.Input.KeyDown(slot.KeyCode);
+			heldSlot = slot;
+			heldAim = screenPos;
+			Log($"{Name}: channelling {skill}: holding {slot.KeyCode}");
+			held = true;
+			return true;
+		}
+
+		/// <summary>Let go of the channelling skill's key, if one is held (see TryHoldChannel).</summary>
+		public void ReleaseChannel(string why) {
+			var slot = heldSlot;
+			if ( slot == null ) return;
+			heldSlot = null;
+			var button = SkillBar.ToMouseButton(slot.KeyCode);
+			if ( button.HasValue ) Platform.Current.Input.MouseButton(button.Value, false);
+			else Platform.Current.Input.KeyUp(slot.KeyCode);
+			Log($"{Name}: channelling stopped ({why}): released {slot.KeyCode}");
+		}
+
+		// after Decide: let go of a held channelling skill once the player walks, or nothing asked for it lately
+		private void CheckChannel() {
+			if ( heldSlot == null ) return;
+			if ( DefaultFollower.IsActiveFor(this) ) ReleaseChannel("walking");
+			else if ( Time.ElapsedMilliseconds - lastHoldCall > ChannelIdleMs ) ReleaseChannel("not fighting");
 		}
 
 		/// <summary>True once TryExplore has found nothing left to explore in this area.</summary>
@@ -678,6 +762,7 @@ namespace AtE {
 		/// <summary>Put name on a slot (see SkillBar.BindSkill); the driver waits until it is done, and stops if it fails.</summary>
 		public void Bind(int slotIndex, string name) {
 			if ( binding ) return;
+			ReleaseChannel("changing the skill bar");
 			binding = true;
 			if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, "changing the skill bar");
 			Run(SkillBar.BindSkill(slotIndex, name, (ok, why) => {
@@ -687,6 +772,7 @@ namespace AtE {
 		}
 
 		private IState Wait(string why) {
+			ReleaseChannel(why); // (eg, a key held down while typing in the chat would type)
 			Status = $"waiting: {why}";
 			DrawBottomLeftText($"{Name}: {Status}", Color.Gray);
 			return this;
@@ -753,6 +839,7 @@ namespace AtE {
 
 		protected override void Attack(Hostile target, Vector2 screenPos) {
 			if ( !string.IsNullOrWhiteSpace(AttackSkill) ) {
+				if ( TryHoldChannel(AttackSkill.Trim(), screenPos, out _) ) return;
 				var slot = SkillBar.FindSlot(AttackSkill.Trim());
 				int interval = Math.Max(AttackIntervalMs, SkillBar.CastTimeMs(slot?.Skill));
 				if ( Time.ElapsedMilliseconds - lastAttack < interval ) return;

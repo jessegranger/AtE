@@ -17,13 +17,85 @@ namespace AtE {
 	/// Gravicius's falling fireballs.
 	/// </summary>
 	public class AvoidSpam : Kill {
-		/// <summary>A damaging area on the ground: its center, and radius in cells.</summary>
+		/// <summary>
+		/// A damaging area on the ground: its center, and radius in cells; or, for a sector (eg, a breath), its apex
+		/// (Center), length (Radius), the direction the caster faces (Dir, normalized), and the slice it covers: from From to
+		/// To radians off Dir, positive toward the caster's left.
+		/// </summary>
 		public readonly struct Hazard {
 			public readonly Offsets.Vector2i Center;
 			public readonly float Radius;
-			public Hazard(Offsets.Vector2i center, float radius) { Center = center; Radius = radius; }
-			public bool Covers(Offsets.Vector2i cell, float margin) => Combat.Distance(cell, Center) <= Radius + margin;
-			public override string ToString() => $"{Center} r{Radius:F0}";
+			public readonly Vector2 Dir;
+			public readonly float From, To;
+			public readonly bool IsSector;
+			public Hazard(Offsets.Vector2i center, float radius) { Center = center; Radius = radius; Dir = default; From = To = 0; IsSector = false; }
+			public Hazard(Offsets.Vector2i apex, float length, Vector2 facing, float from, float to) {
+				Center = apex; Radius = length; Dir = facing.LengthSquared() > 0 ? Vector2.Normalize(facing) : new Vector2(0, -1);
+				From = from; To = to; IsSector = true;
+			}
+			/// <summary>The caster's left, when it faces Dir (Dir (0,-1): (1,0); see HazardSkills).</summary>
+			public Vector2 Left => new Vector2(-Dir.Y, Dir.X);
+			public bool Covers(Offsets.Vector2i cell, float margin) {
+				float d = Combat.Distance(cell, Center);
+				if ( d > Radius + margin ) return false;
+				if ( !IsSector || d <= margin ) return true;
+				var v = new Vector2(cell.X - Center.X, cell.Y - Center.Y);
+				double angle = Math.Atan2(Vector2.Dot(v, Left), Vector2.Dot(v, Dir));
+				// (the margin widens the slice by the angle it makes at this distance)
+				double widen = Math.Atan2(margin, d);
+				return angle >= From - widen && angle <= To + widen;
+			}
+			public override string ToString() => IsSector
+				? $"{Center} sector {Radius:F0} facing ({Dir.X:F2}, {Dir.Y:F2}), {From * 180 / Math.PI:F0} to {To * 180 / Math.PI:F0} deg"
+				: $"{Center} r{Radius:F0}";
+		}
+
+		/// <summary>
+		/// Skills that are damaging areas while a monster is using them (no entity of their own until they land): a part of
+		/// the skill's name (see Actor.CurrentAction, ActorAction.SkillOf; the first entry that matches is used, so longer
+		/// names go first), and the slice of ground in front of the caster it covers: its length in cells, and from/to in
+		/// degrees off the way the caster faces, positive toward the caster's left (so its "Right" is negative).
+		///
+		/// The caster faces the way its Positioned.Rotation says, taking rotation 0 as facing -Y on the grid. Seen once:
+		/// Kitava has rotation 0 and faces his arena, which lies toward -Y of him, with his right toward -X (the left of the
+		/// screen). Not checked for other rotations.
+		/// </summary>
+		public static readonly List<(string skillPart, float length, float fromDeg, float toDeg)> HazardSkills = new List<(string, float, float, float)> {
+			// Kitava's fire breaths in his final fight (3.30.0c). No entity: only his action (Actor+0x1B0, see
+			// Component_Actor_Action), which names the skill. He stands at the top of a fan-shaped arena that lies within
+			// about 90 degrees either side of the way he faces, out to about 100 cells. From the user, seen live: DeathBreathRight
+			// covered the half of the arena on his right (the left of the screen; the player was hit at Kitava + (-21, -20));
+			// Left the other half; Middle the middle 50%. UltimateDeathBreath covers 90% of the arena, all but a strip along
+			// the edge on the side opposite its name: the player stood safe from UltimateDeathBreathRight at Kitava + (39, -8),
+			// against the right edge of the screen, 78 degrees to his left. The slices run to +-100 degrees for slack, and
+			// the 90% ones leave the outer 18 degrees (10% of 180)
+			("UltimateDeathBreathRight", 150, -100, 72),
+			("UltimateDeathBreathLeft", 150, -72, 100),
+			("DeathBreathRight", 150, -100, 0),
+			("DeathBreathLeft", 150, 0, 100),
+			("DeathBreathMiddle", 150, -45, 45),
+		};
+
+		/// <summary>The slices of the HazardSkills being used now, by any monster near.</summary>
+		public static IEnumerable<Hazard> SkillHazards() {
+			if ( HazardSkills.Count == 0 ) yield break;
+			foreach ( var e in GetEntities() ?? Enumerable.Empty<Entity>() ) {
+				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
+				var actor = e.GetComponent<Actor>();
+				if ( !IsValid(actor) || (actor.ActionFlags & Offsets.Component_ActionFlags.UsingAbility) == 0 ) continue;
+				string name = actor.CurrentAction?.SkillOf(actor)?.Name;
+				if ( name == null ) continue;
+				foreach ( var (part, length, fromDeg, toDeg) in HazardSkills ) {
+					if ( name.IndexOf(part, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
+					var pos = e.GetComponent<Positioned>();
+					if ( !IsValid(pos) ) break;
+					float r = pos.Rotation; // 0: facing -Y (see HazardSkills)
+					var facing = new Vector2((float)Math.Sin(r), -(float)Math.Cos(r));
+					const float rad = (float)(Math.PI / 180);
+					yield return new Hazard(pos.GridPos, length, facing, fromDeg * rad, toDeg * rad);
+					break;
+				}
+			}
 		}
 
 		/// <summary>
@@ -55,17 +127,32 @@ namespace AtE {
 			// .../League_Augury/Boss_Empowerments/OrbitalVisceraBeam/viscera_beam.ao. Render.Bounds 19.6 x 19.6 like the
 			// geysers; 12 cells is a guess at the blast
 			("OrbitalVisceraBeam/viscera_beam.ao", null, 12),
+			// Augury empowerment "Blackfire Wall" (3.30, seen on Kitava: a wave of fire that leaves the player burning with
+			// Blackfire). Monsters/Augury/Daemon/BlackfireWallDaemon (sits on the boss, StateMachine have_wall, tier) lays a
+			// line of Metadata/Monsters/Daemon/Augury/BlackfireWallObject segments (Animated, BaseEvents, Buffs, Positioned,
+			// Render, StateMachine aura=1, tier), animated object .../Boss_Empowerments/BlackfireWalls/blackfire_wall.ao,
+			// each with the buff blackfire_wall_daemon_burn, which the player standing in it gets too: the segments are the
+			// source of Blackfire. Paused mid-deploy: 3 segments about 10 cells apart, Render.Bounds 30 x 30 (about 3
+			// cells), the last one on the player. Radius 6 so the circles join into the wall
+			("Daemon/Augury/BlackfireWallObject", null, 6),
+			// Augury empowerment "Crow Bombs" (3.30, seen on Kitava alongside the wall, not seen exploding yet):
+			// Monsters/Augury/Daemon/CrowBombDaemon places Metadata/Monsters/Daemon/Augury/CrowBombObject (Animated,
+			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
+			// Render.Bounds 30 x 30. 10 cells is a guess at the blast
+			("Daemon/Augury/CrowBombObject", null, 10),
 			// Daresso's sword traps in The Ring of Blades (Act 4; the name from the user, not seen live yet: 8 cells is a guess)
 			("DaressoSwordTrap", null, 8),
 		};
 
-		/// <summary>Where the damaging areas are now. Default: the entities matching HazardPaths.</summary>
+		/// <summary>Where the damaging areas are now. Default: the skills in HazardSkills being used, and the entities matching HazardPaths.</summary>
 		public Func<CombatContext, IEnumerable<Hazard>> Hazards = DefaultHazards;
 
 		/// <summary>Stay this many cells further out than an area's radius.</summary>
 		public float Margin = 4;
 		/// <summary>How far from the player (cells) to look for a safe cell.</summary>
 		public int SearchRadius = 60;
+		/// <summary>How far to look when no cell within SearchRadius is safe.</summary>
+		public int FarSearchRadius = 150;
 		/// <summary>Range to use the skill from, in cells; 0 for 80% of the driver's AttackRange.</summary>
 		public float SpamRange;
 
@@ -79,6 +166,7 @@ namespace AtE {
 		private long lastHazardLog;
 
 		public static IEnumerable<Hazard> DefaultHazards(CombatContext ctx) {
+			foreach ( var h in SkillHazards() ) yield return h;
 			if ( HazardPaths.Count == 0 ) yield break;
 			foreach ( var e in GetEntities() ?? Enumerable.Empty<Entity>() ) {
 				string path = e?.Path;
@@ -128,7 +216,8 @@ namespace AtE {
 				return;
 			}
 
-			// safe and in range: stand still and spam the skill (or, with none, the driver's Attack) at it
+			// safe and in range: stand still and spam the skill (or, with none, the driver's Attack) at it; a channelling
+			// skill is held down instead, until the player walks again (see CombatDriver.TryHoldChannel)
 			ctx.Driver.StopWalking("using a skill");
 			Detail = $"using {skill ?? "the driver's attack"} at it, {target.Distance:F0} cells away";
 			ctx.Driver.Engage(ctx, target, skill, range, true); // (in range: places a totem, or attacks; it doesn't walk)
@@ -141,7 +230,9 @@ namespace AtE {
 		private bool TryFindSafeCell(CombatContext ctx, List<Hazard> hazards, Hostile target, float range, out Offsets.Vector2i best) {
 			best = default;
 			float bestScore = float.MaxValue;
-			for ( int r = 3; r <= SearchRadius; r += 3 ) {
+			// past SearchRadius only while nothing safe is found (eg, Kitava's ultimate breath: the only safe strip is along
+			// the far edge of the arena)
+			for ( int r = 3; r <= SearchRadius || (bestScore == float.MaxValue && r <= FarSearchRadius); r += 3 ) {
 				int steps = Math.Max(8, r);
 				for ( int i = 0; i < steps; i++ ) {
 					double a = 2 * Math.PI * i / steps;

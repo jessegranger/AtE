@@ -151,10 +151,18 @@ namespace AtE {
 
 	public class ActorAction : MemoryObject<Offsets.Component_Actor_Action> {
 
-		public Entity Target => IsValid(Address) && EntityCache.TryGetEntity(Address, out Entity ent) ? ent : null;
+		public Entity Target => IsValid(Address) && EntityCache.TryGetEntity(Cache.Target, out Entity ent) ? ent : null;
 
-		public long Skill => Cache.Skill;
-		public Vector2 Destination => Cache.Destination;
+		/// <summary>The ActorSkill being used (its address; match it against Actor.Skills, see SkillOf).</summary>
+		public IntPtr SkillPtr => Cache.ptrSkill;
+		/// <summary>The cell the action is aimed at (the target's cell).</summary>
+		public Offsets.Vector2i Destination => Cache.TargetGrid;
+
+		/// <summary>The skill of actor being used in this action, or null.</summary>
+		public ActorSkill SkillOf(Actor actor) {
+			var ptr = SkillPtr;
+			return ptr == IntPtr.Zero ? null : actor?.Skills.FirstOrDefault(s => s.Address == ptr);
+		}
 	}
 
 	public class ActorSkill : MemoryObject<Offsets.ActorSkill>, IDisposable {
