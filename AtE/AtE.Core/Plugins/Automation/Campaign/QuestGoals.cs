@@ -373,6 +373,8 @@ namespace AtE {
 
 		public override bool CheckDone(CombatContext ctx) {
 			if ( Where != null && !GoToArea.Is(GetCurrentArea(), Where) ) return false;
+			// (no top tile: the last stairs lead to another area, and DoneWhen says when it is reached)
+			if ( TopTilePathPart == null ) return false;
 			return ctx.Terrain.TileFeatures(TopTilePathPart).Any(f => CanWalkTo(ctx, f));
 		}
 

@@ -105,6 +105,15 @@ namespace AtE {
 			new UsePortalScroll(town),
 		};
 
+		/// <summary>
+		/// Back to the act's town: by a Portal Scroll if one can be tried, else walking (or a waypoint, see TravelTo): two
+		/// rules of rules, both holding in area when when does.
+		/// </summary>
+		private void ToTown(FirstOf rules, int act, string label, string area, Func<bool> when) {
+			rules.When($"{label}: by a Portal Scroll", area, () => when() && UsePortalScroll.CanTry(this), new UsePortalScroll(TownOf(act)));
+			rules.When($"{label}: walking", area, when, new EnterArea(TownOf(act)));
+		}
+
 		/// <summary>A monster whose name (Render.Name) has name in it, without a leading "the" (eg, "the Dweller of the Deep").</summary>
 		public static Func<Entity, bool> MonsterNamed(string name) {
 			string bare = Bare(name);

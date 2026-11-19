@@ -73,14 +73,8 @@ namespace AtE {
 			return wp != null && wp.Seen && IsValid(p) && Combat.Distance(p.GridPos, wp.GridPos) <= reach;
 		}
 
-		/// <summary>
-		/// Back to Highgate: by a Portal Scroll if one can be tried, else walking (or a waypoint, see TravelTo): two rules of
-		/// rules, both holding in area when when does.
-		/// </summary>
-		private void ToHighgate(FirstOf rules, string label, string area, Func<bool> when) {
-			rules.When($"{label}: by a Portal Scroll", area, () => when() && UsePortalScroll.CanTry(this), new UsePortalScroll(TownOf(4)));
-			rules.When($"{label}: walking", area, when, new EnterArea(TownOf(4)));
-		}
+		/// <summary>Back to Highgate (see ToTown).</summary>
+		private void ToHighgate(FirstOf rules, string label, string area, Func<bool> when) => ToTown(rules, 4, label, area, when);
 
 		/// <summary>
 		/// The Belly of the Beast Level 1's way to Level 2: one of its three Features/belly_tunnel_v01_01 tiles (one can't be
