@@ -333,6 +333,9 @@ namespace AtE {
 				if ( aoPath != null || !IsValid(Address) ) return aoPath;
 				if ( PoEMemory.TryRead(Cache.ptrToAnimatedObjectInfo, out Offsets.AnimatedObjectInfo info)
 					&& PoEMemory.TryReadString(info.strPath, Encoding.Unicode, out string path, 512) ) aoPath = path;
+				// 3.30: ptrToAnimatedObjectInfo is null on some effects (Kitava's devouring_darkness pools, the Augury
+				// viscera beam), but the animated entity's own metadata path is the .ao path ("...viscera_beam.ao")
+				else aoPath = AnimatedObject?.Path;
 				return aoPath;
 			}
 		}

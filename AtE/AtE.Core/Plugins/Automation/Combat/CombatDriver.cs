@@ -257,6 +257,13 @@ namespace AtE {
 			return Target != null && Engage(ctx, Target, skill);
 		}
 
+		/// <summary>
+		/// The monster TryFight would fight (ChooseTarget's pick), without fighting it: from those near (radius 0), or those
+		/// within radius cells that can be walked to. Null if none.
+		/// </summary>
+		public Hostile PickTarget(CombatContext ctx, float radius = 0) => radius <= 0 ? ChooseTarget(ctx.Hostiles)
+			: ChooseTarget(Combat.GetHostiles(ctx.Grid, radius).Where(h => DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, h.GridPos)).ToList());
+
 		/// <summary>Fight the monsters within radius cells (that can be walked to), instead of EngageRadius; true if fighting.</summary>
 		public bool TryFight(CombatContext ctx, float radius, string skill = null) {
 			if ( ctx.MonstersToClick.FirstOrDefault(h => h.Distance <= radius) is Hostile toClick ) return ClickMonster(ctx, toClick);

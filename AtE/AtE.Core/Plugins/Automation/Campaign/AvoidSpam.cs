@@ -7,7 +7,8 @@ using static AtE.Globals;
 namespace AtE {
 
 	/// <summary>
-	/// Kill a boss that covers the ground near it with lasting damaging areas (eg, Merveil, one kind in each phase): stay
+	/// The default way to fight any monster, normal to unique (Fight calls one per target, see Fight.AvoidSpamTarget), and
+	/// bosses that cover the ground near them with lasting damaging areas (eg, Merveil, one kind in each phase): stay
 	/// out of the areas, and otherwise stand still and spam the skill at it. Standing in an area (or within Margin cells
 	/// of one): walk to the nearest cell outside all of them, preferring one in range of the boss and with line of sight
 	/// to it. Out of range: get in range (Engage).
@@ -43,6 +44,17 @@ namespace AtE {
 			// object is "HellfireBarrageEffect", matched by its .ao path (see Animated.AnimatedObjectPath). Render.Bounds is
 			// 19.6 x 19.6 x 112 (a narrow falling pillar), so 8 cells is a guess at the blast and its burning ground
 			("Gravicius/ballistastorm.ao", null, 8),
+			// Kitava's bloody pools (physical damage over time) in his final fight (3.30, paused with 19 placed, 28-100 cells from
+			// the player): Metadata/Effects/Spells/ground_effects/VisibleServerGroundEffect (Animated, BaseEvents, Buffs,
+			// GroundEffect, Positioned, Render) with the buff ground_devouring_darkness, animated object
+			// ground_effects/devouring_darkness/ground_rig.ao. GroundEffect+0x38 is 10, as for Merveil's ice: radius 10
+			("ground_effects/VisibleServerGroundEffect", "ground_devouring_darkness", 10),
+			// Augury league boss empowerment "Orbital Viscera Cannon" (3.30, seen on Kitava): a Daemon monster
+			// (Monsters/Augury/Daemon/OrbitalVisceraCannonDaemon_, sitting on the boss, StateMachine beam_begin/tier) fires a
+			// Metadata/Effects/ServerEffect (LimitedLifespan) whose animated object is
+			// .../League_Augury/Boss_Empowerments/OrbitalVisceraBeam/viscera_beam.ao. Render.Bounds 19.6 x 19.6 like the
+			// geysers; 12 cells is a guess at the blast
+			("OrbitalVisceraBeam/viscera_beam.ao", null, 12),
 			// Daresso's sword traps in The Ring of Blades (Act 4; the name from the user, not seen live yet: 8 cells is a guess)
 			("DaressoSwordTrap", null, 8),
 		};
@@ -83,10 +95,13 @@ namespace AtE {
 		}
 
 		protected override void Fight(CombatContext ctx, Hostile target) {
+			// life low: retreat first (as Fight does between targets)
+			if ( ctx.Driver.TryRetreat(ctx) ) { Detail = "retreating"; return; }
 			string skill = Skill;
 			float range = SpamRange > 0 ? SpamRange : ctx.Driver.AttackRange * .8f;
 			var hazards = Hazards(ctx).ToList();
-			if ( hazards.Count != lastHazardCount && Time.ElapsedMilliseconds - lastHazardLog >= HazardLogMs ) {
+			// (no line for "0 areas" until there were some: it runs for every monster fought)
+			if ( hazards.Count != Math.Max(0, lastHazardCount) && Time.ElapsedMilliseconds - lastHazardLog >= HazardLogMs ) {
 				lastHazardCount = hazards.Count;
 				lastHazardLog = Time.ElapsedMilliseconds;
 				string nearest = hazards.Count == 0 ? "" : $", the nearest {hazards.Min(h => Combat.Distance(ctx.Grid, h.Center) - h.Radius):F0} cells from its edge";
@@ -113,11 +128,10 @@ namespace AtE {
 				return;
 			}
 
-			// safe and in range: stand still and spam the skill at it
+			// safe and in range: stand still and spam the skill (or, with none, the driver's Attack) at it
 			ctx.Driver.StopWalking("using a skill");
-			if ( ctx.Driver.TryPlaceTotem(ctx, screen) ) { Detail = "placing a totem"; return; }
-			Detail = $"using {skill} at it, {target.Distance:F0} cells away";
-			ctx.Driver.UseSkillPaced(skill, screen);
+			Detail = $"using {skill ?? "the driver's attack"} at it, {target.Distance:F0} cells away";
+			ctx.Driver.Engage(ctx, target, skill, range, true); // (in range: places a totem, or attacks; it doesn't walk)
 		}
 
 		/// <summary>
