@@ -465,6 +465,18 @@ namespace AtE {
 		public static Func<CombatContext, Offsets.Vector2i?> TileNear(string tilePathPart, int x, int y) => ctx =>
 			ctx.Terrain.TileFeatures(tilePathPart).OrderBy(f => Combat.Distance(new Offsets.Vector2i(x, y), f.GridPos)).FirstOrDefault()?.GridPos;
 
+		/// <summary>
+		/// Of several groups of tiles cut from a .tdt whose path has tilePathPart, the one with at least count groups of
+		/// neighborPathPart within radius cells (eg, of The Solaris Temple Level 1's two temple_to_battlefront_v01_01 exits,
+		/// the one with two statue_gold_large_female_03 near it); the nearest such, or null if none is.
+		/// </summary>
+		public static Func<CombatContext, Offsets.Vector2i?> TileWithNeighbors(string tilePathPart, string neighborPathPart, int count, float radius) => ctx => {
+			var neighbors = ctx.Terrain.TileFeatures(neighborPathPart);
+			return ctx.Terrain.TileFeatures(tilePathPart)
+				.Where(f => neighbors.Count(n => Combat.Distance(f.GridPos, n.GridPos) <= radius) >= count)
+				.OrderBy(f => Combat.Distance(ctx.Grid, f.GridPos)).FirstOrDefault()?.GridPos;
+		};
+
 		/// <summary>A fixed place in the area's layout (eg, the way to The Cathedral Rooftop's boss arena).</summary>
 		public static Func<CombatContext, Offsets.Vector2i?> At(int x, int y) => _ => new Offsets.Vector2i(x, y);
 
