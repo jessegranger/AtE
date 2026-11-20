@@ -1,4 +1,4 @@
-using ImGuiNET;
+﻿using ImGuiNET;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,14 +10,16 @@ using static AtE.Globals;
 namespace AtE {
 
 	/// <summary>
-	/// The hideout steps of the Mapping loop as state chains, each ending in next, to be stitched together later:
+	/// The hideout steps of the Mapping loop as state chains, each ending in next (stitched together in MappingLoop.cs):
 	///   StashEverything  walk to the stash, open it, show the DumpTab, BackpackPlugin.PlanDumpAll
 	///   PickNextMap      (stash open) show the MapsTab, ActivateMapTier(MapTier), Ctrl + click a map into the backpack
 	///   RollMap          (stash open, map in the backpack) Scouring / Alchemy from the CurrencyTab (stash and inventory open, one map) until it is
 	///                    a rare with none of ProhibitedMods
 	///   SelectMapArea    with the Map Device open: drag the Atlas to MapArea's area node and click it (shows its Map Loader)
-	///   OpenMap          close the stash, walk to the Map Device, open it, SelectMapArea, put the map in, Activate, wait for a new portal
-	///   EnterPortal      walk to that portal, click it, wait for the new area to finish loading
+	///   OpenMap          close the stash, walk to the Map Device, open it, SelectMapArea, put the map in, Activate, wait for a
+	///                    new portal, then EnterMap (MappingLoop.cs: walk to a fresh portal, click it, WaitForNewArea)
+	/// StashEverything, PickNextMap, RollMap and OpenMap skip themselves (go on to next) while SkipToClear (the routine was
+	/// switched on in a map, and its loop has not got to ClearArea yet).
 	/// Each step decides what to do when it is reached, not when it is built (the backpack and stash change on the way), and
 	/// stops the chain (null) with a log line when it can't go on. The steps of a plan are built up front, each with its
 	/// Next set to the step it goes on to, so the whole plan can be looked at (eg, in an ObjectBrowser) before it runs;
@@ -25,8 +27,8 @@ namespace AtE {
 	///
 	/// They walk (Navigate), so they run in the routine's CampaignRunner (eg, Call()ed from a goal), not in a plain Machine.
 	/// Waits longer than GoalRoutine.MaxInputMs are CampaignStates (see Step), which the routine does not cut short.
-	/// Note: entering a new area restarts the routine's goal (GoalRoutine.ForgetOnNewArea cancels the chain), so what
-	/// follows EnterPortal only runs if that is handled when they are stitched together.
+	/// Entering a new area restarts the routine's goal (GoalRoutine.ForgetOnNewArea cancels the Runner's chain): the loop's
+	/// chain is kept by MapLoop, which the Runner only ticks, so it goes on through portals (see MappingLoop.cs).
 	/// </summary>
 	public partial class MappingRoutine {
 
@@ -58,7 +60,8 @@ namespace AtE {
 			var walk = WalkTo("the stash", FindStash, open, skipTo: StashIsOpen);
 			// (the stash open already, wherever: no walking, no clicking its label)
 			return ForceGameFocus(new Step("Stash everything", (s, ctx, dt) =>
-				StashIsOpen() ? tab
+				SkipToClear ? next
+				: StashIsOpen() ? tab
 				: !InHideout() ? Fail("stash everything: not in the hideout")
 				: walk, walk));
 		}
@@ -66,7 +69,9 @@ namespace AtE {
 		/// <summary>With the stash open: show the MapsTab, ActivateMapTier(MapTier), Ctrl + click a map of that tier into the backpack (it becomes NextMap), then next.</summary>
 		public IState PickNextMap(IState next) {
 			var tab = Tab(MapsTab, ActivateMapTier(MapTier, TakeMap(next)));
-			return ForceGameFocus(new Step("Pick the next map", (s, ctx, dt) => !StashIsOpen() ? Fail("pick the next map: the stash is not open") : tab, tab));
+			return ForceGameFocus(new Step("Pick the next map", (s, ctx, dt) =>
+				SkipToClear ? next
+				: !StashIsOpen() ? Fail("pick the next map: the stash is not open") : tab, tab));
 		}
 
 		/// <summary>
@@ -204,6 +209,7 @@ namespace AtE {
 		public IState RollMap(IState next) {
 			var roll = RollStep(0, next);
 			return ForceGameFocus(new Step("Roll the map", (s, ctx, dt) => {
+				if ( SkipToClear ) return next;
 				if ( !StashIsOpen() ) return Fail("roll the map: the stash is not open");
 				if ( !BackpackIsOpen() ) return Fail("roll the map: the inventory is not open");
 				int maps = BackpackItems().Count(i => ChooseNextMap.IsMap(i?.Entity));
@@ -267,15 +273,17 @@ namespace AtE {
 		/// <summary>
 		/// Close the stash (and the inventory with it) if it is open, walk to the Map Device, click it (its label), show the
 		/// Map Loader for MapArea (SelectMapArea), put the map (NextMap, else any) in its slot unless one is there already,
-		/// click Activate, wait for a new map portal, then next. Stops (null) if there is no map in the backpack nor in the
-		/// Map Loader's slot.
+		/// click Activate, wait for a new map portal, then EnterMap (walk to a fresh portal, click it, WaitForNewArea), then
+		/// next (in the map). Stops (null) if there is no map in the backpack nor in the Map Loader's slot. Enter Map has no
+		/// test of its own: it takes a portal opened by this Activate (OpenMap.FreshPortals).
 		/// </summary>
 		public IState OpenMap(IState next) {
-			var atDevice = AtTheMapDevice(next);
+			var atDevice = AtTheMapDevice(EnterMap(next));
 			Func<Entity> device = () => CampaignState.Context is CombatContext c ? AtE.OpenMap.FindDevice(c) : null;
 			var walk = WalkTo("the Map Device", device, ClickToOpen("the Map Device", device, MapDeviceIsOpen, atDevice), skipTo: MapDeviceIsOpen);
 			return ForceGameFocus(new Step("Open the map", (s, ctx, dt) =>
-				MapDeviceIsOpen() ? atDevice
+				SkipToClear ? next
+				: MapDeviceIsOpen() ? atDevice
 				: BackpackMap() == null && GetUI()?.MapDevice?.LoadedMap == null ? Fail("open the map: no map in the backpack (nor in the Map Device)")
 				: StashIsOpen() ? CloseStash(s)
 				: walk, walk));
@@ -353,19 +361,6 @@ namespace AtE {
 				Inputs.MoveTo(Vector2.Lerp(from, to, 0.33f), new Delay(50,
 				Inputs.MoveTo(Vector2.Lerp(from, to, 0.66f), new Delay(50,
 				Inputs.MoveTo(to, new Delay(80, new LeftMouseUp(new Delay(Inputs.Latency, next))))))))))));
-
-		/// <summary>Walk to the nearest portal the map device opened (closing its window first), click it (again every 2s), and go on to next once the new area has loaded.</summary>
-		public IState EnterPortal(IState next) {
-			var take = TakePortal(next);
-			return ForceGameFocus(new Step("Enter the portal", (s, ctx, dt) => {
-				if ( MapDeviceIsOpen() ) return CloseWindow("the map device", s);
-				var portal = FindPortal();
-				var pos = portal?.GetComponent<Positioned>();
-				if ( portal == null || !IsValid(pos) ) return Fail("enter the portal: no map portal in sight");
-				var grid = pos.GridPos;
-				return new Navigate("the map portal", _ => grid, ClickReach, take) { FightRadius = -1 };
-			}, take));
-		}
 
 		// ---- the parts ----
 
@@ -570,38 +565,6 @@ namespace AtE {
 			return Inputs.Click(r, WaitUntil("a new map portal", 6000, () => AtE.OpenMap.FreshPortals(this).Any(), next, "no new map portal opened"));
 		}, next);
 
-		// a portal the map device opened in this visit (the nearest), else the nearest map portal
-		private Entity FindPortal() {
-			var fresh = new HashSet<uint>(AtE.OpenMap.FreshPortals(this).Select(e => e.Id));
-			return Nearest(e => fresh.Contains(e.Id)) ?? MapDevice.FindMapPortal();
-		}
-
-		// click the portal (found again each try, every 2s) until the area changes, then wait for it to load
-		private IState TakePortal(IState next) {
-			uint? start = null;
-			long lastClick = -1000000;
-			return new Step("Take the portal", (s, ctx, dt) => {
-				start ??= AreaHash(); // (the area it was reached in)
-				bool loading = PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true;
-				if ( AreaHash() != start ) {
-					if ( !loading && IsValid(GetPlayer()) ) return next;
-					s.Detail = "loading";
-					return s.Elapsed > 60000 ? Fail("the new area did not finish loading") : s;
-				}
-				if ( s.Elapsed > 15000 ) return Fail("did not enter the map portal");
-				if ( loading || s.Elapsed - lastClick < 2000 ) return s;
-				var portal = FindPortal();
-				if ( portal == null ) return s; // (while loading, the portal is gone before the area changes)
-				ctx.Driver.StopWalking("taking the portal");
-				var click = Ground.ClickEntity(portal, s);
-				if ( click == null ) return s;
-				lastClick = s.Elapsed;
-				EnteringMap();
-				s.Detail = "clicking the portal";
-				return click;
-			}, next);
-		}
-
 		private static uint AreaHash() => PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
 
 		private bool IsProhibited(ItemMod mod) {
@@ -653,6 +616,12 @@ namespace AtE {
 			public Step(string label, Func<Step, CombatContext, long, IState> func, IState next) : base(next) {
 				this.label = label;
 				this.func = func;
+			}
+			/// <summary>Go on to Next, and let go of it (so a step left behind does not keep the rest of a chain alive).</summary>
+			public IState Pass() {
+				var next = Next;
+				Next = null;
+				return next;
 			}
 			public override string Name => label;
 			protected override IState Tick(CombatContext ctx, long dt) {

@@ -23,6 +23,7 @@ namespace AtE {
 		/// <summary>Run step on its own: switch the routine on, and tick nothing but its chain until it ends.</summary>
 		public void StartTest(string name, Func<IState, IState> step) {
 			Runner.Cancel(); // (the goal chain, if one was running)
+			SkipToClear = false; // (left set by a loop switched on in a map and stopped before ClearArea)
 			testName = name;
 			testOk = false;
 			TestResult = null;
@@ -91,7 +92,8 @@ namespace AtE {
 			("pickmap", "Pick Map", PickNextMap, $"With the stash open: show the \"{MapsTab}\" tab, show tier {MapTier} (ActivateMapTier), take a map into the backpack."),
 			("rollmap", "Roll Map", RollMap, $"With the stash and the inventory open and one map in the backpack: Orbs of Scouring and Alchemy from the \"{CurrencyTab}\" tab until it is a rare with no prohibited mods."),
 			("selectmap", "Select Map Area", SelectMapArea, $"With the Map Device open: show the Map Loader for \"{MapArea}\" (close one showing another area; drag the Atlas to its area node and click it)."),
-			("openmap", "Open Map", OpenMap, $"With a map in the backpack (or the Map Loader): close the stash, walk to the Map Device, open it, show \"{MapArea}\" (SelectMapArea), put the map in, Activate, wait for a new portal."),
+			("openmap", "Open Map", OpenMap, $"With a map in the backpack (or the Map Loader): close the stash, walk to the Map Device, open it, show \"{MapArea}\" (SelectMapArea), put the map in, Activate, wait for a new portal, then Enter Map: walk to a fresh portal, click it, wait for the map to load."),
+			("clear", "Clear Map", next => ClearArea(null, next), $"In a map: Clear Area for the map the player is in (its rules, if it has some), then explore and kill until fewer than {MonstersLeft} monsters remain and the map panel says \"Map Complete\". Stays in the map."),
 		];
 
 		/// <summary>Start the test whose Key or Name is name; false if there is none.</summary>

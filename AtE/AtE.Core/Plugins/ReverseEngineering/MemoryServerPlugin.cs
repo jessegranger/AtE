@@ -477,7 +477,7 @@ namespace AtE {
 @"MemoryServer (read-only, loopback only)
   /status
   /offsets/run[?only=A6,A4.Life[&observers=1]] | /offsets/observe (observers only, no checks) | /offsets/stop | /offsets/report     the Offsets tests (Automation > Offset Tests): start, stop, the results with details
-  /mapping/test[?name=stash|pickmap|rollmap|selectmap|openmap][&stop=1]   run one Mapping step test on its own (as its button does; chooses the Mapping routine); no name: what runs, or how the last ended; stop=1 stops it
+  /mapping/test[?name=stash|pickmap|rollmap|selectmap|openmap|clear][&stop=1]   run one Mapping step test on its own (as its button does; chooses the Mapping routine); no name: what runs, or how the last ended; stop=1 stops it
   /offsets/routine?cmd=start|stop                   start or stop just the class routine testing mode runs after its checks (it is held when Hillock dies)
   /offsets/coverage[?format=unchecked]               which Offsets the checks cover (the ratchet against unchecked.txt); format=unchecked lists the gaps as an unchecked.txt
   /offsets/queue?ids=failed|clear|A2.Terrain,A4      queue checks for fixing (shown on screen as FIX)

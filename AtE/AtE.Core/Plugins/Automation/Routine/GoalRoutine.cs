@@ -338,8 +338,11 @@ namespace AtE {
 			return null;
 		}
 
+		/// <summary>Put a bigger life or mana flask picked up in place of a smaller one (see FlaskUpgrader): the Campaign's, not every routine's.</summary>
+		protected virtual bool UpgradesFlasks => true;
+
 		private bool TryUpgradeFlask(CombatContext ctx) {
-			if ( !PickUpItems ) return false;
+			if ( !PickUpItems || !UpgradesFlasks ) return false;
 			bool safe = !ctx.Hostiles.Any(h => h.Distance <= AttackRange);
 			if ( !FlaskUpgrader.Tick(ctx, safe) ) return false;
 			if ( CurrentGoal == null ) SetStatus(FlaskUpgrader.Status);

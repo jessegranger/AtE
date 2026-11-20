@@ -7,36 +7,27 @@ using static AtE.Globals;
 namespace AtE {
 
 	/// <summary>
-	/// Runs maps from the hideout, over and over. Which part of the loop to do is read from where the player is, so it
-	/// can be switched on anywhere:
+	/// Runs maps from the hideout, over and over:
 	///
 	///   Run maps
 	///     Read the game's key bindings (once: the Portal Scroll and inventory keys)
-	///     Run the next map (whichever of these holds, asked again all the time)
-	///       in the hideout: Hideout maintenance
-	///         Stash the loot (everything in the backpack but maps and scrolls, see KeepInBackpack)
-	///         Choose the next map (from the backpack: one with a plan of its own first, see MapPlans)
-	///         Open the map (put it in the Map Device, Activate)
-	///         Enter the map (a portal the device opened)
-	///       in a map: the map's plan (by its name, see MapPlans; the default for a map with none):
-	///         Clear the map (until fewer than MonstersLeft monsters remain)
-	///         Kill the map boss
-	///         Return to the hideout (a Portal Scroll)
-	///       anywhere else (a town): go to the hideout (/hideout)
+	///     Run the next map (whichever of these holds)
+	///       not in the hideout or a map (a town): go to the hideout (/hideout)
+	///       in the hideout or a map: the map loop (MapLoop, see MappingLoop.cs), lap after lap:
+	///         StashEverything, PickNextMap, RollMap, OpenMap (Activate, EnterMap, WaitForNewArea)
+	///         ClearArea (the map's MapRules, then clear until fewer than MonstersLeft remain and "Map Complete")
+	///         ReturnHome (a Portal Scroll, its portal, WaitForNewArea)
 	///
-	/// Each area entered starts that part over (Root.Forget): nothing is carried from one map to the next but the
-	/// hideout's name. Fighting, looting (rares, uniques, and what is not equipment) and clicking things in passing are
-	/// the same as the Campaign's (see GoalRoutine).
+	/// Switched on in a map, the lap starts at ClearArea (SkipToClear). The loop's chain is kept across areas by MapLoop,
+	/// and when it stops (a step that can't go on, with a log line) the routine is switched off. Fighting, looting (rares,
+	/// uniques, and what is not equipment) and clicking things in passing are the same as the Campaign's (see GoalRoutine),
+	/// in maps.
 	/// </summary>
 	public partial class MappingRoutine : GoalRoutine {
 		public override string Name => "Mapping";
 
 		/// <summary>The map is cleared once the game says fewer than this many monsters remain (it shows the count from 50 down).</summary>
 		public int MonstersLeft = 50;
-		/// <summary>Paths (or parts of them) of backpack items not to stash, separated by commas (maps and Portal / Wisdom scrolls are always kept).</summary>
-		public string KeepInBackpack = "";
-		/// <summary>Only run maps that have a plan of their own (see MapPlans); otherwise any map, those with a plan first.</summary>
-		public bool OnlyPlannedMaps = false;
 
 		/// <summary>The hideout's name, seen last time the player was in it (null until then).</summary>
 		public string HideoutName { get; private set; }
@@ -62,45 +53,35 @@ namespace AtE {
 		private long lastWatch;
 
 		public MappingRoutine() {
-			// equipment only when rare (or unique), or for a slot with nothing in it; everything else (currency, ...)
-			Looter.Want = Looter.RareOrEmptySlot;
+			// equipment only when rare (or unique), or for a slot with nothing in it; everything else (currency, ...); not
+			// the bigger life and mana flasks RareOrEmptySlot takes for the FlaskUpgrader (it does not run here)
+			Looter.Want = item => item == null || FlaskUpgrader.TryRecovery(item, out _, out _) ? item == null : Looter.RareOrEmptySlot(item);
 		}
-
-		protected override Sequence BuildRoot() => new Sequence("Run maps",
-			new ReadGameKeys(),
-			new FirstOf("Run the next map")
-				.When("in the hideout", null, InHideout, Hideout())
-				.When("in a map", null, InMap, RunMap())
-				.When("not in the hideout or a map", null, () => !InHideout() && !InMap(), new GoToHideout(this))
-		);
-
-		private Sequence Hideout() => new Sequence("Hideout maintenance",
-			new StashLoot(this),
-			new ChooseNextMap(this),
-			new AtE.OpenMap(this), // (AtE.: MappingRoutine.OpenMap is a step, see MappingSteps.cs)
-			new EnterMap(this));
-
-		// the map's own plan, by its name (see MapPlans), else the default
-		private Goal RunMap() {
-			var byName = new FirstOf("Run the map");
-			plans = MapPlans().ToList();
-			foreach ( var (map, plan) in plans ) byName.When(map, map, () => true, plan);
-			return byName.When("any other map", null, InMap, DefaultPlan("the map"));
-		}
-
-		/// <summary>
-		/// What most maps take: clear it (until fewer than MonstersLeft remain), kill its boss, and go back to the hideout.
-		/// A map's own plan (see MapPlans) can start from this one's goals.
-		/// </summary>
-		public Sequence DefaultPlan(string map) => new Sequence($"Run {map}",
-			new ClearMap(this),
-			new KillMapBoss(this),
-			new ReturnToHideout(this));
 
 		// (set by BuildRoot, from the base constructor)
-		private List<(string map, Sequence plan)> plans;
-		/// <summary>The maps with plans of their own (see MapPlans.cs).</summary>
-		public IEnumerable<string> PlannedMaps => plans?.Select(p => p.map) ?? Enumerable.Empty<string>();
+		private MapLoop mapLoop;
+
+		protected override Sequence BuildRoot() {
+			mapLoop = new MapLoop(this);
+			return new Sequence("Run maps",
+				new ReadGameKeys(),
+				new FirstOf("Run the next map")
+					.When("not in the hideout or a map", null, () => !InHideout() && !InMap(), new GoToHideout(this))
+					.When("in the hideout or a map", null, () => true, mapLoop)
+			);
+		}
+
+		// (flask upgrades are for the Campaign)
+		protected override bool UpgradesFlasks => false;
+
+		// switched on: a new lap (see MapLoop)
+		protected override void OnStartRun() => mapLoop?.Restart();
+
+		// (MapLoop, as it builds the first lap) switched on in a map: start the lap at ClearArea
+		internal void StartLoop() {
+			SkipToClear = InMap();
+			Log($"{Name}: the map loop starts {(SkipToClear ? $"in {GetCurrentArea()?.Name ?? "a map"}: clearing it" : "in the hideout")}");
+		}
 
 		// ---- where the player is ----
 
@@ -128,6 +109,8 @@ namespace AtE {
 				if ( inner == null || inner.IsComplete ) break;
 				g = inner;
 			}
+			// the goal inside the map loop's chain (eg, ClearMap), while no input of its own is going out
+			if ( g is MapLoop loop && loop.Current is CampaignState && loop.ActiveGoal is Goal active ) return active;
 			return g ?? leaf;
 		}
 
@@ -242,16 +225,11 @@ namespace AtE {
 			ImGui.SliderInt("Monsters Left", ref MonstersLeft, 0, 50);
 			ImGui.SameLine();
 			ImGui_HelpMarker("The map counts as cleared once the game says fewer than this many monsters remain (it shows the count from 50 down). 0: kill all of them.");
-			ImGui.InputText("Keep In Backpack", ref KeepInBackpack, 500);
-			ImGui.SameLine();
-			ImGui_HelpMarker("Items not to stash, by a part of their metadata path, separated by commas. Maps, Portal Scrolls and Scrolls of Wisdom are always kept.");
-			ImGui.Checkbox("Only Planned Maps", ref OnlyPlannedMaps);
-			ImGui.SameLine();
-			ImGui_HelpMarker($"Only run maps with a plan of their own ({string.Join(", ", PlannedMaps)}); otherwise any map in the backpack, those first.");
 			RenderStepSettings();
 			RenderTests();
 			ImGui.Text($"Hideout: {HideoutName ?? "(not seen yet)"}; map: {CurrentMap ?? "(none)"}; next: {NextMap?.area ?? "(none)"}");
 			ImGui.Text($"Monsters remaining: {(MonstersRemaining is int m ? m.ToString() : "more than 50")}; map complete: {MapComplete}; uniques killed here: {UniquesKilled.Count}");
+			ImGui.Text($"Loop: {mapLoop?.Current?.ToString() ?? "(not started)"}{(SkipToClear ? " (switched on in a map: skipping to Clear Area)" : "")}");
 		}
 	}
 }

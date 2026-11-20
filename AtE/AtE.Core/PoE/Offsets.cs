@@ -2142,9 +2142,12 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_ItemsOnGroundLabelRoot {
 			// 3.27: 432 bytes here
 			// 3.29.4: both moved +0x28 (the list head at 0x510 leads to a circular list whose entries have a label Element at +0x10 and its entity at +0x18); hoverLabel unchecked
-			[FieldOffset(0x478)] public readonly ItemsOnGroundLabelEntry hoverLabel; // 2 ptrs, one Element, one Entity (3.29.3: not checked, probably moved like the list below)
+			// 3.30.0d+: confirmed, hovering a Regal Orb: its label Element at 0x500 and its WorldItem entity at 0x508 (the entry's
+			// +0x10 / +0x18), both 0 when nothing is hovered; was 0x478 (unchecked since 3.29.3)
+			[FieldOffset(0x4F0)] public readonly ItemsOnGroundLabelEntry hoverLabel; // 2 ptrs, one Element, one Entity
 			// 3.29.3: the list moved from 0x468 (seen with a Driftwood Wand and the Dying Exile: each entry's +0x10 is the label, +0x18 its entity)
-			[FieldOffset(0x510)] public readonly IntPtr labelsOnGroundHead;
+			// 3.30.0d+: moved +8, from 0x510 (now the float 1.0) to 0x518, followed by the count at 0x520 (seen with a Regal Orb on the ground)
+			[FieldOffset(0x518)] public readonly IntPtr labelsOnGroundHead;
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ItemsOnGroundLabelEntry {
 			[FieldOffset(0x00)] public readonly IntPtr nextEntry;
