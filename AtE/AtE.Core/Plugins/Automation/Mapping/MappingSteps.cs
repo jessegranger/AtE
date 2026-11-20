@@ -284,7 +284,7 @@ namespace AtE {
 
 		/// <summary>How many times ClickToOpen clicks before it gives up, and how long it waits for the window after each.</summary>
 		private const int OpenClicks = 3;
-		private const long OpenWaitMs = 1500;
+		private const long OpenWaitMs = 660; // (the stash opened within 0.4 s of a click that worked)
 
 		// click what find finds (its label if it shows one), wait for isOpen, then next; nothing to do if open already. A
 		// click the game ignores (eg, right after a Frostblink lands, at the right spot) is tried again: up to OpenClicks
