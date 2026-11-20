@@ -302,10 +302,8 @@ namespace AtE {
 		/// so the Margin ring, at half weight, is not safe either; about 100 for a lethal one, 30 for burning ground).
 		/// </summary>
 		public static readonly List<(string pathPart, string buff, float radius, DangerLayer layer, byte weight)> HazardPaths = new List<(string, string, float, DangerLayer, byte)> {
-			// Merveil's ice storm (3.29.4, paused in it): a ground effect with ground_ice_chill wherever ice fell, 26 of them
-			// within 25 cells of her. Each has 10 at GroundEffect+0x38, taken as its radius in cells (the player stood just
-			// outside, 10 cells from the nearest). (The SleepableServerEffect entities on the same spots are the falling ice.)
-			("ground_effects/FillGroundEffect", "ground_ice_chill", 10, DangerLayer.Now, 30),
+			// (Not chilled ground: Merveil's ice storm leaves FillGroundEffect entities with the buff ground_ice_chill, but
+			// chilled ground is not worth walking around (the user), so it is left out.)
 			// burning ground (ground_fire_burn), eg Renkarr's in the Silo map (3.30.0c, his skill CGEVilentaMapBurningGround):
 			// the same FillGroundEffect, 10 at GroundEffect+0x38 again, but the player was burning 12 cells from its center,
 			// so the radius is taken as 14
