@@ -344,6 +344,13 @@ namespace AtE {
 		public static float StandWeight = 2;
 		/// <summary>Added to the score of a cell that isn't safe (see SafeLevel), or that the caller's good says is not good.</summary>
 		public static float UnsafePenalty = 1000, NotGoodPenalty = 500;
+		/// <summary>
+		/// Ending on a cell also costs ClearWeight (in cells walked) for each unsafe cell (danger at least SafeLevel)
+		/// within ClearRadius cells of it (a square), so a cell wedged between two hazards' edges loses to a clear one
+		/// a few steps further.
+		/// </summary>
+		public static int ClearRadius = 3;
+		public static float ClearWeight = 1;
 
 		private float[] cost;
 		private int[] costStamp;
@@ -353,9 +360,24 @@ namespace AtE {
 			(1, 0, 1), (-1, 0, 1), (0, 1, 1), (0, -1, 1), (1, 1, 1.4142f), (1, -1, 1.4142f), (-1, 1, 1.4142f), (-1, -1, 1.4142f),
 		};
 
+		// how many cells within ClearRadius (a square) of window cell (wx, wy) are unsafe (blocked ones are not)
+		private int UnsafeNear(int wx, int wy) {
+			int n = 0;
+			int x0 = Math.Max(0, wx - ClearRadius), x1 = Math.Min(Size - 1, wx + ClearRadius);
+			int y0 = Math.Max(0, wy - ClearRadius), y1 = Math.Min(Size - 1, wy + ClearRadius);
+			for ( int y = y0; y <= y1; y++ ) {
+				for ( int x = x0; x <= x1; x++ ) {
+					int j = (y * Size) + x;
+					if ( Now[j] != Blocked && Now[j] + Soon[j] >= SafeLevel ) n += 1;
+				}
+			}
+			return n;
+		}
+
 		/// <summary>
 		/// The best cell to stand on that can be walked to from from (within maxDistance cells of it): the one with the
-		/// lowest Score, where walking through danger costs more (CrossDivisor), and standing in it too (StandWeight), and
+		/// lowest Score, where walking through danger costs more (CrossDivisor), and standing in it too (StandWeight) or
+		/// next to it (ClearWeight), and
 		/// a cell that is not safe, or not good (eg, out of range of the target), is only taken when there is no better.
 		/// One flood out from from (Dijkstra), stopping when no cell further out can score better. True if best is safe
 		/// (and false with best default if nothing was reached). Score and CostTo read the flood afterward.
@@ -381,6 +403,7 @@ namespace AtE {
 				int total = Now[i] == Blocked ? Blocked : Math.Min(Max, Now[i] + Soon[i]);
 				bool safe = total < SafeLevel;
 				float score = c + (StandWeight * total) + (safe ? 0 : UnsafePenalty);
+				if ( score < bestScore && ClearWeight > 0 ) score += ClearWeight * UnsafeNear(wx, wy);
 				if ( score < bestScore && (good == null || good(cell) || (score += NotGoodPenalty) < bestScore) ) {
 					bestScore = score;
 					best = cell;
@@ -419,7 +442,8 @@ namespace AtE {
 		public float Score(Offsets.Vector2i c, bool good) {
 			if ( !CostTo(c, out float walk) ) return float.MaxValue;
 			int total = Total(c);
-			return walk + (StandWeight * total) + (total < SafeLevel ? 0 : UnsafePenalty) + (good ? 0 : NotGoodPenalty);
+			float clear = ClearWeight > 0 ? ClearWeight * UnsafeNear(c.X - OriginX, c.Y - OriginY) : 0;
+			return walk + (StandWeight * total) + (total < SafeLevel ? 0 : UnsafePenalty) + clear + (good ? 0 : NotGoodPenalty);
 		}
 
 		// ---- debugging ----

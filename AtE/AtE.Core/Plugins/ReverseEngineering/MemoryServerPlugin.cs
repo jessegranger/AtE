@@ -279,7 +279,11 @@ namespace AtE {
 						if ( ap.Length == 2 && int.TryParse(ap[0], out int ax) && int.TryParse(ap[1], out int ay) ) at = new Offsets.Vector2i(ax, ay);
 						int r = int.TryParse(q["r"], out int rr) ? Math.Clamp(rr, 2, 100) : 30;
 						float z = Position(GetPlayer()).Z;
-						return map.Describe(at, r, true, c => (TryGridToScreen(c, z, out var screen), screen), q["rotate"] == "1");
+						// (and DangerDisplay's safest cell in range of the boss, if there is one)
+						var player = GetPlayer()?.GetComponent<Positioned>();
+						var s = IsValid(player) ? AtE.Plugins.DangerDisplay.FindSafest(map, player.GridPos) : null;
+						string safest = s == null ? "" : s + $", now {map.NowAt(s.Cell)} soon {map.SoonAt(s.Cell)}" + NL;
+						return safest + map.Describe(at, r, true, c => (TryGridToScreen(c, z, out var screen), screen), q["rotate"] == "1");
 					});
 				case "/traps":
 					// the traps loaded now (Terrain.Traps), nearest the player first, and the follower's state

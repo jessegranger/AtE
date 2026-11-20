@@ -1,6 +1,7 @@
 using ImGuiNET;
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Numerics;
 using static AtE.Globals;
 
@@ -30,6 +31,11 @@ namespace AtE.Plugins {
 		public bool ShowOutlines = true;
 		public bool ShowGoal = true;
 		public bool ShowStats = true;
+		/// <summary>
+		/// Show the safest cell (DangerMap.TryFindSafest) within attack range, and in sight, of the boss: the rarest
+		/// enemy within the driver's EngageRadius, the one with the most life among equals.
+		/// </summary>
+		public bool ShowSafest = true;
 
 		public override void Render() {
 			base.Render();
@@ -40,6 +46,7 @@ namespace AtE.Plugins {
 			ImGui.Checkbox("Show hazard outlines", ref ShowOutlines);
 			ImGui.Checkbox("Show AvoidSpam's goal", ref ShowGoal);
 			ImGui.Checkbox("Show stats", ref ShowStats);
+			ImGui.Checkbox("Show the safest cell in range of the boss", ref ShowSafest);
 			var map = DangerMap.Current;
 			if ( map != null ) {
 				ImGui.Text($"map #{map.Number}: {map.Hazards.Count} hazards, read {map.CollectMs:F2} ms, stamped {map.StampMs:F2} ms");
@@ -65,11 +72,99 @@ namespace AtE.Plugins {
 				DrawCircle(goal, 10, Color.LimeGreen);
 				DrawCircle(goal, 11, Color.LimeGreen);
 			}
+			if ( ShowSafest ) DrawSafest(map, me, z);
 			if ( ShowStats && TryGridToScreen(me, z, out Vector2 at) ) {
 				string here = $"now {map.NowAt(me)} soon {map.SoonAt(me)}";
 				DrawTextAt(at + new Vector2(16, 8), $"danger {here}; #{map.Number} {map.Hazards.Count} hazards, {map.CollectMs:F1}+{map.StampMs:F1} ms", map.IsSafe(me) || map.IsBlocked(me) ? Color.White : Color.OrangeRed);
 			}
 			return this;
+		}
+
+		// the last answer, kept until the map or the boss's cell changes (the search is a flood over the map)
+		private long safestMap = -1;
+		private uint safestBossId;
+		private Offsets.Vector2i safestBossCell;
+		private Safest safest;
+
+		/// <summary>An answer of FindSafest.</summary>
+		public class Safest {
+			public Entity Boss;
+			public Offsets.Vector2i BossCell, Cell;
+			public float Range, Engage, Score, Walk;
+			/// <summary>Cell is safe (DangerMap.IsSafe); InRange: within Range of the boss, and in sight.</summary>
+			public bool Safe, InRange;
+			public override string ToString() => $"safest in range of {Boss?.Path?.Split('/').LastOrDefault()} at {BossCell} (range {Range:F0}, engage {Engage:F0}): "
+				+ $"{Cell}, walk {Walk:F1}, score {Score:F1}, safe {Safe}, in range {InRange}";
+		}
+
+		/// <summary>
+		/// The boss: the rarest enemy within radius of from that is alive, targetable and can be damaged; among equals,
+		/// the one with the most life (to pick the boss out of a crowd of its own rares). Not Combat.GetHostiles, which
+		/// feeds Stalemates: a display must not make the fighting ignore monsters.
+		/// </summary>
+		public static Entity FindBoss(Offsets.Vector2i from, float radius, out Offsets.Vector2i cell) {
+			Entity best = null;
+			cell = default;
+			var bestRarity = Offsets.MonsterRarity.White;
+			uint bestLife = 0;
+			foreach ( var ent in GetEnemies() ?? Enumerable.Empty<Entity>() ) {
+				if ( !IsAlive(ent) || !IsTargetable(ent) || Combat.CannotBeDamaged(ent) ) continue;
+				var pos = ent.GetComponent<Positioned>();
+				if ( !IsValid(pos) ) continue;
+				var grid = pos.GridPos;
+				if ( Combat.Distance(from, grid) > radius ) continue;
+				var rarity = ent.GetComponent<ObjectMagicProperties>()?.Rarity ?? Offsets.MonsterRarity.White;
+				if ( rarity == Offsets.MonsterRarity.Error ) rarity = Offsets.MonsterRarity.White;
+				uint life = MaxLife(ent);
+				if ( best == null || rarity > bestRarity || (rarity == bestRarity && life > bestLife) ) {
+					best = ent;
+					bestRarity = rarity;
+					bestLife = life;
+					cell = grid;
+				}
+			}
+			return best;
+		}
+
+		/// <summary>
+		/// The safest cell (DangerMap.TryFindSafest from me) within 80% of the driver's AttackRange of the boss (see
+		/// FindBoss, within the driver's EngageRadius), and in its sight; null with no boss.
+		/// </summary>
+		public static Safest FindSafest(DangerMap map, Offsets.Vector2i me) {
+			var driver = GetPlugin<AutomationPlugin>()?.Combat.Current;
+			var s = new Safest {
+				Engage = driver?.EngageRadius ?? 60,
+				Range = (driver?.AttackRange ?? 30f) * .8f, // (as AvoidSpam)
+			};
+			s.Boss = FindBoss(me, s.Engage, out s.BossCell);
+			if ( s.Boss == null ) return null;
+			var terrain = GetTerrain();
+			var bossCell = s.BossCell;
+			float range = s.Range;
+			bool Good(Offsets.Vector2i c) => Combat.Distance(c, bossCell) <= range && (terrain?.HasLineOfSight(c, bossCell) ?? true);
+			s.Safe = map.TryFindSafest(me, Good, out s.Cell, out s.Score);
+			s.InRange = Good(s.Cell);
+			map.CostTo(s.Cell, out s.Walk);
+			return s;
+		}
+
+		private void DrawSafest(DangerMap map, Offsets.Vector2i me, float z) {
+			var boss = FindBoss(me, GetPlugin<AutomationPlugin>()?.Combat.Current?.EngageRadius ?? 60, out var bossCell);
+			if ( boss == null ) return;
+			if ( safest == null || map.Number != safestMap || boss.Id != safestBossId || bossCell.Id != safestBossCell.Id ) {
+				safest = FindSafest(map, me);
+				safestMap = map.Number;
+				safestBossId = boss.Id;
+				safestBossCell = bossCell;
+			}
+			if ( safest == null || !TryGridToScreen(safest.Cell, z, out Vector2 spot) ) return;
+			bool good = safest.Safe && safest.InRange;
+			var color = good ? Color.Green : Color.DarkOliveGreen;
+			DrawCircle(spot, 14, color);
+			DrawCircle(spot, 15, color);
+			DrawCircle(spot, 16, color);
+			string note = good ? "safest" : !safest.InRange ? "safest (none in range)" : "least bad";
+			DrawTextAt(spot + new Vector2(18, -6), $"{note}, {map.Total(safest.Cell)}; {boss.Path?.Split('/').LastOrDefault()}", color);
 		}
 
 		// the world position of a cell's top-left corner (GridToWorld gives the cell's middle)

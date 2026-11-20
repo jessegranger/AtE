@@ -334,6 +334,21 @@ namespace AtE {
 			// Metadata/Effects/SleepableServerBeamEffect (Beam, LimitedLifespan; .../CrowTunnel/crow_beam.ao) whose Beam
 			// runs from one portal to the other: the crows fly along it. A line (see PathHazards), 5 cells each side a guess
 			("CrowTunnel/crow_beam.ao", null, 5, DangerLayer.Now, 60),
+			// Augury empowerment "Cauldron Flip" (3.30, seen on Renkarr, paused): Monsters/Augury/Daemon/CauldronFlipDaemon
+			// (on the boss) places a Metadata/Monsters/Daemon/Augury/CauldronFlipObject (Animated, BaseEvents, Positioned,
+			// Render, StateMachine tier = 2, hit_count = 7), animated object .../League_Heist/cultist/cauldron_dump_portal.ao:
+			// a portal pouring a column of blood down (the user), 2.15 s old, 22 cells from the player. Render.Bounds
+			// 30 x 30 x 207 (a tall column about 3 cells across); 8 cells matched on screen (the user)
+			("Daemon/Augury/CauldronFlipObject", null, 8, DangerLayer.Now, 60),
+			// Augury empowerment "Corpse Fissure" (3.30, seen on Renkarr, paused): Monsters/Augury/Daemon/CorpseFissureDaemon
+			// (on the boss) cracks lines of Metadata/Monsters/Daemon/Augury/CorpseFissureDaemonFissureLine (and ...LineStart,
+			// ...LineEnd) segments, 6-8 cells apart, several lines from one start (Animated, BaseEvents, Positioned, Render,
+			// StateMachine emerge, explode, chain, end, corpse). A segment waits with explode 0, then bursts (explode 1): a
+			// client-only Metadata/Effects/Effect .../CorpseFissure/bloodpop.ao on it, seen 0.1-0.7 s old, two by two along
+			// the lines. Spent lines (explode 1, end 1) stay listed for 7 s and more. Segments are Soon until they burst (see
+			// HazardGoneStates), the bursts Now; radius 5 so the segments join into a line (sizes guesses)
+			("CorpseFissure/bloodpop.ao", null, 5, DangerLayer.Now, 60),
+			("Daemon/Augury/CorpseFissureDaemonFissureLine", null, 5, DangerLayer.Soon, 50),
 			// Kitava's bloody pools (physical damage over time) in his final fight (3.30, paused with 19 placed, 28-100 cells from
 			// the player): Metadata/Effects/Spells/ground_effects/VisibleServerGroundEffect (Animated, BaseEvents, Buffs,
 			// GroundEffect, Positioned, Render) with the buff ground_devouring_darkness, animated object
@@ -463,6 +478,8 @@ namespace AtE {
 			// the map boss's fireballs (see HazardPaths): seen up to 1.65 s old, still falling; 3 s is a guess at their
 			// fall, so a spent one does not linger if the game keeps listing it
 			["firestorm_mapboss/rig.ao"] = 3,
+			// the Corpse Fissure's bursts (see HazardPaths): seen up to 0.7 s old, a new pair every 0.1 s down the line
+			["CorpseFissure/bloodpop.ao"] = 1,
 		};
 
 		/// <summary>
@@ -472,6 +489,15 @@ namespace AtE {
 		public static readonly Dictionary<string, (string state, long value)> HazardNowStates = new Dictionary<string, (string, long)> {
 			// the Darktongue Matron's pustules: pop is 0 while they wait, 1 when they go off (from the user)
 			["LeagueAugury/CauldronCrone/CauldronCronePustule"] = ("pop", 1),
+		};
+
+		/// <summary>
+		/// HazardPaths entries (by their path part) that are no hazard at all while their StateMachine has a state at a
+		/// value: eg, a marker that is spent once it has gone off (its burst being an entry of its own).
+		/// </summary>
+		public static readonly Dictionary<string, (string state, long value)> HazardGoneStates = new Dictionary<string, (string, long)> {
+			// the Corpse Fissure's segments: explode is 0 while they wait, 1 once burst (the burst is bloodpop.ao)
+			["Daemon/Augury/CorpseFissureDaemonFissureLine"] = ("explode", 1),
 		};
 
 		// the animated object's clock (s), or NaN
@@ -491,6 +517,7 @@ namespace AtE {
 				foreach ( var (part, buff, radius, layer, weight) in HazardPaths ) {
 					if ( !(path.Contains(part) || (aoPath != null && aoPath.Contains(part))) || (buff != null && !HasBuff(e, buff)) ) continue;
 					if ( HazardMaxAgeSec.TryGetValue(part, out float maxAge) && !(AnimationAge(e) <= maxAge) ) break; // (gone; or no clock, taken as gone)
+					if ( HazardGoneStates.TryGetValue(part, out var gone) && (e.GetComponent<StateMachine>()?.TryGetState(gone.state, out long g) ?? false) && g == gone.value ) break;
 					var pos = e.GetComponent<Positioned>();
 					var at = layer;
 					if ( HazardNowStates.TryGetValue(part, out var now) && (e.GetComponent<StateMachine>()?.TryGetState(now.state, out long v) ?? false) && v == now.value ) at = DangerLayer.Now;

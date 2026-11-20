@@ -124,7 +124,23 @@ namespace AtE.Tests {
 			Assert.True(map.TryFindSafest(C(50, 50), null, out var best, out _));
 			Assert.True(map.IsSafe(best));
 			float d = Combat.Distance(best, C(50, 50));
-			Assert.InRange(d, 9, 11);
+			Assert.InRange(d, 9 + DangerMap.ClearRadius - 1, 11 + DangerMap.ClearRadius); // (just outside, and ClearRadius clear of it)
+		}
+
+		[Fact]
+		public void SafestIsNotWedgedBetweenTwoEdges() {
+			// two areas whose margins leave a thin safe gap at the start (50, 50); clear ground further along x
+			var map = Build(Field(100, 100), C(50, 50),
+				new Hazard(C(50, 40), 5) { Weight = 60, Source = "a" },
+				new Hazard(C(50, 60), 5) { Weight = 60, Source = "b" });
+			Assert.True(map.IsSafe(C(50, 50)));
+			Assert.True(map.TryFindSafest(C(50, 50), null, out var best, out _));
+			Assert.True(best.Id != C(50, 50).Id);
+			for ( int dy = -DangerMap.ClearRadius; dy <= DangerMap.ClearRadius; dy++ ) {
+				for ( int dx = -DangerMap.ClearRadius; dx <= DangerMap.ClearRadius; dx++ ) {
+					Assert.True(map.IsSafe(C(best.X + dx, best.Y + dy)), $"{best} has unsafe ground {dx},{dy} away");
+				}
+			}
 		}
 
 		[Fact]
