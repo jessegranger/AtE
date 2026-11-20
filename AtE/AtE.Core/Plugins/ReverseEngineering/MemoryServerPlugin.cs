@@ -356,6 +356,8 @@ namespace AtE {
 					return ProgressScan(q["key"]);
 				case "/stash":
 					return RunOnMain(StashText);
+				case "/mapdevice":
+					return RunOnMain(() => MapDeviceText(q["area"]));
 				case "/cursor":
 					return RunOnMain(CursorText);
 				case "/backpack":
@@ -471,7 +473,7 @@ namespace AtE {
 @"MemoryServer (read-only, loopback only)
   /status
   /offsets/run[?only=A6,A4.Life[&observers=1]] | /offsets/observe (observers only, no checks) | /offsets/stop | /offsets/report     the Offsets tests (Automation > Offset Tests): start, stop, the results with details
-  /mapping/test[?name=stash|pickmap|rollmap|openmap][&stop=1]   run one Mapping step test on its own (as its button does; chooses the Mapping routine); no name: what runs, or how the last ended; stop=1 stops it
+  /mapping/test[?name=stash|pickmap|rollmap|selectmap|openmap][&stop=1]   run one Mapping step test on its own (as its button does; chooses the Mapping routine); no name: what runs, or how the last ended; stop=1 stops it
   /offsets/routine?cmd=start|stop                   start or stop just the class routine testing mode runs after its checks (it is held when Hillock dies)
   /offsets/coverage[?format=unchecked]               which Offsets the checks cover (the ratchet against unchecked.txt); format=unchecked lists the gaps as an unchecked.txt
   /offsets/queue?ids=failed|clear|A2.Terrain,A4      queue checks for fixing (shown on screen as FIX)
@@ -489,6 +491,7 @@ namespace AtE {
   /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
   /progress[?key=U]             reads the campaign progress (parts, acts) from the closed AreaInstanceUI; only if that fails, PRESSES KEYS to open it (U) and close it; reports
   /stash                        the items on the visible stash page: the rect a click aims at (StashItem.GetClientRect), name, path
+  /mapdevice[?area=Silo]        the Atlas map device: MapLoader open or not, selected map, the map in its slot (name, rarity), Activate button rect
   /cursor                       the item held on the mouse cursor (server-side cursor inventory) and the backpack item count
   /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
   /items                        the worn, backpack and purchase window items: name, rarity, and each mod's stats (Stats.dat ids) with their values
@@ -741,6 +744,32 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			var sb = new StringBuilder();
 			foreach ( var row in rows )
 				sb.AppendLine(string.Join("  ", row.Select((cell, c) => numeric[c] ? cell.PadLeft(widths[c]) : cell.PadRight(widths[c]))).TrimEnd());
+			return sb.ToString();
+		}
+
+		/// <summary>The Atlas map device's MapLoader: open or not, the selected map, the map in its slot, and the Activate button.</summary>
+		private string MapDeviceText(string q_area) {
+			var device = GetUI()?.MapDevice;
+			if ( device == null ) return "map device: not readable" + NL;
+			var sb = new StringBuilder();
+			sb.AppendLine($"map device: open={device.IsOpen} (0x{device.Address.ToInt64():X})");
+			sb.AppendLine($"map loader: open={device.MapLoaderIsOpen} title={device.MapLoaderTitle}");
+			var map = device.LoadedMap;
+			var e = map?.Entity;
+			var mods = e?.GetComponent<Mods>();
+			sb.AppendLine(map == null ? "loaded map: none"
+				: $"loaded map: {Equipment.ItemName(e)} ({e?.Path}){(IsValid(mods) ? $" {mods.Rarity}{(mods.IsIdentified ? "" : " unidentified")}" : "")} rect={map.GetClientRect()}");
+			var nodes = device.AreaNodes.ToList();
+			sb.AppendLine($"atlas: {nodes.Count} area nodes");
+			string want = q_area ?? "Silo";
+			var node = device.FindAreaNode(want);
+			sb.AppendLine(node == null ? $"area node {want}: not found" : $"area node {want}: atlas child {device.Atlas.Children.ToList().FindIndex(c => c.Address == node.Address)} 0x{node.Address.ToInt64():X} rect={node.GetClientRect()}");
+			var button = device.MapLoaderActivateButton;
+			if ( button == null ) sb.AppendLine("activate button: not found");
+			else {
+				var r = button.GetClientRect();
+				sb.AppendLine($"activate button: visible={button.IsVisible} rect={r} click at {r.X + r.Width / 2:F0},{r.Y + r.Height / 2:F0}");
+			}
 			return sb.ToString();
 		}
 

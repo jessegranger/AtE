@@ -90,6 +90,7 @@ namespace AtE {
 			("stash", "Stash Everything", StashEverything, $"In the hideout: walk to the stash, open it, show the \"{DumpTab}\" tab, dump the backpack."),
 			("pickmap", "Pick Map", PickNextMap, $"With the stash open: show the \"{MapsTab}\" tab, show tier {MapTier} (ActivateMapTier), take a map into the backpack."),
 			("rollmap", "Roll Map", RollMap, $"With the stash and the inventory open and one map in the backpack: Orbs of Scouring and Alchemy from the \"{CurrencyTab}\" tab until it is a rare with no prohibited mods."),
+			("selectmap", "Select Map Area", SelectMapArea, $"With the Map Device open: show the Map Loader for \"{MapArea}\" (close one showing another area; drag the Atlas to its area node and click it)."),
 			("openmap", "Open Map", OpenMap, "With a map in the backpack: walk to the Map Device, open it, put the map in, Activate, wait for a new portal."),
 		];
 

@@ -627,6 +627,69 @@ namespace AtE {
 			*/
 		}
 
+		// 3.30.0d: an area node on the Atlas, a child of MapDevice.GetChild(0) (children 12-143 or so; 128 of them). Checked on child 71
+		// (Silo). The node's Size (Element.Size, 0x268) is 53 x 53 for a completed regular map (and for every unique map), 42.4 x 42.4
+		// otherwise: exactly the 8 maps the Atlas's counter (its child 202, "8/100") counted.
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_AreaNode {
+			[FieldOffset(0x350)] public readonly IntPtr ptrAreaNode; // ptr AtlasNode_Entry (a row of Data/AtlasNode.dat)
+			[FieldOffset(0x358)] public readonly IntPtr ptrAtlasNodeDat; // the Data/AtlasNode.dat file object (the same for every node)
+		}
+
+		/// <summary>
+		/// 3.30.0d: a row of Data/AtlasNode.dat, one per node on the Atlas. Rows are packed (0x83 bytes, unaligned), in an array whose
+		/// start, end and capacity are the three pointers at the file object's +0x28*: row i is at start + i * 0x83 (Silo is row 118,
+		/// Mesa 68, Volcano 44 at the time of writing; 271+ rows, not all of them on the Atlas). Fields decoded over the 128 rows that
+		/// had an area node, and checked against what the Atlas showed for Silo (tier 1, completed), Mesa (tier 4, reachable) and
+		/// Volcano (tier 5, locked).
+		/// A foreign key (a "row ref" below) is 16 bytes: a ptr to the row in the other file, then a ptr to that file's object (whose
+		/// +0x08 is its unicode name, eg "Data/WorldAreas.dat"). A list is a count (8 bytes) then a ptr to its entries.
+		/// </summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct AtlasNode_Entry {
+			[FieldOffset(0x00)] public readonly IntPtr strId; // unicode, eg "MapWorldsSilo"
+			// row ref into Data/WorldAreas.dat: WorldAreaDetails ("MapWorldsSilo", "Silo", act 11)
+			[FieldOffset(0x08)] public readonly IntPtr ptrWorldArea;
+			[FieldOffset(0x10)] public readonly IntPtr ptrWorldAreasDat;
+			// (0x18: one byte, 0 in the rows looked at)
+			// row ref into Data/FlavourText.dat (that row's +0x00 is its id, the same as strId here, eg "MapWorldsSilo")
+			[FieldOffset(0x19)] public readonly IntPtr ptrFlavourText;
+			[FieldOffset(0x21)] public readonly IntPtr ptrFlavourTextDat;
+			// list of the nodes this one is linked to on the Atlas: LinkCount ptrs, 8 bytes each (no file ptr: they are rows of this
+			// same file), eg Silo: Lava Lake, Colosseum; Volcano: Core, Arcade, Basilica. The links are symmetric (none of the 128
+			// nodes' links was one way). A node is reachable (unlocked) when it is linked to a completed node: that gave Mesa,
+			// Arcade and Mausoleum reachable and Volcano locked, as the Atlas showed them.
+			[FieldOffset(0x29)] public readonly long LinkCount;
+			[FieldOffset(0x31)] public readonly IntPtr ptrLinks; // ptr to IntPtr[LinkCount], each an AtlasNode_Entry
+			// the node's place on the Atlas, in Atlas units (eg Silo 565.08, 461.06); the next three floats are unknown (Silo 103.65, 6.29, -12.85)
+			[FieldOffset(0x39)] public readonly float X;
+			[FieldOffset(0x3D)] public readonly float Y;
+			[FieldOffset(0x41)] public readonly float Unknown41;
+			[FieldOffset(0x45)] public readonly float Unknown45;
+			[FieldOffset(0x49)] public readonly float Unknown49;
+			// unicode: a unique map's own art (eg "Art/2DItems/Maps/Atlas2Maps/New/UniqueMaps/Vault..."), "" for a regular map
+			[FieldOffset(0x4D)] public readonly IntPtr strUniqueArt;
+			// set on 4 rows only: Pit, Silo, Malformation, Marshes, the four tier 1 maps (maybe the Atlas's starting nodes)
+			[FieldOffset(0x55)] public readonly byte IsStartingNode;
+			// (0x56: one byte, 0 in every row)
+			// the divination cards that drop in this map: DivinationCardCount row refs (16 bytes each: row, file) into
+			// Data/BaseItemTypes.dat. A BaseItemTypes row: +0x00 unicode id ("Metadata/Items/DivinationCards/..."), +0x18 width and
+			// height (ints, 1 and 1), +0x20 unicode name ("The Polymath"). Most rows have 4; a few 0, 1, 3, 6 or 7.
+			[FieldOffset(0x57)] public readonly long DivinationCardCount;
+			[FieldOffset(0x5F)] public readonly IntPtr ptrDivinationCards; // ptr to DatRowRef[DivinationCardCount]
+			// a second list of the same kind, with the same count and the same cards in every row looked at
+			[FieldOffset(0x67)] public readonly long DivinationCardCount2;
+			[FieldOffset(0x6F)] public readonly IntPtr ptrDivinationCards2; // ptr to DatRowRef[DivinationCardCount2]
+			// the map's tier, 1-16 (Silo 1, Mesa 4, Volcano 5); 0 for a unique map
+			[FieldOffset(0x77)] public readonly int Tier;
+			// (0x7B: 8 bytes, unknown; the last 3 or 4 the same in every row)
+		}
+		public const int AtlasNode_EntrySize = 0x83;
+
+		/// <summary>A foreign key in a .dat row: a ptr to the row in the other file, then a ptr to that file's object.</summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct DatRowRef {
+			[FieldOffset(0x00)] public readonly IntPtr ptrRow;
+			[FieldOffset(0x08)] public readonly IntPtr ptrFile;
+		}
+
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Camera {
 			[FieldOffset(0x0)] public readonly Matrix4x4 Matrix;
 			//  4x4 floats = 16 floats 64 (0x40) bytes

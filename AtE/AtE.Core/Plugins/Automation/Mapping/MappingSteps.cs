@@ -15,6 +15,7 @@ namespace AtE {
 	///   PickNextMap      (stash open) show the MapsTab, ActivateMapTier(MapTier), Ctrl + click a map into the backpack
 	///   RollMap          (stash open, map in the backpack) Scouring / Alchemy from the CurrencyTab (stash and inventory open, one map) until it is
 	///                    a rare with none of ProhibitedMods
+	///   SelectMapArea    with the Map Device open: drag the Atlas to MapArea's area node and click it (shows its Map Loader)
 	///   OpenMap          walk to the Map Device, open it, put the map in, Activate, wait for a new portal
 	///   EnterPortal      walk to that portal, click it, wait for the new area to finish loading
 	/// Each step decides what to do when it is reached, not when it is built (the backpack and stash change on the way), and
@@ -41,6 +42,8 @@ namespace AtE {
 		public string ProhibitedMods = "";
 		/// <summary>RollMap gives up after using this many currency items on one map.</summary>
 		public int MaxRolls = 20;
+		/// <summary>The area to run, by its name on the Atlas (eg "Silo"): SelectMapArea clicks its area node.</summary>
+		public string MapArea = "Silo";
 		/// <summary>How near (cells) to walk to the stash, the Map Device and a portal before clicking it.</summary>
 		public float ClickReach = 12;
 
@@ -272,6 +275,74 @@ namespace AtE {
 				: StashIsOpen() ? CloseWindow("the stash", s)
 				: walk, walk));
 		}
+
+		/// <summary>
+		/// With the Map Device open: show the MapLoader for MapArea, then next. If the MapLoader is showing another area, close
+		/// it (Escape) first. If it isn't showing, drag the Atlas (from an empty spot near the middle) until MapArea's area node is
+		/// near the middle of the screen, then click the node. Never drags while the MapLoader is showing. Stops (null) if the
+		/// Map Device isn't open, there is no node for MapArea, after MaxAtlasDrags drags, or if the click doesn't show it.
+		/// </summary>
+		public IState SelectMapArea(IState next) => ForceGameFocus(SelectAreaStep(MapArea, 0, next));
+
+		private const int MaxAtlasDrags = 15;
+		// how near (as a part of the screen's height) the node must be to the middle to be clicked
+		private const float AtlasCenteredPart = 0.12f;
+
+		private IState SelectAreaStep(string area, int drags, IState next) => new Step($"Select {area} on the Atlas", (s, ctx, dt) => {
+			var device = GetUI()?.MapDevice;
+			if ( !MapDeviceIsOpen() || device == null ) return Fail($"select {area}: the Map Device is not open");
+			if ( device.MapLoaderIsOpen ) {
+				string title = device.MapLoaderTitle;
+				if ( string.Equals(title, area, StringComparison.OrdinalIgnoreCase) ) { Log($"{Name}: the Map Loader shows {area}"); return next; }
+				Log($"{Name}: the Map Loader shows {title}, not {area}: closing it");
+				Inputs.LastEscapeMs = Time.ElapsedMilliseconds;
+				return Inputs.Press(VKey.Escape, WaitUntil("the Map Loader to close", 2000, () => !(GetUI()?.MapDevice?.MapLoaderIsOpen ?? false),
+					SelectAreaStep(area, drags, next), "the Map Loader did not close"));
+			}
+			var node = device.FindAreaNode(area);
+			if ( node == null ) return Fail($"select {area}: no area node named \"{area}\" on the Atlas");
+			var screen = device.GetClientRect();
+			var center = new Vector2(screen.X + screen.Width / 2, screen.Y + screen.Height / 2);
+			var r = node.GetClientRect();
+			var at = new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
+			if ( Vector2.Distance(at, center) <= screen.Height * AtlasCenteredPart ) {
+				Log($"{Name}: clicking the {area} area node at {at.X:F0},{at.Y:F0}");
+				return Inputs.MoveTo(at, new Delay(150, Inputs.Click(at, WaitUntil($"the Map Loader for {area}", 2000,
+					() => GetUI()?.MapDevice is MapDevice d && d.MapLoaderIsOpen && string.Equals(d.MapLoaderTitle, area, StringComparison.OrdinalIgnoreCase),
+					next, $"clicking the {area} area node did not show its Map Loader"))));
+			}
+			if ( drags >= MaxAtlasDrags ) return Fail($"select {area}: still not near the middle after {drags} drags (at {at.X:F0},{at.Y:F0})");
+			if ( !FindEmptyAtlasSpot(device, center, screen.Height, out var from) ) return Fail($"select {area}: no empty spot on the Atlas to drag it by");
+			var delta = center - at;
+			float most = screen.Height * 0.35f;
+			if ( delta.Length() > most ) delta = Vector2.Normalize(delta) * most;
+			Log($"{Name}: dragging the Atlas by {delta.X:F0},{delta.Y:F0} (the {area} node is at {at.X:F0},{at.Y:F0}; drag {drags + 1} of {MaxAtlasDrags})");
+			return Drag(from, from + delta, new Delay(250, SelectAreaStep(area, drags + 1, next)));
+		}, next);
+
+		// a spot near the middle of the screen with no area node near it, so pressing there doesn't click one
+		private static bool FindEmptyAtlasSpot(MapDevice device, Vector2 center, float height, out Vector2 spot) {
+			var nodes = device.AreaNodes.Select(p => p.node.GetClientRect()).Select(r => new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2))
+				.Where(p => Vector2.Distance(p, center) < height * 0.4f).ToList();
+			float clearance = 40f;
+			for ( float rad = 0; rad < height * 0.25f; rad += clearance / 2 ) {
+				for ( int i = 0; i < 16; i++ ) {
+					double a = i * Math.PI / 8;
+					var s = center + new Vector2((float)Math.Cos(a) * rad, (float)Math.Sin(a) * rad);
+					if ( nodes.All(p => Vector2.Distance(p, s) > clearance) ) { spot = s; return true; }
+					if ( rad == 0 ) break;
+				}
+			}
+			spot = default;
+			return false;
+		}
+
+		// drag with the left button: press at from, a few moves, let go at to, then next
+		private static IState Drag(Vector2 from, Vector2 to, IState next) =>
+			Inputs.MoveTo(from, new Delay(60, new LeftMouseDown(new Delay(60,
+				Inputs.MoveTo(Vector2.Lerp(from, to, 0.33f), new Delay(50,
+				Inputs.MoveTo(Vector2.Lerp(from, to, 0.66f), new Delay(50,
+				Inputs.MoveTo(to, new Delay(80, new LeftMouseUp(new Delay(Inputs.Latency, next))))))))))));
 
 		/// <summary>Walk to the nearest portal the map device opened (closing its window first), click it (again every 2s), and go on to next once the new area has loaded.</summary>
 		public IState EnterPortal(IState next) {
@@ -529,6 +600,7 @@ namespace AtE {
 			ImGui.InputText("Dump Tab", ref DumpTab, 64);
 			ImGui.InputText("Maps Tab", ref MapsTab, 64);
 			ImGui.InputText("Currency Tab", ref CurrencyTab, 64);
+			ImGui.InputText("Map Area", ref MapArea, 64);
 			ImGui.SameLine();
 			ImGui_HelpMarker("The stash tabs, by name: everything is dumped in the Dump Tab, maps are taken from the Maps Tab (a Map stash tab), and the Orbs of Scouring and Alchemy that roll them come from the Currency Tab.");
 			ImGui.SliderInt("Map Tier", ref MapTier, 1, 18);

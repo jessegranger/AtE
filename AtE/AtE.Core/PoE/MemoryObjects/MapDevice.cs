@@ -35,6 +35,69 @@ namespace AtE {
 			}
 		}
 
+		// The hideout's Atlas map device (3.30.0d, seen live with a rare Map (Tier 1) loaded, "Silo" selected on the Atlas):
+		//   child 2          the title ("Atlas")
+		//   child 7          the MapLoader. Its visible flag is the one to trust: the game hides the loader (with a map still
+		//                    loaded in it) and then only its own flag reads false; its children's flags stay true.
+		//   child 7.0.1.0.0  the selected map's name ("Silo")
+		//   child 7.0.2.0    the map's slot (the round one, above the row): child 0 its background, child 1 the map (an InventoryItem)
+		//   child 7.0.2.1-5  more slots, hidden
+		//   child 7.0.3      the Activate button (its child 0 reads "activate", the only text that does)
+
+		/// <summary>The Atlas: the big panel of area nodes, dragged around like the passive tree. Its children 12-143 or so are area nodes.</summary>
+		public Element Atlas => GetChild(0);
+
+		private static readonly int AreaNodeOffset = (int)System.Runtime.InteropServices.Marshal.OffsetOf<Offsets.Element_AreaNode>(nameof(Offsets.Element_AreaNode.ptrAreaNode));
+
+		/// <summary>The name of the area (eg "Silo") an Atlas child is the node of (Offsets.Element_AreaNode), or null if it isn't one.</summary>
+		public static string AreaNodeName(Element e) {
+			if ( !IsValid(e) ) return null;
+			// (read the one field, not the whole 0x358 byte element, for each of the Atlas's ~200 children)
+			if ( !PoEMemory.TryRead(e.Address + AreaNodeOffset, out IntPtr ptrAreaNode) || !IsValid(ptrAreaNode) ) return null;
+			if ( !PoEMemory.TryRead(ptrAreaNode, out Offsets.AtlasNode_Entry entry) || !IsValid(entry.ptrWorldArea) ) return null;
+			if ( !PoEMemory.TryRead(entry.ptrWorldArea, out Offsets.WorldAreaDetails area) ) return null;
+			// (another kind of child can hold anything at 0x350: an area's id is "Map..." , eg "MapWorldsSilo")
+			if ( !PoEMemory.TryReadString(area.strRawName, System.Text.Encoding.Unicode, out string id, 128) || id == null || !id.StartsWith("Map") ) return null;
+			return PoEMemory.TryReadString(area.strName, System.Text.Encoding.Unicode, out string name, 128) ? name : null;
+		}
+
+		/// <summary>The Atlas's area nodes, with their area names.</summary>
+		public IEnumerable<(Element node, string name)> AreaNodes =>
+			(Atlas?.Children ?? Enumerable.Empty<Element>()).Select(c => (node: c, name: AreaNodeName(c))).Where(p => p.name != null);
+
+		/// <summary>The Atlas's node for the area named name (eg "Silo"), or null.</summary>
+		public Element FindAreaNode(string name) =>
+			AreaNodes.FirstOrDefault(p => string.Equals(p.name, name, StringComparison.OrdinalIgnoreCase)).node;
+
+		/// <summary>The Atlas map device's MapLoader (the panel with the map slot and Activate button), or null.</summary>
+		public Element MapLoader => GetChild(7);
+
+		/// <summary>The MapLoader panel is on the screen (by its own flag: its children's stay true while it is hidden).</summary>
+		public bool MapLoaderIsOpen => IsOpen && MapLoader is Element loader && loader.IsVisibleLocal;
+
+		/// <summary>The name of the map selected on the Atlas, shown at the top of the MapLoader (eg "Silo"), or null.</summary>
+		public string MapLoaderTitle => GetChild(7, 0, 1, 0, 0)?.Text?.Trim();
+
+		/// <summary>The map in the MapLoader's map slot, or null if it is empty.</summary>
+		public InventoryItem LoadedMap {
+			get {
+				var slot = GetChild(7, 0, 2, 0);
+				if ( !IsValid(slot) ) return null;
+				return slot.Children
+					.Where(c => IsValid(c))
+					.Select(c => new InventoryItem(c.Address))
+					.FirstOrDefault(i => IsValid(i));
+			}
+		}
+
+		/// <summary>The MapLoader's Activate button, or null (also if its label doesn't read "activate").</summary>
+		public Element MapLoaderActivateButton {
+			get {
+				var button = GetChild(7, 0, 3);
+				return string.Equals(button?.GetChild(0)?.Text?.Trim(), "activate", StringComparison.OrdinalIgnoreCase) ? button : null;
+			}
+		}
+
 		/// <summary>Time after a click for the game to show what it did.</summary>
 		public static uint Settle => InventoryPlans.Settle;
 
