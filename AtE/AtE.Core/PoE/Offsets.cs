@@ -565,6 +565,11 @@ namespace AtE {
 		// 3.29.4: moved 0x10 -> 0x08. The Movement and Clear cells' icons are no longer named ("SkillMoveOnly", "SkillClear"): they are rectangles of one atlas,
 		// "Art/Textures/Interface/2D/2DArt/UIImages/InGame/16.dds|1be,5b7,1fe,5f7|0" (Movement) and "...16.dds|2ff,1d8,35f,238|0" (Clear), see SkillBar.MoveIconSprite
 		public static readonly int SkillCellIcon_Name = 0x08;
+		/// <summary>ptr SpriteDetails, of the icon element drawn at the mouse (UIElements.Mouse's child 0).</summary>
+		// 3.30.0d: right clicking an Orb of Alchemy in the stash ("currency use mode") gives Mouse a child (with a child of its own) whose
+		// sprite here reads "Art/2DItems/Currency/CurrencyUpgradeToRare.dds|0,0,0,0|0"; cancelling it removes the child (seen twice).
+		// The used item stays where it was: the server-side cursor inventory stays empty. InGameState+0x7F8 (a byte) also read 1 vs 0.
+		public static readonly int Element_MouseIcon_Sprite = 0x2D0;
 		/// <summary>int, the Windows virtual key code (1 = left mouse, 0x51 = Q, ...) on a skill slot's key label; the modifier is not here.</summary>
 		public static readonly int Element_SkillKeyLabel_VKey = 0x2c8;
 

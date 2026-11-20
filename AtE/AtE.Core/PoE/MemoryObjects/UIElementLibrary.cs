@@ -25,6 +25,22 @@ namespace AtE {
 		public Element OpenMenuPopoutButton => IsValid(Address) ? getElement(Cache.OpenMenuPopoutButton) : null;
 		public Element CurrentTime => IsValid(Address) ? getElement(Cache.CurrentTime) : null;
 		public Element Mouse => IsValid(Address) ? getElement(Cache.Mouse) : null;
+		/// <summary>
+		/// The sprite of the icon drawn at the mouse, eg "Art/2DItems/Currency/CurrencyUpgradeToRare.dds|0,0,0,0|0" while an Orb of
+		/// Alchemy is being used (right clicked, not yet applied); "" when Mouse has no icon; null if not readable.
+		/// </summary>
+		public string MouseIconSprite {
+			get {
+				var mouse = Mouse;
+				if ( mouse == null ) return null;
+				var icon = mouse.GetChild(0);
+				if ( icon == null ) return mouse.Children.Any() ? null : "";
+				return PoEMemory.TryRead(icon.Address + Offsets.Element_MouseIcon_Sprite, out IntPtr sprite)
+					&& PoEMemory.TryRead(sprite, out Offsets.SpriteDetails details)
+					&& PoEMemory.TryReadString(details.strSpriteFile, Encoding.Unicode, out string file)
+					? file : null;
+			}
+		}
 		/// <summary>The "Skip All Tutorials" button, shown to a new character.</summary>
 		public Element SkipAllTutorials => IsValid(Address) ? getElement(Cache.SkipAllTutorials) : null;
 		public Element SkillBar => IsValid(Address) ? getElement(Cache.SkillBar) : null;

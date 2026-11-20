@@ -751,7 +751,8 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			var ent = igs.CursorItem;
 			string path = ent == IntPtr.Zero ? "" : new Entity() { Address = ent }.Path;
 			return $"cursor: {igs.ServerInventoryCount(Offsets.InventorySlot.Cursor)} item(s) entity=0x{ent.ToInt64():X} {path}" + NL
-				+ $"backpack: {igs.ServerInventoryCount(Offsets.InventorySlot.MainInventory)} item(s)" + NL;
+				+ $"backpack: {igs.ServerInventoryCount(Offsets.InventorySlot.MainInventory)} item(s)" + NL
+				+ $"mouse icon (currency use mode): {GetUI()?.MouseIconSprite ?? "(not readable)"}" + NL;
 		}
 
 		private string Backpack() {

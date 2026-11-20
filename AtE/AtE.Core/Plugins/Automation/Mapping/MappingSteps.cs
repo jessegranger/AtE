@@ -97,8 +97,11 @@ namespace AtE {
 		/// <summary>
 		/// With the stash open: show the CurrencyTab, right click the currency named name (its item name, eg "Orb of Scouring"),
 		/// left click target (where it is when clicked), then next.
-		/// After the right click it confirms that name is on the cursor (looking every CursorLookMs, for CursorWaitMs at most);
-		/// if nothing is, it right clicks again (PickUpTries times at most); if something else is, it stops (null).
+		/// A right click puts the game in "currency use mode" (the currency stays in the stash; its icon is drawn at the mouse,
+		/// UIElementLibrary.MouseIconSprite). After the right click it confirms that name's icon is at the mouse (looking every
+		/// CursorLookMs, for CursorWaitMs at most); if no icon shows, it right clicks again (PickUpTries times at most); if another
+		/// currency's icon shows, or an item is held on the cursor, it stops (null). It never right clicks while name is already
+		/// in use (a second right click turns use mode off).
 		/// </summary>
 		public IState UseCurrencyFromStash(string name, InventoryItem target, IState next) {
 			var tab = Tab(CurrencyTab, PickUpCurrency(name, target, 1, next));
@@ -119,43 +122,63 @@ namespace AtE {
 			return IsValid(ent) ? Equipment.ItemName(new Entity() { Address = ent }) ?? "?" : "?";
 		}
 
+		/// <summary>The file name (without folder or extension) of the icon at the mouse, eg "CurrencyUpgradeToRare" in Orb of Alchemy
+		/// use mode; "" if there is none; null if not readable.</summary>
+		private static string MouseIconName() {
+			string sprite = GetUI()?.MouseIconSprite;
+			if ( sprite == null || sprite == "" ) return sprite;
+			string file = sprite.Split('|')[0];
+			file = file.Substring(file.LastIndexOf('/') + 1);
+			int dot = file.LastIndexOf('.');
+			return dot > 0 ? file.Substring(0, dot) : file;
+		}
+
+		/// <summary>The last part of an item's path, eg "CurrencyUpgradeToRare": the name of its icon too.</summary>
+		private static string PathName(Entity e) {
+			string path = e?.Path ?? "";
+			return path.Substring(path.LastIndexOf('/') + 1);
+		}
+
 		private static bool IsNamed(string itemName, string name) => string.Equals(itemName, name, StringComparison.OrdinalIgnoreCase);
 
-		/// <summary>Right click the currency named name in the stash, confirm it is on the cursor, then left click target.</summary>
+		/// <summary>Right click the currency named name in the stash, confirm it is in use, then left click target.</summary>
 		private IState PickUpCurrency(string name, InventoryItem target, int attempt, IState next) =>
 			new Step($"Right click {name}", (s, ctx, dt) => {
 				if ( !StashIsOpen() ) return Fail($"use {name}: the stash is not open");
 				if ( !BackpackIsOpen() ) return Fail($"use {name}: the inventory is not open");
 				if ( !IsValid(target) ) return Fail($"use {name}: the item to use it on is gone");
-				string held = CursorItemName();
-				if ( held == null ) return Fail($"use {name}: can't read the item on the cursor");
-				if ( held != "" ) return IsNamed(held, name)
-					? ClickTarget(name, target, next) // already held (picked up before)
-					: Fail($"use {name}: {held} is on the cursor instead");
 				var currency = StashItems().FirstOrDefault(i => i?.Entity is Entity e && IsNamed(Equipment.ItemName(e), name));
 				if ( currency == null ) return Fail($"no {name} on the \"{CurrencyTab}\" tab");
+				string icon = PathName(currency.Entity);
+				string held = CursorItemName(), inUse = MouseIconName();
+				if ( held == null || inUse == null ) return Fail($"use {name}: can't read the cursor");
+				if ( held != "" ) return Fail($"use {name}: {held} is held on the cursor");
+				if ( inUse != "" ) return IsNamed(inUse, icon)
+					? ClickTarget(name, target, next) // already in use: a right click would turn it off
+					: Fail($"use {name}: another currency is in use ({inUse})");
 				var rect = currency.GetClientRect();
 				Log($"{Name}: right clicking {name} at {rect.X + rect.Width / 2:F0},{rect.Y + rect.Height / 2:F0} (try {attempt} of {PickUpTries})");
-				return Inputs.RightClick(rect, ConfirmOnCursor(name, target, attempt, next));
+				return Inputs.RightClick(rect, ConfirmInUse(name, icon, target, attempt, next));
 			}, next);
 
-		/// <summary>Look at the cursor now and every CursorLookMs: name there goes on to the left click; nothing there for
+		/// <summary>Look at the mouse now and every CursorLookMs: name's icon there goes on to the left click; no icon for
 		/// CursorWaitMs goes back to the right click; anything else stops.</summary>
-		private IState ConfirmOnCursor(string name, InventoryItem target, int attempt, IState next) {
+		private IState ConfirmInUse(string name, string icon, InventoryItem target, int attempt, IState next) {
 			long lookAt = 0;
-			return new Step($"Confirm {name} on the cursor", (s, ctx, dt) => {
+			return new Step($"Confirm {name} is in use", (s, ctx, dt) => {
 				if ( s.Elapsed < lookAt ) return s;
 				lookAt += CursorLookMs;
-				string held = CursorItemName();
-				if ( held == null ) return Fail($"use {name}: can't read the item on the cursor");
-				if ( held != "" ) {
-					if ( !IsNamed(held, name) ) return Fail($"use {name}: {held} is on the cursor instead");
-					Log($"{Name}: {name} is on the cursor ({s.Elapsed} ms after the right click)");
+				string held = CursorItemName(), inUse = MouseIconName();
+				if ( held == null || inUse == null ) return Fail($"use {name}: can't read the cursor");
+				if ( held != "" ) return Fail($"use {name}: {held} is held on the cursor");
+				if ( inUse != "" ) {
+					if ( !IsNamed(inUse, icon) ) return Fail($"use {name}: another currency is in use ({inUse})");
+					Log($"{Name}: {name} is in use ({s.Elapsed} ms after the right click)");
 					return ClickTarget(name, target, next);
 				}
 				if ( s.Elapsed < CursorWaitMs ) return s;
-				if ( attempt >= PickUpTries ) return Fail($"use {name}: still nothing on the cursor after {PickUpTries} right clicks");
-				Log($"{Name}: nothing on the cursor {CursorWaitMs} ms after right clicking {name}, trying again");
+				if ( attempt >= PickUpTries ) return Fail($"use {name}: still not in use after {PickUpTries} right clicks");
+				Log($"{Name}: {name} not in use {CursorWaitMs} ms after right clicking it, trying again");
 				return PickUpCurrency(name, target, attempt + 1, next);
 			}, next);
 		}
