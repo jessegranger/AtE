@@ -178,8 +178,17 @@ namespace AtE {
 		public override int X => 0;
 		public override int Y => 0;
 		// with a StashItem, the Parent is in the real Position
-		// 3.24: no longer true
-		// public override RectangleF GetClientRect() => Parent.GetClientRect();
+		// 3.24: no longer true (in a grid tab: the parent is the whole grid)
+		// 3.30.0d: true again in a tab of fixed slots (eg, a Currency tab): the item sits in its slot element (.N, one cell,
+		// placed where it is drawn), and its own position is a grid position on top of that, so its rect lands whole cells
+		// to the right (Orb of Alchemy 5 cells, Orb of Scouring 10: seen live, the slots' rects are where they are drawn).
+		// So: the parent's rect, when the parent is a slot of the item's own size; else its own.
+		public override RectangleF GetClientRect() {
+			var own = base.GetClientRect();
+			var slot = Parent?.GetClientRect() ?? RectangleF.Empty;
+			bool inSlot = slot.Width > 0 && Math.Abs(slot.Width - own.Width) < 1f && Math.Abs(slot.Height - own.Height) < 1f;
+			return inSlot ? slot : own;
+		}
 		// and the item count is held in a Child element
 		public int Count => int.Parse(GetChild(0)?.Text ?? "1");
 	}

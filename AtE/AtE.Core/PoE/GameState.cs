@@ -187,6 +187,40 @@ namespace AtE {
 			? new ArrayHandle<ushort>(passives.AllocatedPassives).ToArray(limit: 1000)
 			: Array.Empty<ushort>();
 
+		private static readonly int PlayerInventoriesOffset = (int)Marshal.OffsetOf<Offsets.ServerData>(nameof(Offsets.ServerData.PlayerInventories));
+
+		/// <summary>The server-side inventory with this InventorySlot id (Offsets.InventorySlot), or IntPtr.Zero.</summary>
+		public IntPtr GetServerInventory(int slotId) {
+			if ( !IsValid(Address) ) return IntPtr.Zero;
+			// read only the vector, not the whole (0xCE80 byte) ServerData
+			if ( !PoEMemory.TryRead(Data.Value.ServerData + PlayerInventoriesOffset, out Offsets.ArrayHandle list) ) return IntPtr.Zero;
+			int size = Marshal.SizeOf<Offsets.ServerData_PlayerInventory>();
+			int n = list.ItemCount(size);
+			if ( n <= 0 || n > 512 ) return IntPtr.Zero;
+			var entries = new Offsets.ServerData_PlayerInventory[n];
+			if ( PoEMemory.TryRead(list.Head, entries) != n * size ) return IntPtr.Zero;
+			foreach ( var e in entries ) if ( e.Id == slotId ) return e.ptrInventory;
+			return IntPtr.Zero;
+		}
+
+		/// <summary>The number of items in the server-side inventory with this InventorySlot id, or -1 if not readable.</summary>
+		public int ServerInventoryCount(int slotId) =>
+			PoEMemory.TryRead(GetServerInventory(slotId), out Offsets.ServerInventory inv) && inv.ItemCount >= 0 && inv.ItemCount < 10000 ? (int)inv.ItemCount : -1;
+
+		/// <summary>True while an item is held on the mouse cursor (false if none, or not readable).</summary>
+		public bool HasCursorItem => ServerInventoryCount(Offsets.InventorySlot.Cursor) > 0;
+
+		/// <summary>The entity of the item held on the mouse cursor, or IntPtr.Zero.</summary>
+		public IntPtr CursorItem {
+			get {
+				if ( !PoEMemory.TryRead(GetServerInventory(Offsets.InventorySlot.Cursor), out Offsets.ServerInventory inv) || inv.ItemCount != 1 ) return IntPtr.Zero;
+				return PoEMemory.TryRead(inv.ptrItemsHead + 0x08, out IntPtr node) // the head's parent: the root, the only node
+					&& PoEMemory.TryRead(node + 0x28, out IntPtr item)
+					&& PoEMemory.TryRead(item, out Offsets.ServerInventoryItem slot)
+					? slot.entItem : IntPtr.Zero;
+			}
+		}
+
 		private readonly Terrain terrain = new Terrain();
 		/// <summary>
 		/// The walkable (and projectile) grids for the current area, or null while they are not readable.

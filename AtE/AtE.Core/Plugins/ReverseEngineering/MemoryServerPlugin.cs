@@ -354,6 +354,10 @@ namespace AtE {
 					return RunOnMain(RoutineText);
 				case "/progress":
 					return ProgressScan(q["key"]);
+				case "/stash":
+					return RunOnMain(StashText);
+				case "/cursor":
+					return RunOnMain(CursorText);
 				case "/backpack":
 					return RunOnMain(Backpack);
 				case "/items":
@@ -484,6 +488,8 @@ namespace AtE {
   /gamekeys                     the game's key bindings from its Options panel (GameKeys; read from its tree now, if not yet), and the inventory key chosen
   /routine                      the chosen combat routine's objectives: complete or not, and what IsDone says now
   /progress[?key=U]             reads the campaign progress (parts, acts) from the closed AreaInstanceUI; only if that fails, PRESSES KEYS to open it (U) and close it; reports
+  /stash                        the items on the visible stash page: the rect a click aims at (StashItem.GetClientRect), name, path
+  /cursor                       the item held on the mouse cursor (server-side cursor inventory) and the backpack item count
   /backpack                     the items in the backpack (open or not): element and entity addresses, path, components
   /items                        the worn, backpack and purchase window items: name, rarity, and each mod's stats (Stats.dat ids) with their values
   /log?n=100&filter=            the overlay's last log lines (the last n, matching filter)
@@ -712,6 +718,40 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 				sb.AppendLine($"  {new string(' ', depth * 2)}{mark} {goal.Name}{(goal.Where == null ? "" : $" @ {goal.Where}")}  proves={goal.Proves ?? goal.ProvesEarlier} {goal.Detail}");
 			}
 			return sb.ToString();
+		}
+
+		/// <summary>The items on the visible stash page, with the screen rect a click on each aims at (StashItem.GetClientRect).</summary>
+		private string StashText() {
+			if ( !StashIsOpen() ) return "stash: closed" + NL;
+			var rows = new List<string[]> { new[] { "name", "count", "x", "y", "w", "h", "path", "element" } };
+			foreach ( var item in StashItems() ) {
+				var e = item.Entity;
+				var r = item.GetClientRect();
+				var stack = e?.GetComponent<Stack>();
+				rows.Add(new[] {
+					e == null ? "?" : Equipment.ItemName(e) ?? "?",
+					IsValid(stack) ? stack.CurSize.ToString() : "1",
+					r.X.ToString("0.##"), r.Y.ToString("0.##"), r.Width.ToString("0.##"), r.Height.ToString("0.##"),
+					e?.Path ?? "", $"0x{item.Address.ToInt64():X}",
+				});
+			}
+			if ( rows.Count == 1 ) return "stash: open, no items showing" + NL;
+			var widths = Enumerable.Range(0, rows[0].Length).Select(c => rows.Max(row => row[c].Length)).ToArray();
+			bool[] numeric = { false, true, true, true, true, true, false, false };
+			var sb = new StringBuilder();
+			foreach ( var row in rows )
+				sb.AppendLine(string.Join("  ", row.Select((cell, c) => numeric[c] ? cell.PadLeft(widths[c]) : cell.PadRight(widths[c]))).TrimEnd());
+			return sb.ToString();
+		}
+
+		/// <summary>The item held on the mouse cursor (ServerData.PlayerInventories, slot 13) and the backpack's server-side item count.</summary>
+		private string CursorText() {
+			var igs = PoEMemory.GameRoot?.InGameState;
+			if ( igs == null ) return "error: not in game" + NL;
+			var ent = igs.CursorItem;
+			string path = ent == IntPtr.Zero ? "" : new Entity() { Address = ent }.Path;
+			return $"cursor: {igs.ServerInventoryCount(Offsets.InventorySlot.Cursor)} item(s) entity=0x{ent.ToInt64():X} {path}" + NL
+				+ $"backpack: {igs.ServerInventoryCount(Offsets.InventorySlot.MainInventory)} item(s)" + NL;
 		}
 
 		private string Backpack() {

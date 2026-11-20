@@ -794,6 +794,27 @@ namespace AtE {
 			// 3.29.4: moved 0xC2E0 -> 0xC758, and AllocatedPassives 0x180 -> 0x190. Found with one passive allocated: the only array handle of exactly one ushort (id 57264) among
 			// everything ServerData points at. 0xC760 holds a second pointer, 0x10 *before* this one (the old second pointer was 0x10 after), whose handle at +0x1A0 is the same array.
 			[FieldOffset(0xC758)] public readonly IntPtr ptrPassives; // ptr ServerData_Passives
+			// 3.30.0d: of ServerData_PlayerInventory (0x18 each, ~123 of them), one per InventorySlot id: 1 the backpack (12 x 5), 12 the flasks,
+			// 13 the cursor. Found with a T1 map held on the cursor: the held entity's only owning record led here; the cursor inventory's
+			// ItemCount read 1 while holding and 0 after putting the map down (the backpack's went 2 -> 3).
+			[FieldOffset(0xCE70)] public readonly ArrayHandle PlayerInventories;
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ServerData_PlayerInventory {
+			[FieldOffset(0x00)] public readonly int Id; // InventorySlot: 1 MainInventory, ..., 12 Flask, 13 Cursor
+			[FieldOffset(0x08)] public readonly IntPtr ptrInventory; // ptr ServerInventory (a shared_ptr: this, then its ref count block)
+			[FieldOffset(0x10)] public readonly IntPtr ptrRefCount;
+		}
+		public static class InventorySlot { public const int MainInventory = 1, Flask = 12, Cursor = 13; }
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ServerInventory {
+			// 3.30.0d: a std::map of the items (head node, then count). Each node holds the item at +0x28 (ServerInventoryItem, a shared_ptr
+			// again: the object, then its ref count block at +0x30). With one item, the head's parent (+0x08) is that item's node.
+			[FieldOffset(0x188)] public readonly IntPtr ptrItemsHead;
+			[FieldOffset(0x190)] public readonly long ItemCount;
+		}
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ServerInventoryItem {
+			[FieldOffset(0x00)] public readonly IntPtr entItem;
+			[FieldOffset(0x08)] public readonly Vector2i Min; // grid cell, eg (0,4) for a 1x1 item in the backpack's bottom-left cell; (0,0) on the cursor
+			[FieldOffset(0x10)] public readonly Vector2i Max; // exclusive: Min + the item's size
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ServerData_Passives {
 			// of ushort: the passive ids the character has allocated (the ids of Path of Building's tree data), sorted

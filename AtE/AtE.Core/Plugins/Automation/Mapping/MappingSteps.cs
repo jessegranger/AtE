@@ -97,19 +97,72 @@ namespace AtE {
 		/// <summary>
 		/// With the stash open: show the CurrencyTab, right click the currency named name (its item name, eg "Orb of Scouring"),
 		/// left click target (where it is when clicked), then next.
+		/// After the right click it confirms that name is on the cursor (looking every CursorLookMs, for CursorWaitMs at most);
+		/// if nothing is, it right clicks again (PickUpTries times at most); if something else is, it stops (null).
 		/// </summary>
 		public IState UseCurrencyFromStash(string name, InventoryItem target, IState next) {
-			var use = new Step($"Right click {name}", (s, ctx, dt) => {
-				if ( !BackpackIsOpen() ) return Fail($"use {name}: the inventory is not open");
-				var currency = StashItems().FirstOrDefault(i => i?.Entity is Entity e && string.Equals(Equipment.ItemName(e), name, StringComparison.OrdinalIgnoreCase));
-				if ( currency == null ) return Fail($"no {name} on the \"{CurrencyTab}\" tab");
-				if ( !IsValid(target) ) return Fail($"use {name}: the item to use it on is gone");
-				var at = target.GetClientRect();
-				return Inputs.RightClick(currency.GetClientRect(), new Delay(InventoryPlans.Settle,
-					Inputs.Click(at, new Delay(InventoryPlans.Settle, next))));
-			}, next);
-			var tab = Tab(CurrencyTab, use);
+			var tab = Tab(CurrencyTab, PickUpCurrency(name, target, 1, next));
 			return ForceGameFocus(new Step($"Use {name}", (s, ctx, dt) => !StashIsOpen() ? Fail($"use {name}: the stash is not open") : tab, tab));
+		}
+
+		private const int PickUpTries = 5;
+		private const long CursorLookMs = 1000, CursorWaitMs = 3000;
+
+		/// <summary>The name of the item held on the mouse cursor, "" if nothing is held, or null if it can't be read.</summary>
+		private static string CursorItemName() {
+			var igs = PoEMemory.GameRoot?.InGameState;
+			if ( igs == null ) return null;
+			int count = igs.ServerInventoryCount(Offsets.InventorySlot.Cursor);
+			if ( count < 0 ) return null;
+			if ( count == 0 ) return "";
+			var ent = igs.CursorItem;
+			return IsValid(ent) ? Equipment.ItemName(new Entity() { Address = ent }) ?? "?" : "?";
+		}
+
+		private static bool IsNamed(string itemName, string name) => string.Equals(itemName, name, StringComparison.OrdinalIgnoreCase);
+
+		/// <summary>Right click the currency named name in the stash, confirm it is on the cursor, then left click target.</summary>
+		private IState PickUpCurrency(string name, InventoryItem target, int attempt, IState next) =>
+			new Step($"Right click {name}", (s, ctx, dt) => {
+				if ( !StashIsOpen() ) return Fail($"use {name}: the stash is not open");
+				if ( !BackpackIsOpen() ) return Fail($"use {name}: the inventory is not open");
+				if ( !IsValid(target) ) return Fail($"use {name}: the item to use it on is gone");
+				string held = CursorItemName();
+				if ( held == null ) return Fail($"use {name}: can't read the item on the cursor");
+				if ( held != "" ) return IsNamed(held, name)
+					? ClickTarget(name, target, next) // already held (picked up before)
+					: Fail($"use {name}: {held} is on the cursor instead");
+				var currency = StashItems().FirstOrDefault(i => i?.Entity is Entity e && IsNamed(Equipment.ItemName(e), name));
+				if ( currency == null ) return Fail($"no {name} on the \"{CurrencyTab}\" tab");
+				var rect = currency.GetClientRect();
+				Log($"{Name}: right clicking {name} at {rect.X + rect.Width / 2:F0},{rect.Y + rect.Height / 2:F0} (try {attempt} of {PickUpTries})");
+				return Inputs.RightClick(rect, ConfirmOnCursor(name, target, attempt, next));
+			}, next);
+
+		/// <summary>Look at the cursor now and every CursorLookMs: name there goes on to the left click; nothing there for
+		/// CursorWaitMs goes back to the right click; anything else stops.</summary>
+		private IState ConfirmOnCursor(string name, InventoryItem target, int attempt, IState next) {
+			long lookAt = 0;
+			return new Step($"Confirm {name} on the cursor", (s, ctx, dt) => {
+				if ( s.Elapsed < lookAt ) return s;
+				lookAt += CursorLookMs;
+				string held = CursorItemName();
+				if ( held == null ) return Fail($"use {name}: can't read the item on the cursor");
+				if ( held != "" ) {
+					if ( !IsNamed(held, name) ) return Fail($"use {name}: {held} is on the cursor instead");
+					Log($"{Name}: {name} is on the cursor ({s.Elapsed} ms after the right click)");
+					return ClickTarget(name, target, next);
+				}
+				if ( s.Elapsed < CursorWaitMs ) return s;
+				if ( attempt >= PickUpTries ) return Fail($"use {name}: still nothing on the cursor after {PickUpTries} right clicks");
+				Log($"{Name}: nothing on the cursor {CursorWaitMs} ms after right clicking {name}, trying again");
+				return PickUpCurrency(name, target, attempt + 1, next);
+			}, next);
+		}
+
+		private IState ClickTarget(string name, InventoryItem target, IState next) {
+			if ( !IsValid(target) ) return Fail($"use {name}: the item to use it on is gone");
+			return Inputs.Click(target.GetClientRect(), new Delay(InventoryPlans.Settle, next));
 		}
 
 		/// <summary>
