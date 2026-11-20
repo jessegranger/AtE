@@ -319,6 +319,23 @@ namespace AtE {
 			// object is "HellfireBarrageEffect", matched by its .ao path (see Animated.AnimatedObjectPath). Render.Bounds is
 			// 19.6 x 19.6 x 112 (a narrow falling pillar), so 8 cells is a guess at the blast and its burning ground
 			("Gravicius/ballistastorm.ao", null, 8, DangerLayer.Soon, 40),
+			// a map boss's falling fireballs (3.30.0c, paused after she died, which they outlive): 16 of the same
+			// SleepableServerEffect, animated object Metadata/Effects/Spells/firestorm_mapboss/rig.ao, 1.0-1.65 s old, 10-20
+			// cells apart. Render.Bounds 19.6 x 19.6 x 99 like Gravicius's; 8 cells was a little large on screen (the user), so 6.
+			// They fall fast and keep coming, so Now, not Soon. Where one lands it
+			// leaves burning ground (the FillGroundEffect ground_fire_burn above). Max age: see HazardMaxAgeSec
+			("firestorm_mapboss/rig.ao", null, 6, DangerLayer.Now, 50),
+			// Ambrius, Legion Slayer's (Daresso's map boss) spinning blades left on the ground (3.30.0c, paused with 6 out,
+			// 1.9-6.5 s old): client-only Metadata/Effects/Effect entities (Animated, BaseEvents, LimitedLifespan, Positioned,
+			// Render; see EntityCache.GetLocalEntities), animated object
+			// .../act4/daresso/sword_ground/swordtornado_02/swordtornado.ao. Render.Bounds 19.6 x 19.6 x 60; 8 cells was too large on screen (the user): 6
+			("daresso/sword_ground/swordtornado", null, 6, DangerLayer.Now, 60),
+			// Augury empowerment "Crow Tunnel" (3.30.0c, seen on Ambrius, paused): Monsters/Augury/Daemon/CrowTunnelDaemon
+			// (on the boss) opens two Metadata/Monsters/Daemon/Augury/CrowTunnelObject portals (StateMachine origin_portal
+			// 1 and 2, spawn, tier; .../Boss_Empowerments/CrowTunnel/Crow_portal.ao) about 30 cells apart, and a
+			// Metadata/Effects/SleepableServerBeamEffect (Beam, LimitedLifespan; .../CrowTunnel/crow_beam.ao) whose Beam
+			// runs from one portal to the other: the crows fly along it. A line (see PathHazards), 5 cells each side a guess
+			("CrowTunnel/crow_beam.ao", null, 5, DangerLayer.Now, 60),
 			// Kitava's bloody pools (physical damage over time) in his final fight (3.30, paused with 19 placed, 28-100 cells from
 			// the player): Metadata/Effects/Spells/ground_effects/VisibleServerGroundEffect (Animated, BaseEvents, Buffs,
 			// GroundEffect, Positioned, Render) with the buff ground_devouring_darkness, animated object
@@ -445,6 +462,9 @@ namespace AtE {
 			["arena_mechanics/ice_flower/Small/small_blast"] = 0.6f,
 			["arena_mechanics/ice_flower/Main/main_ice_flower"] = 2.5f,
 			["arena_mechanics/ice_flower/Small/small_ice_flower"] = 2.5f,
+			// the map boss's fireballs (see HazardPaths): seen up to 1.65 s old, still falling; 3 s is a guess at their
+			// fall, so a spent one does not linger if the game keeps listing it
+			["firestorm_mapboss/rig.ao"] = 3,
 		};
 
 		/// <summary>
@@ -476,7 +496,11 @@ namespace AtE {
 					var pos = e.GetComponent<Positioned>();
 					var at = layer;
 					if ( HazardNowStates.TryGetValue(part, out var now) && (e.GetComponent<StateMachine>()?.TryGetState(now.state, out long v) ?? false) && v == now.value ) at = DangerLayer.Now;
-					if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius) { Layer = at, Weight = weight, Source = buff ?? part };
+					// a beam effect (it has a Beam): a line between its ends, radius wide on each side
+					var beam = e.GetComponent<Beam>();
+					if ( IsValid(beam) && beam.Start != beam.End ) {
+						yield return new Hazard(WorldToGrid(beam.Start), WorldToGrid(beam.End), radius) { Layer = at, Weight = weight, Source = buff ?? part };
+					} else if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius) { Layer = at, Weight = weight, Source = buff ?? part };
 					break;
 				}
 			}

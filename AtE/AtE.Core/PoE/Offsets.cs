@@ -1486,8 +1486,11 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Beam {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
-			[FieldOffset(0x50)] public readonly Vector3 BeamStart;
-			[FieldOffset(0x5C)] public readonly Vector3 BeamEnd;
+			// 3.30.0c: moved from 0x50 / 0x5C (zero and a pointer there now). On the Augury crow tunnel's beam
+			// (SleepableServerBeamEffect, crow_beam.ao) 0x60 and 0x6C were the world positions of its two portals
+			// (CrowTunnelObject), to within a cell; 0x78 / 0x84 repeat them
+			[FieldOffset(0x60)] public readonly Vector3 BeamStart;
+			[FieldOffset(0x6C)] public readonly Vector3 BeamEnd;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_BlightTower {
