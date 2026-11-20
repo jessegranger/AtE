@@ -792,6 +792,15 @@ namespace AtE {
 			return Inputs.Click(at, next);
 		}
 
+		/// <summary>Where ClickEntity would click e (client coordinates): the middle of its label if it shows one, else where it stands on screen; false if neither.</summary>
+		public static bool TryGetClickPoint(Entity e, out Vector2 at) {
+			at = default;
+			if ( e == null ) return false;
+			var rect = GetUI()?.LabelsOnGround?.GetAllLabels()?.FirstOrDefault(l => l.Item?.Address == e.Address)?.Label?.GetClientRect() ?? default;
+			if ( rect.Width > 0 ) { at = new Vector2(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2)); return true; }
+			return TryWorldToScreen(Position(e), out at);
+		}
+
 		/// <summary>A click on an entity: its label if it shows one, else where it stands; null if neither can be clicked.</summary>
 		public static IState ClickEntity(Entity e, IState next = null) {
 			var label = GetUI()?.LabelsOnGround?.GetAllLabels()?.FirstOrDefault(l => l.Item?.Address == e.Address);

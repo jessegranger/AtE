@@ -1183,10 +1183,12 @@ namespace AtE {
 			// 3.24: 8 new bytes here
 			// 3.30.0c: moved 0x1B8 -> 0x1B0 (0x1B8 is now null while acting): Kitava, mid KitavaDeathBreathRight, points
 			// from here at an object whose fields (see Component_Actor_Action) name his target, its cell and the skill
-			[FieldOffset(0x1B0)] public readonly IntPtr ptrAction; // ptr Component_Actor_Action
+			// 3.30.0d: 8 new bytes here
+			[FieldOffset(0x1B8)] public readonly IntPtr ptrAction; // ptr Component_Actor_Action
 			[FieldOffset(0x218)] public readonly Component_ActionFlags ActionFlags;
 
-			[FieldOffset(0x244)] public readonly int AnimationId;
+			// 3.30.0d: 4 new bytes here
+			[FieldOffset(0x248)] public readonly int AnimationId;
 
 			// TODO: consider reading on demand
 			// Crucible: 48 new bytes here

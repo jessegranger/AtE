@@ -2,6 +2,7 @@ using ImGuiNET;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Text.RegularExpressions;
 using AtE.Plugins;
 using static AtE.Globals;
@@ -216,10 +217,10 @@ namespace AtE {
 			StashIsOpen() && GetUI()?.StashElement is StashRoot stash ? stash.ActivateTab(name, next)
 			: Fail($"can't show the \"{name}\" tab: the stash is not open"), next);
 
-		// walk to within ClickReach of what find finds (when this is reached), wait a frame there, then next; straight to
-		// next if skipTo says the walk isn't needed (eg, the window it walks to open is open already)
+		// walk to within ClickReach of what find finds (when this is reached), wait there for it to hold still on screen,
+		// then next; straight to next if skipTo says the walk isn't needed (eg, the window it walks to open is open already)
 		private IState WalkTo(string what, Func<Entity> find, IState next, Func<bool> skipTo = null) {
-			var arrive = OneFrame($"Arrive at {what}", next);
+			var arrive = WaitForStill(what, find, next);
 			return new Step($"Find {what}", (s, ctx, dt) => {
 				if ( skipTo?.Invoke() == true ) return next;
 				var pos = find()?.GetComponent<Positioned>();
@@ -229,26 +230,85 @@ namespace AtE {
 			}, arrive);
 		}
 
-		// wait one frame, then next: on arriving (eg, by a Blink) the labels and the camera are drawn where the player was
-		// the frame before, so a click read from them at once lands past what it is meant for
-		private static IState OneFrame(string label, IState next) {
-			int ticks = 0;
-			return new Step(label, (s, ctx, dt) => {
-				ctx.Driver.StopWalking(label);
-				if ( ++ticks > 1 ) { ticks = 0; return next; }
+		/// <summary>The frames in a row the click point must stay put (see WaitForStill), and how long to wait for that at most.</summary>
+		private const int StillFrames = 2;
+		private const long StillTimeoutMs = 2000;
+
+		// stop walking, and wait until where what would be clicked (its label, else where it stands: Ground.TryGetClickPoint)
+		// has not moved on screen for StillFrames frames in a row, then next: on arriving (eg, by a Blink, or the camera
+		// catching up after one) the labels move for a few frames, and a click read from them too soon lands past what it is
+		// meant for. Goes on anyway after StillTimeoutMs.
+		//
+		// The player must be done moving too: a Blink moves the player's grid position (Positioned) at once, so Navigate has
+		// arrived, but the player is drawn (Render, and the camera, and the labels with it) getting there only at the end of
+		// its animation, after its cast, during which nothing on screen moves: so the label alone can sit still for a frame
+		// or two before it moves. Nothing in ActionFlags, the Actor's action or AnimationId shows a Frostblink (all 0 during
+		// it, 3.30.0d, seen by the user). So also: the player is drawn within StillGridCells of its grid position, and has not
+		// moved on screen; and its ActionFlags show no skill in use and no walking (4224 while walking, 0 idle).
+		private const Offsets.Component_ActionFlags Busy = Offsets.Component_ActionFlags.UsingAbility
+			| Offsets.Component_ActionFlags.AbilityCooldownActive | Offsets.Component_ActionFlags.Moving;
+		private const float StillGridCells = 2f;
+		private IState WaitForStill(string what, Func<Entity> find, IState next) {
+			Vector2? lastAt = null, lastMe = null;
+			int still = 0, frames = 0;
+			void Reset() { lastAt = lastMe = null; still = frames = 0; }
+			return new Step($"Wait for {what} to hold still", (s, ctx, dt) => {
+				ctx.Driver.StopWalking($"arriving at {what}");
+				frames++;
+				var player = GetPlayer();
+				var flags = player?.GetComponent<Actor>()?.ActionFlags ?? Offsets.Component_ActionFlags.None;
+				// (how far the player is drawn from where the grid says it is, in cells)
+				var drawn = Position(player);
+				float lag = Vector2.Distance(new Vector2(drawn.X, drawn.Y) * 0.092f, GridPosition(player));
+				bool idle = (flags & Busy) == 0 && lag <= StillGridCells;
+				bool haveMe = TryWorldToScreen(drawn, out Vector2 me);
+				if ( !Ground.TryGetClickPoint(find(), out Vector2 at) || !haveMe ) {
+					lastAt = lastMe = null; still = 0;
+					if ( s.Elapsed > StillTimeoutMs ) { Reset(); s.Elapsed = 0; return Fail($"{what} is not on screen"); }
+					return s;
+				}
+				bool held = lastAt is Vector2 a && Vector2.Distance(a, at) < 0.5f && lastMe is Vector2 m && Vector2.Distance(m, me) < 0.5f;
+				still = held && idle ? still + 1 : 0;
+				lastAt = at; lastMe = me;
+				s.Detail = $"{what} at {at.X:F0}, {at.Y:F0}, player at {me.X:F0}, {me.Y:F0} ({flags}, drawn {lag:F1} cells from its grid position), still for {still} frames";
+				if ( still >= StillFrames || s.Elapsed > StillTimeoutMs ) {
+					Log(still >= StillFrames
+						? $"{Name}: {what} held still at {at.X:F0}, {at.Y:F0} ({frames} frames, {s.Elapsed} ms after arriving)"
+						: $"{Name}: {what} still moving after {StillTimeoutMs} ms (at {at.X:F0}, {at.Y:F0}, player {flags}, drawn {lag:F1} cells from its grid position): clicking anyway");
+					Reset(); s.Elapsed = 0;
+					return next;
+				}
 				return s;
 			}, next);
 		}
 
-		// click what find finds (its label if it shows one), wait for isOpen, then next; nothing to do if open already
-		private IState ClickToOpen(string what, Func<Entity> find, Func<bool> isOpen, IState next) => new Step($"Open {what}", (s, ctx, dt) => {
-			if ( isOpen() ) return next;
-			var e = find();
-			if ( e == null ) return Fail($"no {what} in sight");
-			ctx.Driver.StopWalking($"opening {what}");
-			return Ground.ClickEntity(e, WaitUntil($"{what} to open", 3000, isOpen, next, $"{what} did not open"))
-				?? Fail($"can't click {what} (off screen, or under a panel)");
-		}, next);
+		/// <summary>How many times ClickToOpen clicks before it gives up, and how long it waits for the window after each.</summary>
+		private const int OpenClicks = 3;
+		private const long OpenWaitMs = 1500;
+
+		// click what find finds (its label if it shows one), wait for isOpen, then next; nothing to do if open already. A
+		// click the game ignores (eg, right after a Frostblink lands, at the right spot) is tried again: up to OpenClicks
+		// clicks, OpenWaitMs apart, each aimed where it is then
+		private IState ClickToOpen(string what, Func<Entity> find, Func<bool> isOpen, IState next) {
+			int clicks = 0;
+			return new Step($"Open {what}", (s, ctx, dt) => {
+				if ( isOpen() ) { clicks = 0; return next; }
+				if ( clicks >= OpenClicks ) { clicks = 0; return Fail($"{what} did not open after {OpenClicks} clicks"); }
+				var e = find();
+				if ( e == null ) { clicks = 0; return Fail($"no {what} in sight"); }
+				ctx.Driver.StopWalking($"opening {what}");
+				clicks++;
+				Log($"{Name}: clicking {what} at {(Ground.TryGetClickPoint(e, out Vector2 at) ? $"{at.X:F0}, {at.Y:F0}" : "?")} (click {clicks} of {OpenClicks})");
+				s.Detail = $"click {clicks} of {OpenClicks}";
+				// (back here after the wait, open or not: open goes on to next, else the next click)
+				var self = s;
+				var click = Ground.ClickEntity(e, new Step($"Wait for {what} to open", (w, c2, d2) =>
+					isOpen() || w.Elapsed > OpenWaitMs ? self : w, self));
+				if ( click != null ) return click;
+				clicks = 0;
+				return Fail($"can't click {what} (off screen, or under a panel)");
+			}, next);
+		}
 
 		// press Escape (noted as ours, see Inputs.LastEscapeMs), wait a moment, then next
 		private static IState CloseWindow(string what, IState next) {
