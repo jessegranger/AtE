@@ -179,20 +179,21 @@ namespace AtE {
 
 		public bool IsPaused => Data.Value.IsPaused;
 
+		// ServerData is over 50 KB and only a few of its fields are used: read those fields alone, at these offsets, never the whole struct.
+		public static readonly int PassivesOffset = (int)Marshal.OffsetOf<Offsets.ServerData>(nameof(Offsets.ServerData.ptrPassives));
+		public static readonly int PlayerInventoriesOffset = (int)Marshal.OffsetOf<Offsets.ServerData>(nameof(Offsets.ServerData.PlayerInventories));
+
 		/// <summary>The passive ids the character has allocated (as in Path of Building's tree data), or empty if not readable.</summary>
 		public ushort[] AllocatedPassives =>
 			IsValid(Address)
-			&& PoEMemory.TryRead(Data.Value.ServerData, out Offsets.ServerData server)
-			&& PoEMemory.TryRead(server.ptrPassives, out Offsets.ServerData_Passives passives)
+			&& PoEMemory.TryRead(Data.Value.ServerData + PassivesOffset, out IntPtr ptrPassives)
+			&& PoEMemory.TryRead(ptrPassives, out Offsets.ServerData_Passives passives)
 			? new ArrayHandle<ushort>(passives.AllocatedPassives).ToArray(limit: 1000)
 			: Array.Empty<ushort>();
-
-		private static readonly int PlayerInventoriesOffset = (int)Marshal.OffsetOf<Offsets.ServerData>(nameof(Offsets.ServerData.PlayerInventories));
 
 		/// <summary>The server-side inventory with this InventorySlot id (Offsets.InventorySlot), or IntPtr.Zero.</summary>
 		public IntPtr GetServerInventory(int slotId) {
 			if ( !IsValid(Address) ) return IntPtr.Zero;
-			// read only the vector, not the whole (0xCE80 byte) ServerData
 			if ( !PoEMemory.TryRead(Data.Value.ServerData + PlayerInventoriesOffset, out Offsets.ArrayHandle list) ) return IntPtr.Zero;
 			int size = Marshal.SizeOf<Offsets.ServerData_PlayerInventory>();
 			int n = list.ItemCount(size);

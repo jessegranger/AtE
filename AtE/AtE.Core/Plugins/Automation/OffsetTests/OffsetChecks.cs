@@ -437,9 +437,9 @@ namespace AtE {
 			yield return Check("A4.Passives", new[] { "InGameState_Data.ServerData", "ServerData.ptrPassives", "ServerData_Passives.AllocatedPassives" }, c => {
 				var data = c.Game.Data.Value;
 				c.That(Offsets.IsValid(data.ServerData), "ServerData is not a pointer");
-				if ( PoEMemory.TryRead(data.ServerData, out Offsets.ServerData server) ) {
-					c.That(Offsets.IsValid(server.ptrPassives), "ptrPassives is not a pointer");
-					if ( PoEMemory.TryRead(server.ptrPassives, out Offsets.ServerData_Passives passives ) ) c.That(passives.AllocatedPassives.Head == passives.AllocatedPassives.Tail || Offsets.IsValid(passives.AllocatedPassives), "AllocatedPassives is not a valid array (neither empty nor two pointers)");
+				if ( PoEMemory.TryRead(data.ServerData + InGameState.PassivesOffset, out IntPtr ptrPassives) ) { // the one field, not the whole 50 KB ServerData
+					c.That(Offsets.IsValid(ptrPassives), "ptrPassives is not a pointer");
+					if ( PoEMemory.TryRead(ptrPassives, out Offsets.ServerData_Passives passives ) ) c.That(passives.AllocatedPassives.Head == passives.AllocatedPassives.Tail || Offsets.IsValid(passives.AllocatedPassives), "AllocatedPassives is not a valid array (neither empty nor two pointers)");
 					else c.That(false, "could not read the ServerData_Passives");
 				} else c.That(false, "could not read the ServerData");
 				// a new character has none (then the array being empty proves little); with some, they are ushort ids in ascending order, without repeats

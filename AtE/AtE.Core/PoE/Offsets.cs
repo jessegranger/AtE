@@ -790,6 +790,7 @@ namespace AtE {
 		// 3.29.3, InGameState_Data.ServerData. Found by searching ServerData's pointees for arrays of passive ids, and
 		// confirmed by allocating Frost Walker (44955): the array went from 91 to 92 ids with 44955 in its sorted place.
 		// ServerData+0xC2E8 points at the same array, 0x10 further on (at +0x190 of that object).
+		// Over 50 KB: never read it whole. Read single fields at their offset (InGameState.PassivesOffset, PlayerInventoriesOffset).
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ServerData {
 			// 3.29.4: moved 0xC2E0 -> 0xC758, and AllocatedPassives 0x180 -> 0x190. Found with one passive allocated: the only array handle of exactly one ushort (id 57264) among
 			// everything ServerData points at. 0xC760 holds a second pointer, 0x10 *before* this one (the old second pointer was 0x10 after), whose handle at +0x1A0 is the same array.
