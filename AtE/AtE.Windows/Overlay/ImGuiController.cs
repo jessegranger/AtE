@@ -322,6 +322,15 @@ namespace AtE {
 			Win32.ScreenToClient(RenderForm.Handle, ref mousePoint);
 			IO.MousePos = new Vector2(mousePoint.X, mousePoint.Y);
 
+			// The modifiers come from the keyboard's real state, not the overlay's key events: the game usually keeps
+			// the keyboard (see Overlay.UpdateKeyboardFocus), so the overlay never hears Shift/Ctrl/Alt go down, but
+			// ImGui and our own windows still read them (Shift to show an element's children, Ctrl+click a slider).
+			// Only while the overlay or the game is in front, so holding Shift in some other app does nothing here.
+			bool inFront = Overlay.OverlayOrGameFocused;
+			IO.KeyShift = inFront && Win32.IsKeyDown(VKey.ShiftKey);
+			IO.KeyCtrl = inFront && Win32.IsKeyDown(VKey.ControlKey);
+			IO.KeyAlt = inFront && Win32.IsKeyDown(VKey.Menu);
+
 			// When the mouse interacts with an ImGui element, ImGui sets WantCaptureMouse = true.
 			// We then turn click-through OFF so mouse/keyboard events flow into the overlay and get
 			// captured; once the pointer leaves the ImGui element, click-through goes back on. The
