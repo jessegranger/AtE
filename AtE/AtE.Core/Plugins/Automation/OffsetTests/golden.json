@@ -234,6 +234,71 @@
     "Confirmed": true,
     "Version": "3.29.3"
   },
+  "Marauder.inventory.elements": {
+    "Value": "Amulet,Apparition,Backpack,Belt,BodyAttachment,BodySkin,Boots,BootsSkin,CharacterEffect,Chest,Flask,Footprints,Gloves,GlovesSkin,GraftOne,Helm,HelmAttachment,HelmAttachment1,HelmSkin,LeagueBackpack,LRing,LWeapon,LWeaponSwap,Pet1,Pet2,Portal,Portrait,PortraitFrame,RRing,RWeapon,RWeaponAddedEffect,RWeaponEffect,RWeaponSwap,Trinket",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.map.miniDefaultShift": {
+    "Value": "\u003C0, 0\u003E",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.map.miniSize": {
+    "Value": "\u003C402, 402\u003E",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.skillbar.available": {
+    "Value": "Default Attack,Summon Stone Golem,Frostblink,Vitality,Scorching Ray,Purity of Fire,Malevolence,Righteous Fire,Movement,Clear",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.skillbar.slots": {
+    "Value": "0:1:Movement,1:6:Scorching Ray,2:2:Frostblink,3:81:Scorching Ray,4:87:-,5:69:Summon Stone Golem,6:82:Righteous Fire,7:84:-,8:81:-,9:88:Vitality,10:65:-,11:68:Purity of Fire,12:70:-",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.ui.Flasks.scale": {
+    "Value": "0.75",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.ui.Flasks.size": {
+    "Value": "\u003C340, 136\u003E",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.ui.LifeBubble.scale": {
+    "Value": "0.75",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.ui.LifeBubble.size": {
+    "Value": "\u003C315, 315\u003E",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.ui.ManaBubble.scale": {
+    "Value": "0.75",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.ui.ManaBubble.size": {
+    "Value": "\u003C315, 315\u003E",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.ui.null": {
+    "Value": "OpenLeftPanel,OpenRightPanel",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
+  "Marauder.ui.visible": {
+    "Value": "autoBotleftButtonsLayout,autoBuffDisplay,autoChatButton,autoHUDLeft,autoHUDRight,autoNotificationDisplay,autoOpenWindowButtonLayout,autoPlayerShield,autoPvpNotificationManager,autoResourceBarsLayout,autoSkipButtonLayout,autoTopIconsLayout,ChatBoxRoot,CurrentTime,ExperienceBar,Flasks,GameUI,GreenShopButton,HelpPanelButton,ItemsOnGroundLabelElement,LastElement,LifeBubble,ManaBubble,Map,Mouse,OpenMenuPopoutButton,PopupManager,QuestTracker,SkillBar",
+    "Confirmed": false,
+    "Version": "3.30.0c"
+  },
   "mod.AccuracyPercentImplicitSword1": {
     "Value": "accuracy_rating_\u002B% 40..40 Unique tags ",
     "Confirmed": true,

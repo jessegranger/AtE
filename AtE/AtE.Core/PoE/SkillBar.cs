@@ -162,16 +162,15 @@ namespace AtE {
 			}
 			return State.NewState($"BindSkill({slotIndex}, {name})", (self, dt) => {
 				elapsed += dt;
-				if ( !PoEMemory.TargetHasFocus ) return Finish(false, "the game is not focused");
 				var slot = GetSlot(slotIndex);
 				if ( slot == null ) return Finish(false, "no such slot");
 				switch ( step ) {
 					case 0: // open the hidden skill bar from the slot
 						if ( Holds(slot, name) ) return Finish(true, "already there");
 						if ( !slot.IsVisible ) return Finish(false, "the slot is not visible");
-						if ( !IsChoosing ) ClickAt(slot.Rect);
 						step = 1; elapsed = 0;
-						return self;
+						// (the click's states wait for the focus, if they must, then come back here: the wait isn't timed)
+						return IsChoosing ? self : ClickPlan(slot.Rect, self);
 					case 1: // wait for it to open
 						if ( IsChoosing ) { step = 2; elapsed = 0; }
 						else if ( elapsed > timeoutMs ) return Finish(false, "the hidden skill bar did not open");
@@ -179,9 +178,8 @@ namespace AtE {
 					case 2: // click the skill
 						var pick = FindAvailable(name);
 						if ( pick == null ) return Finish(false, $"{name} is not in the hidden skill bar ({string.Join(", ", GetAvailable())})");
-						ClickAt(pick.Rect);
 						step = 3; elapsed = 0;
-						return self;
+						return ClickPlan(pick.Rect, self);
 					default: // wait for the slot to hold it
 						if ( Holds(slot, name) ) return Finish(true, "bound");
 						if ( elapsed > timeoutMs ) return Finish(false, "the slot did not change");
@@ -190,15 +188,19 @@ namespace AtE {
 			});
 		}
 
-		/// <summary>Click the middle of rect (in client coordinates, like Element.GetClientRect).</summary>
-		public static void ClickAt(RectangleF rect) {
-			MouseTo(new Vector2(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2)));
-			Platform.Current.Input.MouseButton(MouseBtn.Left, true);
-			Platform.Current.Input.MouseButton(MouseBtn.Left, false);
-		}
+		/// <summary>
+		/// Click the middle of rect (in client coordinates, like Element.GetClientRect): run on the default Machine, as the
+		/// mouse states (MoveMouse, LeftMouseDown, LeftMouseUp), which wait for the game to have the focus.
+		/// </summary>
+		public static void ClickAt(RectangleF rect) => Run(ClickPlan(rect));
 
-		/// <summary>Move the cursor to pos (in client coordinates).</summary>
-		public static void MouseTo(Vector2 pos) => Platform.Current.Input.MouseMove(pos + WindowOffset());
+		/// <summary>The mouse states that click the middle of rect (client coordinates), then next.</summary>
+		public static IState ClickPlan(RectangleF rect, IState next = null) =>
+			new MoveMouse(new Vector2(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2)) + WindowOffset(),
+				new LeftMouseDown(new LeftMouseUp(next)));
+
+		/// <summary>Move the cursor to pos (in client coordinates): a MoveMouse, run on the default Machine.</summary>
+		public static void MouseTo(Vector2 pos) => Run(new MoveMouse(pos + WindowOffset()));
 
 		private static void PressEscape() {
 			Inputs.LastEscapeMs = Time.ElapsedMilliseconds;

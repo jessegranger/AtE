@@ -185,8 +185,49 @@ namespace AtE {
 	}
 
 
+	/// <summary>
+	/// The stash window (UIElements.StashElement). Layout confirmed live 3.30, a personal stash with 18 tabs
+	/// (by clicking "$$" then "dump" and diffing the tree):
+	///   .0 close button, .1 "Stash" title
+	///   .2.0.0.1.0 the horizontal tab bar (scrolls; not used here). Its LAST child is the selected tab's button, and
+	///      the other buttons get reshuffled when the selection changes.
+	///   .2.0.0.1.1 the tab pages, one per tab in display order; only the selected tab's page is visible. A page has
+	///      no children until its tab has been shown once.
+	///   .2.0.0.1.4.2 the vertical tab list (does not scroll): row N is tab N in display order, the same N as the
+	///      page; the row's name is row.GetChild(0, 1).Text ("dump"), and the row's rect is where to click.
+	///      .4.0 / .4.1 are small arrow buttons beside it (hidden while seen).
+	/// </summary>
 	public class StashRoot : Element {
 		public Element CloseButton => GetChild(0);
 
+		private Element TabPages => GetChild(2, 0, 0, 1, 1);
+		/// <summary>The selected tab's page (the only visible one), or null.</summary>
+		public Element VisibleTabPage => TabPages?.Children.FirstOrDefault(p => p != null && p.IsVisibleLocal);
+		private Element TabList => GetChild(2, 0, 0, 1, 4, 2);
+		private static string RowName(Element row) => row?.GetChild(0, 1)?.Text;
+
+		private string SelectedTabName() {
+			var pages = TabPages?.Children.ToList();
+			int i = pages?.FindIndex(p => p != null && p.IsVisibleLocal) ?? -1;
+			return i < 0 ? null : RowName(TabList?.GetChild(i));
+		}
+
+		private Element FindRow(string name) => (TabList?.Children ?? Empty<Element>())
+			.FirstOrDefault(r => IsValid(r) && string.Equals(RowName(r), name, StringComparison.OrdinalIgnoreCase));
+
+		/// <summary>
+		/// Click the tab named name (case-insensitive) in the vertical tab list, wait for its page to show, then next.
+		/// Decided when it runs, not when built: nothing to do if that tab is already shown. Stops the chain (null)
+		/// with a log if the stash is closed, the tab is missing, or it did not show within 2 s.
+		/// </summary>
+		public IState ActivateTab(string name, IState next = null) => State.NewState($"ActivateTab({name})", (self, dt) => {
+			if ( !IsValid(Address) || !IsVisibleLocal ) { Log($"Stash: can't activate tab \"{name}\", the stash is not open."); return null; }
+			if ( string.Equals(SelectedTabName(), name, StringComparison.OrdinalIgnoreCase) ) return next;
+			var row = FindRow(name);
+			if ( !IsValid(row) || !row.IsVisible ) { Log($"Stash: no tab named \"{name}\" in the tab list."); return null; }
+			return Inputs.Click(row.GetClientRect(),
+				State.WaitFor(2000, () => string.Equals(SelectedTabName(), name, StringComparison.OrdinalIgnoreCase), next,
+					fail: State.NewState(() => Log($"Stash: tab \"{name}\" did not show after clicking it."), null)));
+		}, next);
 	}
 }

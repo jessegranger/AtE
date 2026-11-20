@@ -77,7 +77,7 @@ namespace AtE {
 		public bool Tick(CombatContext ctx, bool safe) {
 			long now = Time.ElapsedMilliseconds;
 			if ( phase == Phase.None ) {
-				if ( GetCurrentArea()?.IsTown ?? true ) return false;
+				if ( SkillsPausedHere() ) return false; // (no buffs in a town or hideout)
 				var off = Off().FirstOrDefault();
 				if ( off == null || !safe ) return false;
 				skill = SkillBar.SkillName(off);

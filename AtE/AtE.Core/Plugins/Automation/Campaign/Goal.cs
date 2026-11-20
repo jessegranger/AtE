@@ -300,6 +300,9 @@ namespace AtE {
 			return (null, null);
 		}
 
+		/// <summary>The goal of the rule it last worked on (null before the first), for the on-screen list.</summary>
+		public Goal Last => last;
+
 		/// <summary>Which rule holds now (its label), for the on-screen list.</summary>
 		public string Holding() => rules.FirstOrDefault(r => r.when()).label;
 

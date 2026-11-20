@@ -47,7 +47,8 @@ namespace AtE {
 		public Element OpenLeftPanel => IsValid(Address) ? getElement(Cache.OpenLeftPanel) : null;
 		public Element OpenRightPanel => IsValid(Address) ? getElement(Cache.OpenRightPanel) : null;
 		public InventoryRoot InventoryPanel => IsValid(Cache.InventoryPanel) ? new InventoryRoot() { Address = Cache.InventoryPanel } : null;
-		public Element StashElement => IsValid(Address) ? getElement(Cache.StashElement) : null;
+		/// <summary>The stash window; see StashRoot for its tabs.</summary>
+		public StashRoot StashElement => IsValid(Address) && IsValid(Cache.StashElement) ? new StashRoot() { Address = Cache.StashElement } : null;
 		public Inventory<StashItem> StashInventory => IsValid(Address) && IsValid(Cache.StashElement) ? new Inventory<StashItem>() { Address = Cache.StashElement } : null;
 		public Element GuildStashElement => IsValid(Address) ? getElement(Cache.GuildStashElement) : null;
 		// public Element AtlasPanel => IsValid(Address) ? getElement(Cache.AtlasPanel) : null;
@@ -57,7 +58,7 @@ namespace AtE {
 		public LabelsOnGroundRoot LabelsOnGround => IsValid(Cache.ItemsOnGroundLabelElement) ? new LabelsOnGroundRoot() { Address = Cache.ItemsOnGroundLabelElement } : null;
 		// public Element BanditDialog => IsValid(Address) ? getElement(Cache.BanditDialog) : null;
 		// public Element Viewport => IsValid(Address) ? getElement(Cache.GameViewport) : null;
-		public Element RootBuffPanel => IsValid(Address) ? getElement(Cache.RootBuffPanel) : null;
+		// public Element RootBuffPanel => IsValid(Address) ? getElement(Cache.RootBuffPanel) : null;
 		// public Element NpcDialog => IsValid(Address) ? getElement(Cache.NpcDialog) : null;
 		public Element NpcOptions => IsValid(Address) ? getElement(Cache.NpcOptions) : null;
 		// public Element LeagueInteractButtonPanel => IsValid(Address) ? getElement(Cache.LeagueInteractButtonPanel) : null;

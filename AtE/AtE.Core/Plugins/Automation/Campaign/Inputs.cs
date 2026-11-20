@@ -80,27 +80,10 @@ namespace AtE {
 			var button = SkillBar.ToMouseButton(slot.KeyCode);
 			if ( button == MouseBtn.Left ) chain = new LeftMouseDown(new Delay(holdMs, new LeftMouseUp(chain)));
 			else if ( button == MouseBtn.Right ) chain = new RightMouseDown(new Delay(holdMs, new RightMouseUp(chain)));
-			else if ( button.HasValue ) chain = new MouseButtonPress(button.Value, holdMs, chain);
+			else if ( button.HasValue ) chain = new MouseButtonDown(button.Value, new Delay(holdMs, new MouseButtonUp(button.Value, chain)));
 			else chain = new KeyDown(slot.KeyCode, new Delay(holdMs, new KeyUp(slot.KeyCode, chain)));
 			foreach ( var m in mods ) chain = new KeyDown(m, new Delay(Latency, chain));
 			return chain;
-		}
-
-		// another mouse button (eg, middle), down then up holdMs later
-		private class MouseButtonPress : State {
-			private readonly MouseBtn button;
-			private readonly uint holdMs;
-			private bool down;
-			private long held;
-			public MouseButtonPress(MouseBtn button, uint holdMs, IState next) : base(next) { this.button = button; this.holdMs = holdMs; }
-			public override string Name => $"Press({button})";
-			public override IState OnTick(long dt) {
-				if ( dt == 0 ) return this;
-				if ( !down ) { Platform.Current.Input.MouseButton(button, true); down = true; return this; }
-				if ( (held += dt) < holdMs ) return this;
-				Platform.Current.Input.MouseButton(button, false);
-				return Next;
-			}
 		}
 	}
 }

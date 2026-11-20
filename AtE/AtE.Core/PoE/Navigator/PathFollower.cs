@@ -190,7 +190,11 @@ namespace AtE {
 			if ( game.IsPaused ) return Wait(FollowStatus.Paused, "the game is paused");
 			if ( game.HasInputFocus ) return Wait(FollowStatus.Paused, "typing in the game");
 			if ( PoEMemory.GameRoot?.EscapeState?.Menu != null ) return Wait(FollowStatus.Paused, "escape menu");
-			if ( !PoEMemory.TargetHasFocus ) return Wait(FollowStatus.WaitingForFocus, "the game needs focus to use the mouse");
+			if ( !GameFocused ) {
+				// (steering now would only queue moves that wait for the focus: pause the game until it is back instead)
+				PauseUntilFocused();
+				return Wait(FollowStatus.WaitingForFocus, "the game needs focus to use the mouse");
+			}
 
 			long now = Time.ElapsedMilliseconds;
 			// a lever was just pulled: give its door a moment to open before planning again (the plan would go to another lever)
@@ -281,15 +285,11 @@ namespace AtE {
 			for ( ; aim > 0; aim-- ) {
 				if ( TryGridToScreen(Path.Cells[aim], z, out Vector2 screen) && IsSafeToClick(screen) ) {
 					if ( MoveKey != VKey.None ) {
-						MoveCursor(screen);
-						Platform.Current.Input.KeyDown(MoveKey);
-						Platform.Current.Input.KeyUp(MoveKey);
+						Run(new MoveMouse(screen + WindowOffset(), new KeyDown(MoveKey, new KeyUp(MoveKey))));
 					} else if ( HoldMouse ) {
-						MoveCursor(screen);
-						if ( !held ) {
-							Platform.Current.Input.MouseButton(MouseBtn.Left, true);
-							held = true;
-						}
+						// (a held press goes out after the move; and not at all if ReleaseMouse let go before it went out)
+						Run(new MoveMouse(screen + WindowOffset(), held ? null : MouseHold.Press(MouseBtn.Left)));
+						held = true;
 					} else {
 						Click(screen);
 					}
@@ -476,7 +476,7 @@ namespace AtE {
 		public void ReleaseMouse() {
 			if ( !held ) return;
 			held = false;
-			Platform.Current.Input.MouseButton(MouseBtn.Left, false);
+			Run(MouseHold.Release(MouseBtn.Left));
 		}
 
 		/// <summary>Call each frame: lets go of the left button if whoever was walking stopped ticking (eg, was switched off).</summary>
@@ -509,13 +509,8 @@ namespace AtE {
 		private static Vector2 WindowOffset() =>
 			PoEMemory.Memory.TryGetTargetWindowRect(out int x, out int y, out _, out _) ? new Vector2(x, y) : Vector2.Zero;
 
-		private static void MoveCursor(Vector2 clientPos) => Platform.Current.Input.MouseMove(clientPos + WindowOffset());
-
-		private static void Click(Vector2 clientPos) {
-			MoveCursor(clientPos);
-			Platform.Current.Input.MouseButton(MouseBtn.Left, true);
-			Platform.Current.Input.MouseButton(MouseBtn.Left, false);
-		}
+		// (the mouse states, run on the default Machine: they wait for the game to have the focus)
+		private static void Click(Vector2 clientPos) => Run(new MoveMouse(clientPos + WindowOffset(), new LeftMouseDown(new LeftMouseUp())));
 
 		private static float Distance(Offsets.Vector2i a, Offsets.Vector2i b) {
 			float dx = a.X - b.X, dy = a.Y - b.Y;

@@ -348,6 +348,8 @@ namespace AtE {
 					return RunOnMain(() => $"confirmed {GoldenStore.Confirm(q["key"] ?? "")} golden values\n");
 				case "/offsets/forget":
 					return RunOnMain(() => string.IsNullOrEmpty(q["key"]) ? "error: key= is required\n" : $"forgot {GoldenStore.Forget(q["key"])} golden values\n");
+				case "/mapping/test":
+					return RunOnMain(() => MappingTest(q["name"], q["stop"] == "1"));
 				case "/routine":
 					return RunOnMain(RoutineText);
 				case "/progress":
@@ -445,11 +447,28 @@ namespace AtE {
 
 		private static OffsetTestSection OffsetTests() => GetPlugin<AutomationPlugin>().OffsetTests;
 
+		// a Mapping step test, as its button in the Mapping routine's Test Steps runs it (the Mapping routine is chosen
+		// first, stopping the routine that was); no name: what is running, or how the last ended, and the tests there are
+		private static string MappingTest(string name, bool stop) {
+			var combat = GetPlugin<AutomationPlugin>()?.Combat;
+			var mapping = combat?.Routines.OfType<MappingRoutine>().FirstOrDefault();
+			if ( mapping == null ) return "error: no Mapping routine\n";
+			if ( stop ) { mapping.StopTest("the memory server"); return mapping.TestStatus + "\n"; }
+			if ( string.IsNullOrEmpty(name) )
+				return mapping.TestStatus + "\ntests: " + string.Join(", ", mapping.Tests.Select(t => $"{t.Key} ({t.Name})")) + "\n";
+			if ( !mapping.Tests.Any(t => string.Equals(t.Key, name, StringComparison.OrdinalIgnoreCase) || string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase)) )
+				return $"error: no test {name}; tests: {string.Join(", ", mapping.Tests.Select(t => t.Key))}\n";
+			if ( combat.Current != mapping ) { combat.Current?.Stop("the memory server started a Mapping test"); combat.Routine = mapping.Key; }
+			mapping.StartTest(name);
+			return "started\n" + mapping.TestStatus + "\n";
+		}
+
 		private const string Help =
 @"MemoryServer (read-only, loopback only)
   /status
   /offsets/run[?only=A6,A4.Life[&observers=1]] | /offsets/observe (observers only, no checks) | /offsets/stop | /offsets/report     the Offsets tests (Automation > Offset Tests): start, stop, the results with details
-  /offsets/routine?cmd=start|stop                    start or stop just the class routine testing mode runs after its checks (it is held when Hillock dies)
+  /mapping/test[?name=stash|pickmap|rollmap|openmap][&stop=1]   run one Mapping step test on its own (as its button does; chooses the Mapping routine); no name: what runs, or how the last ended; stop=1 stops it
+  /offsets/routine?cmd=start|stop                   start or stop just the class routine testing mode runs after its checks (it is held when Hillock dies)
   /offsets/coverage[?format=unchecked]               which Offsets the checks cover (the ratchet against unchecked.txt); format=unchecked lists the gaps as an unchecked.txt
   /offsets/queue?ids=failed|clear|A2.Terrain,A4      queue checks for fixing (shown on screen as FIX)
   /offsets/golden | /offsets/confirm?key=<contains> | /offsets/forget?key=<contains>   the values a fresh character is known to have

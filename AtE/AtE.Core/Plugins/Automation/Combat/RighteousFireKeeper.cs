@@ -43,7 +43,7 @@ namespace AtE {
 			if ( driver == null || !driver.IsActive || driver.InputBusy ) return this;
 			long now = Time.ElapsedMilliseconds;
 			if ( now - lastPress < RetryMs ) return this;
-			if ( GetCurrentArea()?.IsTown ?? true ) return this; // (skills are paused in town)
+			if ( SkillsPausedHere() ) return this; // (no buffs in a town or hideout)
 			var player = GetPlayer();
 			if ( !IsValid(player) || HasBuff(player, BuffName) || HasBuff(player, "grace_period") ) return this;
 			if ( now - refreshedAt > RefreshMs ) {

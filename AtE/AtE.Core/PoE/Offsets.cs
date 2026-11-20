@@ -1,4 +1,4 @@
-﻿using ImGuiNET;
+using ImGuiNET;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -350,10 +350,11 @@ namespace AtE {
 			[FieldOffset(0x838)] public readonly IntPtr elemHover; // element which is currently hovered
 			// 3.29.3: confirmed with MemoryServer /track over 10s (r2=1.0000, no flat intervals)
 			// 3.29.4: the four clock fields moved +4 (/track: 1000/s at 0xb90, 0.017 at 0xb94, seconds at 0xb98, then the bytes 1,1,1 at 0xb9c..0xb9e)
-			[FieldOffset(0xb90)] public readonly int GameTimeMs; // int32 counter, 1000/s (999.98 measured), ~52 million = 14.6 hours at test time
-			[FieldOffset(0xb94)] public readonly float FrameDeltaSec; // jitters 0.016-0.019, last frame duration
-			[FieldOffset(0xb98)] public readonly float GameTimeSec; // float32, == GameTimeMs / 1000, 1.0/s
-			[FieldOffset(0xb9e)] public readonly bool IsRunning; // moved with them (+4); 3.29.4: reads 1 while running and 0 while the Escape menu is open; it does not change with the SkillTree open (InGameState_Data.IsPaused does)
+			// 3.30.0d: all four moved +8 (read with the escape menu open and closed: ms at 0xb98, 0.017 at 0xb9c, seconds at 0xba0, IsRunning 0 / 1 at 0xba6)
+			[FieldOffset(0xb98)] public readonly int GameTimeMs; // int32 counter, 1000/s (999.98 measured), ~52 million = 14.6 hours at test time
+			[FieldOffset(0xb9c)] public readonly float FrameDeltaSec; // jitters 0.016-0.019, last frame duration
+			[FieldOffset(0xba0)] public readonly float GameTimeSec; // float32, == GameTimeMs / 1000, 1.0/s
+			[FieldOffset(0xba6)] public readonly bool IsRunning; // moved with them (+4); 3.29.4: reads 1 while running and 0 while the Escape menu is open; it does not change with the SkillTree open (InGameState_Data.IsPaused does)
 			// 3.28.0: 40 new bytes here
 			// 3.29.3: the mouse position, in client pixels (two int32; found by recording InGameState while the mouse was put over the
 			// flasks, (467,1138), and the skill bar, (1509,1125)). The Vector2 of floats at 0x5b8 that was here is stale: it
@@ -370,7 +371,9 @@ namespace AtE {
 			// 3.29.4: both moved +0x260: elemRoot (0x668) is the 2560x1600 "root"; elemMenu (0x6a0) is null until Escape is pressed, then the "escape_menu" element
 			// (found by diffing the state's pointers while the check pressed Escape)
 			[FieldOffset(0x668)] public readonly IntPtr elemRoot;
-			[FieldOffset(0x6a0)] public readonly IntPtr elemMenu;
+			// 3.30.0d: elemMenu moved +8 (0x6a0 -> 0x6a8; elemRoot did not): null while the menu is closed, the menu element
+			// while open (posted Escape, diffing the state: 0x6a8 null <-> an element with 3 children)
+			[FieldOffset(0x6a8)] public readonly IntPtr elemMenu;
 		}
 
 		// members of AreaLoadingState
@@ -548,20 +551,22 @@ namespace AtE {
 		// skill bar's children [1..] are the skills to choose from (child [0] is the "Always Attack Without Moving" option).
 		/// <summary>ptr to the ActorSkill shown in a skill bar (or hidden skill bar) cell; 0 when empty.</summary>
 		// 3.29.4: the skill cell and key label fields moved +0x28 (checked on all 13 cells: SkillId 0x4000 at 0x358 in slot 0, the keys 1, 6, 2, 81... at 0x2c0 of each label)
-		public static readonly int Element_SkillCell_Skill = 0x350;
+		// 3.30.0d: the skill cell fields and the key label's VKey moved +8 (checked live: slot 0's cell +0x358 is the ActorSkill whose ptrSelf (+0x48) is itself and Id (+0x50) 0x2909 = cell +0x360;
+		// +0x350 now points 0x10 into that same object; Q's label reads 0x51 at +0x2c8)
+		public static readonly int Element_SkillCell_Skill = 0x358;
 		/// <summary>ushort, the id of the ActorSkill in a skill cell (0x4000 Default Attack, ...); 0 when there is none.</summary>
-		public static readonly int Element_SkillCell_SkillId = 0x358;
+		public static readonly int Element_SkillCell_SkillId = 0x360;
 		/// <summary>
 		/// ptr to a skill cell's icon. The hidden skill bar's Movement and Clear cells have no skill, only an icon:
 		/// its name (SkillCellIcon_Name) ends with "SkillMoveOnly" or "SkillClear".
 		/// </summary>
-		public static readonly int Element_SkillCell_Icon = 0x230; // 3.29.4: was 0x238 (-8); checked on the open hidden skill bar: Default Attack's icon is "Art/2DArt/SkillIcons/iconbasicattack.dds"
+		public static readonly int Element_SkillCell_Icon = 0x238; // 3.30.0d: back to 0x238 (+8, like the cell's other fields; its +0x08 names "Art/2DArt/SkillIcons/..."). 3.29.4: was 0x238 (-8); checked on the open hidden skill bar: Default Attack's icon is "Art/2DArt/SkillIcons/iconbasicattack.dds"
 		/// <summary>ptr to a unicode string, the name of a skill cell's icon (eg, "Art/2DArt/UIImages/InGame/SkillMoveOnly").</summary>
 		// 3.29.4: moved 0x10 -> 0x08. The Movement and Clear cells' icons are no longer named ("SkillMoveOnly", "SkillClear"): they are rectangles of one atlas,
 		// "Art/Textures/Interface/2D/2DArt/UIImages/InGame/16.dds|1be,5b7,1fe,5f7|0" (Movement) and "...16.dds|2ff,1d8,35f,238|0" (Clear), see SkillBar.MoveIconSprite
 		public static readonly int SkillCellIcon_Name = 0x08;
 		/// <summary>int, the Windows virtual key code (1 = left mouse, 0x51 = Q, ...) on a skill slot's key label; the modifier is not here.</summary>
-		public static readonly int Element_SkillKeyLabel_VKey = 0x2c0;
+		public static readonly int Element_SkillKeyLabel_VKey = 0x2c8;
 
 		[StructLayout(LayoutKind.Explicit)] public struct ChildrenArrayEntry {
 			[FieldOffset(0x0)] public readonly IntPtr ptrChild;
@@ -958,7 +963,7 @@ namespace AtE {
 			[FieldOffset(0x720)] public readonly IntPtr Map; // Name = "map_overlay"
 			[FieldOffset(0x728)] public readonly IntPtr ItemsOnGroundLabelElement; // Name = null
 			[FieldOffset(0x760)] public readonly IntPtr autoModalDialogOverlay; // Name = "modal_dialog_overlay"
-			[FieldOffset(0x7a8)] public readonly IntPtr RootBuffPanel; // Name = (not a pointer: 0x000100003F800000)
+			// [FieldOffset(0x7a8)] public readonly IntPtr RootBuffPanel; // Name = (not a pointer: 0x000100003F800000)
 			[FieldOffset(0x7b0)] public readonly IntPtr HelpOrKillBandit; // Name = (not an Element: points at a pair of equal pointers)
 			// [FieldOffset(0x7d8)] public readonly IntPtr NpcDialog; // Name = (not a pointer: 0x7)
 			// [FieldOffset(0x7e0)] public readonly IntPtr NpcOptions; // Name = (not a pointer: 0x8)
@@ -2070,7 +2075,8 @@ namespace AtE {
 			// 3.29: 16 new bytes here
 			// 3.29.4: moved 0x430 -> 0x458 (+0x28): the slots follow in the same order, with the sizes of their cells (Helm 156x156, Amulet 78x78, Chest 156x234,
 			// the Backpack 936x390 = 12x5, the Flask slot 390x156 = 5x2)
-			[FieldOffset(0x458)] public readonly InventoryArray InventoryList;
+			// 3.30.0d: moved 0x458 -> 0x460 (+8): Helm 117x117 (156x156 at scale 0.75) at 0x460, Backpack 702x292.5 (12x5, its items as children) at 0x4c8
+			[FieldOffset(0x460)] public readonly InventoryArray InventoryList;
 		}
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct InventoryArray {

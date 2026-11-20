@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -110,6 +110,128 @@ namespace AtE {
 		}
 	}
 
+	public static partial class Globals {
+		/// <summary>
+		/// Make the game the foreground window, then next. Asks again every RetryMs (Windows can refuse, eg while the
+		/// overlay is still taking the mouse) until the game has the focus, then waits SettleMs so the game's first input
+		/// isn't spent on taking the focus. Stops the plan (null) if the game still isn't focused after TimeoutMs.
+		/// </summary>
+		public static IState ForceGameFocus(IState next) => new ForceGameFocusState(next);
+
+		private sealed class ForceGameFocusState : State {
+			private const long RetryMs = 250, TimeoutMs = 2000;
+			private const uint SettleMs = 100;
+			private long elapsed, nextTry;
+			public ForceGameFocusState(IState next) : base(next) { }
+			public override string Name => "ForceGameFocus";
+			private bool asked; // (only wait SettleMs if the focus had to be taken)
+			public override IState OnEnter() {
+				elapsed = 0;
+				nextTry = 0;
+				asked = false;
+				return this;
+			}
+			public override IState OnTick(long dt) {
+				if ( PoEMemory.TargetHasFocus ) return asked ? new Delay(SettleMs, Next) : Next;
+				elapsed += dt;
+				if ( elapsed > TimeoutMs ) {
+					Log($"ForceGameFocus: the game did not take the focus in {TimeoutMs} ms: stopped.");
+					Notify("Could not focus the game: stopped.");
+					return null;
+				}
+				if ( elapsed >= nextTry ) {
+					nextTry = elapsed + RetryMs;
+					asked = true;
+					Platform.Current.Memory.TryFocusTarget();
+				}
+				return this;
+			}
+		}
+
+		/// <summary>
+		/// True while the mouse can be used on the game: the game has the focus, or the overlay has it (it hands the focus
+		/// straight back to the game, see Overlay.UpdateKeyboardFocus; and a plan started from one of its buttons begins
+		/// while it has it).
+		/// </summary>
+		public static bool GameFocused => PoEMemory.TargetHasFocus || Overlay.HasFocus;
+
+		/// <summary>True while the game is paused by an Escape of ours, because it lost the focus (see WaitForFocus).</summary>
+		public static bool GamePausedForFocus { get; private set; }
+
+		/// <summary>
+		/// Wait for the game to have the focus (see GameFocused), then next. While it doesn't, the game is paused: if it
+		/// isn't paused already, Escape is sent (keys can be posted to it in the background), and once the focus is back,
+		/// Escape again to unpause (if the escape menu is still open; and only if it was ours). Every mouse state waits with
+		/// this (MoveMouse, LeftMouseDown, ...: see MouseButtonDown).
+		///
+		/// The pausing is done by one state on the default Machine (see PauseUntilFocused), not by this one: the chain this
+		/// is in may not be ticked while the game is paused (eg, CombatDriver waits while the escape menu is open), and
+		/// there may be several of these waiting at once.
+		/// </summary>
+		public static IState WaitForFocus(IState next) => new WaitForFocusState(next);
+
+		/// <summary>Pause the game until it has the focus again (see WaitForFocus), if it doesn't have it now. Safe to call every frame.</summary>
+		public static void PauseUntilFocused() {
+			if ( GameFocused || pauserRunning ) return;
+			pauserRunning = true;
+			Run(new PauseUntilFocusedState());
+		}
+		private static bool pauserRunning;
+
+		private sealed class WaitForFocusState : State {
+			private bool waited;
+			public WaitForFocusState(IState next) : base(next) { }
+			public override string Name => "WaitForFocus";
+			public override IState OnTick(long dt) {
+				// (focused, and the pauser has sent its Escape to unpause: a moment for the escape menu to close, then go on)
+				if ( GameFocused && !pauserRunning ) return waited ? new Delay(100, Next) : Next;
+				waited = true;
+				PauseUntilFocused();
+				return this;
+			}
+		}
+
+		private sealed class PauseUntilFocusedState : State {
+			private const long RepeatMs = 200;
+			private long sinceEscape;
+			private bool pressing; // (sending Escape every RepeatMs until the escape menu shows)
+			public override string Name => "PauseUntilFocused";
+			private static bool EscapeMenuOpen => PoEMemory.GameRoot?.EscapeState?.Menu?.IsVisible ?? false;
+			private static void SendEscape() {
+				// (straight to the game, not Inputs.LastEscapeMs: CombatDriver closes an escape menu that one of those opened)
+				Platform.Current.Input.KeyDown(VKey.Escape);
+				Platform.Current.Input.KeyUp(VKey.Escape);
+			}
+			public override IState OnTick(long dt) {
+				if ( dt == 0 ) return this;
+				if ( !PoEMemory.IsAttached ) { GamePausedForFocus = false; pauserRunning = false; return null; }
+				if ( GameFocused ) {
+					// Escape to unpause only if the escape menu is (still) open: not if the focus came back by a click on its
+					// Resume Game (which closed it), or it never opened
+					if ( GamePausedForFocus && EscapeMenuOpen ) { Log("PauseUntilFocused: the game has the focus again: Escape to unpause"); SendEscape(); }
+					GamePausedForFocus = false;
+					pauserRunning = false;
+					return null;
+				}
+				if ( !pressing && !GamePausedForFocus ) {
+					// (not if the game is paused by something else, eg the augury window: Escape would close that)
+					bool paused = PoEMemory.GameRoot?.InGameState?.IsPaused ?? true;
+					if ( paused || EscapeMenuOpen ) return this;
+					Log("PauseUntilFocused: the game lost the focus: Escape until the escape menu shows");
+					pressing = true;
+					GamePausedForFocus = true;
+					sinceEscape = RepeatMs; // (the first at once)
+				}
+				if ( pressing ) {
+					// each Escape closes an open panel (the stash, the inventory, ...) first: again, until the menu is up
+					if ( EscapeMenuOpen ) { pressing = false; Log("PauseUntilFocused: the escape menu is open: paused"); return this; }
+					if ( (sinceEscape += dt) >= RepeatMs && CanSendKey(VKey.Escape) ) { sinceEscape = 0; SendEscape(); }
+				}
+				return this;
+			}
+		}
+	}
+
 	public class Delay : State // Delay is a State that waits for a fixed number of milliseconds
 	{
 		public long Remaining;
@@ -194,35 +316,52 @@ namespace AtE {
 		// public MoveMouse(Element label, IState next = null) : this(label?.GetClientRect().Center ?? Vector2.Zero, next) { }
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			if ( !(Overlay.HasFocus || PoEMemory.TargetHasFocus) ) {
-				Log($"Warn: MoveMouse attempted while not focused, skipped.");
-				return Next;
-			}
+			if ( !GameFocused ) return WaitForFocus(this);
 			if ( X == 0 && Y == 0 ) {
 				Log($"Warn: MoveMouse to (0,0) attempted, skipped.");
 				return Next;
 			}
 			Platform.Current.Input.MouseMove(new Vector2(X, Y));
 			LastPos = new Vector2(X, Y);
-			// (the overlay had the mouse: the game was not told of this move, see MouseDownState)
+			// (the overlay had the mouse: the game was not told of this move, see MouseButtonDown)
 			LastMoveTakenByOverlay = !Overlay.IsClickThrough;
 			return Next;
 		}
 	}
 	/// <summary>
-	/// A mouse button press, held back (up to MaxWaitMs) until clicks go through the overlay to the game. The overlay takes
-	/// the mouse while it is over one of its windows, and gives it back a frame or two after the mouse leaves (ImGui's
-	/// WantCaptureMouse is a frame behind): so a click right after the mouse moves away from an overlay button (eg, the
-	/// first click of a plan started from one) would land on the overlay.
+	/// A mouse button pressed down. It waits for the game to have the focus (WaitForFocus, which pauses the game until
+	/// then), and then (up to MaxWaitMs) until clicks go through the overlay to the game: the overlay takes the mouse while
+	/// it is over one of its windows, and gives it back a frame or two after the mouse leaves (ImGui's WantCaptureMouse is
+	/// a frame behind), so a click right after the mouse moves away from an overlay button (eg, the first click of a plan
+	/// started from one) would land on the overlay.
+	///
+	/// A held button (CancelIfReleased, see MouseHold): if a MouseButtonUp of the same button went out while this was
+	/// still waiting, it is not pressed at all (else the release would come first, and the button stay down).
 	/// </summary>
-	abstract class MouseDownState : InputState {
+	class MouseButtonDown : InputState {
 		public const long MaxWaitMs = 500;
+		public readonly MouseBtn Button;
+		public bool CancelIfReleased;
 		private long waited;
 		private int removes; // moves sent again, after the overlay let the mouse through
-		protected MouseDownState(IState next) : base(next) { }
+		private long releasesAtStart = -1;
+		public MouseButtonDown(MouseBtn button, IState next = null) : base(next) => Button = button;
+		public override string Name => $"MouseDown({Button})";
+		public override IState OnTick(long dt) {
+			if ( releasesAtStart < 0 ) releasesAtStart = MouseButtonUp.Releases(Button);
+			if ( dt == 0 ) return this;
+			if ( !GameFocused ) return WaitForFocus(this);
+			if ( WaitForClickThrough(dt) ) return this;
+			if ( CancelIfReleased && MouseButtonUp.Releases(Button) != releasesAtStart ) {
+				Log($"{Name}: let go before it went out: not pressed");
+				return Next;
+			}
+			Platform.Current.Input.MouseButton(Button, true);
+			return Next;
+		}
 		// true while it should wait: for the overlay to let the click through, and then (if the overlay had the mouse when
 		// it was moved, so the game did not see the move) for the move to be sent again: next to the spot, then on it
-		protected bool WaitForClickThrough(long dt) {
+		private bool WaitForClickThrough(long dt) {
 			if ( !Overlay.IsClickThrough ) {
 				if ( (waited += dt) <= MaxWaitMs ) return true;
 				Log($"Warn: the overlay still takes the mouse after {MaxWaitMs} ms: clicking anyway.");
@@ -239,27 +378,40 @@ namespace AtE {
 		}
 	}
 
-	class LeftMouseDown : MouseDownState {
-		public LeftMouseDown(IState next = null) : base(next) { }
+	/// <summary>
+	/// A mouse button let go. This one does not wait for the focus: a button left down while another window is in front
+	/// would drag in that window.
+	/// </summary>
+	class MouseButtonUp : InputState {
+		public readonly MouseBtn Button;
+		private static readonly Dictionary<MouseBtn, long> releases = [];
+		/// <summary>How many times button has been let go (see MouseButtonDown.CancelIfReleased).</summary>
+		public static long Releases(MouseBtn button) => releases.TryGetValue(button, out long n) ? n : 0;
+		public MouseButtonUp(MouseBtn button, IState next = null) : base(next) => Button = button;
+		public override string Name => $"MouseUp({Button})";
 		public override IState OnTick(long dt) {
 			if ( dt == 0 ) return this;
-			if ( WaitForClickThrough(dt) ) return this;
-			if ( !(Overlay.HasFocus || PoEMemory.TargetHasFocus) ) {
-				Log($"Warn: MouseDown attempted while not focused, skipped.");
-				return Next;
-			}
-			Platform.Current.Input.MouseButton(MouseBtn.Left, true);
+			Platform.Current.Input.MouseButton(Button, false);
+			releases[Button] = Releases(Button) + 1;
 			return Next;
 		}
 	}
 
-	class LeftMouseUp : InputState {
-		public LeftMouseUp(IState next = null) : base(next) { }
-		public override IState OnTick(long dt) {
-			if ( dt == 0 ) return this;
-			Platform.Current.Input.MouseButton(MouseBtn.Left, false);
-			return Next;
-		}
+	/// <summary>
+	/// Pressing and letting go of a mouse button as separate plans (eg, walking holds the left button down while it steers
+	/// with MoveMouse): Press's button is not pressed if Release goes out before it does (it may wait for the focus).
+	/// </summary>
+	public static class MouseHold {
+		public static IState Press(MouseBtn button, IState next = null) => new MouseButtonDown(button, next) { CancelIfReleased = true };
+		public static IState Release(MouseBtn button, IState next = null) => new MouseButtonUp(button, next);
+	}
+
+	class LeftMouseDown : MouseButtonDown {
+		public LeftMouseDown(IState next = null) : base(MouseBtn.Left, next) { }
+	}
+
+	class LeftMouseUp : MouseButtonUp {
+		public LeftMouseUp(IState next = null) : base(MouseBtn.Left, next) { }
 	}
 
 	class LeftClick : InputState {
@@ -280,25 +432,12 @@ namespace AtE {
 			: new MoveMouse(x, y, new Delay(duration, new LeftClick(duration, count, next)))) { }
 	}
 
-	class RightMouseDown : MouseDownState {
-		public RightMouseDown(IState next = null) : base(next) { }
-		public override IState OnTick(long dt) {
-			if ( dt == 0 ) return this;
-			if ( WaitForClickThrough(dt) ) return this;
-			if ( !PoEMemory.TargetHasFocus ) { Log("Warn: right MouseDown while the game is not focused, skipped."); return Next; }
-			Platform.Current.Input.MouseButton(MouseBtn.Right, true);
-			return Next;
-		}
+	class RightMouseDown : MouseButtonDown {
+		public RightMouseDown(IState next = null) : base(MouseBtn.Right, next) { }
 	}
 
-	class RightMouseUp : InputState {
-		public RightMouseUp(IState next = null) : base(next) { }
-		public override IState OnTick(long dt) {
-			if ( dt == 0 ) return this;
-			if ( !PoEMemory.TargetHasFocus ) return Next;
-			Platform.Current.Input.MouseButton(MouseBtn.Right, false);
-			return Next;
-		}
+	class RightMouseUp : MouseButtonUp {
+		public RightMouseUp(IState next = null) : base(MouseBtn.Right, next) { }
 	}
 
 	class RightClick : InputState {

@@ -31,18 +31,6 @@ namespace AtE {
 		public static IState OnlyIfBackpackIsOpen(IState ifOpen, IState ifClosed = null) => State.NewState("CheckBackpackIsOpen", (self, dt) => BackpackIsOpen() ? ifOpen : ifClosed, next: ifOpen);
 		public static IState OnlyIfStashIsOpen(IState ifOpen, IState ifClosed = null) => State.NewState("CheckStashIsOpen", (self, dt) => BackpackIsOpen() && StashIsOpen() ? ifOpen : ifClosed, next: ifOpen);
 
-		/// <summary>
-		/// Make the game the focused window (if it is not), then next: eg, a plan started from a button in the overlay,
-		/// whose first click would otherwise only focus the game. Stops the plan (null) if the game does not take the focus
-		/// within a second.
-		/// </summary>
-		public static IState TryFocusGame(IState next) => State.NewState("TryFocusGame", (self, dt) => {
-			if ( PoEMemory.TargetHasFocus ) return next;
-			if ( !Platform.Current.Memory.TryFocusTarget() ) Log("TryFocusGame: could not focus the game");
-			return State.WaitFor(1000, () => PoEMemory.TargetHasFocus, new Delay(100, next),
-				State.NewState(() => Notify("Could not focus the game: stopped."), null));
-		}, next);
-
 		/// <summary>Open the inventory panel (if it is not open), then next.</summary>
 		public static IState OpenBackpack(IState next) => State.NewState("OpenBackpack", (self, dt) =>
 			BackpackIsOpen() ? next : new PressKey(VKey.I, InputLatency, new Delay(Settle, next)), next);
@@ -110,7 +98,7 @@ namespace AtE {
 				if ( step == null ) { Notify($"Can't find socket {socket} of {Equipment.ItemName(oldEntity)} on screen."); return null; }
 				plan = OnlyIfBackpackIsOpen(step);
 			}
-			return TryFocusGame(OpenBackpack(plan));
+			return ForceGameFocus(OpenBackpack(plan));
 		}
 
 		/// <summary>Wear newItem (in the backpack) in slot (eg, "LWeapon"): PlanSwapGear with what is worn there, or put it in the empty slot.</summary>
@@ -119,7 +107,7 @@ namespace AtE {
 			if ( worn != null ) return PlanSwapGear(worn, newItem, next);
 			var rect = GemArrangement.SlotRect(slot);
 			if ( rect.IsEmpty || !IsValid(newItem) ) return null;
-			return TryFocusGame(OpenBackpack(OnlyIfBackpackIsOpen(Named("PickUpNewItem", LeftClickItem(newItem, 1, new Delay(Settle,
+			return ForceGameFocus(OpenBackpack(OnlyIfBackpackIsOpen(Named("PickUpNewItem", LeftClickItem(newItem, 1, new Delay(Settle,
 				OnlyIfBackpackIsOpen(Named($"ClickSlot({slot})", Inputs.Click(rect, new Delay(Settle, next))))))))));
 		}
 
@@ -140,7 +128,7 @@ namespace AtE {
 		/// </summary>
 		public static IState PlanSocketGems(GemPlan plan, int maxMoves = 20, IState next = null) {
 			int moves = 0;
-			return TryFocusGame(State.NewState("PlanSocketGems", (self, dt) => {
+			return ForceGameFocus(State.NewState("PlanSocketGems", (self, dt) => {
 				if ( !BackpackIsOpen() ) return null;
 				if ( moves++ >= maxMoves ) { Notify($"Socketing gems: still not done after {maxMoves} moves."); return next; }
 				var move = PlanOneGemMove(plan, GemPlan.CharacterLevel(), self);

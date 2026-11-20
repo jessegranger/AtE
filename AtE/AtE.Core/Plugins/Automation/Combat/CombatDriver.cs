@@ -137,6 +137,8 @@ namespace AtE {
 				DrawBottomLeftText($"{Name}: {Status}", Color.Orange);
 				return this;
 			}
+			// (paused by WaitForFocus while another window is in front: its escape menu is left open until the focus is back)
+			if ( GamePausedForFocus ) { ReleaseChannel("paused"); return Wait("paused until the game has the focus"); }
 			if ( PoEMemory.GameRoot?.EscapeState?.Menu != null ) {
 				// opened by an Escape of ours (eg, the dialog it was to close had closed already): Escape again to close it
 				// (never a click while it is open: the chain waits here); one the player opened is left alone
@@ -170,7 +172,8 @@ namespace AtE {
 				return Wait("typing in the game");
 			}
 			emptyInputSince = 0;
-			if ( !PoEMemory.TargetHasFocus ) return Wait("the game needs focus to use the mouse");
+			// (no wait for the focus here: only the mouse needs it, and every mouse state waits for it, pausing the game
+			// meanwhile, see WaitForFocus)
 			if ( binding ) return Wait("changing the skill bar");
 			// left click should only move (and interact), never attack
 			if ( !SkillBar.LeftClickIsMovement() ) {
@@ -620,11 +623,12 @@ namespace AtE {
 			}
 			ReleaseChannel("another skill");
 			if ( InputBusy ) return true; // (once the input going out is done)
+			if ( !GameFocused ) { PauseUntilFocused(); return true; } // (nothing held while another window is in front)
 			DefaultFollower.ReleaseMouse(); // (walking holds the left button)
-			SkillBar.MouseTo(screenPos);
 			var button = SkillBar.ToMouseButton(slot.KeyCode);
-			if ( button.HasValue ) Platform.Current.Input.MouseButton(button.Value, true);
-			else Platform.Current.Input.KeyDown(slot.KeyCode);
+			// (the press after the aim; and not at all if ReleaseChannel let go before it went out)
+			if ( button.HasValue ) Run(Inputs.MoveTo(screenPos, MouseHold.Press(button.Value)));
+			else { SkillBar.MouseTo(screenPos); Platform.Current.Input.KeyDown(slot.KeyCode); }
 			heldSlot = slot;
 			heldAim = screenPos;
 			Log($"{Name}: channelling {skill}: holding {slot.KeyCode}");
@@ -638,7 +642,7 @@ namespace AtE {
 			if ( slot == null ) return;
 			heldSlot = null;
 			var button = SkillBar.ToMouseButton(slot.KeyCode);
-			if ( button.HasValue ) Platform.Current.Input.MouseButton(button.Value, false);
+			if ( button.HasValue ) Run(MouseHold.Release(button.Value));
 			else Platform.Current.Input.KeyUp(slot.KeyCode);
 			Log($"{Name}: channelling stopped ({why}): released {slot.KeyCode}");
 		}
@@ -646,7 +650,8 @@ namespace AtE {
 		// after Decide: let go of a held channelling skill once the player walks, or nothing asked for it lately
 		private void CheckChannel() {
 			if ( heldSlot == null ) return;
-			if ( DefaultFollower.IsActiveFor(this) ) ReleaseChannel("walking");
+			if ( !GameFocused ) ReleaseChannel("the game lost the focus");
+			else if ( DefaultFollower.IsActiveFor(this) ) ReleaseChannel("walking");
 			else if ( Time.ElapsedMilliseconds - lastHoldCall > ChannelIdleMs ) ReleaseChannel("not fighting");
 		}
 
@@ -733,6 +738,7 @@ namespace AtE {
 		/// the cursor is. False if there is no main skill on the bar (or it is Movement), or input is still going out.
 		/// </summary>
 		public bool StopMoving() {
+			if ( SkillsPausedHere() ) return false; // (no spells in a town or hideout, not even a tap)
 			var slot = MainSkillSlot();
 			if ( slot?.Skill == null || SkillBar.IsMovement(slot.Skill) || slot.Key == VKey.None ) return false;
 			DefaultFollower.ReleaseMouse();
@@ -852,9 +858,9 @@ namespace AtE {
 			}
 			if ( AttackKey.Key == VKey.None || Time.ElapsedMilliseconds - lastAttack < AttackIntervalMs ) return;
 			lastAttack = Time.ElapsedMilliseconds;
-			// aim with the real cursor (the game only reads it while focused), press the skill key (which can be posted)
-			Platform.Current.Input.MouseMove(screenPos + WindowOffset());
-			Run(new PressKey(AttackKey.Key, (uint)HoldMs));
+			// aim with the real cursor (the game only reads it while focused: MoveMouse waits for that), then press the
+			// skill key (which can be posted)
+			Run(new MoveMouse(screenPos + WindowOffset(), new PressKey(AttackKey.Key, (uint)HoldMs)));
 		}
 
 		private static Vector2 WindowOffset() =>

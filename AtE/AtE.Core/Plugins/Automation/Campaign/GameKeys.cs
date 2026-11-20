@@ -247,7 +247,7 @@ namespace AtE {
 			}
 			lastAction = now;
 			if ( !PanelOpen ) {
-				var key = (ctx.Driver as CampaignRoutine)?.OptionsKey?.Key ?? VKey.O;
+				var key = (ctx.Driver as GoalRoutine)?.OptionsKey?.Key ?? VKey.O;
 				Detail = $"opening the Options ({key})";
 				opened = true;
 				return GameKeys.Press(key, this);

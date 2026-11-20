@@ -101,5 +101,14 @@ namespace AtE {
 		/// </summary>
 		public static WorldArea GetCurrentArea() =>
 			WorldArea.FromAddress(PoEMemory.GameRoot?.InGameState?.WorldData?.AreaRef.Value.ptrToWorldAreaDetails ?? IntPtr.Zero);
+
+		/// <summary>
+		/// No buffs or spells cast on their own here: a town or a hideout (or the area can't be read). Only travel skills
+		/// (see TravelSkills) are used in a hideout; they check IsTown alone.
+		/// </summary>
+		public static bool SkillsPausedHere() {
+			var area = GetCurrentArea();
+			return area == null || area.IsTown || Offsets.IsHideout(area.Name);
+		}
 	}
 }

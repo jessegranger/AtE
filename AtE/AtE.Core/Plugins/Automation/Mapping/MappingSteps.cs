@@ -1,0 +1,427 @@
+using ImGuiNET;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using AtE.Plugins;
+using static AtE.Globals;
+
+namespace AtE {
+
+	/// <summary>
+	/// The hideout steps of the Mapping loop as state chains, each ending in next, to be stitched together later:
+	///   StashEverything  walk to the stash, open it, show the DumpTab, BackpackPlugin.PlanDumpAll
+	///   PickNextMap      (stash open) show the MapsTab, ActivateMapTier(MapTier), Ctrl + click a map into the backpack
+	///   RollMap          (stash open, map in the backpack) Scouring / Alchemy from the CurrencyTab (stash and inventory open, one map) until it is
+	///                    a rare with none of ProhibitedMods
+	///   OpenMap          walk to the Map Device, open it, put the map in, Activate, wait for a new portal
+	///   EnterPortal      walk to that portal, click it, wait for the new area to finish loading
+	/// Each step decides what to do when it is reached, not when it is built (the backpack and stash change on the way), and
+	/// stops the chain (null) with a log line when it can't go on. The steps of a plan are built up front, each with its
+	/// Next set to the step it goes on to, so the whole plan can be looked at (eg, in an ObjectBrowser) before it runs;
+	/// what a step runs in between (a walk, a click, a wait) is made when it runs.
+	///
+	/// They walk (Navigate), so they run in the routine's CampaignRunner (eg, Call()ed from a goal), not in a plain Machine.
+	/// Waits longer than GoalRoutine.MaxInputMs are CampaignStates (see Step), which the routine does not cut short.
+	/// Note: entering a new area restarts the routine's goal (GoalRoutine.ForgetOnNewArea cancels the chain), so what
+	/// follows EnterPortal only runs if that is handled when they are stitched together.
+	/// </summary>
+	public partial class MappingRoutine {
+
+		/// <summary>The stash tab everything is dumped in.</summary>
+		public string DumpTab = "dump";
+		/// <summary>The stash tab the maps are taken from (a Map stash tab, see ActivateMapTier).</summary>
+		public string MapsTab = "maps";
+		/// <summary>The stash tab with the currency (Orb of Scouring, Orb of Alchemy).</summary>
+		public string CurrencyTab = "$$";
+		/// <summary>The tier of map to take from the MapsTab.</summary>
+		public int MapTier = 1;
+		/// <summary>Map mods not to run, separated by commas: parts of a mod's name (Mods.dat id, eg "Reflect") or display name.</summary>
+		public string ProhibitedMods = "";
+		/// <summary>RollMap gives up after using this many currency items on one map.</summary>
+		public int MaxRolls = 20;
+		/// <summary>How near (cells) to walk to the stash, the Map Device and a portal before clicking it.</summary>
+		public float ClickReach = 12;
+
+		// ---- the steps ----
+
+		/// <summary>In the hideout: walk to the stash, click it (its label), show the DumpTab, then dump the backpack (BackpackPlugin.PlanDumpAll: identify, stash all but what it keeps), then next. Leaves the stash open.</summary>
+		public IState StashEverything(IState next) {
+			var dump = new Step("Dump the backpack", (s, ctx, dt) =>
+				GetPlugin<BackpackPlugin>() is BackpackPlugin backpack ? backpack.PlanDumpAll(next) : Fail("no BackpackPlugin to dump with"), next);
+			var tab = Tab(DumpTab, dump);
+			var open = ClickToOpen("the stash", FindStash, StashIsOpen, tab);
+			var walk = WalkTo("the stash", FindStash, open, skipTo: StashIsOpen);
+			// (the stash open already, wherever: no walking, no clicking its label)
+			return ForceGameFocus(new Step("Stash everything", (s, ctx, dt) =>
+				StashIsOpen() ? tab
+				: !InHideout() ? Fail("stash everything: not in the hideout")
+				: walk, walk));
+		}
+
+		/// <summary>With the stash open: show the MapsTab, ActivateMapTier(MapTier), Ctrl + click a map of that tier into the backpack (it becomes NextMap), then next.</summary>
+		public IState PickNextMap(IState next) {
+			var tab = Tab(MapsTab, ActivateMapTier(MapTier, TakeMap(next)));
+			return ForceGameFocus(new Step("Pick the next map", (s, ctx, dt) => !StashIsOpen() ? Fail("pick the next map: the stash is not open") : tab, tab));
+		}
+
+		/// <summary>
+		/// With the stash open on the MapsTab (a Map stash tab): show the maps of tier, then next. Nothing to do if the maps
+		/// showing are that tier's already. Stops if the tab has no tier buttons, or no maps of that tier.
+		///
+		/// The Map stash tab's page (StashRoot.VisibleTabPage), 3.30.0d, seen live:
+		///   .0.0 and .0.1  two rows of 9 tier buttons (73.5 px squares, left to right): button i (in reading order) is tier
+		///                  i + 1, and its child [0]'s text is how many maps of that tier the tab holds ("17", "10", "8", "0"...)
+		///   .0.2           an empty strip (0 high)
+		///   .0.3           a bar of 6 numbered buttons "1".."6" (its last child is the one selected, like the stash's tab bar), and their pages
+		///   .0.4.N         the grids of maps (12 x 6 cells of 53.25 px): the visible one holds the selected tier's maps as
+		///                  items, eg Metadata/Items/Maps/MapKeyTier3, named "Map (Tier 3)"
+		///   .0.5           two small arrow buttons (hidden)
+		/// No button shows which tier is selected; the maps showing do (their path's MapKeyTierN). The buttons are found by
+		/// their shape (a row of 9 children, each with a number for its text), not by index, in case the page moves.
+		/// </summary>
+		public IState ActivateMapTier(int tier, IState next) => ForceGameFocus(new Step($"Show tier {tier} maps", (s, ctx, dt) => {
+			if ( !StashIsOpen() ) return Fail($"show tier {tier} maps: the stash is not open");
+			if ( ShowsTier(tier) ) return next;
+			var buttons = TierButtons(GetUI()?.StashElement?.VisibleTabPage);
+			if ( buttons.Count == 0 ) return Fail($"show tier {tier} maps: the \"{MapsTab}\" tab has no tier buttons (is it a Map stash tab?)");
+			if ( tier < 1 || tier > buttons.Count ) return Fail($"show tier {tier} maps: there are {buttons.Count} tier buttons");
+			var button = buttons[tier - 1];
+			if ( int.TryParse(button.GetChild(0)?.Text?.Trim(), out int count) && count == 0 ) return Fail($"no tier {tier} maps on the \"{MapsTab}\" tab");
+			s.Detail = $"clicking tier {tier} ({count} maps)";
+			return Inputs.Click(button.GetClientRect(), WaitUntil($"tier {tier} maps to show", 2000, () => ShowsTier(tier), next,
+				$"tier {tier} maps did not show after clicking its button"));
+		}, next));
+
+		/// <summary>
+		/// With the stash open: show the CurrencyTab, right click the currency named name (its item name, eg "Orb of Scouring"),
+		/// left click target (where it is when clicked), then next.
+		/// </summary>
+		public IState UseCurrencyFromStash(string name, InventoryItem target, IState next) {
+			var use = new Step($"Right click {name}", (s, ctx, dt) => {
+				if ( !BackpackIsOpen() ) return Fail($"use {name}: the inventory is not open");
+				var currency = StashItems().FirstOrDefault(i => i?.Entity is Entity e && string.Equals(Equipment.ItemName(e), name, StringComparison.OrdinalIgnoreCase));
+				if ( currency == null ) return Fail($"no {name} on the \"{CurrencyTab}\" tab");
+				if ( !IsValid(target) ) return Fail($"use {name}: the item to use it on is gone");
+				var at = target.GetClientRect();
+				return Inputs.RightClick(currency.GetClientRect(), new Delay(InventoryPlans.Settle,
+					Inputs.Click(at, new Delay(InventoryPlans.Settle, next))));
+			}, next);
+			var tab = Tab(CurrencyTab, use);
+			return ForceGameFocus(new Step($"Use {name}", (s, ctx, dt) => !StashIsOpen() ? Fail($"use {name}: the stash is not open") : tab, tab));
+		}
+
+		/// <summary>
+		/// With the stash and the inventory open, and one map in the backpack (normal, magic or rare): make it a rare with
+		/// none of ProhibitedMods, with Orbs of Scouring and Alchemy right clicked in the stash window (the CurrencyTab) and
+		/// used on the map: Alchemy on a normal map; Scouring on a magic one or a rare with a prohibited mod (then Alchemy
+		/// again). An unidentified magic or rare map is identified first (Scouring does not work on it), with a Scroll of
+		/// Wisdom from the backpack (BackpackPlugin.PlanIdentify; not counted against MaxRolls). Then next. Stops (null) at once if the stash or the inventory
+		/// isn't open (at any roll), if there isn't exactly one map in the backpack at the start, on a unique map, or after
+		/// MaxRolls. A corrupted map (which can't be rolled) is done as it is, whatever its rarity, if it has none of
+		/// ProhibitedMods (identified first if need be), and stops it if it has one.
+		/// </summary>
+		public IState RollMap(IState next) {
+			var roll = RollStep(0, next);
+			return ForceGameFocus(new Step("Roll the map", (s, ctx, dt) => {
+				if ( !StashIsOpen() ) return Fail("roll the map: the stash is not open");
+				if ( !BackpackIsOpen() ) return Fail("roll the map: the inventory is not open");
+				int maps = BackpackItems().Count(i => ChooseNextMap.IsMap(i?.Entity));
+				if ( maps != 1 ) return Fail($"roll the map: there should be one map in the backpack, there are {maps}");
+				return roll;
+			}, roll));
+		}
+
+		// (each roll's UseCurrencyFromStash is made when it runs: which currency depends on the map)
+		private IState RollStep(int used, IState next) => new Step($"Roll {used + 1}", (s, ctx, dt) => {
+			if ( !StashIsOpen() ) return Fail("roll the map: the stash is not open");
+			if ( !BackpackIsOpen() ) return Fail("roll the map: the inventory is not open");
+			var map = BackpackMap();
+			var e = map?.Entity;
+			var mods = e?.GetComponent<Mods>();
+			if ( e == null || !IsValid(mods) ) return Fail("roll the map: no map in the backpack");
+			string name = Equipment.ItemName(e) ?? "the map";
+			if ( mods.Rarity == Offsets.ItemRarity.Unique ) return Fail($"roll the map: {name} is unique");
+			// an unidentified magic or rare map: Scouring does not work on it, so identify it first (a Scroll of Wisdom from
+			// the backpack, BackpackPlugin.PlanIdentify), then look again
+			if ( mods.Rarity != Offsets.ItemRarity.Normal && !mods.IsIdentified ) {
+				if ( GetPlugin<BackpackPlugin>() is not BackpackPlugin backpack ) return Fail("roll the map: no BackpackPlugin to identify it with");
+				Log($"{Name}: roll {used + 1}: {name} is unidentified: identifying it");
+				s.Detail = "identifying";
+				uint unid = e.Id;
+				return backpack.PlanIdentify(new[] { map },
+					WaitUntil($"{name} to be identified", 2000,
+						() => BackpackMap()?.Entity is Entity now && (now.Id != unid || (now.GetComponent<Mods>()?.IsIdentified ?? false)),
+						RollStep(used, next), $"{name} was not identified"))
+					?? Fail("roll the map: can't identify it (no Scroll of Wisdom in the backpack?)");
+			}
+			// a corrupted map can't be rolled: it will do as it is (whatever its rarity) if it has none of ProhibitedMods
+			if ( IsCorrupted(e) ) {
+				var badMods = mods.ExplicitMods.Where(IsProhibited).Select(m => m.DisplayName ?? m.GroupName).ToList();
+				if ( badMods.Count > 0 ) return Fail($"roll the map: {name} is corrupted, with prohibited mods: {string.Join(", ", badMods)}");
+				Log($"{Name}: {name} is corrupted ({mods.Rarity}) with no prohibited mods: it will do ({used} currency used)");
+				return next;
+			}
+			string why = null;
+			if ( mods.Rarity == Offsets.ItemRarity.Rare ) {
+				var bad = mods.ExplicitMods.Where(IsProhibited).Select(m => m.DisplayName ?? m.GroupName).ToList();
+				if ( bad.Count == 0 ) {
+					Log($"{Name}: {name} is a rare with no prohibited mods ({used} currency used): {string.Join(", ", mods.ExplicitMods.Select(m => m.DisplayName ?? m.GroupName))}");
+					return next;
+				}
+				why = $"prohibited: {string.Join(", ", bad)}";
+			}
+			if ( used >= MaxRolls ) return Fail($"roll the map: gave up on {name} after {used} currency");
+			string currency = mods.Rarity == Offsets.ItemRarity.Normal ? "Orb of Alchemy" : "Orb of Scouring";
+			why ??= $"{mods.Rarity}".ToLowerInvariant();
+			Log($"{Name}: roll {used + 1}: {name} is {why}: {currency}");
+			s.Detail = $"{why}: {currency}";
+			string before = MapSignature(e);
+			uint id = e.Id;
+			return UseCurrencyFromStash(currency, map,
+				WaitUntil($"{name} to change ({currency})", 2000,
+					() => BackpackMap()?.Entity is Entity now && (now.Id != id || MapSignature(now) != before),
+					RollStep(used + 1, next), $"{name} did not change after the {currency}"));
+		}, next);
+
+		/// <summary>Walk to the Map Device (closing the stash first), click it (its label), put the map (NextMap, else any) in, click Activate, wait for a new map portal, then next.</summary>
+		public IState OpenMap(IState next) {
+			var insert = InsertMap(next);
+			Func<Entity> device = () => CampaignState.Context is CombatContext c ? AtE.OpenMap.FindDevice(c) : null;
+			var walk = WalkTo("the Map Device", device, ClickToOpen("the Map Device", device, MapDeviceIsOpen, insert), skipTo: MapDeviceIsOpen);
+			return ForceGameFocus(new Step("Open the map", (s, ctx, dt) =>
+				BackpackMap() == null ? Fail("open the map: no map in the backpack")
+				: MapDeviceIsOpen() ? insert
+				: StashIsOpen() ? CloseWindow("the stash", s)
+				: walk, walk));
+		}
+
+		/// <summary>Walk to the nearest portal the map device opened (closing its window first), click it (again every 2s), and go on to next once the new area has loaded.</summary>
+		public IState EnterPortal(IState next) {
+			var take = TakePortal(next);
+			return ForceGameFocus(new Step("Enter the portal", (s, ctx, dt) => {
+				if ( MapDeviceIsOpen() ) return CloseWindow("the map device", s);
+				var portal = FindPortal();
+				var pos = portal?.GetComponent<Positioned>();
+				if ( portal == null || !IsValid(pos) ) return Fail("enter the portal: no map portal in sight");
+				var grid = pos.GridPos;
+				return new Navigate("the map portal", _ => grid, ClickReach, take) { FightRadius = -1 };
+			}, take));
+		}
+
+		// ---- the parts ----
+
+		// show the tab named name (see StashRoot.ActivateTab), then next
+		private IState Tab(string name, IState next) => new Step($"Show the \"{name}\" tab", (s, ctx, dt) =>
+			StashIsOpen() && GetUI()?.StashElement is StashRoot stash ? stash.ActivateTab(name, next)
+			: Fail($"can't show the \"{name}\" tab: the stash is not open"), next);
+
+		// walk to within ClickReach of what find finds (when this is reached), wait a frame there, then next; straight to
+		// next if skipTo says the walk isn't needed (eg, the window it walks to open is open already)
+		private IState WalkTo(string what, Func<Entity> find, IState next, Func<bool> skipTo = null) {
+			var arrive = OneFrame($"Arrive at {what}", next);
+			return new Step($"Find {what}", (s, ctx, dt) => {
+				if ( skipTo?.Invoke() == true ) return next;
+				var pos = find()?.GetComponent<Positioned>();
+				if ( !IsValid(pos) ) return Fail($"no {what} in sight");
+				var grid = pos.GridPos;
+				return new Navigate(what, _ => grid, ClickReach, arrive) { FightRadius = -1 };
+			}, arrive);
+		}
+
+		// wait one frame, then next: on arriving (eg, by a Blink) the labels and the camera are drawn where the player was
+		// the frame before, so a click read from them at once lands past what it is meant for
+		private static IState OneFrame(string label, IState next) {
+			int ticks = 0;
+			return new Step(label, (s, ctx, dt) => {
+				ctx.Driver.StopWalking(label);
+				if ( ++ticks > 1 ) { ticks = 0; return next; }
+				return s;
+			}, next);
+		}
+
+		// click what find finds (its label if it shows one), wait for isOpen, then next; nothing to do if open already
+		private IState ClickToOpen(string what, Func<Entity> find, Func<bool> isOpen, IState next) => new Step($"Open {what}", (s, ctx, dt) => {
+			if ( isOpen() ) return next;
+			var e = find();
+			if ( e == null ) return Fail($"no {what} in sight");
+			ctx.Driver.StopWalking($"opening {what}");
+			return Ground.ClickEntity(e, WaitUntil($"{what} to open", 3000, isOpen, next, $"{what} did not open"))
+				?? Fail($"can't click {what} (off screen, or under a panel)");
+		}, next);
+
+		// press Escape (noted as ours, see Inputs.LastEscapeMs), wait a moment, then next
+		private static IState CloseWindow(string what, IState next) {
+			Inputs.LastEscapeMs = Time.ElapsedMilliseconds;
+			return Inputs.Press(VKey.Escape, new Delay(InventoryPlans.Settle, next));
+		}
+
+		// the stash entity nearest the player
+		private static Entity FindStash() => Nearest(e => e.Path == Offsets.PATH_STASH);
+
+		private static Entity Nearest(Func<Entity, bool> match) {
+			var player = GetPlayer()?.GetComponent<Positioned>();
+			if ( !IsValid(player) ) return null;
+			var at = player.GridPos;
+			return (GetEntities() ?? Enumerable.Empty<Entity>()).Where(e => IsValid(e) && match(e))
+				.Select(e => (e, pos: e.GetComponent<Positioned>())).Where(x => IsValid(x.pos))
+				.OrderBy(x => Combat.Distance(at, x.pos.GridPos)).Select(x => x.e).FirstOrDefault();
+		}
+
+		// the map to roll / open: NextMap if it is in the backpack, else the first map there
+		private InventoryItem BackpackMap() {
+			var maps = BackpackItems().Where(i => ChooseNextMap.IsMap(i?.Entity)).ToList();
+			return (NextMap is { } n ? maps.FirstOrDefault(i => i.Entity.Id == n.id) : null) ?? maps.FirstOrDefault();
+		}
+
+		private static readonly Regex MapKeyTier = new Regex(@"/MapKeyTier(\d+)$");
+
+		/// <summary>A map's tier: from its path (3.30: Metadata/Items/Maps/MapKeyTier3), else its Map component; 0 if neither says.</summary>
+		public static int TierOf(Entity map) {
+			var m = map?.Path is string path ? MapKeyTier.Match(path) : null;
+			if ( m != null && m.Success && int.TryParse(m.Groups[1].Value, out int tier) ) return tier;
+			return map?.GetComponent<Map>()?.Tier ?? 0;
+		}
+
+		// the maps showing in the stash
+		private static List<StashItem> MapsShowing() => StashItems().Where(i => ChooseNextMap.IsMap(i?.Entity)).ToList();
+
+		// the maps of MapTier showing in the stash
+		private IEnumerable<StashItem> MapsOfTier() => MapsShowing().Where(i => TierOf(i.Entity) == MapTier);
+
+		// the maps showing are all of tier (and there are some)
+		private static bool ShowsTier(int tier) {
+			var maps = MapsShowing();
+			return maps.Count > 0 && maps.All(i => TierOf(i.Entity) == tier);
+		}
+
+		// the tier buttons of a Map stash tab's page, in tier order (see ActivateMapTier): the rows of 9 children that each
+		// have a number for their child [0]'s text, under the page's first child
+		private static List<Element> TierButtons(Element page) {
+			var rows = page?.GetChild(0)?.Children.Where(r => IsValid(r) && r.IsVisibleLocal
+				&& r.Children.Count() == 9 && r.Children.All(b => int.TryParse(b?.GetChild(0)?.Text?.Trim(), out _)));
+			return (rows ?? Enumerable.Empty<Element>()).SelectMany(r => r.Children)
+				.OrderBy(b => b.GetClientRect().Y).ThenBy(b => b.GetClientRect().X).ToList();
+		}
+
+		// Ctrl + click the first map of MapTier showing into the backpack, note it as NextMap, then next
+		private IState TakeMap(IState next) => new Step("Take a map", (s, ctx, dt) => {
+			var map = MapsOfTier().FirstOrDefault();
+			if ( map == null ) return Fail($"no tier {MapTier} maps showing on the \"{MapsTab}\" tab");
+			if ( !BackpackIsOpen() ) return Fail("take a map: the inventory is not open");
+			var had = new HashSet<uint>(BackpackItems().Where(i => ChooseNextMap.IsMap(i?.Entity)).Select(i => i.Entity.Id));
+			Func<InventoryItem> taken = () => BackpackItems().FirstOrDefault(i => ChooseNextMap.IsMap(i?.Entity) && !had.Contains(i.Entity.Id));
+			return Inputs.CtrlClick(map.GetClientRect(), WaitUntil("the map in the backpack", 2000, () => taken() != null,
+				new Step("Note the next map", (s2, c2, d2) => {
+					var e = taken()?.Entity;
+					if ( e == null ) return Fail("the map left the backpack");
+					NextMap = (e.Id, ChooseNextMap.MapArea(e));
+					Log($"{Name}: took {Equipment.ItemName(e)} (tier {TierOf(e)}) from the \"{MapsTab}\" tab");
+					return next;
+				}, next), "the map did not show in the backpack"));
+		}, next);
+
+		// (map device open) open the inventory if need be, note the portals open now (not the new map's), put the map in, click Activate, wait for a new portal
+		private IState InsertMap(IState next) => new Step("Put the map in", (s, ctx, dt) => {
+			if ( !MapDeviceIsOpen() ) return Fail("put the map in: the map device is not open");
+			if ( !BackpackIsOpen() ) return GameKeys.Press(GameKeys.InventoryKey, WaitUntil("the inventory to open", 2000, BackpackIsOpen, s, "the inventory did not open"));
+			var map = BackpackMap();
+			if ( map == null ) return Fail("put the map in: no map in the backpack");
+			StalePortals.Clear();
+			StalePortals.UnionWith(MapDevice.MapPortals().Select(e => e.Id));
+			MapLaunched = true;
+			return MapDevice.PlanLaunchMapFromInventory(map, WaitUntil("a new map portal", 6000, () => AtE.OpenMap.FreshPortals(this).Any(), next, "no new map portal opened"))
+				?? Fail("could not put the map in the map device");
+		}, next);
+
+		// a portal the map device opened in this visit (the nearest), else the nearest map portal
+		private Entity FindPortal() {
+			var fresh = new HashSet<uint>(AtE.OpenMap.FreshPortals(this).Select(e => e.Id));
+			return Nearest(e => fresh.Contains(e.Id)) ?? MapDevice.FindMapPortal();
+		}
+
+		// click the portal (found again each try, every 2s) until the area changes, then wait for it to load
+		private IState TakePortal(IState next) {
+			uint? start = null;
+			long lastClick = -1000000;
+			return new Step("Take the portal", (s, ctx, dt) => {
+				start ??= AreaHash(); // (the area it was reached in)
+				bool loading = PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? true;
+				if ( AreaHash() != start ) {
+					if ( !loading && IsValid(GetPlayer()) ) return next;
+					s.Detail = "loading";
+					return s.Elapsed > 60000 ? Fail("the new area did not finish loading") : s;
+				}
+				if ( s.Elapsed > 15000 ) return Fail("did not enter the map portal");
+				if ( loading || s.Elapsed - lastClick < 2000 ) return s;
+				var portal = FindPortal();
+				if ( portal == null ) return s; // (while loading, the portal is gone before the area changes)
+				ctx.Driver.StopWalking("taking the portal");
+				var click = Ground.ClickEntity(portal, s);
+				if ( click == null ) return s;
+				lastClick = s.Elapsed;
+				EnteringMap();
+				s.Detail = "clicking the portal";
+				return click;
+			}, next);
+		}
+
+		private static uint AreaHash() => PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
+
+		private bool IsProhibited(ItemMod mod) {
+			var terms = ProhibitedMods.Split(',').Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
+			return terms.Any(t => (mod.GroupName?.IndexOf(t, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0
+				|| (mod.DisplayName?.IndexOf(t, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0);
+		}
+
+		// what a currency item changes on a map: rarity, identified, the explicit mods
+		private static string MapSignature(Entity map) {
+			var mods = map?.GetComponent<Mods>();
+			if ( !IsValid(mods) ) return "";
+			return $"{mods.Rarity}|{mods.IsIdentified}|{string.Join(",", mods.ExplicitMods.Select(m => m.GroupName))}";
+		}
+
+		private IState WaitUntil(string what, long timeoutMs, Func<bool> done, IState next, string failWhy) =>
+			new Step($"Wait for {what}", (s, ctx, dt) => done() ? next : s.Elapsed > timeoutMs ? Fail(failWhy) : s, next);
+
+		private IState Fail(string why) {
+			Log($"{Name}: {why}");
+			return null;
+		}
+
+		private void RenderStepSettings() {
+			ImGui.InputText("Dump Tab", ref DumpTab, 64);
+			ImGui.InputText("Maps Tab", ref MapsTab, 64);
+			ImGui.InputText("Currency Tab", ref CurrencyTab, 64);
+			ImGui.SameLine();
+			ImGui_HelpMarker("The stash tabs, by name: everything is dumped in the Dump Tab, maps are taken from the Maps Tab (a Map stash tab), and the Orbs of Scouring and Alchemy that roll them come from the Currency Tab.");
+			ImGui.SliderInt("Map Tier", ref MapTier, 1, 18);
+			ImGui.InputText("Prohibited Mods", ref ProhibitedMods, 1000);
+			ImGui.SameLine();
+			ImGui_HelpMarker("Map mods not to run, separated by commas: parts of the mod's name (eg, Reflect) or its display name. A map is rolled until it is a rare with none of them.");
+			ImGui.SliderInt("Max Rolls", ref MaxRolls, 1, 100);
+		}
+
+		/// <summary>
+		/// A step of a chain: func is asked each frame (with the step, for its Elapsed and Detail) what to run: the step
+		/// itself to keep at it, another state, or null to stop. Its Next is the step it goes on to when all is well (for
+		/// looking at the plan; func returns it itself). A CampaignState, so the routine does not cut a long wait short (as
+		/// it does input that takes longer than MaxInputMs). Elapsed counts the ms it has been ticked.
+		/// </summary>
+		private sealed class Step : CampaignState {
+			private readonly string label;
+			private readonly Func<Step, CombatContext, long, IState> func;
+			/// <summary>Milliseconds ticked so far.</summary>
+			public long Elapsed;
+			public Step(string label, Func<Step, CombatContext, long, IState> func, IState next) : base(next) {
+				this.label = label;
+				this.func = func;
+			}
+			public override string Name => label;
+			protected override IState Tick(CombatContext ctx, long dt) {
+				Elapsed += dt;
+				return func(this, ctx, dt);
+			}
+		}
+	}
+}

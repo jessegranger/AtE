@@ -347,11 +347,10 @@ namespace AtE {
 		/// <summary>Walk to goal with the path follower (ticked in OnTick), with the console out of the way and the game focused.</summary>
 		private void StartFollowing(Offsets.Vector2i goal) {
 			AtE.Console.CollapseNext = true;
-			if ( !PoEMemory.TargetHasFocus && !Platform.Current.Memory.TryFocusTarget() ) Log("Navigation: could not focus the game");
 			targetPinned = true; // (keep showing the path to this goal after the walk)
 			pinnedTarget = goal;
-			DefaultFollower.Start(goal, this, verbose: true);
 			Log($"Navigation: following the path to {goal}");
+			Run(ForceGameFocus(State.NewState(() => DefaultFollower.Start(goal, this, verbose: true))));
 		}
 
 		// input sent for the follower (a travel skill past a trap, or the tap that stops the walk), still going out
@@ -377,6 +376,7 @@ namespace AtE {
 
 		/// <summary>Tap the main skill (BuildPlan.MainSkill, else the slot on Q) for one InputLatency: too short to cast, but it stops the walk.</summary>
 		public bool StopMoving() {
+			if ( SkillsPausedHere() ) return false; // (no spells in a town or hideout, not even a tap)
 			string main = BuildPlan.MainSkill();
 			var slot = SkillBar.FindSlot(main) ?? SkillBar.GetSlot(BuildPlan.MainSlot);
 			if ( slot?.Skill == null || SkillBar.IsMovement(slot.Skill) || slot.Key == VKey.None ) {

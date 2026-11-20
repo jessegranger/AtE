@@ -182,8 +182,7 @@ namespace AtE {
 			if ( campaign == null ) return;
 			if ( Current != campaign ) { Current?.Stop("another routine was chosen"); Routine = campaign.Key; }
 			Log($"Combat: --campaign: switching the {campaign.Name} on");
-			if ( !PoEMemory.TargetHasFocus && !Platform.Current.Memory.TryFocusTarget() ) Log("Combat: --campaign: could not focus the game");
-			if ( !campaign.IsActive ) campaign.Start();
+			Run(ForceGameFocus(State.NewState(() => { if ( !campaign.IsActive ) campaign.Start(); })));
 		}
 
 		public override IState OnTick(long dt) {

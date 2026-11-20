@@ -620,9 +620,17 @@ namespace AtE {
 
 			yield return KeyToggle(new Toggle {
 				Id = "A8.EscapeMenu", Action = "", Fallback = VKey.Escape, TargetName = "EscapeState.elemMenu",
-				Covers = new[] { "EscapeGameState.elemRoot", "EscapeGameState.elemMenu", "InGameState_Data.IsPaused" },
-				// the Escape menu pauses the game: IsPaused is true while it is open
-				While = c => PoEMemory.GameRoot?.InGameState?.IsPaused == true ? Outcome.Pass() : Outcome.NotYet("waiting for IsPaused while the Escape menu is open"),
+				Covers = new[] { "EscapeGameState.elemRoot", "EscapeGameState.elemMenu", "InGameState_Data.IsPaused", "InGameState.IsRunning" },
+				// while the Escape menu is open, InGameState.IsRunning is false; and outside hideouts the game is paused (IsPaused
+				// is never true in a hideout: 3.30.0d, seen with the menu open there)
+				While = c => {
+					var game = PoEMemory.GameRoot?.InGameState;
+					if ( game == null ) return Outcome.NotYet("no InGameState");
+					if ( game.Cache.IsRunning ) return Outcome.NotYet("waiting for IsRunning to be false while the Escape menu is open");
+					bool hideout = Offsets.IsHideout(PoEMemory.GameRoot?.AreaLoadingState?.AreaName ?? "");
+					if ( !hideout && !game.IsPaused ) return Outcome.NotYet("waiting for IsPaused while the Escape menu is open");
+					return Outcome.Pass();
+				},
 				HoldMs = 2000,
 				State = () => (PoEMemory.GameRoot?.EscapeState?.Menu?.IsVisible ?? false) ? "shown" : "hidden",
 				Verify = c => {

@@ -332,9 +332,9 @@ namespace AtE {
 				}
 				if ( !PoEMemory.TargetHasFocus && (check.Setup != null) ) {
 					// a step that sends keys or the mouse would fail without the focus: take it
-					if ( Time.ElapsedMilliseconds - lastFocusTry > 750 ) {
+					if ( Time.ElapsedMilliseconds - lastFocusTry > 2500 ) { // (ForceGameFocus gives up after 2 s: start another then)
 						lastFocusTry = Time.ElapsedMilliseconds;
-						if ( !Platform.Current.Memory.TryFocusTarget() ) Log($"OffsetTests: could not focus the game for {check.Id}");
+						Run(ForceGameFocus(null));
 					}
 					status = $"{check.Id}: focusing the game";
 					return false;

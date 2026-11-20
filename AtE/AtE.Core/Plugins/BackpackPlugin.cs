@@ -74,10 +74,21 @@ namespace AtE.Plugins {
 			}
 			return true;
 		});
-		private IState PlanIdentifyAll(IState next = null) {
+		/// <summary>Identify, stash (keeping what is held back), open stacked decks, and incubate, then next. Expects the stash open on the tab to dump into.</summary>
+		public IState PlanDumpAll(IState next) => PlanIdentifyAll(PlanStashAll(PlanOpenAllDecks(PlanIncubateAll(next))));
+
+		/// <summary>Identify the items ItemsToIdentify picks (by the Identify settings), then next.</summary>
+		public IState PlanIdentifyAll(IState next = null) => PlanIdentify(ItemsToIdentify(), next);
+
+		/// <summary>
+		/// Identify items (in the backpack) with a Scroll of Wisdom from the backpack: right click the scroll, hold Shift,
+		/// click each item, let Shift go; then next. Whatever the Identify settings say (eg, a map in the chaos recipe's item
+		/// levels). Nothing to do (next) if items is empty; null if there is no Scroll of Wisdom.
+		/// </summary>
+		public IState PlanIdentify(IEnumerable<InventoryItem> items, IState next = null) {
 			var ui = GetUI();
 			if ( IsValid(ui) ) {
-				var itemsToIdentify = ItemsToIdentify().ToArray();
+				var itemsToIdentify = (items ?? Enumerable.Empty<InventoryItem>()).Where(i => IsValid(i)).ToArray();
 				if ( itemsToIdentify.Length == 0 ) {
 					// no work to do
 					return next;
@@ -377,7 +388,7 @@ namespace AtE.Plugins {
 
 				if ( PoEMemory.TargetHasFocus && DumpKey.IsReleased ) {
 					Notify("Depositing all your loot.");
-					Run(PlanIdentifyAll(PlanStashAll(PlanOpenAllDecks(PlanIncubateAll(null)))));
+					Run(PlanDumpAll(null));
 					return this;
 				}
 
