@@ -16,7 +16,7 @@ namespace AtE {
 	///   RollMap          (stash open, map in the backpack) Scouring / Alchemy from the CurrencyTab (stash and inventory open, one map) until it is
 	///                    a rare with none of ProhibitedMods
 	///   SelectMapArea    with the Map Device open: drag the Atlas to MapArea's area node and click it (shows its Map Loader)
-	///   OpenMap          walk to the Map Device, open it, put the map in, Activate, wait for a new portal
+	///   OpenMap          close the stash, walk to the Map Device, open it, SelectMapArea, put the map in, Activate, wait for a new portal
 	///   EnterPortal      walk to that portal, click it, wait for the new area to finish loading
 	/// Each step decides what to do when it is reached, not when it is built (the backpack and stash change on the way), and
 	/// stops the chain (null) with a log line when it can't go on. The steps of a plan are built up front, each with its
@@ -264,17 +264,27 @@ namespace AtE {
 					RollStep(used + 1, next), $"{name} did not change after the {currency}"));
 		}, next);
 
-		/// <summary>Walk to the Map Device (closing the stash first), click it (its label), put the map (NextMap, else any) in, click Activate, wait for a new map portal, then next.</summary>
+		/// <summary>
+		/// Close the stash (and the inventory with it) if it is open, walk to the Map Device, click it (its label), show the
+		/// Map Loader for MapArea (SelectMapArea), put the map (NextMap, else any) in its slot unless one is there already,
+		/// click Activate, wait for a new map portal, then next. Stops (null) if there is no map in the backpack nor in the
+		/// Map Loader's slot.
+		/// </summary>
 		public IState OpenMap(IState next) {
-			var insert = InsertMap(next);
+			var atDevice = AtTheMapDevice(next);
 			Func<Entity> device = () => CampaignState.Context is CombatContext c ? AtE.OpenMap.FindDevice(c) : null;
-			var walk = WalkTo("the Map Device", device, ClickToOpen("the Map Device", device, MapDeviceIsOpen, insert), skipTo: MapDeviceIsOpen);
+			var walk = WalkTo("the Map Device", device, ClickToOpen("the Map Device", device, MapDeviceIsOpen, atDevice), skipTo: MapDeviceIsOpen);
 			return ForceGameFocus(new Step("Open the map", (s, ctx, dt) =>
-				BackpackMap() == null ? Fail("open the map: no map in the backpack")
-				: MapDeviceIsOpen() ? insert
-				: StashIsOpen() ? CloseWindow("the stash", s)
+				MapDeviceIsOpen() ? atDevice
+				: BackpackMap() == null && GetUI()?.MapDevice?.LoadedMap == null ? Fail("open the map: no map in the backpack (nor in the Map Device)")
+				: StashIsOpen() ? CloseStash(s)
 				: walk, walk));
 		}
+
+		/// <summary>Press Escape once (it closes the stash and the inventory together), and again if that opened the escape menu, then next.</summary>
+		private static IState CloseStash(IState next) =>
+			CloseWindow("the stash", new Step("Check the escape menu", (s, ctx, dt) =>
+				GetUI()?.EscapeMenu?.IsVisible ?? false ? CloseWindow("the escape menu", next) : next, next));
 
 		/// <summary>
 		/// With the Map Device open: show the MapLoader for MapArea, then next. If the MapLoader is showing another area, close
@@ -528,17 +538,36 @@ namespace AtE {
 				}, next), "the map did not show in the backpack"));
 		}, next);
 
-		// (map device open) open the inventory if need be, note the portals open now (not the new map's), put the map in, click Activate, wait for a new portal
-		private IState InsertMap(IState next) => new Step("Put the map in", (s, ctx, dt) => {
-			if ( !MapDeviceIsOpen() ) return Fail("put the map in: the map device is not open");
-			if ( !BackpackIsOpen() ) return GameKeys.Press(GameKeys.InventoryKey, WaitUntil("the inventory to open", 2000, BackpackIsOpen, s, "the inventory did not open"));
-			var map = BackpackMap();
-			if ( map == null ) return Fail("put the map in: no map in the backpack");
+		// (map device open) SelectMapArea, then LoadAndActivate
+		private IState AtTheMapDevice(IState next) => new Step("At the Map Device", (s, ctx, dt) =>
+			MapDeviceIsOpen() ? SelectAreaStep(MapArea, 0, LoadAndActivate(next)) : Fail("at the Map Device: it is not open"), next);
+
+		// (Map Loader showing MapArea) put the map in the slot if it is empty (opening the inventory if need be, then showing
+		// MapArea again), note the portals open now (not the new map's), click Activate, wait for a new portal, then next
+		private IState LoadAndActivate(IState next) => new Step("Load the map", (s, ctx, dt) => {
+			var device = GetUI()?.MapDevice;
+			if ( !MapDeviceIsOpen() || device == null ) return Fail("load the map: the Map Device is not open");
+			if ( !device.MapLoaderIsOpen ) return Fail("load the map: the Map Loader is not showing");
+			var loaded = device.LoadedMap;
+			if ( loaded == null ) {
+				if ( !BackpackIsOpen() ) // (then show the area again, in case opening the inventory hid the Map Loader)
+					return GameKeys.Press(GameKeys.InventoryKey, WaitUntil("the inventory to open", 2000, BackpackIsOpen,
+						AtTheMapDevice(next), "the inventory did not open"));
+				var map = BackpackMap();
+				if ( map == null ) return Fail("load the map: no map in the backpack");
+				var e = map.Entity;
+				Log($"{Name}: putting {Equipment.ItemName(e)} (tier {TierOf(e)}) in the Map Loader for {MapArea}");
+				return Inputs.CtrlClick(map.GetClientRect(), WaitUntil("the map in the Map Loader", 2000,
+					() => GetUI()?.MapDevice?.LoadedMap != null, new Delay(InventoryPlans.Settle, s), "the map did not show in the Map Loader"));
+			}
+			var button = device.MapLoaderActivateButton;
+			if ( button == null ) return Fail("load the map: no Activate button");
 			StalePortals.Clear();
-			StalePortals.UnionWith(MapDevice.MapPortals().Select(e => e.Id));
+			StalePortals.UnionWith(MapDevice.MapPortals().Select(p => p.Id));
 			MapLaunched = true;
-			return MapDevice.PlanLaunchMapFromInventory(map, WaitUntil("a new map portal", 6000, () => AtE.OpenMap.FreshPortals(this).Any(), next, "no new map portal opened"))
-				?? Fail("could not put the map in the map device");
+			var r = button.GetClientRect();
+			Log($"{Name}: clicking Activate at {r.X + r.Width / 2:F0},{r.Y + r.Height / 2:F0} ({Equipment.ItemName(loaded.Entity)} in {device.MapLoaderTitle})");
+			return Inputs.Click(r, WaitUntil("a new map portal", 6000, () => AtE.OpenMap.FreshPortals(this).Any(), next, "no new map portal opened"));
 		}, next);
 
 		// a portal the map device opened in this visit (the nearest), else the nearest map portal

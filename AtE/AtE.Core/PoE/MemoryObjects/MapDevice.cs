@@ -78,9 +78,11 @@ namespace AtE {
 		/// <summary>The name of the map selected on the Atlas, shown at the top of the MapLoader (eg "Silo"), or null.</summary>
 		public string MapLoaderTitle => GetChild(7, 0, 1, 0, 0)?.Text?.Trim();
 
-		/// <summary>The map in the MapLoader's map slot, or null if it is empty.</summary>
+		/// <summary>The map in the MapLoader's map slot, or null if it is empty or the MapLoader is not showing.
+		/// Only trusted while the MapLoader shows: after Activate the game hides it and its slot keeps the used-up map.</summary>
 		public InventoryItem LoadedMap {
 			get {
+				if ( !MapLoaderIsOpen ) return null;
 				var slot = GetChild(7, 0, 2, 0);
 				if ( !IsValid(slot) ) return null;
 				return slot.Children
