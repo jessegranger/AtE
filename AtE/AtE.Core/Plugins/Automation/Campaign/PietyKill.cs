@@ -49,7 +49,7 @@ namespace AtE {
 			ExtraHazards = Circles;
 		}
 
-		public override string Name => $"Kill {Label} with {Skill}, out of her circles and her beam";
+		public override string Name => $"Kill {Label}{(string.IsNullOrEmpty(Skill) ? "" : $" with {Skill}")}, out of her circles and her beam";
 		public override void Reset() { base.Reset(); hadBeam = false; turnRate = 0; lastAngleAt = beamSeenAt = 0; }
 
 		private static IEnumerable<Hazard> Circles() {

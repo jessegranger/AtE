@@ -108,9 +108,19 @@ namespace AtE {
 			return pick;
 		}
 
-		// walk to the portal id (one of fresh) and click it; back to pick if it is gone
-		private IState ApproachPortal(string what, uint id, Func<IEnumerable<Entity>> fresh, Action onClick, IState pick, IState next) =>
-			new Step($"Go to {what}", (s, ctx, dt) => {
+		/// <summary>How long a portal may take to open (targetable, its label showing) before it is clicked anyway.</summary>
+		private const long PortalReadyMs = 10000;
+		/// <summary>How long after a portal click the loading must start before it is clicked again, and how many clicks at most.</summary>
+		private const long PortalRetryMs = 2000;
+		private const int PortalClicks = 5;
+
+		// walk to the portal id (one of fresh) and click it once it is open (targetable, its label showing: a click while it
+		// is still opening, 0.3 s after Activate, did nothing); click again if no loading starts within PortalRetryMs, up to
+		// PortalClicks clicks; back to pick if it is gone
+		private IState ApproachPortal(string what, uint id, Func<IEnumerable<Entity>> fresh, Action onClick, IState pick, IState next) {
+			int clicks = 0;
+			long readyWait = 0;
+			return new Step($"Go to {what}", (s, ctx, dt) => {
 				var portal = fresh().FirstOrDefault(e => e.Id == id);
 				var pos = portal?.GetComponent<Positioned>();
 				if ( portal == null || !IsValid(pos) ) {
@@ -124,13 +134,25 @@ namespace AtE {
 					return new Navigate(what, _ => grid, ClickReach, s) { FightRadius = -1, LegMs = 500 };
 				}
 				ctx.Driver.StopWalking($"taking {what}");
+				bool open = IsTargetable(portal) && GetUI()?.LabelsOnGround?.GetAllLabels()?.Any(l => l.Item?.Address == portal.Address) == true;
+				if ( !open && (readyWait += dt) < PortalReadyMs ) { s.Detail = "waiting for it to open"; return s; }
+				if ( clicks >= PortalClicks ) return Fail($"{what} ({id}): no loading after {clicks} clicks");
 				uint from = AreaHash();
-				var click = Ground.ClickEntity(portal, WaitForNewArea(from, next));
+				// (back here to click again if the loading has not started PortalRetryMs after this click)
+				var self = s;
+				var wait = new Step("Wait for the loading to start", (w, c2, d2) => {
+					bool started = (PoEMemory.GameRoot?.AreaLoadingState?.IsLoading ?? false) || (AreaHash() != from && AreaHash() != 0);
+					if ( started ) return WaitForNewArea(from, next);
+					return w.Elapsed > PortalRetryMs ? self : w;
+				}, next);
+				var click = Ground.ClickEntity(portal, wait);
 				if ( click == null ) return s.Elapsed > 5000 ? Fail($"can't click {what} (off screen, or under a panel)") : s;
+				clicks++;
 				onClick?.Invoke();
-				Log($"{Name}: clicking {what} ({id})");
+				Log($"{Name}: clicking {what} ({id}){(clicks > 1 ? $" again (click {clicks} of {PortalClicks}: no loading yet)" : open ? "" : $" (not open after {PortalReadyMs} ms)")}");
 				return click;
 			}, next);
+		}
 
 		private static Entity NearestOf(IEnumerable<Entity> entities) {
 			var player = GetPlayer()?.GetComponent<Positioned>();
@@ -171,6 +193,8 @@ namespace AtE {
 		private IState ClearRound(string area, int round, IState next) {
 			var check = new Step($"Check {area}'s objectives", (s, ctx, dt) => {
 				if ( ObjectivesDone() ) {
+					// (not done while monsters are near: fought first, then looked at again)
+					if ( Fight.AnyNear(ctx, 0) ) { s.Detail = "fighting the monsters near"; return new Fight(0, null, s); }
 					MapsCompleted += 1;
 					Log($"{Name}: {area} is done: {MonstersRemaining} monsters remain, Map Complete (round {round}; {MapsCompleted} maps completed)");
 					return s.Pass();
@@ -203,6 +227,8 @@ namespace AtE {
 			if ( !GameKeys.Loaded && !GameKeys.Unreadable && !GameKeys.TryRead() ) { s.Detail = "reading the game's keys"; return s; }
 			var key = UsePortalScroll.ScrollKey;
 			if ( key == VKey.None ) return Fail("return to the hideout: no key for Use Portal Scroll in the game's Options");
+			// (monsters near, eg come up during the wait for the drops: fought before the Portal Scroll)
+			if ( Fight.AnyNear(ctx, 0) ) { s.Detail = "fighting the monsters near"; return new Fight(0, null, s); }
 			ctx.Driver.StopWalking("using a Portal Scroll");
 			if ( BackpackIsOpen() ) return GameKeys.Press(GameKeys.InventoryKey, new Delay(InventoryPlans.Settle, s));
 			var stale = new HashSet<uint>(TownPortals().Select(e => e.Id));

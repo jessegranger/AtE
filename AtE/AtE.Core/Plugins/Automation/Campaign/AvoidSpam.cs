@@ -428,7 +428,8 @@ namespace AtE {
 
 		public AvoidSpam(string label, Func<Entity, bool> match, Func<string> skill) : base(label, match, skill) { }
 
-		public override string Name => $"Kill {Label} with {Skill}, out of its damaging areas";
+		// (no skill: the driver's Attack, eg a normal monster's, see Fight.AvoidSpamTarget; named as Kill does, without "with")
+		public override string Name => $"Kill {Label}{(string.IsNullOrEmpty(Skill) ? "" : $" with {Skill}")}, out of its damaging areas";
 
 		/// <summary>Log the damaging areas (how many, and the nearest) at most this often, when their number has changed.</summary>
 		public long HazardLogMs = 5000;

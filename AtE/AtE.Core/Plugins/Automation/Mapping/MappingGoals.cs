@@ -69,8 +69,11 @@ namespace AtE {
 		public KillMapBoss(MappingRoutine routine) : base("the map boss", MappingRoutine.IsMapBoss, BuildPlan.MainSkill) {
 			// (a unique killed while clearing, eg a Rogue Exile, does not show the map is cleared)
 			Proves = false;
-			DoneWhen = () => routine.MapComplete || routine.UniquesKilled.Count > 0
-				|| (routine.ExploreDone && !(GetEntities()?.Any(e => MappingRoutine.IsMapBoss(e) && IsAlive(e)) ?? false));
+			// (a unique killed is not enough while a map boss is still alive in sight: Mud Geyser's map completed only after a
+			// second RootSpiderHiddenMapBoss died, after Tunneltrap; one alive but burrowed is waited for, see AvoidSpam)
+			DoneWhen = () => routine.MapComplete
+				|| ((routine.UniquesKilled.Count > 0 || routine.ExploreDone)
+					&& !(GetEntities()?.Any(e => MappingRoutine.IsMapBoss(e) && IsAlive(e)) ?? false));
 		}
 		public override bool Sticky => false;
 	}

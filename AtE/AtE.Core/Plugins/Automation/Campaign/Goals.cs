@@ -134,7 +134,7 @@ namespace AtE {
 		public Orbit(string label, Func<Entity, bool> match, Func<string> skill, float radius = 0)
 			: base(label, match, skill) => Radius = radius;
 
-		public override string Name => $"Kill {Label} with {Skill}, circling it";
+		public override string Name => $"Kill {Label}{(string.IsNullOrEmpty(Skill) ? "" : $" with {Skill}")}, circling it";
 		public override void Reset() { base.Reset(); point = -1; castDue = true; castUntil = aimSince = progressAt = 0; }
 
 		protected override void Fight(CombatContext ctx, Hostile target) {
