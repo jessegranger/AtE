@@ -30,6 +30,7 @@ namespace AtE {
 				Show = !Show;
 				if ( !Show ) { PluginBase.SaveIniFile(); }
 			}
+			if ( Overlay.ClosingWindows && Show ) { Show = false; PluginBase.SaveIniFile(); }
 			if ( CollapseNext ) {
 				CollapseNext = false;
 				if ( Show ) ImGui.SetNextWindowCollapsed(true, ImGuiCond.Always);

@@ -26,7 +26,7 @@ namespace AtE {
 		/// <summary>
 		/// The most recent version of PoE where at least some of this was tested.
 		/// </summary>
-		public const string PoEVersion = "3.30.0c";
+		public const string PoEVersion = "3.30.0d";
 
 		/// <summary>
 		///  Used as a placeholder where we dont know which struct yet.
@@ -510,10 +510,11 @@ namespace AtE {
 
 		/// <summary>3.29.4: what the UI root points at, at UIRoot_Input (the player's key bindings; see there).</summary>
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct UIInput {
+			// 3.30.0d+: both moved +8 (0x3D0 -> 0x3D8, 0x3F0 -> 0x3F8): 58 entries, '1'..'5' for actions 0..4 (the flasks)
 			/// <summary>A std::vector of KeyBindingEntry (begin, end; the capacity's end follows).</summary>
-			[FieldOffset(0x3D0)] public ArrayHandle Bindings;
+			[FieldOffset(0x3D8)] public ArrayHandle Bindings;
 			/// <summary>How many entries Bindings has (one pointer after the vector).</summary>
-			[FieldOffset(0x3F0)] public int BindingCount;
+			[FieldOffset(0x3F8)] public int BindingCount;
 		}
 
 		/// <summary>
@@ -899,7 +900,9 @@ namespace AtE {
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Element_PassiveNode {
 			// 3.29.4: moved 0x298 -> 0x2c0 (+0x28): over 377 nodes the Witch's ids 8879, 14419 and 34750 read orbit 3 at indexes 1, 3 and 4 (as their goldens say); PassiveNodeData
 			// and PassiveSkillRow are unchanged. The canvas (child 1 of the tree) has about 700 groups, so its children array is over 5 KB.
-			[FieldOffset(0x2c0)] public readonly IntPtr ptrNodeData; // ptr PassiveNodeData
+			// 3.30.0d: moved 0x2c0 -> 0x2c8 (+8; 0x2c0 now reads null): seen live with the tree open, 0x2c8's PassiveNodeData
+			// holds orbits 2, 3, 3 at indexes 0, 1, 3, and its rows read eg lava_lash1 = 30439, as the tree's ids say
+			[FieldOffset(0x2c8)] public readonly IntPtr ptrNodeData; // ptr PassiveNodeData
 		}
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct PassiveNodeData {
 			[FieldOffset(0x08)] public readonly IntPtr ptrPassiveSkill; // a row of PassiveSkills.dat (rows are packed: unaligned)
@@ -1120,7 +1123,9 @@ namespace AtE {
 			[FieldOffset(0xcd0)] public readonly IntPtr autoChangingAreaMessage; // Name = "changing_area_message"
 			[FieldOffset(0xcd8)] public readonly IntPtr autoNotificationDisplay; // Name = "notification_display"
 			// 3.30: 104 new bytes here
-			[FieldOffset(0xCE8)] public readonly IntPtr GemLvlUpPanel; // Name = (not a pointer: 0x000000083F800000)
+			// 3.30.0d: moved 0xCE8 -> 0xD28 (+0x40; 0xCE8 is not a pointer now): seen live, a gem ready, 0xD28's tree holds
+			// "Click to level up" and the gem's button (child 0.1.0.0.0), and the hidden "level up all" row (child 0.0)
+			[FieldOffset(0xD28)] public readonly IntPtr GemLvlUpPanel;
 			[FieldOffset(0xd30)] public readonly IntPtr autoTutorialDisplay; // Name = "tutorial_display"
 			[FieldOffset(0xd38)] public readonly IntPtr autoAdditionalTutorialDisplay; // Name = "additional_tutorial_display"
 			[FieldOffset(0xd40)] public readonly IntPtr autoTutorialPopup; // Name = "tutorial_popup"

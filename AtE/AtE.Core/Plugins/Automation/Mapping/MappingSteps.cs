@@ -53,14 +53,20 @@ namespace AtE {
 
 		/// <summary>In the hideout: walk to the stash, click it (its label), show the DumpTab, then dump the backpack (BackpackPlugin.PlanDumpAll: identify, stash all but what it keeps), then next. Leaves the stash open.</summary>
 		public IState StashEverything(IState next) {
-			var dump = new Step("Dump the backpack", (s, ctx, dt) =>
-				GetPlugin<BackpackPlugin>() is BackpackPlugin backpack ? backpack.PlanDumpAll(next) : Fail("no BackpackPlugin to dump with"), next);
+			var dump = new Step("Dump the backpack", (s, ctx, dt) => {
+				if ( GetPlugin<BackpackPlugin>() is not BackpackPlugin backpack ) return Fail("no BackpackPlugin to dump with");
+				// (one map of MapTier in the backpack already: kept, to run next, see PickNextMap)
+				// (by its address: an item in an inventory has no entity id, it reads 0)
+				var keep = HeldMap()?.Entity?.Address ?? IntPtr.Zero;
+				if ( keep != IntPtr.Zero ) Log($"{Name}: keeping the tier {MapTier} map in the backpack, to run next");
+				return backpack.PlanDumpAll(next, e => keep != IntPtr.Zero && e.Address == keep);
+			}, next);
 			var tab = Tab(DumpTab, dump);
 			var open = ClickToOpen("the stash", FindStash, StashIsOpen, tab);
 			var walk = WalkTo("the stash", FindStash, open, skipTo: StashIsOpen);
 			// (the stash open already, wherever: no walking, no clicking its label)
 			return ForceGameFocus(new Step("Stash everything", (s, ctx, dt) =>
-				SkipToClear ? next
+				SkipToClear || SkipToPortals ? next
 				: StashIsOpen() ? tab
 				: !InHideout() ? Fail("stash everything: not in the hideout")
 				: walk, walk));
@@ -69,9 +75,22 @@ namespace AtE {
 		/// <summary>With the stash open: show the MapsTab, ActivateMapTier(MapTier), Ctrl + click a map of that tier into the backpack (it becomes NextMap), then next.</summary>
 		public IState PickNextMap(IState next) {
 			var tab = Tab(MapsTab, ActivateMapTier(MapTier, TakeMap(next)));
-			return ForceGameFocus(new Step("Pick the next map", (s, ctx, dt) =>
-				SkipToClear ? next
-				: !StashIsOpen() ? Fail("pick the next map: the stash is not open") : tab, tab));
+			return ForceGameFocus(new Step("Pick the next map", (s, ctx, dt) => {
+				if ( SkipToClear || SkipToPortals ) return next;
+				// (a map of MapTier in the backpack already, kept by StashEverything: that one; RollMap checks its mods)
+				if ( HeldMap()?.Entity is Entity held ) {
+					NextMap = (held.Id, ChooseNextMap.MapArea(held));
+					Log($"{Name}: the next map is the {Equipment.ItemName(held)} (tier {MapTier}) in the backpack");
+					return next;
+				}
+				return !StashIsOpen() ? Fail("pick the next map: the stash is not open") : tab;
+			}, tab));
+		}
+
+		// a map of MapTier in the backpack (NextMap if it is one), or null
+		private InventoryItem HeldMap() {
+			var maps = BackpackItems().Where(i => ChooseNextMap.IsMap(i?.Entity) && TierOf(i.Entity) == MapTier).ToList();
+			return (NextMap is { } n ? maps.FirstOrDefault(i => i.Entity.Id == n.id) : null) ?? maps.FirstOrDefault();
 		}
 
 		/// <summary>
@@ -209,7 +228,7 @@ namespace AtE {
 		public IState RollMap(IState next) {
 			var roll = RollStep(0, next);
 			return ForceGameFocus(new Step("Roll the map", (s, ctx, dt) => {
-				if ( SkipToClear ) return next;
+				if ( SkipToClear || SkipToPortals ) return next;
 				if ( !StashIsOpen() ) return Fail("roll the map: the stash is not open");
 				if ( !BackpackIsOpen() ) return Fail("roll the map: the inventory is not open");
 				int maps = BackpackItems().Count(i => ChooseNextMap.IsMap(i?.Entity));
@@ -278,11 +297,13 @@ namespace AtE {
 		/// test of its own: it takes a portal opened by this Activate (OpenMap.FreshPortals).
 		/// </summary>
 		public IState OpenMap(IState next) {
-			var atDevice = AtTheMapDevice(EnterMap(next));
+			var enter = EnterMap(next);
+			var atDevice = AtTheMapDevice(enter);
 			Func<Entity> device = () => CampaignState.Context is CombatContext c ? AtE.OpenMap.FindDevice(c) : null;
 			var walk = WalkTo("the Map Device", device, ClickToOpen("the Map Device", device, MapDeviceIsOpen, atDevice), skipTo: MapDeviceIsOpen);
 			return ForceGameFocus(new Step("Open the map", (s, ctx, dt) =>
 				SkipToClear ? next
+				: SkipToPortals ? (StashIsOpen() ? CloseStash(s) : enter)
 				: MapDeviceIsOpen() ? atDevice
 				: BackpackMap() == null && GetUI()?.MapDevice?.LoadedMap == null ? Fail("open the map: no map in the backpack (nor in the Map Device)")
 				: StashIsOpen() ? CloseStash(s)
@@ -406,6 +427,8 @@ namespace AtE {
 			void Reset() { lastAt = lastMe = null; still = frames = 0; }
 			return new Step($"Wait for {what} to hold still", (s, ctx, dt) => {
 				ctx.Driver.StopWalking($"arriving at {what}");
+				// (the left button let go of on arriving, whoever held it: held, the player walks on past what it came to)
+				if ( frames == 0 ) { DefaultFollower.ReleaseMouse(); Run(MouseHold.Release(MouseBtn.Left)); }
 				frames++;
 				var player = GetPlayer();
 				var flags = player?.GetComponent<Actor>()?.ActionFlags ?? Offsets.Component_ActionFlags.None;

@@ -80,7 +80,9 @@ namespace AtE {
 		// (MapLoop, as it builds the first lap) switched on in a map: start the lap at ClearArea
 		internal void StartLoop() {
 			SkipToClear = InMap();
-			Log($"{Name}: the map loop starts {(SkipToClear ? $"in {GetCurrentArea()?.Name ?? "a map"}: clearing it" : "in the hideout")}");
+			// (switched on in the hideout with a map's portals all up: they are a map not run yet, entered at once)
+			SkipToPortals = !SkipToClear && InHideout() && MapDevice.MapPortals().Count() >= MapPortalCount;
+			Log($"{Name}: the map loop starts {(SkipToClear ? $"in {GetCurrentArea()?.Name ?? "a map"}: clearing it" : SkipToPortals ? $"in the hideout, with {MapPortalCount} map portals up: entering the nearest" : "in the hideout")}");
 		}
 
 		// ---- where the player is ----
@@ -149,6 +151,51 @@ namespace AtE {
 
 		/// <summary>How many maps were entered since the overlay started.</summary>
 		public int MapsRun { get; private set; }
+		/// <summary>How many maps ClearArea finished (objectives done) since the overlay started.</summary>
+		public int MapsCompleted { get; private set; }
+
+		/// <summary>
+		/// A report for the memory server's /mapping/status: the routine (on or off, chosen, its status, the test), the
+		/// character (level, XP, life, energy shield, mana), maps entered and completed, the area, and where the loop is
+		/// (the chain from the state being ticked to the end of its step).
+		/// </summary>
+		public string StatusReport(bool chosen) {
+			var sb = new System.Text.StringBuilder();
+			void Line(string label, string value) => sb.Append(label.PadRight(14)).Append(value).Append('\n');
+			Line("routine", $"{Name}: {(IsActive ? Paused ? "on, PAUSED" : "on" : "off")}{(chosen ? "" : " (not the chosen routine)")}, status: {Status}");
+			Line("test", TestStatus);
+			var game = PoEMemory.GameRoot?.InGameState;
+			Line("game", $"{(game == null ? "(not readable)" : game.IsPaused ? "PAUSED" : "running")}{(GamePausedForFocus ? ", paused by us until it has the focus" : "")}{(PoEMemory.TargetHasFocus ? "" : ", not focused")}{(AuguryIsOpen() ? ", the augury card window is open" : "")}");
+			var player = GetPlayer();
+			var p = player?.GetComponent<Player>();
+			var life = player?.GetComponent<Life>();
+			if ( IsValid(p) ) {
+				double pct = Experience.PercentOfLevel(p.Level, p.XP);
+				Line("character", $"{p.Name}, level {p.Level}, XP {p.XP:N0}{(double.IsNaN(pct) ? "" : $" ({pct:F1}% of the level)")}");
+			} else Line("character", "(not readable)");
+			if ( IsValid(life) ) {
+				static string Pool(int cur, int max) => max <= 0 ? "none" : $"{cur}/{max} ({100.0 * cur / max:F0}%)";
+				Line("life", $"{Pool(life.CurHP, life.MaxHP)}, ES {Pool(life.CurES, life.MaxES)}, mana {Pool(life.CurMana, life.MaxMana)}{(life.TotalReservedMana > 0 ? $" ({life.TotalReservedMana} reserved)" : "")}{(IsAlive(player) ? "" : ", DEAD")}");
+			}
+			Line("maps", $"{MapsCompleted} completed, {MapsRun} entered (since the overlay started)");
+			var area = GetCurrentArea();
+			string where = InHideout() ? "the hideout" : InMap() ? "a map" : area?.IsTown ?? false ? "a town" : "elsewhere";
+			Line("area", $"{area?.Name ?? "(not readable)"} ({where}){(CurrentMap != null ? $", running {CurrentMap}" : "")}");
+			if ( InMap() ) Line("objectives", $"{(MonstersRemaining is int m ? $"{m}" : "more than 50")} monsters remain (fewer than {MonstersLeft} wanted), Map Complete: {MapComplete}, uniques killed: {UniquesKilled.Count}");
+			Line("next map", $"{MapArea} (tier {MapTier}){(NextMap is { } n ? $", in the backpack: {n.area}" : "")}");
+			Line("goal", CurrentGoal == null ? "(none)" : Working(CurrentGoal)?.ToString() ?? CurrentGoal.ToString());
+			var current = mapLoop?.Current;
+			if ( current == null ) Line("step", "(the loop has not started)");
+			else {
+				if ( SkipToClear ) Line("skipping", "switched on in a map: the hideout steps skip to Clear Area");
+				if ( SkipToPortals ) Line("skipping", $"switched on with {MapPortalCount} map portals up: the hideout steps skip to Enter the map");
+				// (the chain from the state ticked now, along Next, to the end of what it is part of)
+				var s = current;
+				for ( int i = 0; s != null && i < 12; i++, s = s.Next ) Line(i == 0 ? "step" : "", s.ToString());
+				if ( s != null ) Line("", "...");
+			}
+			return sb.ToString();
+		}
 
 		protected override void OnNewArea() {
 			// each area starts its part of the loop over (and a Sequence marked done on leaving the last area is not done here)

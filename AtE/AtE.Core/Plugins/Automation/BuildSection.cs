@@ -182,11 +182,24 @@ namespace AtE {
 		private readonly Dictionary<string, string> tips = new Dictionary<string, string>();
 		private long labelsTime;
 
+		/// <summary>
+		/// How long the inventory (or a purchase window) must stay open before its items are scored: scoring them the first
+		/// time takes the overlay ~1 s, which stalled a routine's open-and-close of the inventory (its sync, at the start of
+		/// each area) with the inventory showing all the while.
+		/// </summary>
+		public const long ScoreAfterOpenMs = 300;
+		private long panelOpenSince = -1;
+
 		private void DrawItemScores() {
 			var panel = GetUI()?.InventoryPanel;
 			bool inventory = IsValid(panel) && panel.IsVisible;
 			bool purchase = Town.IsOpen(Town.PurchaseWindow);
-			if ( !inventory && !purchase ) { labels.Clear(); return; }
+			// (never while the Mapping routine runs: it stashes everything, and the scores are for a person looking over the
+			// dump tab later; scoring costs the overlay a frame of ~1 s each time a panel opens)
+			bool mapping = GetPlugin<AutomationPlugin>()?.Combat?.Routines.OfType<MappingRoutine>().FirstOrDefault()?.IsActive ?? false;
+			if ( mapping || (!inventory && !purchase) ) { labels.Clear(); panelOpenSince = -1; return; }
+			if ( panelOpenSince < 0 ) panelOpenSince = Time.ElapsedMilliseconds;
+			if ( Time.ElapsedMilliseconds - panelOpenSince < ScoreAfterOpenMs ) return;
 			if ( Time.ElapsedMilliseconds - labelsTime > 500 ) {
 				labelsTime = Time.ElapsedMilliseconds;
 				labels.Clear();

@@ -84,9 +84,34 @@ namespace AtE {
 		// a new run: read the progress again, and choose from the top
 		private void StartRun() {
 			Log($"{Name}: a new run");
+			// (the overlay's own windows too: one under the mouse takes the routine's clicks)
+			Overlay.CloseAllWindows();
+			CloseOpenPanels();
 			OnStartRun();
 			Root.Forget();
 			StartGoalOver();
+		}
+
+		/// <summary>
+		/// Switched on with a panel open that would be in the way (the inventory, the Options, the world / waypoint panel, the
+		/// escape menu, the passive tree): press Escape once (it closes them all). Noted as ours (Inputs.LastEscapeMs), so
+		/// if it opens the escape menu instead, that is closed too. Not while the augury card selection window is open (an
+		/// Escape would close it; it is worked on instead, see TryAugury).
+		/// </summary>
+		private void CloseOpenPanels() {
+			var ui = GetUI();
+			if ( ui == null || AuguryIsOpen() ) return;
+			static bool Open(Element e) => IsValid(e) && e.IsVisible;
+			var open = new List<string>();
+			if ( Open(ui.InventoryPanel) ) open.Add("the inventory");
+			if ( Open(ui.OptionsPanel) ) open.Add("the Options");
+			if ( Open(ui.AreaInstanceUi) ) open.Add("the world panel");
+			if ( Open(ui.EscapeMenu) ) open.Add("the escape menu");
+			if ( Open(ui.SkillTree) ) open.Add("the passive tree");
+			if ( open.Count == 0 ) return;
+			Log($"{Name}: switched on with {string.Join(", ", open)} open: Escape to close {(open.Count == 1 ? "it" : "them")}");
+			Inputs.LastEscapeMs = Time.ElapsedMilliseconds;
+			Run(Inputs.Press(VKey.Escape, null));
 		}
 
 		/// <summary>Called when the routine is switched on, before the goals are all marked not done (eg, forget what was read from the game).</summary>
@@ -163,7 +188,9 @@ namespace AtE {
 			}
 		}
 
+		private string tracedState;
 		private void DecideGoal(CombatContext ctx) {
+			if ( Tracing && Runner.Current?.Name != tracedState ) { tracedState = Runner.Current?.Name; Trace($"running {tracedState ?? "(nothing)"}"); }
 			// input going out (any state in the chain that is not the routine's own: input states, Delays, the end of
 			// input that clears InputBusy): let it finish before anything else (choosing again, looting), so a goal change
 			// does not cut a key press in half, and the looter does not wait forever on InputBusy
@@ -182,10 +209,11 @@ namespace AtE {
 				return;
 			}
 			stuckState = null;
-			if ( TrySyncInventory() ) return;
-			// the augury card selection window (opened by clicking a frozen augury boss): apply the cards and confirm first
-			// (its clicks go into the chain, see Decide)
+			// the augury card selection window (opened by clicking a frozen augury boss, or a fate's; or already open when
+			// switched on): choose / apply the cards first, before the inventory sync's key presses (its clicks go into the
+			// chain, see Decide); then the routine goes on
 			if ( TryAugury() ) return;
+			if ( TrySyncInventory() ) return;
 			if ( TryLevelGems(ctx) ) return;
 			if ( Runner.Current == null || Time.ElapsedMilliseconds - lastSelect > 250 ) {
 				lastSelect = Time.ElapsedMilliseconds;
@@ -317,6 +345,8 @@ namespace AtE {
 			if ( rect.Width <= 0 || rect.Height <= 0 ) return false;
 			StopWalking("leveling up a gem");
 			DefaultFollower.ReleaseMouse();
+			// (a channelled skill held, eg Scorching Ray on a mouse button: let go first, or the click never gets to the button)
+			ReleaseChannel("leveling up a gem");
 			if ( !Send(Inputs.Click(rect)) ) return false;
 			lastGemLevel = now;
 			SetStatus("leveling up a gem");

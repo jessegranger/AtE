@@ -75,7 +75,8 @@ namespace AtE.Plugins {
 			return true;
 		});
 		/// <summary>Identify, stash (keeping what is held back), open stacked decks, and incubate, then next. Expects the stash open on the tab to dump into.</summary>
-		public IState PlanDumpAll(IState next) => PlanIdentifyAll(PlanStashAll(PlanOpenAllDecks(PlanIncubateAll(next))));
+		/// <summary>Identify, stash all (but keep: items it says to leave in the backpack, eg the map to run next), open decks, incubate, then next.</summary>
+		public IState PlanDumpAll(IState next, Func<Entity, bool> keep = null) => PlanIdentifyAll(PlanStashAll(PlanOpenAllDecks(PlanIncubateAll(next)), keep));
 
 		/// <summary>Identify the items ItemsToIdentify picks (by the Identify settings), then next.</summary>
 		public IState PlanIdentifyAll(IState next = null) => PlanIdentify(ItemsToIdentify(), next);
@@ -132,7 +133,7 @@ namespace AtE.Plugins {
 			{ Offsets.PATH_OMEN_OF_AMELIORATION, 1 }
 		};
 
-		private IState PlanStashAll(IState next = null) {
+		private IState PlanStashAll(IState next = null, Func<Entity, bool> keep = null) {
 			var ui = GetUI();
 			if ( !IsValid(ui) ) {
 				return null;
@@ -150,6 +151,9 @@ namespace AtE.Plugins {
 				}
 				if ( needs.TryGetValue(ent.Path, out int needed) && needed > 0 ) {
 					needs[ent.Path] -= ent.GetComponent<Stack>()?.CurSize ?? 1;
+					continue;
+				}
+				if ( keep?.Invoke(ent) ?? false ) {
 					continue;
 				}
 				if ( OpenStashedDecks && ent.Path.Equals(Offsets.PATH_STACKED_DECK) ) {

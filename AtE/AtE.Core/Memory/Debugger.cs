@@ -103,6 +103,7 @@ namespace AtE {
 				return this;
 			}
 
+			if ( Overlay.ClosingWindows ) Open = false;
 			if ( !Open ) {
 				return Next;
 			}
@@ -357,6 +358,7 @@ namespace AtE {
 			if( dt <= 0 ) {
 				return this;
 			}
+			if ( Overlay.ClosingWindows ) Open = false;
 			if( !Open ) {
 				return Next;
 			}

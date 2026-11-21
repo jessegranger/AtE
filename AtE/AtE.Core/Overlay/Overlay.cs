@@ -55,6 +55,18 @@ namespace AtE {
 		public static bool OverlayOrGameFocused => HasFocus || Platform.Current.Keys.IsTargetForeground();
 		/// <summary>True while clicks go through the overlay to the game (see IOverlayWindow.IsClickThrough).</summary>
 		public static bool IsClickThrough => Platform.Current.Window.IsClickThrough;
+		/// <summary>Why the overlay takes the mouse now (null while it does not): set by the renderer each frame.</summary>
+		public static string CaptureReason;
+
+		private static long closeUntilFrame = -1;
+		/// <summary>
+		/// Close every overlay window that can be closed (the console, memory debuggers, object and file browsers, the
+		/// Performance and Bundle Browser windows), eg when a routine starts, so none is under the mouse when it clicks. Each
+		/// window checks ClosingWindows before it draws, over the next two frames (whatever order they draw in).
+		/// </summary>
+		public static void CloseAllWindows() => closeUntilFrame = FrameCount + 2;
+		/// <summary>True for the frames after CloseAllWindows: a window seeing it closes itself.</summary>
+		public static bool ClosingWindows => FrameCount <= closeUntilFrame;
 
 		public static int Height => Platform.Current.Window.Height;
 		public static int Width => Platform.Current.Window.Width;
@@ -111,6 +123,7 @@ namespace AtE {
 					// Clear the prior frame and start a new frame (ImGui + sprite draw lists)
 					Platform.Current.Renderer.BeginFrame(dt);
 
+					if ( ClosingWindows ) settings.ShowPerformanceWindow = false;
 					Perf.Render(ref settings.ShowPerformanceWindow); // data about prior frame
 
 					// Advance all the States by one frame

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using static AtE.Globals;
@@ -25,8 +25,13 @@ namespace AtE {
 		/// <summary>True once ReadGameKeys gave up on them (for the life of the overlay: not tried again).</summary>
 		public static bool Unreadable { get; internal set; }
 
-		/// <summary>The Options panel's "Input" tab, and the body with the rows.</summary>
-		public static Element InputTab() => GetUI()?.OptionsPanel?.GetChild(2, 0, 2, 0, 6);
+		/// <summary>
+		/// The Options panel's "Input" tab, found by its label (the tab bar's child whose Child(0, 1) reads "Input"), and the
+		/// body with the rows. 3.30.0d+: the bar Child(2, 0, 2, 0) has the tabs as children 6 ("Graphics", the first, on the
+		/// left), 0 "Game", 1 "UI", 2 "Sound", 3 "Input", 4 "Notifications" (and 5, an empty strip): not in screen order.
+		/// </summary>
+		public static Element InputTab() => GetUI()?.OptionsPanel?.GetChild(2, 0, 2, 0)?.Children
+			.FirstOrDefault(t => IsValid(t) && string.Equals(t.GetChild(0, 1)?.Text?.Trim(), "Input", StringComparison.OrdinalIgnoreCase));
 		public static Element Body() => GetUI()?.OptionsPanel?.GetChild(2, 0, 2, 1);
 
 		/// <summary>Where the bindings were read from, for the memory server's /gamekeys (null: not read).</summary>
@@ -67,7 +72,7 @@ namespace AtE {
 			var list = new ArrayHandle<Offsets.KeyBindingEntry>(input.Bindings);
 			int count = input.BindingCount;
 			if ( count <= 0 || count > 500 || list.Length != count ) {
-				Log($"GameKeys: the key list does not look right (count {count}, {list.Length} entries): not read from memory (the game changed?)");
+				LogOnce($"GameKeys: the key list does not look right (count {count}, {list.Length} entries): not read from memory (the game changed?)");
 				return false;
 			}
 			var entries = list.ToArray(limit: 500);
@@ -76,7 +81,7 @@ namespace AtE {
 			for ( int i = 0; i < count; i++ ) {
 				int code = entries[i].Key, mod = entries[i].Modifier, action = entries[i].Action;
 				if ( code <= 0 || code > 0xFF || action < 0 || action >= BindingActions.Length || (mod != 0 && (mod < 0x10 || mod > 0x12)) ) {
-					Log($"GameKeys: the key list's entry {i} does not look right (key {code}, modifier {mod}, action {action}): not read from memory (the game changed?)");
+					LogOnce($"GameKeys: the key list's entry {i} does not look right (key {code}, modifier {mod}, action {action}): not read from memory (the game changed?)");
 					return false;
 				}
 				if ( BindingActions[action] != null ) found[BindingActions[action]] = KeyText(code, mod);
@@ -85,6 +90,14 @@ namespace AtE {
 			Source = "memory (the UI root's key list)";
 			Log($"GameKeys: read {found.Count} key bindings from memory (Use Portal Scroll = {Text("Use Portal Scroll") ?? "none"}, Inventory = {Text("Inventory") ?? "none"})");
 			return true;
+		}
+
+		// (asked every frame until read: say why it can't be read once, not each time)
+		private static string lastFailure;
+		private static void LogOnce(string line) {
+			if ( line == lastFailure ) return;
+			lastFailure = line;
+			Log(line);
 		}
 
 		// a key as text that Parse reads back: "Ctrl+Q", "I", "Oemcomma", "LButton"

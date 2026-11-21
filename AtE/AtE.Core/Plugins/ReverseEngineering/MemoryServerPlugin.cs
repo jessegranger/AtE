@@ -354,6 +354,13 @@ namespace AtE {
 					return RunOnMain(() => string.IsNullOrEmpty(q["key"]) ? "error: key= is required\n" : $"forgot {GoldenStore.Forget(q["key"])} golden values\n");
 				case "/mapping/test":
 					return RunOnMain(() => MappingTest(q["name"], q["stop"] == "1"));
+				case "/mapping/status":
+					return RunOnMain(MappingStatus);
+				case "/mapping/start":
+				case "/mapping/stop":
+				case "/mapping/pause":
+				case "/mapping/resume":
+					return MappingControl(path.Substring("/mapping/".Length));
 				case "/routine":
 					return RunOnMain(RoutineText);
 				case "/progress":
@@ -457,6 +464,79 @@ namespace AtE {
 
 		private static OffsetTestSection OffsetTests() => GetPlugin<AutomationPlugin>().OffsetTests;
 
+		/// <summary>How many of the log's last lines /mapping/status shows.</summary>
+		private const int StatusLogLines = 20;
+
+		// the Mapping routine's status (see MappingRoutine.StatusReport), then the last StatusLogLines lines of the log
+		private string MappingStatus() {
+			var combat = GetPlugin<AutomationPlugin>()?.Combat;
+			var mapping = combat?.Routines.OfType<MappingRoutine>().FirstOrDefault();
+			if ( mapping == null ) return "error: no Mapping routine\n";
+			return mapping.StatusReport(combat.Current == mapping)
+				+ $"\nthe log's last {StatusLogLines} lines:\n" + string.Join(NL, RecentLog.ToArray().TakeLast(StatusLogLines)) + NL;
+		}
+
+		// /mapping/start | stop | pause | resume: switch the Mapping routine on (choosing it, as a test does) or off; or pause
+		// it and the game (the escape menu), or unpause both. Pause and resume wait (here, off the main thread) up to
+		// PauseWaitMs for the escape menu to show or go, and say how it ended.
+		private const int PauseWaitMs = 4000;
+		private string MappingControl(string cmd) {
+			string started = RunOnMain(() => {
+				var combat = GetPlugin<AutomationPlugin>()?.Combat;
+				var mapping = combat?.Routines.OfType<MappingRoutine>().FirstOrDefault();
+				if ( mapping == null ) return "error: no Mapping routine\n";
+				switch ( cmd ) {
+					case "start":
+						if ( combat.Current != mapping ) { combat.Current?.Stop("the memory server started the Mapping routine"); combat.Routine = mapping.Key; }
+						if ( mapping.IsActive ) return mapping.Paused ? "on, but paused (see /mapping/resume)\n" : "already on\n";
+						// (the game focused first, as --campaign does: the routine's clicks need it)
+						Run(ForceGameFocus(State.NewState(() => { if ( !mapping.IsActive ) mapping.Start(); })));
+						return "";
+					case "stop":
+						if ( !mapping.IsActive ) return "already off\n";
+						mapping.Stop("the memory server's /mapping/stop");
+						return "stopped\n";
+					case "pause":
+						if ( !mapping.IsActive ) return "error: the Mapping routine is off (see /mapping/start)\n";
+						mapping.PauseAll();
+						return "";
+					case "resume":
+						if ( !mapping.IsActive ) return "error: the Mapping routine is off (see /mapping/start)\n";
+						if ( !mapping.Paused && !MappingRoutine.EscapeMenuOpen ) return "not paused\n";
+						mapping.ResumeAll();
+						return "";
+				}
+				return $"error: no command {cmd}\n";
+			});
+			if ( started != "" ) return started;
+			var sw = System.Diagnostics.Stopwatch.StartNew();
+			if ( cmd == "start" ) {
+				// (wait for the game to have the focus, and the routine to be switched on)
+				string on = "";
+				while ( sw.ElapsedMilliseconds < PauseWaitMs ) {
+					System.Threading.Thread.Sleep(100);
+					on = RunOnMain(() => (GetPlugin<AutomationPlugin>()?.Combat?.Routines.OfType<MappingRoutine>().FirstOrDefault()?.IsActive ?? false)
+						? "on" : $"waiting (the game {(PoEMemory.TargetHasFocus ? "has" : "does not have")} the focus)");
+					if ( on == "on" ) return $"started ({sw.ElapsedMilliseconds} ms, after focusing the game)\n";
+				}
+				return $"start: not on after {PauseWaitMs} ms ({on}); see the log\n";
+			}
+			// (pause / resume: wait for the escape menu, and, for resume, the routine to be unpaused)
+			bool pausing = cmd == "pause";
+			string state = "";
+			while ( sw.ElapsedMilliseconds < PauseWaitMs ) {
+				System.Threading.Thread.Sleep(100);
+				state = RunOnMain(() => {
+					var mapping = GetPlugin<AutomationPlugin>()?.Combat?.Routines.OfType<MappingRoutine>().FirstOrDefault();
+					bool menu = MappingRoutine.EscapeMenuOpen, paused = mapping?.Paused ?? false;
+					bool ok = pausing ? menu && paused : !menu && !paused;
+					return $"{(ok ? "ok" : "wait")}: escape menu {(menu ? "open" : "closed")}, routine {(paused ? "paused" : "running")}, game {(PoEMemory.GameRoot?.InGameState?.IsPaused ?? false ? "paused" : "running")}";
+				});
+				if ( state.StartsWith("ok") ) return $"{(pausing ? "paused" : "resumed")} ({sw.ElapsedMilliseconds} ms): {state.Substring(4)}\n";
+			}
+			return $"{(pausing ? "pause" : "resume")}: not done after {PauseWaitMs} ms ({state}); see the log\n";
+		}
+
 		// a Mapping step test, as its button in the Mapping routine's Test Steps runs it (the Mapping routine is chosen
 		// first, stopping the routine that was); no name: what is running, or how the last ended, and the tests there are
 		private static string MappingTest(string name, bool stop) {
@@ -477,6 +557,10 @@ namespace AtE {
 @"MemoryServer (read-only, loopback only)
   /status
   /offsets/run[?only=A6,A4.Life[&observers=1]] | /offsets/observe (observers only, no checks) | /offsets/stop | /offsets/report     the Offsets tests (Automation > Offset Tests): start, stop, the results with details
+  /mapping/status               the Mapping routine: on or off, its status, the character (level, XP %, life, ES, mana), maps completed, the area, the loop's current step
+  /mapping/start | /mapping/stop   switch the Mapping routine on (choosing it) or off
+  /mapping/pause                pause the routine and the game (Escape until the escape menu shows); waits up to 4 s and says how it ended
+  /mapping/resume               unpause the game (Escape until the escape menu is gone), then the routine
   /mapping/test[?name=stash|pickmap|rollmap|selectmap|openmap|clear][&stop=1]   run one Mapping step test on its own (as its button does; chooses the Mapping routine); no name: what runs, or how the last ended; stop=1 stops it
   /offsets/routine?cmd=start|stop                   start or stop just the class routine testing mode runs after its checks (it is held when Hillock dies)
   /offsets/coverage[?format=unchecked]               which Offsets the checks cover (the ratchet against unchecked.txt); format=unchecked lists the gaps as an unchecked.txt

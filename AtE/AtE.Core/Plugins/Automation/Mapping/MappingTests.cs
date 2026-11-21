@@ -24,13 +24,16 @@ namespace AtE {
 		public void StartTest(string name, Func<IState, IState> step) {
 			Runner.Cancel(); // (the goal chain, if one was running)
 			SkipToClear = false; // (left set by a loop switched on in a map and stopped before ClearArea)
+			SkipToPortals = false; // (likewise, switched on with portals up and stopped before EnterMap)
 			testName = name;
 			testOk = false;
 			TestResult = null;
 			testCurrent = step(State.NewState(() => testOk = true))?.OnEnter();
 			Log($"{Name}: test {name}: starting");
-			AtE.Console.CollapseNext = true; // (out of the way of the stash and the ground; each step's plan starts with ForceGameFocus)
+			// (out of the way of the stash and the ground: the overlay's windows close as the routine starts, see StartRun;
+			// each step's plan starts with ForceGameFocus)
 			if ( !IsActive ) Start();
+			else Overlay.CloseAllWindows();
 		}
 
 		/// <summary>Stop the test running (and switch the routine off).</summary>

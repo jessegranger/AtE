@@ -337,8 +337,13 @@ namespace AtE {
 			// seam's setter already no-ops when the state is unchanged. Only when the overlay or the
 			// game is focused, though: otherwise the topmost overlay would eat clicks meant for
 			// whatever other app is in front.
-			bool wantInput = (IO.WantCaptureKeyboard || IO.WantCaptureMouse) && Overlay.OverlayOrGameFocused;
-			Platform.Current.Window.SetClickThrough(!wantInput);
+			// (keyboard: only while the overlay itself is in front; click-through only decides where the MOUSE goes, and
+			// a text field left active in an overlay window kept every click from reaching the game while it was in front)
+			bool wantMouse = IO.WantCaptureMouse && Overlay.OverlayOrGameFocused;
+			bool wantKeys = IO.WantCaptureKeyboard && Overlay.HasFocus;
+			Overlay.CaptureReason = wantMouse ? $"the mouse is over an overlay window (at {mousePoint.X}, {mousePoint.Y})"
+				: wantKeys ? "the overlay has the keyboard (a text field is active)" : null;
+			Platform.Current.Window.SetClickThrough(!(wantMouse || wantKeys));
 
 
 			ImGui.NewFrame();

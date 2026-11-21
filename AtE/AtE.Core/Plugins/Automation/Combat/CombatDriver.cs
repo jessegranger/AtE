@@ -1,4 +1,4 @@
-using ImGuiNET;
+﻿using ImGuiNET;
 using System;
 using System.Drawing;
 using System.Collections.Generic;
@@ -41,7 +41,23 @@ namespace AtE {
 		protected abstract void Attack(Hostile target, Vector2 screenPos);
 
 		public bool IsActive { get; private set; }
-		public string Status { get; private set; } = "off";
+		public string Status {
+			get => status;
+			private set {
+				// (not one flickering back and forth each frame, eg a goal's name and its detail)
+				if ( value != status && value != statusBefore && Tracing ) Log($"{Name} +{Time.ElapsedMilliseconds - startedAt} ms: {value}");
+				if ( value != status ) statusBefore = status;
+				status = value;
+			}
+		}
+		private string status = "off", statusBefore;
+		private long startedAt = -StartupTraceMs;
+		/// <summary>For how long after Start every change of Status (and of the state running) is logged (to see where startup time goes).</summary>
+		public const long StartupTraceMs = 5000;
+		/// <summary>True within StartupTraceMs of Start (see Status).</summary>
+		protected bool Tracing => Time.ElapsedMilliseconds - startedAt < StartupTraceMs;
+		/// <summary>Log a line, with the ms since Start, while Tracing.</summary>
+		protected void Trace(string what) { if ( Tracing ) Log($"{Name} +{Time.ElapsedMilliseconds - startedAt} ms: {what}"); }
 		public Hostile Target { get; private set; }
 
 		private bool binding;
@@ -64,17 +80,34 @@ namespace AtE {
 			}
 		}
 
+		/// <summary>
+		/// On, but doing nothing (no input, no walking) until this is cleared (eg, the memory server's /mapping/pause and
+		/// /mapping/resume). Cleared by Start and Stop.
+		/// </summary>
+		[NoPersist] public bool Paused;
+
 		public void Start() {
 			IsActive = true;
+			Paused = false;
+			// (an augury window still open from before is looked at afresh)
+			auguryCardsClicked.Clear();
+			auguryConfirms = 0;
+			auguryWindowSeen = false;
+			startedAt = Time.ElapsedMilliseconds;
 			Status = "starting";
 		}
 
 		public void Stop(string why) {
 			IsActive = false;
+			Paused = false;
 			Status = why;
 			ReleaseChannel(why);
 			Target = null;
 			if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, why);
+			// (and let go of the left button whoever pressed it: a press still waiting to go out is not sent at all, see
+			// MouseButtonDown.CancelIfReleased; one left down by a routine that stopped kept the player walking)
+			DefaultFollower.ReleaseMouse();
+			Run(MouseHold.Release(MouseBtn.Left));
 		}
 
 		/// <summary>The ms since the last frame (for Decide).</summary>
@@ -125,6 +158,11 @@ namespace AtE {
 			if ( !TakesInput && pendingInput != null ) Run(TakeInput());
 			if ( !PoEMemory.IsAttached ) { ReleaseChannel("detached"); return this; }
 			if ( !IsActive ) { ReleaseChannel("off"); return this; }
+			// (before the escape menu check below: the menu a pause opened is not to be closed as one of ours)
+			if ( Paused ) {
+				if ( DefaultFollower.IsActiveFor(this) ) StopWalking("paused");
+				return Wait("paused");
+			}
 
 			var game = PoEMemory.GameRoot?.InGameState;
 			var terrain = GetTerrain();
@@ -175,13 +213,16 @@ namespace AtE {
 			// (no wait for the focus here: only the mouse needs it, and every mouse state waits for it, pausing the game
 			// meanwhile, see WaitForFocus)
 			if ( binding ) return Wait("changing the skill bar");
+			// (the augury card selection window open, eg already open when switched on: it is worked on first, see TryAugury,
+			// before anything that opens a panel of its own over it: the skill bar's choices, the passive tree)
+			bool augury = AuguryIsOpen();
 			// left click should only move (and interact), never attack
-			if ( !SkillBar.LeftClickIsMovement() ) {
+			if ( !augury && !SkillBar.LeftClickIsMovement() ) {
 				Bind(SkillBar.LeftClickSlot, SkillBar.MovementName);
 				return Wait("putting Movement on left click");
 			}
 			var ctx = new CombatContext(this, game, terrain, player, pos.GridPos, Position(player).Z);
-			if ( TrySpendPoints(ctx) ) {
+			if ( !augury && TrySpendPoints(ctx) ) {
 				DrawBottomLeftText($"{Name}: {Status}", Color.Orange);
 				return this;
 			}
@@ -222,6 +263,7 @@ namespace AtE {
 			}
 			// (the Passive Tree section ticks the allocator)
 			StopWalking("spending passive points");
+			ReleaseChannel("spending passive points"); // (a channelled skill held keeps the clicks from the tree)
 			Status = $"spending passive points: {allocator.Status}";
 			return true;
 		}
@@ -311,6 +353,10 @@ namespace AtE {
 		public long AuguryConfirmRetryMs = 1500;
 		private readonly HashSet<long> auguryCardsClicked = new HashSet<long>();
 		private long lastAuguryClick, lastAuguryConfirm;
+		private bool auguryWindowSeen; // (for the log: once when it opens, once when it closes)
+		private int auguryConfirms; // Confirm clicks in this window (see MaxAuguryConfirms)
+		/// <summary>Confirm clicks in one augury window (applying a boss's cards) before the routine gives up and stops.</summary>
+		public const int MaxAuguryConfirms = 5;
 		/// <summary>
 		/// A fate card chosen, and Confirm clicked, with the window still open this long after: that card was not a valid
 		/// choice (3.29.4, seen live: Confirm did nothing for the first card), so choose the next one not tried yet.
@@ -328,13 +374,38 @@ namespace AtE {
 		private static List<Element> VisibleChildren(Element e) =>
 			e?.Children?.Where(c => IsValid(c) && c.IsVisible).ToList() ?? new List<Element>();
 
+		private static readonly System.Text.RegularExpressions.Regex AuguryCounter = new System.Text.RegularExpressions.Regex(@"^\d+\s*/\s*\d+$");
+
+		/// <summary>
+		/// The parts of the augury card selection window's body (its GetChild(2)), found by landmarks, not by index (they
+		/// moved by one from 3.29.4 to 3.30.0d+): Confirm is the child whose child reads "confirm"; the fate cards are under
+		/// the child after the one whose child 0 reads like "0/3" (the counter), and the cards held under the one after that.
+		/// 3.30.0d+, seen live ("Select a Fate", three cards): 2.3 the title "Fates", 2.5 the counter (how many held, "1/3"),
+		/// 2.6.0 the fate cards to choose from, 2.7.0 the cards held (shown below them: the one chosen at the last Augury Card,
+		/// eg Stormcaller; none at the first), 2.10 Confirm (2.10.0 its text, 2.10.1 the same size). 3.29.4: 2.5.0, 2.6.0, 2.9.
+		/// The held cards are the ones a frozen augury boss's window applies (bossCards); a fate window shows them too, so
+		/// it is told apart by its title (invoking: a boss's window reads "Invoke Fates", seen live 3.30.0d; it also shows
+		/// three empty, but visible, slots where the fate cards would be, so fate cards showing does not tell them apart).
+		/// Null for a part not found.
+		/// </summary>
+		public static (Element fateCards, Element bossCards, Element confirm, bool invoking) AuguryParts(Element window) {
+			var body = window?.GetChild(2)?.Children?.ToList();
+			if ( body == null ) return (null, null, null, false);
+			bool invoking = body.Any(c => IsValid(c) && (c.Text?.Trim() ?? "").StartsWith("Invoke", StringComparison.OrdinalIgnoreCase));
+			Element confirm = body.FirstOrDefault(c => IsValid(c) && c.Children.Any(t => IsValid(t)
+				&& string.Equals(t.Text?.Trim(), "confirm", StringComparison.OrdinalIgnoreCase)));
+			int counter = body.FindIndex(c => IsValid(c) && AuguryCounter.IsMatch(c.GetChild(0)?.Text?.Trim() ?? ""));
+			Element At(int i) => counter >= 0 && i < body.Count ? body[i]?.GetChild(0) : null;
+			return (At(counter + 1), At(counter + 2), confirm, invoking);
+		}
+
 		/// <summary>
 		/// While the augury card selection window is open, either:
-		///  - opened by clicking a frozen augury boss (see ClickMonster): click each visible card (the direct children of
-		///    its GetChild(2, 6, 0)) once, to apply them to the boss, then click Confirm (GetChild(2, 9));
+		///  - opened by clicking a frozen augury boss (see ClickMonster): click each visible boss card (AuguryParts) once,
+		///    to apply them to the boss, then click Confirm;
 		///  - opened by "Select a Fate" on an AuguryCardObject (see Interactables, FateClicked; or, if not opened that way, when
-		///    GetChild(2, 6, 0) shows no cards but GetChild(2, 5, 0) does): click one of the visible cards (the direct
-		///    children of GetChild(2, 5, 0); see ChooseFateCard), then click Confirm (GetChild(2, 9, 1)).
+		///    no boss cards show but fate cards do): Ctrl + click one of the visible fate cards (see ChooseFateCard), which
+		///    needs no Confirm.
 		/// Confirm is clicked again every AuguryConfirmRetryMs until the window closes. True while it is open.
 		/// Called first thing in Decide (so a driver that TakesInput gets the clicks into its chain), even while the game
 		/// is paused, which it is while the window is open (see OnTick).
@@ -342,15 +413,26 @@ namespace AtE {
 		public bool TryAugury() {
 			var window = GetUI()?.AuguryCardSelectionWindow;
 			if ( !IsValid(window) || !window.IsVisible ) {
+				if ( auguryWindowSeen ) Log($"{Name}: the augury card selection window closed: going on");
+				auguryWindowSeen = false;
 				auguryCardsClicked.Clear();
+				auguryConfirms = 0;
 				lastAuguryConfirm = 0;
 				if ( Time.ElapsedMilliseconds - lastFateClick > FateOpenMs ) selectingFate = false;
 				return false;
 			}
 			StopWalking("the augury card selection window is open");
 			long now = Time.ElapsedMilliseconds;
-			var bossCards = VisibleChildren(window.GetChild(2, 6, 0));
-			if ( selectingFate || (bossCards.Count == 0 && VisibleChildren(window.GetChild(2, 5, 0)).Count > 0) ) return TrySelectFateCard(window, now);
+			var parts = AuguryParts(window);
+			var bossCards = VisibleChildren(parts.bossCards);
+			if ( !auguryWindowSeen ) {
+				auguryWindowSeen = true;
+				Log($"{Name}: the augury card selection window ({(parts.invoking ? "a boss's: Invoke Fates" : "Select a Fate")}) is open{(selectingFate || Time.ElapsedMilliseconds - lastFateClick < FateOpenMs ? "" : " (not opened by us: eg, open when switched on)")}: {VisibleChildren(parts.fateCards).Count} fate cards to choose from, {bossCards.Count} held");
+			}
+			// (fate cards to choose from showing: a fate's window, whatever cards are held; 3.30.0d+, seen live: a second Augury
+			// Card's window showed the first one's card held, and taking that for a boss card clicked it and then Confirm forever)
+			// (a boss's window, titled "Invoke Fates", shows empty slots where the fate cards would be: never those)
+			if ( !parts.invoking && (selectingFate || VisibleChildren(parts.fateCards).Count > 0) ) return TrySelectFateCard(window, now);
 			var cards = bossCards;
 			var card = cards.FirstOrDefault(c => !auguryCardsClicked.Contains(c.Address.ToInt64()));
 			if ( card != null ) {
@@ -366,9 +448,10 @@ namespace AtE {
 				}
 				return true;
 			}
-			var confirm = window.GetChild(2, 9);
+			var confirm = parts.confirm;
 			Status = $"augury: {auguryCardsClicked.Count} cards applied, confirming";
-			if ( !IsValid(confirm) || !confirm.IsVisible ) { Status = "augury: no Confirm button at GetChild(2, 9)"; return true; }
+			if ( !IsValid(confirm) || !confirm.IsVisible ) { Status = "augury: no Confirm button (a child of GetChild(2) labelled \"confirm\")"; return true; }
+			if ( TooManyConfirms() ) return true;
 			if ( InputBusy || now - lastAuguryClick < AuguryClickMs || now - lastAuguryConfirm < AuguryConfirmRetryMs ) return true;
 			var at = confirm.GetClientRect();
 			if ( at.Width <= 0 || at.Height <= 0 ) return true;
@@ -376,12 +459,13 @@ namespace AtE {
 			if ( Send(Inputs.Click(at)) ) {
 				lastAuguryClick = lastAuguryConfirm = now;
 				Log($"{Name}: augury Confirm clicked ({auguryCardsClicked.Count} cards)");
+					auguryConfirms += 1;
 			}
 			return true;
 		}
 
 		/// <summary>
-		/// The reward texts of a fate card (a visible child of the window's GetChild(2, 5, 0)): the tooltip of each of its
+		/// The reward texts of a fate card (a visible child of AuguryParts' fateCards): the tooltip of each of its
 		/// reward slots, at GetChild(0, 0, 8, 0, i, 3) (hidden until hovered; eg, "Empowered Monster will drop additional
 		/// Rare Ranged Weapons or Quivers"). The slot's icon (a rectangle of Augury/2.dds, at the slot's +0x230*+0x8*) says
 		/// the same, less exactly. Only the visible slots (one per reward; three in all).
@@ -396,34 +480,38 @@ namespace AtE {
 			cards.FirstOrDefault(c => FateRewards(c).Any(t => t.IndexOf("Currency", StringComparison.OrdinalIgnoreCase) >= 0))
 			?? cards.FirstOrDefault();
 
-		// "Select a Fate": a card under GetChild(2, 5, 0) (see ChooseFateCard), then Confirm at GetChild(2, 9, 1); if the
-		// window is still open FateCardTimeoutMs after, the next card not tried yet
+		// "Select a Fate": Ctrl + click a fate card (see AuguryParts, ChooseFateCard), which chooses it with no Confirm; if
+		// the window is still open FateCardTimeoutMs after, Ctrl + click the next card not tried yet; with none left, click
+		// Confirm (as a plain click on a card needs)
 		private bool TrySelectFateCard(Element window, long now) {
 			bool timedOut = auguryCardsClicked.Count > 0 && now - fateCardChosenAt > FateCardTimeoutMs;
-			var untried = VisibleChildren(window.GetChild(2, 5, 0)).Where(c => !auguryCardsClicked.Contains(c.Address.ToInt64())).ToList();
+			var parts = AuguryParts(window);
+			var untried = VisibleChildren(parts.fateCards).Where(c => !auguryCardsClicked.Contains(c.Address.ToInt64())).ToList();
 			if ( auguryCardsClicked.Count == 0 || (timedOut && untried.Count > 0) ) {
 				var card = ChooseFateCard(untried);
 				Status = "augury: selecting a fate";
-				if ( card == null ) { Status = "augury: no fate cards at GetChild(2, 5, 0)"; return true; }
+				if ( card == null ) { Status = "augury: no fate cards (after the \"0/3\" counter in GetChild(2))"; return true; }
 				if ( InputBusy || now - lastAuguryClick < AuguryClickMs ) return true;
 				var rect = card.GetClientRect();
 				if ( rect.Width <= 0 || rect.Height <= 0 ) { Status = "augury: the first fate card has no size"; return true; }
 				DefaultFollower.ReleaseMouse();
-				if ( Send(Inputs.Click(rect)) ) {
+				if ( Send(Inputs.CtrlClick(rect)) ) {
 					if ( timedOut ) Log($"{Name}: augury: the window is still open {FateCardTimeoutMs} ms after choosing a fate: that one is not valid, trying the next");
 					auguryCardsClicked.Add(card.Address.ToInt64());
 					lastAuguryClick = fateCardChosenAt = now;
 					lastAuguryConfirm = 0;
-					Log($"{Name}: augury fate chosen: {card.GetChild(0, 0, 4)?.Text?.Trim()} ({string.Join("; ", FateRewards(card))})");
+					Log($"{Name}: augury fate chosen (Ctrl + click): {card.GetChild(0, 0, 4)?.Text?.Trim()} ({string.Join("; ", FateRewards(card))})");
 				}
 				return true;
 			}
-			// (GetChild(2, 9) is the button, IsButton; its GetChild(2, 9, 1), the same size, is hidden (a highlight?), and
-			// GetChild(2, 9, 0) its text "confirm")
-			var confirm = window.GetChild(2, 9, 1);
-			if ( !IsValid(confirm) || !confirm.IsVisible ) confirm = window.GetChild(2, 9);
+			// (a Ctrl + click needs no Confirm: wait for the window to close)
+			if ( !timedOut ) { Status = "augury: fate chosen, waiting for the window to close"; return true; }
+			// (the Confirm button is IsButton; its child 1, the same size, is hidden (a highlight?), and its child 0 the text "confirm")
+			var confirm = parts.confirm?.GetChild(1);
+			if ( !IsValid(confirm) || !confirm.IsVisible ) confirm = parts.confirm;
 			Status = "augury: fate selected, confirming";
-			if ( !IsValid(confirm) || !confirm.IsVisible ) { Status = "augury: no Confirm button at GetChild(2, 9)"; return true; }
+			if ( !IsValid(confirm) || !confirm.IsVisible ) { Status = "augury: no Confirm button (a child of GetChild(2) labelled \"confirm\")"; return true; }
+			if ( TooManyConfirms() ) return true;
 			if ( InputBusy || now - lastAuguryClick < AuguryClickMs || now - lastAuguryConfirm < AuguryConfirmRetryMs ) return true;
 			var at = confirm.GetClientRect();
 			if ( at.Width <= 0 || at.Height <= 0 ) return true;
@@ -431,7 +519,18 @@ namespace AtE {
 			if ( Send(Inputs.Click(at)) ) {
 				lastAuguryClick = lastAuguryConfirm = now;
 				Log($"{Name}: augury fate Confirm clicked");
+					auguryConfirms += 1;
 			}
+			return true;
+		}
+
+		// (Confirm clicked MaxAuguryConfirms times and the window is still open: stop, rather than click it forever)
+		private bool TooManyConfirms() {
+			if ( auguryConfirms < MaxAuguryConfirms ) return false;
+			Log($"{Name}: augury: Confirm clicked {auguryConfirms} times and the window is still open: stopping");
+			Status = "augury: stuck (Confirm does not close the window)";
+			auguryConfirms = 0;
+			Stop("augury: Confirm does not close the window");
 			return true;
 		}
 

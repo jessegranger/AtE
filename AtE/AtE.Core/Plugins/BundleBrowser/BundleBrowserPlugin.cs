@@ -148,6 +148,7 @@ namespace AtE.Plugins {
 			}
 			if ( ready != null && ready.Token == selectionToken ) Apply(ready);
 
+			if ( Overlay.ClosingWindows ) ShowWindow = false;
 			if ( ShowWindow ) DrawWindow();
 			return this;
 		}

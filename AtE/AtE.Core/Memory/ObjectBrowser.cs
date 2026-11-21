@@ -299,6 +299,7 @@ namespace AtE {
 			Type type = value?.GetType();
 			bool open = true;
 			Run(label, (self, dt) => {
+				if ( Overlay.ClosingWindows ) return null;
 				ImGui.SetNextWindowSize(new Vector2(300, 200), ImGuiCond.FirstUseEver);
 				if ( ImGui.Begin(label, ref open) ) {
 					try {
@@ -347,6 +348,7 @@ namespace AtE {
 			// PoEMemory.GetFileContents
 			string filter = "";
 			Run("FileBrowser", (self, dt) => {
+				if ( Overlay.ClosingWindows ) return null;
 				ImGui.SetNextWindowSize(new Vector2(300, 200), ImGuiCond.FirstUseEver);
 				if ( ImGui.Begin("FileBrowser", ref open) ) {
 					ImGui.AlignTextToFramePadding();

@@ -26,6 +26,16 @@ namespace AtE {
 		/// </summary>
 		public bool SkipToClear { get; private set; }
 
+		/// <summary>
+		/// The routine was switched on in the hideout with MapPortalCount map portals up (a map opened and not entered yet),
+		/// and the loop has not got to EnterMap yet: StashEverything, PickNextMap and RollMap skip themselves, and OpenMap goes
+		/// straight to EnterMap, which takes the nearest of those portals. Only at the start: back from a map, its portals are
+		/// up too, and lead back into it.
+		/// </summary>
+		public bool SkipToPortals { get; private set; }
+		/// <summary>How many portals a Map Device opens (see SkipToPortals).</summary>
+		public const int MapPortalCount = 6;
+
 		/// <summary>One lap of the loop, from the hideout back to the hideout, ending in the next lap (built when it is reached).</summary>
 		public IState MapLap() =>
 			StashEverything(PickNextMap(RollMap(OpenMap(
@@ -43,13 +53,17 @@ namespace AtE {
 		/// WaitForNewArea, then next. A portal that disappears on the way (eg, another player took it) is given up for
 		/// another fresh one. Stops (null) with no fresh portal. Closes the Map Device first (it covers the portals).
 		/// </summary>
-		public IState EnterMap(IState next) => new Step("Enter the map", (s, ctx, dt) =>
-			SkipToClear ? s.Pass()
-			: MapDeviceIsOpen() ? CloseWindow("the Map Device", s)
-			: EnterFreshPortal("a map portal", () => AtE.OpenMap.FreshPortals(this), EnteringMap, s.Pass()), next);
+		public IState EnterMap(IState next) => new Step("Enter the map", (s, ctx, dt) => {
+			if ( SkipToClear ) return s.Pass();
+			if ( MapDeviceIsOpen() ) return CloseWindow("the Map Device", s);
+			// (switched on with the portals up: any of them, not only ones opened by an Activate of ours)
+			bool all = SkipToPortals;
+			SkipToPortals = false;
+			return EnterFreshPortal("a map portal", () => all ? MapDevice.MapPortals() : AtE.OpenMap.FreshPortals(this), EnteringMap, s.Pass());
+		}, next);
 
 		/// <summary>How long WaitForNewArea waits for the loading to start (after a portal click), and to end.</summary>
-		public long LoadStartMs = 5000, LoadEndMs = 60000;
+		public long LoadStartMs = 20000, LoadEndMs = 60000; // (a map's portals can take a while to spawn)
 
 		/// <summary>
 		/// After a click that leaves the area (fromArea: its AreaHash then): wait for AreaLoadingState.IsLoading to become
@@ -157,7 +171,8 @@ namespace AtE {
 		private IState ClearRound(string area, int round, IState next) {
 			var check = new Step($"Check {area}'s objectives", (s, ctx, dt) => {
 				if ( ObjectivesDone() ) {
-					Log($"{Name}: {area} is done: {MonstersRemaining} monsters remain, Map Complete (round {round})");
+					MapsCompleted += 1;
+					Log($"{Name}: {area} is done: {MonstersRemaining} monsters remain, Map Complete (round {round}; {MapsCompleted} maps completed)");
 					return s.Pass();
 				}
 				if ( s.Elapsed < ObjectivesWaitMs ) { s.Detail = "waiting for the map panel"; return s; }

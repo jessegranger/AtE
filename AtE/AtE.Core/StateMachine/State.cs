@@ -344,11 +344,16 @@ namespace AtE {
 		public bool CancelIfReleased;
 		private long waited;
 		private int removes; // moves sent again, after the overlay let the mouse through
-		private long releasesAtStart = -1;
-		public MouseButtonDown(MouseBtn button, IState next = null) : base(next) => Button = button;
+		// (counted when made, not on its first tick: it is often queued behind a MoveMouse, and a release going out in
+		// between, eg the PathFollower stopping, was taken for one before it, so the press went out with nothing left to let
+		// go of it: the player kept walking, and after a stop the button stayed down)
+		private readonly long releasesAtStart;
+		public MouseButtonDown(MouseBtn button, IState next = null) : base(next) {
+			Button = button;
+			releasesAtStart = MouseButtonUp.Releases(button);
+		}
 		public override string Name => $"MouseDown({Button})";
 		public override IState OnTick(long dt) {
-			if ( releasesAtStart < 0 ) releasesAtStart = MouseButtonUp.Releases(Button);
 			if ( dt == 0 ) return this;
 			if ( !GameFocused ) return WaitForFocus(this);
 			if ( WaitForClickThrough(dt) ) return this;
@@ -364,7 +369,7 @@ namespace AtE {
 		private bool WaitForClickThrough(long dt) {
 			if ( !Overlay.IsClickThrough ) {
 				if ( (waited += dt) <= MaxWaitMs ) return true;
-				Log($"Warn: the overlay still takes the mouse after {MaxWaitMs} ms: clicking anyway.");
+				Log($"Warn: the overlay still takes the mouse after {MaxWaitMs} ms ({Overlay.CaptureReason ?? "reason unknown"}): clicking anyway.");
 				return false;
 			}
 			if ( MoveMouse.LastMoveTakenByOverlay && removes < 2 ) {
