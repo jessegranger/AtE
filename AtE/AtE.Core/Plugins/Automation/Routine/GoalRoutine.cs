@@ -314,8 +314,10 @@ namespace AtE {
 					&& string.Equals(p.GetChild(0)?.Text?.Trim(), "You have died!", StringComparison.OrdinalIgnoreCase);
 				var panel = panels.GetChild(142);
 				if ( !IsDeathPanel(panel) ) panel = panels.Children.FirstOrDefault(IsDeathPanel);
-				var button = panel?.GetChild(3);
-				if ( IsValid(button) && button.IsVisible ) return button;
+				// (by its text in the panel, not a child index: indexes shift between patches, and [1] resurrects in town)
+				var button = IsValid(panel) ? UiSearch.Visible(panel, 4, 200).FirstOrDefault(e => string.Equals(e.Text?.Trim(), ResurrectText, StringComparison.OrdinalIgnoreCase)
+					&& e.GetClientRect() is RectangleF r && r.Width > 0 && r.Height > 0) : null;
+				if ( button != null ) return button;
 			}
 			// the button by its text, breadth first: the death panel is shallow, but the UI tree is big
 			return UiSearch.Visible(root, 12, 20000).FirstOrDefault(e => string.Equals(e.Text?.Trim(), ResurrectText, StringComparison.OrdinalIgnoreCase)

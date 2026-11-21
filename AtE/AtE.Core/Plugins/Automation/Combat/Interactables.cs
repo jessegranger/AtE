@@ -61,6 +61,8 @@ namespace AtE {
 		public float MaxDistance = 60;
 		/// <summary>Click when within this many cells (the click walks the rest of the way).</summary>
 		public float Reach = 15;
+		/// <summary>Click its label when within this many cells and the label's middle is on screen (the game walks the rest).</summary>
+		public float LabelReach = 20;
 		/// <summary>Clicks on one before it is given up on (for this area instance).</summary>
 		public int MaxClicks = 3;
 		/// <summary>Time for a click to work before clicking the same one again.</summary>
@@ -116,7 +118,10 @@ namespace AtE {
 			if ( hash != area ) { area = hash; clicks.Clear(); passedOver.Clear(); }
 			var (ent, kind, label, grid, d) = Next(ctx);
 			if ( ent == null ) return false;
-			if ( d > Reach ) {
+			// (not when its label is within LabelReach and the middle of the label is on screen: an Augury Card on ground the
+			// player can't walk onto was walked to forever, never within Reach; clicking its label, the game walks the rest)
+			bool labelClickable = label != null && d <= LabelReach && Ground.ClickLabel(label) != null;
+			if ( d > Reach && !labelClickable ) {
 				var spot = DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, grid, out var s) ? s : grid;
 				Status = $"walking to a {kind.Name}, {d:F0} cells away";
 				driver.WalkTo(spot, Status);

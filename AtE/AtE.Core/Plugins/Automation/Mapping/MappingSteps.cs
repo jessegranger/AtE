@@ -59,7 +59,7 @@ namespace AtE {
 				// (by its address: an item in an inventory has no entity id, it reads 0)
 				var keep = HeldMap()?.Entity?.Address ?? IntPtr.Zero;
 				if ( keep != IntPtr.Zero ) Log($"{Name}: keeping the tier {MapTier} map in the backpack, to run next");
-				return backpack.PlanDumpAll(next, e => keep != IntPtr.Zero && e.Address == keep);
+				return backpack.PlanDumpAll(CheckStashed(backpack, next), e => keep != IntPtr.Zero && e.Address == keep);
 			}, next);
 			var tab = Tab(DumpTab, dump);
 			var open = ClickToOpen("the stash", FindStash, StashIsOpen, tab);
@@ -70,6 +70,24 @@ namespace AtE {
 				: StashIsOpen() ? tab
 				: !InHideout() ? Fail("stash everything: not in the hideout")
 				: walk, walk));
+		}
+
+		/// <summary>How long after the dump the items it was to stash may take to leave the backpack, before it counts as failed.</summary>
+		private const long StashCheckMs = 2000;
+
+		// after the dump: every item it was to stash (BackpackPlugin.LastStashPlanned) gone from the backpack, then next; any
+		// still there after StashCheckMs (eg, the stash tab is full, or the stash closed part way): stop (null)
+		private IState CheckStashed(BackpackPlugin backpack, IState next) {
+			// (read when it runs: this is made before the dump's plan, which fills LastStashPlanned)
+			HashSet<IntPtr> planned = null;
+			return new Step("Check the backpack was stashed", (s, ctx, dt) => {
+				planned ??= backpack.LastStashPlanned.ToHashSet();
+				var left = BackpackItems().Where(i => i?.Entity is Entity e && planned.Contains(e.Address)).ToList();
+				if ( left.Count == 0 ) return s.Pass();
+				if ( s.Elapsed < StashCheckMs ) { s.Detail = $"{left.Count} of {planned.Count} items still in the backpack"; return s; }
+				string names = string.Join(", ", left.Take(5).Select(i => Equipment.ItemName(i.Entity) ?? i.Entity.Path?.Split('/').LastOrDefault() ?? "?"));
+				return Fail($"stash everything: {left.Count} of {planned.Count} items were not stashed ({names}{(left.Count > 5 ? ", ..." : "")}): is the \"{DumpTab}\" tab full?");
+			}, next);
 		}
 
 		/// <summary>With the stash open: show the MapsTab, ActivateMapTier(MapTier), Ctrl + click a map of that tier into the backpack (it becomes NextMap), then next.</summary>
@@ -131,9 +149,29 @@ namespace AtE {
 		/// in use (a second right click turns use mode off).
 		/// </summary>
 		public IState UseCurrencyFromStash(string name, InventoryItem target, IState next) {
-			var tab = Tab(CurrencyTab, PickUpCurrency(name, target, 1, next));
+			var tab = Tab(CurrencyTab, PickUpCurrency(name, FromStash(name), target, 1, next));
 			return ForceGameFocus(new Step($"Use {name}", (s, ctx, dt) => !StashIsOpen() ? Fail($"use {name}: the stash is not open") : tab, tab));
 		}
+
+		/// <summary>
+		/// With the inventory open: right click the currency at path in the backpack (eg, a Scroll of Wisdom), confirm it is
+		/// in use, left click target, then next; checked as UseCurrencyFromStash is (the same retries and stops).
+		/// </summary>
+		public IState UseCurrencyFromBackpack(string name, string path, InventoryItem target, IState next) {
+			var use = PickUpCurrency(name, FromBackpack(name, path), target, 1, next);
+			return ForceGameFocus(new Step($"Use {name}", (s, ctx, dt) => !BackpackIsOpen() ? Fail($"use {name}: the inventory is not open") : use, use));
+		}
+
+		// where PickUpCurrency finds the currency: (the item, or null with why it isn't there)
+		private Func<(InventoryItem item, string missing)> FromStash(string name) => () => {
+			if ( !StashIsOpen() ) return (null, $"use {name}: the stash is not open");
+			var item = StashItems().FirstOrDefault(i => i?.Entity is Entity e && IsNamed(Equipment.ItemName(e), name));
+			return item == null ? (null, $"no {name} on the \"{CurrencyTab}\" tab") : (item, null);
+		};
+		private static Func<(InventoryItem item, string missing)> FromBackpack(string name, string path) => () => {
+			var item = BackpackItems().FirstOrDefault(i => i?.Entity?.Path == path);
+			return item == null ? (null, $"no {name} in the backpack") : (item, null);
+		};
 
 		private const int PickUpTries = 5;
 		private const long CursorLookMs = 1000, CursorWaitMs = 3000;
@@ -169,13 +207,12 @@ namespace AtE {
 		private static bool IsNamed(string itemName, string name) => string.Equals(itemName, name, StringComparison.OrdinalIgnoreCase);
 
 		/// <summary>Right click the currency named name in the stash, confirm it is in use, then left click target.</summary>
-		private IState PickUpCurrency(string name, InventoryItem target, int attempt, IState next) =>
+		private IState PickUpCurrency(string name, Func<(InventoryItem item, string missing)> find, InventoryItem target, int attempt, IState next) =>
 			new Step($"Right click {name}", (s, ctx, dt) => {
-				if ( !StashIsOpen() ) return Fail($"use {name}: the stash is not open");
 				if ( !BackpackIsOpen() ) return Fail($"use {name}: the inventory is not open");
 				if ( !IsValid(target) ) return Fail($"use {name}: the item to use it on is gone");
-				var currency = StashItems().FirstOrDefault(i => i?.Entity is Entity e && IsNamed(Equipment.ItemName(e), name));
-				if ( currency == null ) return Fail($"no {name} on the \"{CurrencyTab}\" tab");
+				var (currency, missing) = find();
+				if ( currency == null ) return Fail(missing);
 				string icon = PathName(currency.Entity);
 				string held = CursorItemName(), inUse = MouseIconName();
 				if ( held == null || inUse == null ) return Fail($"use {name}: can't read the cursor");
@@ -185,12 +222,12 @@ namespace AtE {
 					: Fail($"use {name}: another currency is in use ({inUse})");
 				var rect = currency.GetClientRect();
 				Log($"{Name}: right clicking {name} at {rect.X + rect.Width / 2:F0},{rect.Y + rect.Height / 2:F0} (try {attempt} of {PickUpTries})");
-				return Inputs.RightClick(rect, ConfirmInUse(name, icon, target, attempt, next));
+				return Inputs.RightClick(rect, ConfirmInUse(name, find, icon, target, attempt, next));
 			}, next);
 
 		/// <summary>Look at the mouse now and every CursorLookMs: name's icon there goes on to the left click; no icon for
 		/// CursorWaitMs goes back to the right click; anything else stops.</summary>
-		private IState ConfirmInUse(string name, string icon, InventoryItem target, int attempt, IState next) {
+		private IState ConfirmInUse(string name, Func<(InventoryItem item, string missing)> find, string icon, InventoryItem target, int attempt, IState next) {
 			long lookAt = 0;
 			return new Step($"Confirm {name} is in use", (s, ctx, dt) => {
 				if ( s.Elapsed < lookAt ) return s;
@@ -206,7 +243,7 @@ namespace AtE {
 				if ( s.Elapsed < CursorWaitMs ) return s;
 				if ( attempt >= PickUpTries ) return Fail($"use {name}: still not in use after {PickUpTries} right clicks");
 				Log($"{Name}: {name} not in use {CursorWaitMs} ms after right clicking it, trying again");
-				return PickUpCurrency(name, target, attempt + 1, next);
+				return PickUpCurrency(name, find, target, attempt + 1, next);
 			}, next);
 		}
 
@@ -220,7 +257,7 @@ namespace AtE {
 		/// none of ProhibitedMods, with Orbs of Scouring and Alchemy right clicked in the stash window (the CurrencyTab) and
 		/// used on the map: Alchemy on a normal map; Scouring on a magic one or a rare with a prohibited mod (then Alchemy
 		/// again). An unidentified magic or rare map is identified first (Scouring does not work on it), with a Scroll of
-		/// Wisdom from the backpack (BackpackPlugin.PlanIdentify; not counted against MaxRolls). Then next. Stops (null) at once if the stash or the inventory
+		/// Wisdom from the backpack (UseCurrencyFromBackpack; not counted against MaxRolls). Then next. Stops (null) at once if the stash or the inventory
 		/// isn't open (at any roll), if there isn't exactly one map in the backpack at the start, on a unique map, or after
 		/// MaxRolls. A corrupted map (which can't be rolled) is done as it is, whatever its rarity, if it has none of
 		/// ProhibitedMods (identified first if need be), and stops it if it has one.
@@ -248,17 +285,15 @@ namespace AtE {
 			string name = Equipment.ItemName(e) ?? "the map";
 			if ( mods.Rarity == Offsets.ItemRarity.Unique ) return Fail($"roll the map: {name} is unique");
 			// an unidentified magic or rare map: Scouring does not work on it, so identify it first (a Scroll of Wisdom from
-			// the backpack, BackpackPlugin.PlanIdentify), then look again
+			// the backpack, checked as the currency is: in use before the map is clicked), then look again
 			if ( mods.Rarity != Offsets.ItemRarity.Normal && !mods.IsIdentified ) {
-				if ( GetPlugin<BackpackPlugin>() is not BackpackPlugin backpack ) return Fail("roll the map: no BackpackPlugin to identify it with");
 				Log($"{Name}: roll {used + 1}: {name} is unidentified: identifying it");
 				s.Detail = "identifying";
 				uint unid = e.Id;
-				return backpack.PlanIdentify(new[] { map },
+				return UseCurrencyFromBackpack("Scroll of Wisdom", Offsets.PATH_SCROLL_WISDOM, map,
 					WaitUntil($"{name} to be identified", 2000,
 						() => BackpackMap()?.Entity is Entity now && (now.Id != unid || (now.GetComponent<Mods>()?.IsIdentified ?? false)),
-						RollStep(used, next), $"{name} was not identified"))
-					?? Fail("roll the map: can't identify it (no Scroll of Wisdom in the backpack?)");
+						RollStep(used, next), $"{name} was not identified"));
 			}
 			// a corrupted map can't be rolled: it will do as it is (whatever its rarity) if it has none of ProhibitedMods
 			if ( IsCorrupted(e) ) {
@@ -608,6 +643,7 @@ namespace AtE {
 
 		private IState Fail(string why) {
 			Log($"{Name}: {why}");
+			LastFailure = why;
 			return null;
 		}
 

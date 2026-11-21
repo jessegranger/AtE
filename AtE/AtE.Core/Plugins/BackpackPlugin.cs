@@ -99,6 +99,14 @@ namespace AtE.Plugins {
 				// keydown shift
 				// left click on each item to identify
 				// keyup shift
+				// (one item: no Shift held, it is a plain click)
+				if ( itemsToIdentify.Length == 1 ) {
+					return PlanUseItemFromBackpack(Offsets.PATH_SCROLL_WISDOM,
+						new Delay(InputLatency,
+						OnlyIfBackpackIsOpen(
+							ifOpen: new LeftClickAt(itemsToIdentify[0].GetClientRect(), InputLatency, 1, new Delay(InputLatency, next)),
+							ifClosed: next)));
+				}
 				IState head = PlanUseItemFromBackpack(Offsets.PATH_SCROLL_WISDOM,
 					new Delay(InputLatency,
 					new KeyDown(VKey.LShiftKey,
@@ -133,8 +141,13 @@ namespace AtE.Plugins {
 			{ Offsets.PATH_OMEN_OF_AMELIORATION, 1 }
 		};
 
+		/// <summary>The backpack items the last PlanStashAll (eg, in PlanDumpAll) is to stash, by address (an item in an inventory has no entity id): to check afterwards that they went.</summary>
+		public IReadOnlyCollection<IntPtr> LastStashPlanned => lastStashPlanned;
+		private readonly HashSet<IntPtr> lastStashPlanned = new HashSet<IntPtr>();
+
 		private IState PlanStashAll(IState next = null, Func<Entity, bool> keep = null) {
 			var ui = GetUI();
+			lastStashPlanned.Clear();
 			if ( !IsValid(ui) ) {
 				return null;
 			}
@@ -162,6 +175,7 @@ namespace AtE.Plugins {
 				if ( ApplyIncubators && ent.Path.StartsWith(Offsets.PATH_INCUBATOR_PREFIX) ) {
 					continue;
 				}
+				lastStashPlanned.Add(ent.Address);
 				tail.Next = OnlyIfStashIsOpen(
 					ifOpen: LeftClickItem(item, 1, null),
 					ifClosed: new KeyUp(VKey.LControlKey, null)

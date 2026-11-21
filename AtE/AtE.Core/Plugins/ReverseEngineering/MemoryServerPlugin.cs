@@ -194,9 +194,12 @@ namespace AtE {
 			}
 		}
 
+		private static readonly string[] MappingActions = { "start", "stop", "pause", "resume" };
+
 		private void Handle(HttpListenerContext ctx) {
 			string body;
 			int status = 200;
+			string contentType = "text/plain; charset=utf-8", location = null;
 			try {
 				Interlocked.Increment(ref requestCount);
 				// a browser page must not be able to drive this (DNS rebinding / cross-origin fetch)
@@ -208,7 +211,30 @@ namespace AtE {
 					status = 403;
 					body = "forbidden\n";
 				} else {
-					body = Dispatch(ctx.Request.Url.AbsolutePath, ctx.Request.QueryString);
+					string path = ctx.Request.Url.AbsolutePath;
+					// a browser (it asks for HTML): the status page with links; an action does its work, then redirects to it
+					bool browser = (ctx.Request.Headers["Accept"] ?? "").Contains("text/html");
+					string action = path.StartsWith("/mapping/") ? path.Substring("/mapping/".Length) : null;
+					if ( browser && MappingActions.Contains(action) ) {
+						// (not from another site's page: a link there would carry no Origin, but says so here)
+						string site = ctx.Request.Headers["Sec-Fetch-Site"];
+						if ( site == "cross-site" || site == "same-site" ) {
+							status = 403;
+							body = "forbidden\n";
+						} else {
+							string result = Dispatch(path, ctx.Request.QueryString);
+							status = 303;
+							location = "/mapping/status?msg=" + Uri.EscapeDataString($"{action}: {result.Trim()}");
+							body = "";
+						}
+					} else if ( browser && path == "/mapping/status" ) {
+						string msg = ctx.Request.QueryString["msg"];
+						body = RunOnMain(() => MappingStatusHtml(msg));
+						if ( !body.StartsWith("<") ) body = $"<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><body style=\"background:#0e0f12;color:#e6e6e6;font-family:system-ui\"><p>{WebUtility.HtmlEncode(body)}</p><p><a style=\"color:#5aa0ff\" href=\"/mapping/status\">Retry</a></p>";
+						contentType = "text/html; charset=utf-8";
+					} else {
+						body = Dispatch(path, ctx.Request.QueryString);
+					}
 				}
 			} catch ( Exception e ) {
 				status = 500;
@@ -217,7 +243,8 @@ namespace AtE {
 			try {
 				byte[] bytes = Encoding.UTF8.GetBytes(body);
 				ctx.Response.StatusCode = status;
-				ctx.Response.ContentType = "text/plain; charset=utf-8";
+				ctx.Response.ContentType = contentType;
+				if ( location != null ) ctx.Response.RedirectLocation = location;
 				ctx.Response.ContentLength64 = bytes.Length;
 				ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
 			} catch { } finally {
@@ -535,8 +562,20 @@ namespace AtE {
 			var mapping = combat?.Routines.OfType<MappingRoutine>().FirstOrDefault();
 			if ( mapping == null ) return "error: no Mapping routine\n";
 			return mapping.StatusReport(combat.Current == mapping)
-				+ $"\nthe log's last {StatusLogLines} lines:\n" + string.Join(NL, RecentLog.ToArray().TakeLast(StatusLogLines)) + NL;
+				+ $"\nthe log's last {StatusLogLines} lines:\n" + string.Join(NL, RecentLog.ToArray().TakeLast(StatusLogLines).Select(NoTimestamp)) + NL;
 		}
+
+		// the status page for a browser (see StatusPageHtml): msg is the last action's result
+		private string MappingStatusHtml(string msg) {
+			var combat = GetPlugin<AutomationPlugin>()?.Combat;
+			var mapping = combat?.Routines.OfType<MappingRoutine>().FirstOrDefault();
+			if ( mapping == null ) return "error: no Mapping routine\n";
+			return StatusPageHtml.Render(mapping.GetStatusView(combat.Current == mapping), RecentLog.ToArray().TakeLast(StatusLogLines).Select(NoTimestamp), msg);
+		}
+
+		// a log line without its leading "[d:hh:mm:ss.fffffff] " timestamp
+		private static readonly Regex LogTimestamp = new Regex(@"^\[[^\]]*\]\s*");
+		private static string NoTimestamp(string line) => LogTimestamp.Replace(line ?? "", "", 1);
 
 		// /mapping/start | stop | pause | resume: switch the Mapping routine on (choosing it, as a test does) or off; or pause
 		// it and the game (the escape menu), or unpause both. Pause and resume wait (here, off the main thread) up to
@@ -619,7 +658,7 @@ namespace AtE {
 @"MemoryServer (local network: loopback and the LAN address above)
   /status
   /offsets/run[?only=A6,A4.Life[&observers=1]] | /offsets/observe (observers only, no checks) | /offsets/stop | /offsets/report     the Offsets tests (Automation > Offset Tests): start, stop, the results with details
-  /mapping/status               the Mapping routine: on or off, its status, the character (level, XP %, life, ES, mana), maps completed, the area, the loop's current step
+  /mapping/status               (in a browser: with Start, Stop, Pause and Resume links, each doing it and coming back here) the Mapping routine: on or off, its status, the character (level, XP %, life, ES, mana), maps completed, the area, the loop's current step
   /mapping/start | /mapping/stop   switch the Mapping routine on (choosing it) or off
   /mapping/pause                pause the routine and the game (Escape until the escape menu shows); waits up to 4 s and says how it ended
   /mapping/resume               unpause the game (Escape until the escape menu is gone), then the routine

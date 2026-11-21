@@ -33,6 +33,13 @@ namespace AtE {
 		/// up too, and lead back into it.
 		/// </summary>
 		public bool SkipToPortals { get; private set; }
+		/// <summary>
+		/// Between ClearArea and ReturnHome: the loop is clearing a map. Back in the hideout while this is set (eg, died and
+		/// resurrected there), MapLoop starts a new lap that goes back in through the map's portals that are left (ReEnter).
+		/// </summary>
+		public bool Clearing { get; internal set; }
+		/// <summary>Set by MapLoop for the next StartLoop: enter any of the map's portals that are left (one or more), not only all six.</summary>
+		internal bool ReEnter;
 		/// <summary>How many portals a Map Device opens (see SkipToPortals).</summary>
 		public const int MapPortalCount = 6;
 
@@ -179,6 +186,7 @@ namespace AtE {
 		public IState ClearArea(string name, IState next) => new Step($"Clear {name ?? "the area"}", (s, ctx, dt) => {
 			SkipToClear = false;
 			if ( !InMap() ) return Fail($"clear {name ?? "the area"}: not in a map");
+			Clearing = true;
 			string area = name ?? GetCurrentArea()?.Name ?? "the area";
 			var after = ClearRound(area, 1, s.Pass());
 			if ( !Rules.TryGetValue(area, out var rules) ) {
@@ -221,6 +229,7 @@ namespace AtE {
 		/// says "Out of Portal Scrolls", or no portal opens.
 		/// </summary>
 		public IState ReturnHome(IState next) => new Step("Return to the hideout", (s, ctx, dt) => {
+			Clearing = false;
 			if ( InHideout() ) return s.Pass();
 			long now = Time.ElapsedMilliseconds;
 			if ( now - Math.Max(LastUniqueKillAt, MapCompleteAt) < LootWaitMs ) { s.Detail = "waiting for the drops"; ctx.Driver.StopWalking("waiting for the drops"); return s; }
@@ -231,18 +240,33 @@ namespace AtE {
 			if ( Fight.AnyNear(ctx, 0) ) { s.Detail = "fighting the monsters near"; return new Fight(0, null, s); }
 			ctx.Driver.StopWalking("using a Portal Scroll");
 			if ( BackpackIsOpen() ) return GameKeys.Press(GameKeys.InventoryKey, new Delay(InventoryPlans.Settle, s));
+			// (the map's own portal near, eg back in after a death: through it, no Portal Scroll)
+			var mapPortals = TownPortals().Where(e => e.Path.EndsWith("/MultiplexPortal") && (e.GetComponent<Targetable>()?.IsTargetable ?? true)).ToList();
+			if ( mapPortals.Count > 0 ) {
+				Log($"{Name}: the map's portal is near: going home through it");
+				return EnterFreshPortal("the map's portal", () => TownPortals().Where(e => e.Path.EndsWith("/MultiplexPortal")), null, s.Pass());
+			}
 			var stale = new HashSet<uint>(TownPortals().Select(e => e.Id));
 			var mark = ChatCommand.LastMessage();
 			Func<IEnumerable<Entity>> fresh = () => TownPortals().Where(e => !stale.Contains(e.Id));
-			Log($"{Name}: pressing {GameKeys.Text("Use Portal Scroll")} (a Portal Scroll)");
+			scrollPresses += 1;
+			Log($"{Name}: pressing {GameKeys.Text("Use Portal Scroll")} (a Portal Scroll){(scrollPresses > 1 ? $", again (press {scrollPresses} of {ScrollPresses})" : "")}");
 			var enter = EnterFreshPortal("the Portal Scroll's portal", fresh, null, s.Pass());
 			return GameKeys.Press(key, new Step("Wait for the Portal Scroll's portal", (w, c2, d2) => {
-				if ( fresh().Any() ) return enter;
+				if ( fresh().Any() ) { scrollPresses = 0; return enter; }
 				if ( mark != IntPtr.Zero && ChatCommand.MessagesAfter(mark).Any(m => m.Contains("Out of Portal Scrolls", StringComparison.OrdinalIgnoreCase)) )
 					return Fail("return to the hideout: out of Portal Scrolls");
-				return w.Elapsed > 3000 ? Fail("return to the hideout: no portal opened after the Portal Scroll") : w;
+				if ( w.Elapsed <= 3000 ) return w;
+				// (a press can be lost, eg to a cast going out at the same time: pressed again, then given up)
+				if ( scrollPresses < ScrollPresses ) return s;
+				scrollPresses = 0;
+				return Fail($"return to the hideout: no portal opened after {ScrollPresses} Portal Scrolls");
 			}, enter));
 		}, next);
+
+		/// <summary>Presses of the Portal Scroll key (each waited on 3 s) before ReturnHome gives up.</summary>
+		private const int ScrollPresses = 2;
+		private int scrollPresses;
 
 		// town portals (eg, a Portal Scroll's) within 40 cells of the player
 		private static IEnumerable<Entity> TownPortals() {
@@ -292,6 +316,13 @@ namespace AtE {
 		protected override IState Step(CombatContext ctx) => this; // (see Tick)
 
 		protected override IState Tick(CombatContext ctx, long dt) {
+			// (back in the hideout in the middle of clearing a map, eg died and resurrected there: back in through its portals)
+			if ( Current != null && routine.Clearing && routine.InHideout() ) {
+				routine.Clearing = false;
+				routine.ReEnter = true;
+				Log($"{routine.Name}: back in the hideout while clearing {routine.CurrentMap ?? "a map"}: starting a new lap, through its portals if any are left");
+				Current = null;
+			}
 			if ( Current == null ) {
 				routine.StartLoop();
 				Current = routine.MapLap()?.OnEnter();

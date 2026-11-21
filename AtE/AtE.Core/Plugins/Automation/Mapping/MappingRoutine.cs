@@ -53,9 +53,10 @@ namespace AtE {
 		private long lastWatch;
 
 		public MappingRoutine() {
-			// equipment only when rare (or unique), or for a slot with nothing in it; everything else (currency, ...); not
-			// the bigger life and mana flasks RareOrEmptySlot takes for the FlaskUpgrader (it does not run here)
-			Looter.Want = item => item == null || FlaskUpgrader.TryRecovery(item, out _, out _) ? item == null : Looter.RareOrEmptySlot(item);
+			// everything, normal and magic equipment too (it is all stashed, see StashEverything; the Campaign's
+			// RareOrEmptySlot rule, equipment only when rare or for an empty slot, is not for here); not life and mana
+			// flasks (taken in the Campaign for the FlaskUpgrader, which does not run here)
+			Looter.Want = item => item == null || !FlaskUpgrader.TryRecovery(item, out _, out _);
 		}
 
 		// (set by BuildRoot, from the base constructor)
@@ -75,14 +76,18 @@ namespace AtE {
 		protected override bool UpgradesFlasks => false;
 
 		// switched on: a new lap (see MapLoop)
-		protected override void OnStartRun() => mapLoop?.Restart();
+		protected override void OnStartRun() { LastFailure = null; mapLoop?.Restart(); }
 
 		// (MapLoop, as it builds the first lap) switched on in a map: start the lap at ClearArea
 		internal void StartLoop() {
 			SkipToClear = InMap();
 			// (switched on in the hideout with a map's portals all up: they are a map not run yet, entered at once)
-			SkipToPortals = !SkipToClear && InHideout() && MapDevice.MapPortals().Count() >= MapPortalCount;
-			Log($"{Name}: the map loop starts {(SkipToClear ? $"in {GetCurrentArea()?.Name ?? "a map"}: clearing it" : SkipToPortals ? $"in the hideout, with {MapPortalCount} map portals up: entering the nearest" : "in the hideout")}");
+			// (or, after leaving a map while clearing it, eg dying, any of its portals that are left)
+			int need = ReEnter ? 1 : MapPortalCount;
+			ReEnter = false;
+			Clearing = false;
+			SkipToPortals = !SkipToClear && InHideout() && MapDevice.MapPortals().Count() >= need;
+			Log($"{Name}: the map loop starts {(SkipToClear ? $"in {GetCurrentArea()?.Name ?? "a map"}: clearing it" : SkipToPortals ? $"in the hideout, with {MapDevice.MapPortals().Count()} map portals up: entering the nearest" : "in the hideout")}");
 		}
 
 		// ---- where the player is ----
