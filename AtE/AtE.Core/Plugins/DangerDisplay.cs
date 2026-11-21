@@ -9,8 +9,9 @@ namespace AtE.Plugins {
 
 	/// <summary>
 	/// Draws the DangerMap on the ground around the player, for debugging AvoidSpam: each block of cells with any danger
-	/// gets a translucent quad, red for the Now layer, yellow for Soon (stronger for more), and optionally the walls'
-	/// small weights in grey. Also the cell AvoidSpam last chose to walk to, the outlines of the hazards, and a line of
+	/// gets a translucent quad coloured by its hazard danger (the walls' share left out): yellow for a
+	/// little, orange, red at RedLevel and more, more opaque for more; and optionally the walls' small weights in grey.
+	/// Also the cell AvoidSpam last chose to walk to, the outlines of the hazards, and a line of
 	/// numbers (the map's age, how many hazards, how long it took to build).
 	///
 	/// While on, it builds the map (DangerMap.Get) each frame it draws, even out of a fight. The MemoryServer's /danger
@@ -19,14 +20,16 @@ namespace AtE.Plugins {
 	public class DangerDisplay : PluginBase {
 
 		public override string Name => "Display Danger Map";
-		public override string HelpText => "Draws the DangerMap that AvoidSpam uses (red: hurts now, yellow: about to)";
+		public override string HelpText => "Draws the DangerMap that AvoidSpam uses (yellow: a little danger, orange, red: a lot)";
 
 		/// <summary>Draw this many cells each way around the player.</summary>
 		public int DrawRadius = 60;
 		/// <summary>Draw blocks of this many cells across (the most danger in the block), to draw fewer quads.</summary>
 		public int CellStep = 2;
-		/// <summary>The most opacity of a block (0-255), reached at danger 100.</summary>
+		/// <summary>The most opacity of a block (0-255), reached at RedLevel.</summary>
 		public int MaxAlpha = 140;
+		/// <summary>Hazard danger (walls left out) drawn fully red; yellow at the least, orange half way.</summary>
+		public int RedLevel = 60;
 		public bool ShowWalls = false;
 		public bool ShowOutlines = true;
 		public bool ShowGoal = true;
@@ -42,6 +45,7 @@ namespace AtE.Plugins {
 			ImGui.SliderInt("Draw radius (cells)", ref DrawRadius, 10, 150);
 			ImGui.SliderInt("Block size (cells)", ref CellStep, 1, 6);
 			ImGui.SliderInt("Opacity", ref MaxAlpha, 20, 255);
+			ImGui.SliderInt("Danger drawn red", ref RedLevel, 10, 200);
 			ImGui.Checkbox("Show walls (their small weights)", ref ShowWalls);
 			ImGui.Checkbox("Show hazard outlines", ref ShowOutlines);
 			ImGui.Checkbox("Show AvoidSpam's goal", ref ShowGoal);
@@ -74,7 +78,7 @@ namespace AtE.Plugins {
 			}
 			if ( ShowSafest ) DrawSafest(map, me, z);
 			if ( ShowStats && TryGridToScreen(me, z, out Vector2 at) ) {
-				string here = $"now {map.NowAt(me)} soon {map.SoonAt(me)}";
+				string here = map.IsBlocked(me) ? $"{map.HazardDangerAt(me)} (blocked cell)" : $"{map.DangerAt(me)}";
 				DrawTextAt(at + new Vector2(16, 8), $"danger {here}; #{map.Number} {map.Hazards.Count} hazards, {map.CollectMs:F1}+{map.StampMs:F1} ms", map.IsSafe(me) || map.IsBlocked(me) ? Color.White : Color.OrangeRed);
 			}
 			return this;
@@ -164,7 +168,7 @@ namespace AtE.Plugins {
 			DrawCircle(spot, 15, color);
 			DrawCircle(spot, 16, color);
 			string note = good ? "safest" : !safest.InRange ? "safest (none in range)" : "least bad";
-			DrawTextAt(spot + new Vector2(18, -6), $"{note}, {map.Total(safest.Cell)}; {boss.Path?.Split('/').LastOrDefault()}", color);
+			DrawTextAt(spot + new Vector2(18, -6), $"{note}, {map.DangerAt(safest.Cell)}; {boss.Path?.Split('/').LastOrDefault()}", color);
 		}
 
 		// the world position of a cell's top-left corner (GridToWorld gives the cell's middle)
@@ -182,21 +186,21 @@ namespace AtE.Plugins {
 			bool projected = false; // (the corners are projected only when some block has something to draw)
 			for ( int by = 0; by < n; by++ ) {
 				for ( int bx = 0; bx < n; bx++ ) {
-					int now = 0, soon = 0;
+					int now = 0, danger = 0; // (now: the most danger in the block, walls included; danger: the most without the walls)
 					bool blocked = true;
 					for ( int dy = 0; dy < step; dy++ ) {
 						for ( int dx = 0; dx < step; dx++ ) {
 							var c = new Offsets.Vector2i(x0 + (bx * step) + dx, y0 + (by * step) + dy);
-							int v = map.NowAt(c);
+							int v = map.DangerAt(c);
 							if ( v == DangerMap.Blocked ) continue;
 							blocked = false;
 							now = Math.Max(now, v);
-							soon = Math.Max(soon, map.SoonAt(c));
+							danger = Math.Max(danger, v - DangerMap.WallAt(c));
 						}
 					}
 					if ( blocked ) continue;
-					bool wallsOnly = now < DangerMap.SafeLevel && soon == 0;
-					if ( now == 0 && soon == 0 ) continue;
+					bool wallsOnly = danger <= 0;
+					if ( now == 0 && danger <= 0 ) continue;
 					if ( wallsOnly && !ShowWalls ) continue;
 					if ( !projected ) {
 						for ( int j = 0; j <= n; j++ ) {
@@ -213,18 +217,24 @@ namespace AtE.Plugins {
 						DrawQuadFilled(corners[a], corners[b], corners[c2], corners[d], Color.FromArgb(Alpha(now * 4), 160, 160, 160));
 						continue;
 					}
-					if ( now >= DangerMap.SafeLevel ) DrawQuadFilled(corners[a], corners[b], corners[c2], corners[d], Color.FromArgb(Alpha(now), 230, 30, 30));
-					if ( soon > 0 ) DrawQuadFilled(corners[a], corners[b], corners[c2], corners[d], Color.FromArgb(Alpha(soon), 240, 200, 20));
+					DrawQuadFilled(corners[a], corners[b], corners[c2], corners[d], DangerColor(danger));
 				}
 			}
 		}
 
-		// more opaque for more danger: a third of MaxAlpha at the least, all of it at 100
-		private int Alpha(int danger) => Math.Clamp((MaxAlpha / 3) + ((MaxAlpha - (MaxAlpha / 3)) * Math.Min(danger, 100) / 100), 0, 255);
+		// yellow (a little danger) through orange to red (RedLevel and more), more opaque for more
+		private Color DangerColor(int danger) {
+			float t = Math.Clamp((float)danger / Math.Max(1, RedLevel), 0f, 1f);
+			int g = (int)(230 - (200 * t)); // 230 yellow, 130 orange, 30 red
+			return Color.FromArgb(Alpha(danger * 100 / Math.Max(1, RedLevel)), 240, g, 20);
+		}
+
+		// more opaque for more danger (0-100): a third of MaxAlpha at the least, all of it at 100
+		private int Alpha(int danger) => Math.Clamp((MaxAlpha / 3) + ((MaxAlpha - (MaxAlpha / 3)) * Math.Clamp(danger, 0, 100) / 100), 0, 255);
 
 		private static void DrawOutlines(DangerMap map, float z) {
 			foreach ( var h in map.Hazards ) {
-				var color = h.Layer == DangerLayer.Soon ? Color.Yellow : Color.Red;
+				var color = h.EffectiveWeight < DangerMap.SkipLevel ? Color.Yellow : Color.Red; // (yellow: a warning, or a weak one)
 				if ( h.IsBeam ) {
 					if ( TryGridToScreen(h.Center, z, out Vector2 a) && TryGridToScreen(h.End, z, out Vector2 b) ) DrawLine(a, b, color);
 					continue;

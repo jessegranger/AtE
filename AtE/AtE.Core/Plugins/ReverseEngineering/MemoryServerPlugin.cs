@@ -344,7 +344,7 @@ namespace AtE {
 						// (and DangerDisplay's safest cell in range of the boss, if there is one)
 						var player = GetPlayer()?.GetComponent<Positioned>();
 						var s = IsValid(player) ? AtE.Plugins.DangerDisplay.FindSafest(map, player.GridPos) : null;
-						string safest = s == null ? "" : s + $", now {map.NowAt(s.Cell)} soon {map.SoonAt(s.Cell)}" + NL;
+						string safest = s == null ? "" : s + $", danger {map.DangerAt(s.Cell)}" + NL;
 						return safest + map.Describe(at, r, true, c => (TryGridToScreen(c, z, out var screen), screen), q["rotate"] == "1");
 					});
 				case "/traps":

@@ -32,11 +32,10 @@ namespace AtE.Tests {
 		[Fact]
 		public void CircleHasFullWeightInsideAndHalfInItsMargin() {
 			var map = Build(Field(100, 100), C(50, 50), new Hazard(C(50, 50), 5) { Weight = 30, Source = "a" });
-			Assert.Equal(30, map.NowAt(C(50, 50)));
-			Assert.Equal(30, map.NowAt(C(55, 50)));
-			Assert.Equal(15, map.NowAt(C(58, 50))); // (within Margin 4 of the edge)
-			Assert.Equal(0, map.NowAt(C(60, 50)));
-			Assert.Equal(0, map.SoonAt(C(50, 50)));
+			Assert.Equal(30, map.DangerAt(C(50, 50)));
+			Assert.Equal(30, map.DangerAt(C(55, 50)));
+			Assert.Equal(15, map.DangerAt(C(58, 50))); // (within Margin 4 of the edge)
+			Assert.Equal(0, map.DangerAt(C(60, 50)));
 			Assert.False(map.IsSafe(C(58, 50)));
 			Assert.True(map.IsSafe(C(60, 50)));
 		}
@@ -45,21 +44,22 @@ namespace AtE.Tests {
 		public void SameSourceDoesNotStackButDifferentSourcesDo() {
 			var t = Field(100, 100);
 			var same = Build(t, C(50, 50), new Hazard(C(50, 50), 5) { Weight = 30, Source = "a" }, new Hazard(C(51, 50), 5) { Weight = 30, Source = "a" });
-			Assert.Equal(30, same.NowAt(C(50, 50)));
+			Assert.Equal(30, same.DangerAt(C(50, 50)));
 			var different = Build(t, C(50, 50), new Hazard(C(50, 50), 5) { Weight = 30, Source = "a" }, new Hazard(C(51, 50), 5) { Weight = 30, Source = "b" });
-			Assert.Equal(60, different.NowAt(C(50, 50)));
+			Assert.Equal(60, different.DangerAt(C(50, 50)));
 			// (and it saturates below Blocked)
 			var many = Build(t, C(50, 50), Enumerable.Range(0, 20).Select(i => new Hazard(C(50, 50), 5) { Weight = 100, Source = $"s{i}" }).ToArray());
-			Assert.Equal(DangerMap.Max, many.NowAt(C(50, 50)));
+			Assert.Equal(DangerMap.Max, many.DangerAt(C(50, 50)));
 		}
 
 		[Fact]
-		public void SoonGoesOnItsOwnLayerAndCounts() {
-			var map = Build(Field(100, 100), C(50, 50), new Hazard(C(50, 50), 5) { Layer = DangerLayer.Soon, Weight = 40, Source = "b" });
-			Assert.Equal(0, map.NowAt(C(50, 50)));
-			Assert.Equal(40, map.SoonAt(C(50, 50)));
-			Assert.Equal(40, map.Total(C(50, 50)));
-			Assert.False(map.IsSafe(C(50, 50)));
+		public void HazardDangerAtAddsUpLikeTheGrid() {
+			var map = Build(Field(100, 100), C(50, 50),
+				new Hazard(C(50, 50), 5) { Weight = 30, Source = "a" }, new Hazard(C(51, 50), 5) { Weight = 30, Source = "a" },
+				new Hazard(C(56, 50), 5) { Weight = 20, Source = "b" });
+			Assert.Equal(map.DangerAt(C(50, 50)), map.HazardDangerAt(C(50, 50))); // (a's 30 once, b's margin 10)
+			Assert.Equal(40, map.HazardDangerAt(C(50, 50)));
+			Assert.Equal(0, map.HazardDangerAt(C(80, 50)));
 		}
 
 		[Fact]
@@ -67,9 +67,9 @@ namespace AtE.Tests {
 			var map = Build(Field(100, 100), C(50, 50),
 				new Hazard(C(30, 40), C(70, 40), 2) { Weight = 60, Source = "beam" },
 				new Hazard(C(50, 60), 20, new System.Numerics.Vector2(0, 1), -0.3f, 0.3f) { Weight = 50, Source = "breath" });
-			Assert.Equal(60, map.NowAt(C(50, 41)));
+			Assert.Equal(60, map.DangerAt(C(50, 41)));
 			Assert.True(map.IsSafe(C(50, 48)));
-			Assert.Equal(50, map.NowAt(C(50, 75))); // (in front of the caster, which faces +Y)
+			Assert.Equal(50, map.DangerAt(C(50, 75))); // (in front of the caster, which faces +Y)
 			Assert.True(map.IsSafe(C(65, 61))); // (beside it, outside the slice and its margin)
 		}
 
@@ -96,11 +96,11 @@ namespace AtE.Tests {
 		[Fact]
 		public void RingLeavesItsMiddle() {
 			var map = Build(Field(100, 100), C(50, 50), new Hazard(C(50, 50), 12, 20, true) { Weight = 60, Source = "ring" });
-			Assert.Equal(0, map.NowAt(C(50, 50)));
-			Assert.Equal(30, map.NowAt(C(59, 50))); // (inside, within Margin of the inner edge)
-			Assert.Equal(60, map.NowAt(C(65, 50)));
-			Assert.Equal(30, map.NowAt(C(73, 50)));
-			Assert.Equal(0, map.NowAt(C(75, 50)));
+			Assert.Equal(0, map.DangerAt(C(50, 50)));
+			Assert.Equal(30, map.DangerAt(C(59, 50))); // (inside, within Margin of the inner edge)
+			Assert.Equal(60, map.DangerAt(C(65, 50)));
+			Assert.Equal(30, map.DangerAt(C(73, 50)));
+			Assert.Equal(0, map.DangerAt(C(75, 50)));
 			Assert.True(map.TryFindSafest(C(65, 50), null, out var best, out _));
 			Assert.True(map.IsSafe(best));
 		}
@@ -109,13 +109,13 @@ namespace AtE.Tests {
 		public void WallsAreBlockedAndNearWallsWeighALittle() {
 			var t = Field(100, 100, blocked: (x, y) => x == 60, clearance: (x, y) => x == 59 ? 2 : 5);
 			var map = Build(t, C(50, 50));
-			Assert.Equal(DangerMap.Blocked, map.NowAt(C(60, 50)));
-			Assert.Equal(3 * DangerMap.WallWeight, map.NowAt(C(59, 50)));
+			Assert.Equal(DangerMap.Blocked, map.DangerAt(C(60, 50)));
+			Assert.Equal(3 * DangerMap.WallWeight, map.DangerAt(C(59, 50)));
 			Assert.True(map.IsSafe(C(59, 50)));
 			// outside the area is blocked too
 			var edge = Build(t, C(5, 5));
-			Assert.Equal(DangerMap.Blocked, edge.NowAt(C(-1, 5)));
-			Assert.Equal(DangerMap.Blocked, edge.NowAt(C(40, 5))); // (outside the window)
+			Assert.Equal(DangerMap.Blocked, edge.DangerAt(C(-1, 5)));
+			Assert.Equal(DangerMap.Blocked, edge.DangerAt(C(40, 5))); // (outside the window)
 		}
 
 		[Fact]
@@ -169,7 +169,7 @@ namespace AtE.Tests {
 				new Hazard(C(50, 50), 100) { Weight = 30, Source = "low" },
 				new Hazard(C(50, 50), 6) { Weight = 90, Source = "high" });
 			Assert.False(map.TryFindSafest(C(50, 50), null, out var best, out _));
-			Assert.True(map.Total(best) < map.Total(C(50, 50)));
+			Assert.True(map.DangerAt(best) < map.DangerAt(C(50, 50)));
 		}
 	}
 }

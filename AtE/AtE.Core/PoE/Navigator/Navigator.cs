@@ -664,7 +664,7 @@ namespace AtE {
 
 		/// <summary>
 		/// A SkipDanger step for each stretch of the first DangerLookAhead cells of the path that crosses danger: a cell
-		/// with at least DangerMap.SkipLevel on the Now layer, up to the first safe cell after it (where a travel skill
+		/// with at least DangerMap.SkipLevel danger, up to the first safe cell after it (where a travel skill
 		/// should land). The path is planned as if there were no danger (it moves too fast to plan around); the follower
 		/// gets over it with a travel skill (see PathFollower.SkipDanger). A stretch with no safe cell after it gets none.
 		/// </summary>
@@ -673,8 +673,8 @@ namespace AtE {
 			if ( map == null || cells.Count < 2 || Time.ElapsedMilliseconds - map.BuiltAt > DangerMapMaxAgeMs ) return;
 			int end = Math.Min(cells.Count, DangerLookAhead);
 			for ( int i = 0; i < end; i++ ) {
-				int now = map.NowAt(cells[i]);
-				if ( now == DangerMap.Blocked || now < DangerMap.SkipLevel ) continue;
+				int danger = map.DangerAt(cells[i]);
+				if ( danger == DangerMap.Blocked || danger < DangerMap.SkipLevel ) continue;
 				int exit = i + 1;
 				while ( exit < cells.Count && !map.IsSafe(cells[exit]) ) exit += 1;
 				if ( exit >= cells.Count ) return;

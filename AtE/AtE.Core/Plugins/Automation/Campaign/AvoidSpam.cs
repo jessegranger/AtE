@@ -92,7 +92,7 @@ namespace AtE {
 					if ( !IsValid(pos) ) break;
 					beamSeen[part] = (now, pos.GridPos);
 					var target = action.Target?.GetComponent<Positioned>();
-					if ( IsValid(target) && Combat.Distance(target.GridPos, pos.GridPos) > 2 ) yield return new Hazard(pos.GridPos, target.GridPos, halfWidth) { Layer = DangerLayer.Now, Weight = BeamWeight, Source = part };
+					if ( IsValid(target) && Combat.Distance(target.GridPos, pos.GridPos) > 2 ) yield return new Hazard(pos.GridPos, target.GridPos, halfWidth) { Weight = BeamWeight, Source = part };
 					break;
 				}
 			}
@@ -118,21 +118,27 @@ namespace AtE {
 						if ( angle <= bestAngle ) { bestAngle = angle; end = other; found = true; }
 					}
 					if ( !found ) end = new Offsets.Vector2i(at.X + (int)Math.Round(facing.X * ReflectorRayCells), at.Y + (int)Math.Round(facing.Y * ReflectorRayCells));
-					yield return new Hazard(at, end, halfWidth) { Layer = DangerLayer.Now, Weight = BeamWeight, Source = part };
+					yield return new Hazard(at, end, halfWidth) { Weight = BeamWeight, Source = part };
 				}
 			}
 		}
 
-		/// <summary>The weight (see DangerMap) of a HazardSkills slice, on the Soon layer (the skill is being cast: it lands at the end).</summary>
-		public static byte SkillWeight = 100;
-		/// <summary>The weight of a BeamSkills beam, on the Now layer.</summary>
+		/// <summary>
+		/// The weight (see DangerMap) of a hazard that is about to land or go off but doesn't hurt yet (a skill being cast,
+		/// a bomb's marker): at least DangerMap.SafeLevel, so the player gets out and doesn't stop in it, and under
+		/// DangerMap.SkipLevel, so crossing it while it is harmless needs no travel skill.
+		/// </summary>
+		public const byte WarningWeight = 20;
+		/// <summary>The weight (see DangerMap) of a HazardSkills slice (the skill is being cast: it lands at the end).</summary>
+		public static byte SkillWeight = WarningWeight;
+		/// <summary>The weight of a BeamSkills beam.</summary>
 		public static byte BeamWeight = 60;
 
 		/// <summary>
 		/// Skills aimed at a cell (the action's Destination, Actor+0x1B0 +0x130) that land there, or along the way to it,
 		/// when the cast ends (no entity of their own until then): a part of the skill's name, and the ground it covers:
 		/// a line (from the caster toward the cell, size cells long, halfWidth either side) or a circle (size cells around
-		/// the cell); and how it goes on the DangerMap (on the Soon layer: the cast is not over yet). With a casterPart, only
+		/// the cell); and its weight (WarningWeight: the cast is not over yet). With a casterPart, only
 		/// a caster whose metadata path has it (for a skill with a common name, eg "Melee").
 		/// </summary>
 		public static readonly List<(string skillPart, string casterPart, bool line, float size, float halfWidth, byte weight)> AimedSkills = new List<(string, string, bool, float, float, byte)> {
@@ -140,37 +146,37 @@ namespace AtE {
 			// spikes about to go from him (center-left) across the arena): Monsters/Augury/Daemon/BloodboneProjectileDaemon
 			// (BloodBoneDaemon.ao) sits on the boss, using GPSBloodboneProjectileMed aimed at the player (Target the player
 			// entity, Destination the player's cell). The spikes run past the player: 80 cells and 4 either side are guesses
-			("GPSBloodboneProjectile", null, true, 80, 4, 60),
+			("GPSBloodboneProjectile", null, true, 80, 4, WarningWeight),
 			// Renkarr's fire bombs (same pause): Monsters/Daemon/VilentaCarpetBombDaemonMap, using VilentaBombTossFire aimed at
 			// a cell near the player (12 cells from them). Not seen landing: a circle of 12 cells is a guess
-			("VilentaBombToss", null, false, 12, 0, 50),
+			("VilentaBombToss", null, false, 12, 0, WarningWeight),
 			// Nightmare Manifest's orb (PietyBeastMapBoss; 3.30.0c, paused as the user saw an orb about to pop beside him):
 			// PietyCorruptedBallLightningMaps, aimed at a cell 33 cells from him (no Target entity), which the user placed
 			// "screen-left of him, screen-down from the player". Not seen popping: 15 cells is a guess
-			("PietyCorruptedBallLightning", null, false, 15, 0, 80),
+			("PietyCorruptedBallLightning", null, false, 15, 0, WarningWeight),
 			// Tore, Towering Ancient (Metadata/Monsters/Viking/VikingMapBoss, a map boss; 3.30.0c, paused as the user saw him
 			// about to do a big slam): his action was Melee, aimed at the player's cell (6 cells from him). His other skills:
 			// VikingCycloneMapBoss, VikingUpheavalMapBoss. Not seen landing: 15 cells around the cell was drawn slightly
 			// smaller than the slam's mark on the ground (the user, with a screenshot): 18
-			("Melee", "Viking/VikingMapBoss", false, 18, 0, 80),
+			("Melee", "Viking/VikingMapBoss", false, 18, 0, WarningWeight),
 		};
 
 		/// <summary>
 		/// Buffs that put a damaging area around the monster that has them (no entity of their own): the buff's name, the
-		/// area's inner and outer radius in cells (a ring; inner 0: a circle), and how it goes on the DangerMap.
+		/// area's inner and outer radius in cells (a ring; inner 0: a circle), and its weight on the danger grid.
 		/// </summary>
-		public static readonly List<(string buff, float inner, float outer, DangerLayer layer, byte weight)> BuffHazards = new List<(string, float, float, DangerLayer, byte)> {
+		public static readonly List<(string buff, float inner, float outer, byte weight)> BuffHazards = new List<(string, float, float, byte)> {
 			// Augury empowerment "Blood Donut" (3.30.0c, seen on Tore, Towering Ancient, paused): a ring of blood around the
 			// boss, harmless in the middle (from the user). Monsters/Augury/Daemon/BloodDonutDaemon (StateMachine donut=1, tier)
 			// sits on him and gives him the buff augury_blood_donut (no radius among its stats). 20 to 30 cells, a guess,
 			// matched the outer edge on the user's screenshots, but the band was drawn too wide inward (the safe middle too
 			// small): inner 24
-			("augury_blood_donut", 24, 30, DangerLayer.Now, 60),
+			("augury_blood_donut", 24, 30, 60),
 			// Archnemesis "Mana Siphoner" (3.30.0c, seen on a rare Fenumal Widow, paused): a blue ring around the monster
 			// that drains mana and does lightning damage (from the user). Monsters/Daemon/Archnemesis/ManaDonutDaemon sits on
 			// it, with the buff archnemesis_mana_donut itself (StateMachine donut=1; no radius among its stats). The blood
 			// ring's 24 to 30 was the right width but drawn too far in on the user's screenshot: 28 to 34
-			("archnemesis_mana_donut", 28, 34, DangerLayer.Now, 50),
+			("archnemesis_mana_donut", 28, 34, 50),
 		};
 
 		/// <summary>The BuffHazards around the monsters in ents.</summary>
@@ -178,20 +184,20 @@ namespace AtE {
 			if ( BuffHazards.Count == 0 ) yield break;
 			foreach ( var e in ents ) {
 				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
-				foreach ( var (buff, inner, outer, layer, weight) in BuffHazards ) {
+				foreach ( var (buff, inner, outer, weight) in BuffHazards ) {
 					if ( !HasBuff(e, buff) ) continue;
 					var pos = e.GetComponent<Positioned>();
 					if ( !IsValid(pos) ) break;
 					var shape = inner > 0 ? new Hazard(pos.GridPos, inner, outer, true) : new Hazard(pos.GridPos, outer);
-					yield return shape with { Layer = layer, Weight = weight, Source = buff };
+					yield return shape with { Weight = weight, Source = buff };
 				}
 			}
 		}
 
 		/// <summary>
 		/// Beams a monster channels along the way it faces (Positioned.Rotation, 0 facing -Y), turning as it goes: a part of
-		/// the skill's name, the beam's length and half-width in cells, its weight (on the Now layer), and how far ahead
-		/// (ms) of it to keep out of as it turns (on the Soon layer, at half its weight). The turn rate is measured from
+		/// the skill's name, the beam's length and half-width in cells, its weight, and how far ahead (ms) of it to keep
+		/// out of as it turns (at WarningWeight). The turn rate is measured from
 		/// frame to frame (see turning); until it is known (or while it doesn't turn), UnknownSweepDeg either side.
 		/// </summary>
 		public static readonly List<(string skillPart, float length, float halfWidth, byte weight, long lookaheadMs)> RotatingBeamSkills = new List<(string, float, float, byte, long)> {
@@ -204,7 +210,7 @@ namespace AtE {
 			// own beam is taken as 70 x 4)
 			("PietyCorruptedLightningBeam", 90, 5, 120, 1200),
 		};
-		/// <summary>Not knowing which way a RotatingBeamSkills beam turns: keep out of this many degrees either side of it (on the Soon layer).</summary>
+		/// <summary>Not knowing which way a RotatingBeamSkills beam turns: keep out of this many degrees either side of it (at WarningWeight).</summary>
 		public static float UnknownSweepDeg = 45;
 		// per caster (entity id): its rotation when last seen, when, and its turn rate (radians/s, smoothed; NaN unknown)
 		private static readonly Dictionary<uint, (float rotation, long at, float rate)> turning = new Dictionary<uint, (float, long, float)>();
@@ -228,7 +234,7 @@ namespace AtE {
 			turning[e.Id] = (r, now, rate);
 			var facing = new Vector2((float)Math.Sin(r), -(float)Math.Cos(r));
 			var end = new Offsets.Vector2i(pos.GridPos.X + (int)Math.Round(facing.X * length), pos.GridPos.Y + (int)Math.Round(facing.Y * length));
-			yield return new Hazard(pos.GridPos, end, halfWidth) { Layer = DangerLayer.Now, Weight = weight, Source = part };
+			yield return new Hazard(pos.GridPos, end, halfWidth) { Weight = weight, Source = part };
 			// where it turns next. A sector's angles are positive toward the caster's left, Left = (-Dir.Y, Dir.X); a
 			// growing rotation turns facing (sin r, -cos r) toward (cos r, sin r) = Left: so the same sign
 			const float rad = (float)(Math.PI / 180);
@@ -238,7 +244,7 @@ namespace AtE {
 				from = Math.Min(0, ahead);
 				to = Math.Max(0, ahead);
 			}
-			yield return new Hazard(pos.GridPos, length, facing, from, to) { Layer = DangerLayer.Soon, Weight = (byte)(weight / 2), Source = part + " (turning)" };
+			yield return new Hazard(pos.GridPos, length, facing, from, to) { Weight = WarningWeight, Source = part + " (turning)" };
 		}
 
 		/// <summary>The slices of the HazardSkills, the AimedSkills and RotatingBeamSkills, being used now by any monster in ents.</summary>
@@ -271,14 +277,14 @@ namespace AtE {
 						if ( IsValid(target) ) at = target.GridPos;
 					}
 					if ( !line ) {
-						yield return new Hazard(at, size) { Layer = DangerLayer.Soon, Weight = weight, Source = part };
+						yield return new Hazard(at, size) { Weight = weight, Source = part };
 						break;
 					}
 					var dir = new Vector2(at.X - pos.GridPos.X, at.Y - pos.GridPos.Y);
 					if ( dir.LengthSquared() < 1 ) break;
 					dir = Vector2.Normalize(dir) * size;
 					var end = new Offsets.Vector2i(pos.GridPos.X + (int)Math.Round(dir.X), pos.GridPos.Y + (int)Math.Round(dir.Y));
-					yield return new Hazard(pos.GridPos, end, halfWidth) { Layer = DangerLayer.Soon, Weight = weight, Source = part };
+					yield return new Hazard(pos.GridPos, end, halfWidth) { Weight = weight, Source = part };
 					break;
 				}
 				if ( aimed ) continue;
@@ -289,7 +295,7 @@ namespace AtE {
 					float r = pos.Rotation; // 0: facing -Y (see HazardSkills)
 					var facing = new Vector2((float)Math.Sin(r), -(float)Math.Cos(r));
 					const float rad = (float)(Math.PI / 180);
-					yield return new Hazard(pos.GridPos, length, facing, fromDeg * rad, toDeg * rad) { Layer = DangerLayer.Soon, Weight = SkillWeight, Source = part };
+					yield return new Hazard(pos.GridPos, length, facing, fromDeg * rad, toDeg * rad) { Weight = SkillWeight, Source = part };
 					break;
 				}
 			}
@@ -297,77 +303,86 @@ namespace AtE {
 
 		/// <summary>
 		/// The entities that are damaging areas: a part of the metadata path (or, for an effect entity, of its animated
-		/// object's .ao path), a buff the entity has (null: any), the area's radius in cells, and how it goes on the DangerMap:
-		/// its layer (Now: it hurts now; Soon: it is about to land or go off) and weight (at least 2 * DangerMap.SafeLevel,
-		/// so the Margin ring, at half weight, is not safe either; about 100 for a lethal one, 30 for burning ground).
+		/// object's .ao path), a buff the entity has (null: any), the area's radius in cells, and its weight on the danger
+		/// grid: for one that hurts now, at least 2 * DangerMap.SafeLevel, so the Margin ring, at half weight, is not safe
+		/// either (about 100 for a lethal one, 30 for burning ground); for one about to land or go off, WarningWeight.
 		/// </summary>
-		public static readonly List<(string pathPart, string buff, float radius, DangerLayer layer, byte weight)> HazardPaths = new List<(string, string, float, DangerLayer, byte)> {
+		public static readonly List<(string pathPart, string buff, float radius, byte weight)> HazardPaths = new List<(string, string, float, byte)> {
 			// (Not chilled ground: Merveil's ice storm leaves FillGroundEffect entities with the buff ground_ice_chill, but
 			// chilled ground is not worth walking around (the user), so it is left out.)
 			// burning ground (ground_fire_burn), eg Renkarr's in the Silo map (3.30.0c, his skill CGEVilentaMapBurningGround):
 			// the same FillGroundEffect, 10 at GroundEffect+0x38 again, but the player was burning 12 cells from its center,
 			// so the radius is taken as 14
-			("ground_effects/FillGroundEffect", "ground_fire_burn", 14, DangerLayer.Now, 30),
+			("ground_effects/FillGroundEffect", "ground_fire_burn", 14, 30),
 			// her second phase's water geysers (3.29.4, paused with 10 placed, the nearest 23-27 cells from the player, who was
 			// outside them): entities with only Animated, Positioned, Render, Transitionable. Render.Bounds is 19.6 x 19.6 x 289
 			// (about 2 cells across, a tall pillar), so the drawing is narrow: 12 cells is a guess at the damaging radius, on the safe side
-			("merveil/water_geyser/WaterGeyser", null, 12, DangerLayer.Now, 40),
+			("merveil/water_geyser/WaterGeyser", null, 12, 40),
 			// General Gravicius's fireballs that fall from the sky (3.29.3, paused with 19 placed, 9-60 cells around him): entities
 			// Metadata/Effects/SleepableServerEffect (Animated, BaseEvents, LimitedLifespan, Positioned, Render) whose animated
 			// object is "HellfireBarrageEffect", matched by its .ao path (see Animated.AnimatedObjectPath). Render.Bounds is
 			// 19.6 x 19.6 x 112 (a narrow falling pillar), so 8 cells is a guess at the blast and its burning ground
-			("Gravicius/ballistastorm.ao", null, 8, DangerLayer.Soon, 40),
+			("Gravicius/ballistastorm.ao", null, 8, WarningWeight),
 			// a map boss's falling fireballs (3.30.0c, paused after she died, which they outlive): 16 of the same
 			// SleepableServerEffect, animated object Metadata/Effects/Spells/firestorm_mapboss/rig.ao, 1.0-1.65 s old, 10-20
 			// cells apart. Render.Bounds 19.6 x 19.6 x 99 like Gravicius's; 8 cells was a little large on screen (the user), so 6.
-			// They fall fast and keep coming, so Now, not Soon. Where one lands it
+			// They fall fast and keep coming, so full weight, not WarningWeight. Where one lands it
 			// leaves burning ground (the FillGroundEffect ground_fire_burn above). Max age: see HazardMaxAgeSec
-			("firestorm_mapboss/rig.ao", null, 6, DangerLayer.Now, 50),
+			("firestorm_mapboss/rig.ao", null, 6, 50),
 			// Ambrius, Legion Slayer's (Daresso's map boss) spinning blades left on the ground (3.30.0c, paused with 6 out,
 			// 1.9-6.5 s old): client-only Metadata/Effects/Effect entities (Animated, BaseEvents, LimitedLifespan, Positioned,
 			// Render; see EntityCache.GetLocalEntities), animated object
 			// .../act4/daresso/sword_ground/swordtornado_02/swordtornado.ao. Render.Bounds 19.6 x 19.6 x 60; 8 cells was too large on screen (the user): 6
-			("daresso/sword_ground/swordtornado", null, 6, DangerLayer.Now, 60),
+			("daresso/sword_ground/swordtornado", null, 6, 60),
 			// Augury empowerment "Crow Tunnel" (3.30.0c, seen on Ambrius, paused): Monsters/Augury/Daemon/CrowTunnelDaemon
 			// (on the boss) opens two Metadata/Monsters/Daemon/Augury/CrowTunnelObject portals (StateMachine origin_portal
 			// 1 and 2, spawn, tier; .../Boss_Empowerments/CrowTunnel/Crow_portal.ao) about 30 cells apart, and a
 			// Metadata/Effects/SleepableServerBeamEffect (Beam, LimitedLifespan; .../CrowTunnel/crow_beam.ao) whose Beam
 			// runs from one portal to the other: the crows fly along it. A line (see PathHazards), 5 cells each side a guess
-			("CrowTunnel/crow_beam.ao", null, 5, DangerLayer.Now, 60),
+			("CrowTunnel/crow_beam.ao", null, 5, 60),
 			// Augury empowerment "Cauldron Flip" (3.30, seen on Renkarr, paused): Monsters/Augury/Daemon/CauldronFlipDaemon
 			// (on the boss) places a Metadata/Monsters/Daemon/Augury/CauldronFlipObject (Animated, BaseEvents, Positioned,
 			// Render, StateMachine tier = 2, hit_count = 7), animated object .../League_Heist/cultist/cauldron_dump_portal.ao:
 			// a portal pouring a column of blood down (the user), 2.15 s old, 22 cells from the player. Render.Bounds
 			// 30 x 30 x 207 (a tall column about 3 cells across); 8 cells matched on screen (the user)
-			("Daemon/Augury/CauldronFlipObject", null, 8, DangerLayer.Now, 60),
+			("Daemon/Augury/CauldronFlipObject", null, 8, 60),
 			// Augury empowerment "Corpse Fissure" (3.30, seen on Renkarr, paused): Monsters/Augury/Daemon/CorpseFissureDaemon
 			// (on the boss) cracks lines of Metadata/Monsters/Daemon/Augury/CorpseFissureDaemonFissureLine (and ...LineStart,
 			// ...LineEnd) segments, 6-8 cells apart, several lines from one start (Animated, BaseEvents, Positioned, Render,
 			// StateMachine emerge, explode, chain, end, corpse). A segment waits with explode 0, then bursts (explode 1): a
 			// client-only Metadata/Effects/Effect .../CorpseFissure/bloodpop.ao on it, seen 0.1-0.7 s old, two by two along
-			// the lines. Spent lines (explode 1, end 1) stay listed for 7 s and more. Segments are Soon until they burst (see
-			// HazardGoneStates), the bursts Now; radius 5 so the segments join into a line (sizes guesses)
-			("CorpseFissure/bloodpop.ao", null, 5, DangerLayer.Now, 60),
-			("Daemon/Augury/CorpseFissureDaemonFissureLine", null, 5, DangerLayer.Soon, 50),
+			// the lines. Spent lines (explode 1, end 1) stay listed for 7 s and more. Segments are a warning (WarningWeight) until they burst (see
+			// HazardGoneStates), the bursts full weight; radius 5 so the segments join into a line (sizes guesses)
+			("CorpseFissure/bloodpop.ao", null, 5, 60),
+			("Daemon/Augury/CorpseFissureDaemonFissureLine", null, 5, WarningWeight),
+			// "Minions explode on death" (a rare's mod; 3.30, paused, seven placed): each dead minion leaves a
+			// Metadata/Monsters/Daemons/BloodlinesBearerSelfBeaconDaemonCold (Actor, DiesAfterTime, Life...) and, on the same
+			// cell, Metadata/Effects/Spells/monsters_effects/elemental_beacon_v2/ice/OTs/beacon plus .../OTs/beacon_aoe
+			// (Animated, BaseEvents, Positioned, Render, Transitionable; animated object elemental_beacon_v2/ice/aoe.ao),
+			// seen 0.9-1.9 s old. The aoe is the circle on the ground of the cold explosion; other elements are
+			// presumably sibling folders, so match the aoe effect by its OTs name
+			// 24 cells (the user; 6, 12 and 16 were too small). Each one hurts little (the user), so weight 8 stays under
+			// SafeLevel alone and only overlapping blasts make a cell unsafe
+			("/OTs/beacon_aoe", null, 24, 8),
 			// Kitava's bloody pools (physical damage over time) in his final fight (3.30, paused with 19 placed, 28-100 cells from
 			// the player): Metadata/Effects/Spells/ground_effects/VisibleServerGroundEffect (Animated, BaseEvents, Buffs,
 			// GroundEffect, Positioned, Render) with the buff ground_devouring_darkness, animated object
 			// ground_effects/devouring_darkness/ground_rig.ao. GroundEffect+0x38 is 10, as for Merveil's ice: radius 10
-			("ground_effects/VisibleServerGroundEffect", "ground_devouring_darkness", 10, DangerLayer.Now, 30),
+			("ground_effects/VisibleServerGroundEffect", "ground_devouring_darkness", 10, 30),
 			// Augury league boss empowerment "Orbital Viscera Cannon" (3.30, seen on Kitava): a Daemon monster
 			// (Monsters/Augury/Daemon/OrbitalVisceraCannonDaemon_, sitting on the boss, StateMachine beam_begin/tier) fires a
 			// Metadata/Effects/ServerEffect (LimitedLifespan) whose animated object is
 			// .../League_Augury/Boss_Empowerments/OrbitalVisceraBeam/viscera_beam.ao. Render.Bounds 19.6 x 19.6 like the
 			// geysers; 12 cells is a guess at the blast
-			("OrbitalVisceraBeam/viscera_beam.ao", null, 12, DangerLayer.Soon, 60),
+			("OrbitalVisceraBeam/viscera_beam.ao", null, 12, WarningWeight),
 			// its marker, before the beam lands (3.30.0c, on the Nightmare Manifest: a Metadata/Effects/ServerEffect whose
 			// animated object is .../OrbitalVisceraBeam/viscera_beam_marker.ao, 1.7 s old): where the beam will hit, the same 12
-			("OrbitalVisceraBeam/viscera_beam_marker.ao", null, 12, DangerLayer.Soon, 60),
+			("OrbitalVisceraBeam/viscera_beam_marker.ao", null, 12, WarningWeight),
 			// Nightmare Manifest's orbs (PietyCorruptedBallLightningMaps, see AimedSkills; 3.30.0c, paused with 4 out): projectiles
 			// Metadata/Projectiles/CorruptedBallLightning (.../act4/piety/sticky_orb/travel/orb_travel.ao), one at the cast's
 			// aimed cell, two where the user saw two big lightning orbs on screen. Not among the entities: see
 			// EntityCache.GetProjectiles. On the screenshot an orb is about 20 cells across: radius 14 with slack
-			("Projectiles/CorruptedBallLightning", null, 14, DangerLayer.Now, 80),
+			("Projectiles/CorruptedBallLightning", null, 14, 80),
 			// Augury empowerment "Blackfire Wall" (3.30, seen on Kitava: a wave of fire that leaves the player burning with
 			// Blackfire). Monsters/Augury/Daemon/BlackfireWallDaemon (sits on the boss, StateMachine have_wall, tier) lays a
 			// line of Metadata/Monsters/Daemon/Augury/BlackfireWallObject segments (Animated, BaseEvents, Buffs, Positioned,
@@ -375,36 +390,36 @@ namespace AtE {
 			// each with the buff blackfire_wall_daemon_burn, which the player standing in it gets too: the segments are the
 			// source of Blackfire. Paused mid-deploy: 3 segments about 10 cells apart, Render.Bounds 30 x 30 (about 3
 			// cells), the last one on the player. Radius 6 so the circles join into the wall
-			("Daemon/Augury/BlackfireWallObject", null, 6, DangerLayer.Now, 50),
+			("Daemon/Augury/BlackfireWallObject", null, 6, 50),
 			// Augury empowerment "Crow Bombs" (3.30, seen on Kitava alongside the wall, not seen exploding yet):
 			// Monsters/Augury/Daemon/CrowBombDaemon places Metadata/Monsters/Daemon/Augury/CrowBombObject (Animated,
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
 			// Render.Bounds 30 x 30. 10 cells is a guess at the blast
-			("Daemon/Augury/CrowBombObject", null, 10, DangerLayer.Soon, 40),
+			("Daemon/Augury/CrowBombObject", null, 10, WarningWeight),
 			// ice flowers (3.30.0c, from the Bestiary mod Monsters/Daemon/DaemonIceFlowerFrogBestiaryMod on a monster near the
 			// player, paused with 14 out): client-only Metadata/Effects/Effect entities (see EntityCache.GetLocalEntities) with
 			// the Elder Guardian's arena animations, .../arena_mechanics/ice_flower/Main/main_ice_flower.ao (3) and
 			// Small/small_ice_flower.ao (11), which bloom about 2 s and then burst: Small/small_blast.ao stood on the four
 			// 2.05 s old small flowers, 0.07 s old. The blasts first (the first entry matching wins). The sizes, guesses,
 			// matched the flowers on screen (the user); the ages are guesses (see HazardMaxAgeSec)
-			("arena_mechanics/ice_flower/Small/small_blast", null, 7, DangerLayer.Now, 60),
-			("arena_mechanics/ice_flower/Main/main_ice_flower", null, 10, DangerLayer.Soon, 60),
-			("arena_mechanics/ice_flower/Small/small_ice_flower", null, 7, DangerLayer.Soon, 60),
+			("arena_mechanics/ice_flower/Small/small_blast", null, 7, 60),
+			("arena_mechanics/ice_flower/Main/main_ice_flower", null, 10, WarningWeight),
+			("arena_mechanics/ice_flower/Small/small_ice_flower", null, 7, WarningWeight),
 			// Augury Darktongue Matron's pustules (Monsters/Augury/CauldronCrone, a rare one; 3.30.0c, paused as the user saw
 			// "a line of ground orbs starting at the player's feet"): Metadata/Monsters/LeagueAugury/CauldronCrone/
 			// CauldronCronePustule (Animated, BaseEvents, Brackets, Positioned, Render, StateMachine pop=1), animated object
 			// .../League_Augury/CauldronCrone/cauldron_pustule_02.ao. Four in a line from the player outward, about 16
 			// cells apart, placed 0.13 s after each other; Render.Bounds 30 x 30 (3 cells). Not seen popping: radius 8 is
-			// a guess (about half the spacing, so they join into a strip). Soon until they pop (see HazardNowStates)
-			("LeagueAugury/CauldronCrone/CauldronCronePustule", null, 8, DangerLayer.Soon, 60),
+			// a guess (about half the spacing, so they join into a strip). WarningWeight until they pop, then 60 (see HazardLiveStates)
+			("LeagueAugury/CauldronCrone/CauldronCronePustule", null, 8, WarningWeight),
 			// Augury empowerment "Blood Geysers" (3.30.0c, seen on Renkarr in the Silo map, paused, not seen erupting yet):
 			// Monsters/Augury/Daemon/TriggeredBloodGeyserDaemon (sits on the boss) places
 			// Metadata/Monsters/Daemon/Augury/TriggeredBloodGeysersObject (Animated, BaseEvents, Positioned, Render,
 			// StateMachine hit_count=0, tier), animated object .../Boss_Empowerments/BloodGeysers/blood_geyser_grd.ao, under
 			// the player (1 cell away, 0.66 s old). Taken as about to erupt: 10 cells is a guess
-			("Daemon/Augury/TriggeredBloodGeysersObject", null, 10, DangerLayer.Soon, 50),
+			("Daemon/Augury/TriggeredBloodGeysersObject", null, 10, WarningWeight),
 			// Daresso's sword traps in The Ring of Blades (Act 4; the name from the user, not seen live yet: 8 cells is a guess)
-			("DaressoSwordTrap", null, 8, DangerLayer.Now, 40),
+			("DaressoSwordTrap", null, 8, 40),
 		};
 
 		/// <summary>
@@ -484,12 +499,12 @@ namespace AtE {
 		};
 
 		/// <summary>
-		/// HazardPaths entries (by their path part) that go on the Now layer, whatever their entry says, while their
-		/// StateMachine has a state at a value: eg, a blast that is Soon while it winds up and Now once it goes off.
+		/// HazardPaths entries (by their path part) that take a weight of their own, in place of their entry's (eg,
+		/// WarningWeight), while their StateMachine has a state at a value: eg, a blast that winds up, then goes off.
 		/// </summary>
-		public static readonly Dictionary<string, (string state, long value)> HazardNowStates = new Dictionary<string, (string, long)> {
+		public static readonly Dictionary<string, (string state, long value, byte weight)> HazardLiveStates = new Dictionary<string, (string, long, byte)> {
 			// the Darktongue Matron's pustules: pop is 0 while they wait, 1 when they go off (from the user)
-			["LeagueAugury/CauldronCrone/CauldronCronePustule"] = ("pop", 1),
+			["LeagueAugury/CauldronCrone/CauldronCronePustule"] = ("pop", 1, 60),
 		};
 
 		/// <summary>
@@ -499,6 +514,15 @@ namespace AtE {
 		public static readonly Dictionary<string, (string state, long value)> HazardGoneStates = new Dictionary<string, (string, long)> {
 			// the Corpse Fissure's segments: explode is 0 while they wait, 1 once burst (the burst is bloodpop.ao)
 			["Daemon/Augury/CorpseFissureDaemonFissureLine"] = ("explode", 1),
+		};
+
+		/// <summary>
+		/// HazardPaths entries (by their path part) whose hazards add up where they overlap. Each gets a Source of its own
+		/// (path part and entity id), since DangerMap keeps only the most of one Source at a cell: right for one effect
+		/// made of many pieces, wrong for separate blasts that each hit.
+		/// </summary>
+		public static readonly HashSet<string> HazardStacks = new HashSet<string> {
+			"/OTs/beacon_aoe", // minions exploding on death: each weak, many overlapping hurt (the user)
 		};
 
 		// the animated object's clock (s), or NaN
@@ -515,18 +539,19 @@ namespace AtE {
 				if ( path == null ) continue;
 				// effects with a generic metadata path (eg, SleepableServerEffect) are told apart by their animated object
 				string aoPath = path.StartsWith("Metadata/Effects/") ? e.GetComponent<Animated>()?.AnimatedObjectPath : null;
-				foreach ( var (part, buff, radius, layer, weight) in HazardPaths ) {
+				foreach ( var (part, buff, radius, entryWeight) in HazardPaths ) {
 					if ( !(path.Contains(part) || (aoPath != null && aoPath.Contains(part))) || (buff != null && !HasBuff(e, buff)) ) continue;
 					if ( HazardMaxAgeSec.TryGetValue(part, out float maxAge) && !(AnimationAge(e) <= maxAge) ) break; // (gone; or no clock, taken as gone)
 					if ( HazardGoneStates.TryGetValue(part, out var gone) && (e.GetComponent<StateMachine>()?.TryGetState(gone.state, out long g) ?? false) && g == gone.value ) break;
 					var pos = e.GetComponent<Positioned>();
-					var at = layer;
-					if ( HazardNowStates.TryGetValue(part, out var now) && (e.GetComponent<StateMachine>()?.TryGetState(now.state, out long v) ?? false) && v == now.value ) at = DangerLayer.Now;
+					byte weight = entryWeight;
+					if ( HazardLiveStates.TryGetValue(part, out var live) && (e.GetComponent<StateMachine>()?.TryGetState(live.state, out long v) ?? false) && v == live.value ) weight = live.weight;
+					string source = HazardStacks.Contains(part) ? $"{part}#{e.Id}" : buff ?? part;
 					// a beam effect (it has a Beam): a line between its ends, radius wide on each side
 					var beam = e.GetComponent<Beam>();
 					if ( IsValid(beam) && beam.Start != beam.End ) {
-						yield return new Hazard(WorldToGrid(beam.Start), WorldToGrid(beam.End), radius) { Layer = at, Weight = weight, Source = buff ?? part };
-					} else if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius) { Layer = at, Weight = weight, Source = buff ?? part };
+						yield return new Hazard(WorldToGrid(beam.Start), WorldToGrid(beam.End), radius) { Weight = weight, Source = source };
+					} else if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius) { Weight = weight, Source = source };
 					break;
 				}
 			}
@@ -551,10 +576,10 @@ namespace AtE {
 			bool Good(Offsets.Vector2i c) => Combat.Distance(c, target.GridPos) <= range && ctx.Terrain.HasLineOfSight(c, target.GridPos);
 
 			// in danger (an area, or its margin): get out first, to the best cell (see DangerMap.TryFindSafest)
-			int here = map.IsBlocked(ctx.Grid) ? map.SoonAt(ctx.Grid) : map.Total(ctx.Grid); // (the grid may block the player's own cell, near a wall)
+			int here = map.IsBlocked(ctx.Grid) ? map.HazardDangerAt(ctx.Grid) : map.DangerAt(ctx.Grid); // (the grid may block the player's own cell, near a wall)
 			if ( here >= DangerMap.SafeLevel ) {
 				bool safe = TryFindGoal(ctx, map, Good, target.GridPos, out var cell);
-				if ( cell.Id != ctx.Grid.Id && (safe || map.Total(cell) < here) ) {
+				if ( cell.Id != ctx.Grid.Id && (safe || map.DangerAt(cell) < here) ) {
 					Detail = safe ? $"stepping out of a damaging area, to {cell}" : $"in a damaging area, nowhere safe near: to the least bad cell, {cell}";
 					ctx.Driver.WalkTo(cell, $"avoiding {Label}'s damaging area");
 				} else {

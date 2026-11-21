@@ -9,18 +9,11 @@ using static AtE.Globals;
 namespace AtE {
 
 	/// <summary>
-	/// Which layer of the DangerMap a hazard goes on. Now: it hurts to stand in it, or walk through it (burning ground, a
-	/// beam). Soon: predicted to hurt shortly (a breath being cast, a bomb about to go off): get out of it and don't stop
-	/// in it, but crossing it while it is still harmless is fine.
-	/// </summary>
-	public enum DangerLayer { Now, Soon }
-
-	/// <summary>
 	/// A damaging area on the ground: its center, and radius in cells; or, for a sector (eg, a breath), its apex
 	/// (Center), length (Radius), the direction the caster faces (Dir, normalized), and the slice it covers: from From to
 	/// To radians off Dir, positive toward the caster's left; or, for a beam, a band Radius cells either side of the
-	/// line from Center to End. Layer, Weight (0: DangerMap.DefaultWeight) and Source (a name, eg the catalog entry it came
-	/// from) say how it goes on the DangerMap.
+	/// line from Center to End. Weight (0: DangerMap.DefaultWeight) and Source (a name, eg the catalog entry it came from)
+	/// say how it goes on the danger grid.
 	/// </summary>
 	public readonly struct Hazard {
 		public readonly Offsets.Vector2i Center;
@@ -33,7 +26,6 @@ namespace AtE {
 		/// <summary>A ring: the cells from Inner to Radius cells from Center (not the middle).</summary>
 		public readonly bool IsRing;
 		public readonly float Inner;
-		public DangerLayer Layer { get; init; }
 		/// <summary>How much it adds to each cell it covers (half that in the Margin ring around it); 0 means DangerMap.DefaultWeight.</summary>
 		public byte Weight { get; init; }
 		/// <summary>What it is (eg, the catalog entry), for the map's debugging; hazards of one Source don't stack (see DangerMap).</summary>
@@ -118,18 +110,20 @@ namespace AtE {
 			: IsSector ? $"{Center} sector {Radius:F0} facing ({Dir.X:F2}, {Dir.Y:F2}), {From * 180 / Math.PI:F0} to {To * 180 / Math.PI:F0} deg"
 			: IsRing ? $"{Center} ring r{Inner:F0}-{Radius:F0}"
 			: $"{Center} r{Radius:F0}";
-		public override string ToString() => $"{Source ?? "?"} {Layer} {EffectiveWeight}: {Shape}";
+		public override string ToString() => $"{Source ?? "?"} {EffectiveWeight}: {Shape}";
 	}
 
 	/// <summary>
-	/// How dangerous each cell near the player is, as two layers of bytes (Now and Soon, see DangerLayer) over a square
-	/// window of the grid centered on the player (HalfSize cells each way). Built (see Get) at most every RebuildMs from
+	/// How dangerous each cell near the player is: the danger grid, one byte per cell (Danger) over a square window of
+	/// the grid centered on the player (HalfSize cells each way). Built (see Get) at most every RebuildMs from
 	/// the hazards AvoidSpam knows (AvoidSpam.CatalogHazards) plus any a fight adds (SetExtra).
 	///
 	/// Each cell starts from the terrain: Blocked (0xFF) where it can't be walked, and else a little for being near a
 	/// wall (WallWeight per step of clearance below 5: walls are where projectiles burst). Then each hazard adds its
 	/// Weight to the cells it covers, and half that to the Margin ring around it (so a search is pushed away from edges).
-	/// Hazards of the same Source and layer don't stack (the most of them counts: eg, a network of overlapping beams is
+	/// A hazard that hurts now (burning ground, a beam) has a high weight; one about to land or go off (a breath being
+	/// cast, a bomb) a low one (AvoidSpam.WarningWeight: don't stop in it, but crossing it is fine).
+	/// Hazards of the same Source don't stack (the most of them counts: eg, a network of overlapping beams is
 	/// one danger), different ones do, saturating at Max. A cell is safe below SafeLevel (the walls alone stay under it).
 	///
 	/// Main thread only (hazards are read from entities). The maps are double-buffered: one from Get stays as it is until
@@ -145,9 +139,9 @@ namespace AtE {
 		public static long RebuildMs = 50;
 		/// <summary>The weight of a hazard that gives none.</summary>
 		public static byte DefaultWeight = 30;
-		/// <summary>A cell below this (Now + Soon) is safe.</summary>
+		/// <summary>A cell below this is safe.</summary>
 		public static byte SafeLevel = 10;
-		/// <summary>A path crossing a cell with at least this much Now danger gets a SkipDanger step (a travel skill over it).</summary>
+		/// <summary>A path crossing a cell with at least this much danger gets a SkipDanger step (a travel skill over it).</summary>
 		public static byte SkipLevel = 30;
 		/// <summary>The ring around each hazard (in cells) that gets half its weight.</summary>
 		public static float Margin = 4;
@@ -157,8 +151,9 @@ namespace AtE {
 		public static long ExtraExpireMs = 1000;
 
 		public readonly int Size;
-		public readonly byte[] Now, Soon;
-		/// <summary>The grid cell at Now[0] (the window's top left).</summary>
+		/// <summary>The danger grid: each cell's danger, or Blocked; row by row, Size across (see DangerAt).</summary>
+		public readonly byte[] Danger;
+		/// <summary>The grid cell at Danger[0] (the window's top left).</summary>
 		public int OriginX { get; private set; }
 		public int OriginY { get; private set; }
 		/// <summary>The player's cell when it was built.</summary>
@@ -177,8 +172,7 @@ namespace AtE {
 
 		public DangerMap(int halfSize) {
 			Size = (2 * halfSize) + 1;
-			Now = new byte[Size * Size];
-			Soon = new byte[Size * Size];
+			Danger = new byte[Size * Size];
 			scratch = new byte[Size * Size];
 		}
 
@@ -269,19 +263,18 @@ namespace AtE {
 			// the terrain, Blocked outside the area
 			for ( int wy = 0; wy < Size; wy++ ) {
 				int y = OriginY + wy, row = wy * Size;
-				if ( y < 0 || y >= seedHeight ) { Array.Fill(Now, Blocked, row, Size); continue; }
+				if ( y < 0 || y >= seedHeight ) { Array.Fill(Danger, Blocked, row, Size); continue; }
 				int x0 = Math.Max(0, OriginX), x1 = Math.Min(seedWidth - 1, OriginX + Size - 1);
-				if ( x1 < x0 ) { Array.Fill(Now, Blocked, row, Size); continue; }
-				if ( x0 > OriginX ) Array.Fill(Now, Blocked, row, x0 - OriginX);
-				Buffer.BlockCopy(source, (y * seedWidth) + x0, Now, row + (x0 - OriginX), x1 - x0 + 1);
-				if ( x1 < OriginX + Size - 1 ) Array.Fill(Now, Blocked, row + (x1 - OriginX) + 1, OriginX + Size - 1 - x1);
+				if ( x1 < x0 ) { Array.Fill(Danger, Blocked, row, Size); continue; }
+				if ( x0 > OriginX ) Array.Fill(Danger, Blocked, row, x0 - OriginX);
+				Buffer.BlockCopy(source, (y * seedWidth) + x0, Danger, row + (x0 - OriginX), x1 - x0 + 1);
+				if ( x1 < OriginX + Size - 1 ) Array.Fill(Danger, Blocked, row + (x1 - OriginX) + 1, OriginX + Size - 1 - x1);
 			}
-			Array.Clear(Soon, 0, Soon.Length);
 
-			// each Source's hazards (per layer) are drawn into scratch, keeping the most at each cell, then added on
+			// each Source's hazards are drawn into scratch, keeping the most at each cell, then added on
 			var list = hazards.ToList();
 			Hazards = list;
-			foreach ( var group in list.GroupBy(h => (h.Layer, h.Source)) ) {
+			foreach ( var group in list.GroupBy(h => h.Source) ) {
 				int gx0 = int.MaxValue, gy0 = int.MaxValue, gx1 = int.MinValue, gy1 = int.MinValue;
 				foreach ( var h in group ) {
 					var (bx0, by0, bx1, by1) = h.Bounds(Margin);
@@ -293,7 +286,7 @@ namespace AtE {
 					for ( int wy = by0; wy <= by1; wy++ ) {
 						int row = wy * Size;
 						for ( int wx = bx0; wx <= bx1; wx++ ) {
-							if ( Now[row + wx] == Blocked ) continue;
+							if ( Danger[row + wx] == Blocked ) continue;
 							int level = h.Level(OriginX + wx, OriginY + wy, Margin);
 							if ( level == 0 ) continue;
 							byte v = level == 2 ? full : edge;
@@ -302,14 +295,13 @@ namespace AtE {
 					}
 				}
 				if ( gx0 == int.MaxValue ) continue;
-				var layer = group.Key.Layer == DangerLayer.Soon ? Soon : Now;
 				for ( int wy = gy0; wy <= gy1; wy++ ) {
 					int row = wy * Size;
 					for ( int i = row + gx0; i <= row + gx1; i++ ) {
 						byte v = scratch[i];
 						if ( v == 0 ) continue;
 						scratch[i] = 0;
-						layer[i] = (byte)Math.Min(Max, layer[i] + v);
+						Danger[i] = (byte)Math.Min(Max, Danger[i] + v);
 					}
 				}
 			}
@@ -320,27 +312,32 @@ namespace AtE {
 
 		public bool InWindow(int x, int y) => x >= OriginX && y >= OriginY && x < OriginX + Size && y < OriginY + Size;
 		private int Index(int x, int y) => ((y - OriginY) * Size) + (x - OriginX);
-		/// <summary>The Now layer at a cell (Blocked outside the window, or where it can't be walked).</summary>
-		public byte NowAt(Offsets.Vector2i c) => InWindow(c.X, c.Y) ? Now[Index(c.X, c.Y)] : Blocked;
-		/// <summary>The Soon layer at a cell (0 outside the window).</summary>
-		public byte SoonAt(Offsets.Vector2i c) => InWindow(c.X, c.Y) ? Soon[Index(c.X, c.Y)] : (byte)0;
-		/// <summary>Now + Soon at a cell (saturating at Max), or Blocked.</summary>
-		public int Total(Offsets.Vector2i c) {
-			if ( !InWindow(c.X, c.Y) ) return Blocked;
-			int i = Index(c.X, c.Y);
-			return Now[i] == Blocked ? Blocked : Math.Min(Max, Now[i] + Soon[i]);
+		/// <summary>The danger at a cell (Blocked outside the window, or where it can't be walked).</summary>
+		public byte DangerAt(Offsets.Vector2i c) => InWindow(c.X, c.Y) ? Danger[Index(c.X, c.Y)] : Blocked;
+		/// <summary>
+		/// The hazards' danger at a cell, from the hazards themselves (as Build adds them up, without the walls): for a
+		/// cell the grid blocks (eg, the player's own, near a wall).
+		/// </summary>
+		public int HazardDangerAt(Offsets.Vector2i c) => Math.Min(Max, Hazards.GroupBy(h => h.Source)
+			.Sum(g => g.Max(h => h.Level(c.X, c.Y, Margin) switch { 2 => h.EffectiveWeight, 1 => h.EffectiveWeight / 2, _ => 0 })));
+		/// <summary>The walls' share of a cell's danger (the terrain seed: 0 in the open, up to 4 * WallWeight by a wall; 0 if blocked).</summary>
+		public static byte WallAt(Offsets.Vector2i c) {
+			var s = seed;
+			if ( s == null || c.X < 0 || c.Y < 0 || c.X >= seedWidth || c.Y >= seedHeight ) return 0;
+			byte v = s[(c.Y * seedWidth) + c.X];
+			return v == Blocked ? (byte)0 : v;
 		}
-		public bool IsBlocked(Offsets.Vector2i c) => NowAt(c) == Blocked;
+		public bool IsBlocked(Offsets.Vector2i c) => DangerAt(c) == Blocked;
 		/// <summary>Walkable and below SafeLevel.</summary>
-		public bool IsSafe(Offsets.Vector2i c) => Total(c) < SafeLevel;
+		public bool IsSafe(Offsets.Vector2i c) => DangerAt(c) < SafeLevel;
 		/// <summary>The hazards over a cell (or its Margin ring).</summary>
 		public IEnumerable<Hazard> HazardsAt(Offsets.Vector2i c) => Hazards.Where(h => h.Covers(c, Margin));
 
 		// ---- the safest place to stand ----
 
-		/// <summary>Walking through a cell costs (1 + its Now danger / CrossDivisor) per cell walked.</summary>
+		/// <summary>Walking through a cell costs (1 + its danger / CrossDivisor) per cell walked.</summary>
 		public static float CrossDivisor = 10;
-		/// <summary>Ending on a cell costs its danger (Now + Soon) times this, in cells walked.</summary>
+		/// <summary>Ending on a cell costs its danger times this, in cells walked.</summary>
 		public static float StandWeight = 2;
 		/// <summary>Added to the score of a cell that isn't safe (see SafeLevel), or that the caller's good says is not good.</summary>
 		public static float UnsafePenalty = 1000, NotGoodPenalty = 500;
@@ -368,7 +365,7 @@ namespace AtE {
 			for ( int y = y0; y <= y1; y++ ) {
 				for ( int x = x0; x <= x1; x++ ) {
 					int j = (y * Size) + x;
-					if ( Now[j] != Blocked && Now[j] + Soon[j] >= SafeLevel ) n += 1;
+					if ( Danger[j] != Blocked && Danger[j] >= SafeLevel ) n += 1;
 				}
 			}
 			return n;
@@ -400,7 +397,7 @@ namespace AtE {
 				if ( c >= bestScore ) break; // (nothing further can score better: a score is at least its walk)
 				int wx = i % Size, wy = i / Size;
 				var cell = new Offsets.Vector2i(OriginX + wx, OriginY + wy);
-				int total = Now[i] == Blocked ? Blocked : Math.Min(Max, Now[i] + Soon[i]);
+				int total = Danger[i];
 				bool safe = total < SafeLevel;
 				float score = c + (StandWeight * total) + (safe ? 0 : UnsafePenalty);
 				if ( score < bestScore && ClearWeight > 0 ) score += ClearWeight * UnsafeNear(wx, wy);
@@ -413,12 +410,12 @@ namespace AtE {
 					int nx = wx + dx, ny = wy + dy;
 					if ( nx < 0 || ny < 0 || nx >= Size || ny >= Size ) continue;
 					int n = (ny * Size) + nx;
-					if ( Now[n] == Blocked ) continue;
+					if ( Danger[n] == Blocked ) continue;
 					// (a diagonal step needs both cells it squeezes between)
-					if ( dx != 0 && dy != 0 && (Now[(wy * Size) + nx] == Blocked || Now[(ny * Size) + wx] == Blocked) ) continue;
+					if ( dx != 0 && dy != 0 && (Danger[(wy * Size) + nx] == Blocked || Danger[(ny * Size) + wx] == Blocked) ) continue;
 					int ddx = OriginX + nx - from.X, ddy = OriginY + ny - from.Y;
 					if ( (ddx * ddx) + (ddy * ddy) > max2 ) continue;
-					float nc = c + (len * (1 + (Now[n] / CrossDivisor)));
+					float nc = c + (len * (1 + (Danger[n] / CrossDivisor)));
 					if ( costStamp[n] == flood && cost[n] <= nc ) continue;
 					costStamp[n] = flood;
 					cost[n] = nc;
@@ -441,7 +438,7 @@ namespace AtE {
 		/// <summary>A cell's score (as TryFindSafest scores it) after the last TryFindSafest; float.MaxValue if it was not reached.</summary>
 		public float Score(Offsets.Vector2i c, bool good) {
 			if ( !CostTo(c, out float walk) ) return float.MaxValue;
-			int total = Total(c);
+			int total = DangerAt(c);
 			float clear = ClearWeight > 0 ? ClearWeight * UnsafeNear(c.X - OriginX, c.Y - OriginY) : 0;
 			return walk + (StandWeight * total) + (total < SafeLevel ? 0 : UnsafePenalty) + clear + (good ? 0 : NotGoodPenalty);
 		}
@@ -453,8 +450,7 @@ namespace AtE {
 
 		/// <summary>
 		/// A text picture of the map r cells each way around at (default: Center), with its hazards: each cell is '#'
-		/// blocked, '.' safe, or a digit for the danger (Now + Soon) in steps of 10% of Max (Soon-only cells as letters
-		/// a-j instead), '@' the center; then the hazards over the middle cell, if cellInfo. Given project (a grid cell to
+		/// blocked, '.' safe, or a digit for the danger in steps of 10% of Max, '@' the center; then the hazards over the middle cell, if cellInfo. Given project (a grid cell to
 		/// its screen position, false if it can't), the picture gets a frame with N, E, S and W where the screen's top,
 		/// right, bottom and left lie from the middle (the grid is turned on the screen), and a legend beside it; or, if
 		/// rotate, the picture is drawn turned to match the screen instead (up is the screen's top; each character is about
@@ -469,16 +465,16 @@ namespace AtE {
 			sb.AppendLine($"{Hazards.Count} hazards:");
 			foreach ( var h in Hazards ) sb.AppendLine($"  {h}");
 			if ( cellInfo ) {
-				sb.AppendLine($"cell {mid}: now {NowAt(mid)}, soon {SoonAt(mid)}, total {Total(mid)}{(IsSafe(mid) ? " (safe)" : "")}");
+				sb.AppendLine($"cell {mid}: danger {DangerAt(mid)}{(IsSafe(mid) ? " (safe)" : "")}");
 				foreach ( var h in HazardsAt(mid) ) sb.AppendLine($"  under {h}{(h.Covers(mid, 0) ? "" : " (margin)")}");
 			}
 			char Glyph(Offsets.Vector2i c) {
 				if ( c.X == mid.X && c.Y == mid.Y ) return '@';
-				int t = Total(c);
+				int t = DangerAt(c);
 				if ( t == Blocked ) return '#';
 				if ( t < SafeLevel ) return '.';
 				int d = Math.Min(9, t * 10 / Max);
-				return NowAt(c) < SafeLevel ? (char)('a' + d) : (char)('0' + d);
+				return (char)('0' + d);
 			}
 			// the grid per screen pixel along the screen's right and down (from project, at the middle)
 			Vector2 perRight = default, perDown = default;
@@ -501,7 +497,7 @@ namespace AtE {
 				// each character RotatedColumnCells of grid along the screen's right; each line twice as many pixels down
 				float px = RotatedColumnCells / perRight.Length();
 				int cols = (int)Math.Ceiling(r / RotatedColumnCells), rows = (int)Math.Ceiling(r / (2 * px * perDown.Length()));
-				sb.AppendLine($"turned to the screen (up: the screen's top; a character {RotatedColumnCells} cells across, a line {2 * px * perDown.Length():F1} cells down), about {r} cells around {mid}; # blocked, . safe, 0-9 danger/10% (a-j: Soon only), @ {(at.HasValue ? "the cell" : "the player")}");
+				sb.AppendLine($"turned to the screen (up: the screen's top; a character {RotatedColumnCells} cells across, a line {2 * px * perDown.Length():F1} cells down), about {r} cells around {mid}; # blocked, . safe, 0-9 danger/10%, @ {(at.HasValue ? "the cell" : "the player")}");
 				sb.AppendLine("  screen top");
 				for ( int v = -rows; v <= rows; v++ ) {
 					sb.Append(v == 0 ? "L " : "  ");
@@ -516,7 +512,7 @@ namespace AtE {
 				return sb.ToString();
 			}
 			if ( rotate ) sb.AppendLine("(not turned: no camera)");
-			sb.AppendLine($"x {mid.X - r}..{mid.X + r} (left to right), y {mid.Y - r}..{mid.Y + r} (top to bottom); # blocked, . safe, 0-9 danger/10% (a-j: Soon only), @ {(at.HasValue ? "the cell" : "the player")}");
+			sb.AppendLine($"x {mid.X - r}..{mid.X + r} (left to right), y {mid.Y - r}..{mid.Y + r} (top to bottom); # blocked, . safe, 0-9 danger/10%, @ {(at.HasValue ? "the cell" : "the player")}");
 			// the frame: a letter where each screen direction leaves the picture
 			var frame = new Dictionary<(int dx, int dy), char>();
 			var legend = new List<string>();
