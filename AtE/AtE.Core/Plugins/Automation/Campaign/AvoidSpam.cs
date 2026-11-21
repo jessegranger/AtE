@@ -407,6 +407,11 @@ namespace AtE {
 			// GroundEffect, Positioned, Render) with the buff ground_devouring_darkness, animated object
 			// ground_effects/devouring_darkness/ground_rig.ao. GroundEffect+0x38 is 10, as for Merveil's ice: radius 10
 			("ground_effects/VisibleServerGroundEffect", "ground_devouring_darkness", 10, 30),
+			// cold vortices (3.30, two near the player, 1.4 and 1.9 s old): ground_effects/VisibleServerGroundEffect
+			// (Animated, BaseEvents, Buffs, GroundEffect, Positioned, Render), animated object frost_bolt/sml_maelstrom.ao,
+			// with the buffs ground_ice_chill (plain chilled ground, left out above) and ground_maelstrom_chill (the
+			// damaging vortex, matched here). GroundEffect+0x38 is 12: radius 12. Cold, so scaled by cold resistance
+			("ground_effects/VisibleServerGroundEffect", "ground_maelstrom_chill", 12, 30),
 			// Augury league boss empowerment "Orbital Viscera Cannon" (3.30, seen on Kitava): a Daemon monster
 			// (Monsters/Augury/Daemon/OrbitalVisceraCannonDaemon_, sitting on the boss, StateMachine beam_begin/tier) fires a
 			// Metadata/Effects/ServerEffect (LimitedLifespan) whose animated object is
@@ -435,6 +440,19 @@ namespace AtE {
 			// object .../Boss_Empowerments/BlackfireDetonations/blackfire_detonation.ao (one seen, 2.19 s old, 27 cells from
 			// the player). Render.Bounds says nothing of its size: radius 8 is a guess; fire, so scaled by fire resistance
 			("BlackfireDetonations/blackfire_detonation.ao", null, 8, 50),
+			// a Hellscape flesh elite's falling blood orbs (3.30, near HellscapeFleshElite1CrimsonIron, paused as one fell):
+			// Metadata/Monsters/LeagueHellscape/FleshFaction/objects/FleshElite1BloodOrbBomb (Animated, BaseEvents,
+			// Positioned, Render, StateMachine explode, fadeout, progress), animated object
+			// .../League_Hellscape/elite_corpus_insanity/blood_orb_01.ao. Falling: explode 0 (seen 0.5 s old); burst:
+			// explode 1, progress 2 (2.08 s old, with a client-only .../blood_orb_explode.ao 0.43 s old beside it), then no
+			// hazard (HazardGoneStates). Physical damage (no resistance). Render.Bounds 30 x 30 x 174; radius 10 (the user; 8 was small)
+			("FleshFaction/objects/FleshElite1BloodOrbBomb", null, 10, 60),
+			// Archnemesis elemental totems (3.30, five near the player, paused): Metadata/Monsters/Totems/
+			// MonsterTotemArchnemesisObelisk (Actor, Life, Targetable...; buff cannot_be_damaged), animated object
+			// Metadata/Monsters/LeagueArchnemesis/lightning_Obelisk.ao (the element is in its name, see HazardResistByPath),
+			// each setting off client-only .../League_Archnemesis/mechanics/obelisk_shocknova_01.ao and _02.ao on itself
+			// (0.03-0.43 s old). A small area with high damage (the user): radius 10, weight 120 (the user)
+			("Totems/MonsterTotemArchnemesisObelisk", null, 10, 120),
 			// Augury empowerment "Crow Bombs" (3.30, seen on Kitava alongside the wall, not seen exploding yet):
 			// Monsters/Augury/Daemon/CrowBombDaemon places Metadata/Monsters/Daemon/Augury/CrowBombObject (Animated,
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
@@ -561,6 +579,8 @@ namespace AtE {
 		public static readonly Dictionary<string, (string state, long value)> HazardGoneStates = new Dictionary<string, (string, long)> {
 			// the Corpse Fissure's segments: explode is 0 while they wait, 1 once burst (the burst is bloodpop.ao)
 			["Daemon/Augury/CorpseFissureDaemonFissureLine"] = ("explode", 1),
+			// the Hellscape flesh elite's blood orbs: explode is 0 while one falls, 1 once it has burst
+			["FleshFaction/objects/FleshElite1BloodOrbBomb"] = ("explode", 1),
 		};
 
 		/// <summary>
@@ -570,6 +590,7 @@ namespace AtE {
 		/// </summary>
 		public static readonly HashSet<string> HazardStacks = new HashSet<string> {
 			"/OTs/beacon_aoe", // minions exploding on death: each weak, many overlapping hurt (the user)
+			"Totems/MonsterTotemArchnemesisObelisk", // Archnemesis totems: each one's nova hits (the user)
 		};
 
 		/// <summary>
@@ -595,23 +616,28 @@ namespace AtE {
 			["archnemesis_mana_donut"] = Offsets.GameStat.LightningDamageResistancePct, // Mana Siphoner's ring (a BuffHazard)
 			// cold
 			["arena_mechanics/ice_flower/Small/small_blast"] = Offsets.GameStat.ColdDamageResistancePct, // the ice flowers' burst
+			["ground_maelstrom_chill"] = Offsets.GameStat.ColdDamageResistancePct, // cold vortices
 		};
 
 		/// <summary>
-		/// HazardPaths entries (by their path part) that come in several elements, told apart by a folder in the entity's
-		/// path (see PathElement): their weight scales with the player's resistance to that element, as HazardResists.
+		/// HazardPaths entries (by their path part) that come in several elements, told apart by a folder or name in the
+		/// entity's path or its animated object's (see PathElement): their weight scales with the player's resistance to that element, as HazardResists.
 		/// </summary>
 		public static readonly HashSet<string> HazardResistByPath = new HashSet<string> {
 			"/OTs/beacon_aoe", // minions exploding on death: elemental_beacon_v2/ice/..., presumably fire/ and lightning/ too
+			"Totems/MonsterTotemArchnemesisObelisk", // Archnemesis totems: LeagueArchnemesis/lightning_Obelisk.ao, presumably fire_ and cold_ too
 		};
 
-		// the resistance for the element a folder in path names (/ice/ or /cold/, /fire/, /lightning/, /chaos/), if any
+		// the resistance for the element a folder or file name in path starts with (ice, cold, fire, lightning, chaos:
+		// "/ice/", "/lightning_Obelisk.ao"), if any
 		private static bool PathElement(string path, out Offsets.GameStat resist) {
 			resist = default;
-			if ( path.Contains("/ice/") || path.Contains("/cold/") ) resist = Offsets.GameStat.ColdDamageResistancePct;
-			else if ( path.Contains("/fire/") ) resist = Offsets.GameStat.FireDamageResistancePct;
-			else if ( path.Contains("/lightning/") ) resist = Offsets.GameStat.LightningDamageResistancePct;
-			else if ( path.Contains("/chaos/") ) resist = Offsets.GameStat.ChaosDamageResistancePct;
+			if ( path == null ) return false;
+			bool Has(string element) => path.Contains("/" + element + "/", StringComparison.OrdinalIgnoreCase) || path.Contains("/" + element + "_", StringComparison.OrdinalIgnoreCase);
+			if ( Has("ice") || Has("cold") ) resist = Offsets.GameStat.ColdDamageResistancePct;
+			else if ( Has("fire") ) resist = Offsets.GameStat.FireDamageResistancePct;
+			else if ( Has("lightning") ) resist = Offsets.GameStat.LightningDamageResistancePct;
+			else if ( Has("chaos") ) resist = Offsets.GameStat.ChaosDamageResistancePct;
 			else return false;
 			return true;
 		}
@@ -645,7 +671,7 @@ namespace AtE {
 					var pos = e.GetComponent<Positioned>();
 					byte weight = entryWeight;
 					if ( HazardLiveStates.TryGetValue(part, out var live) && (e.GetComponent<StateMachine>()?.TryGetState(live.state, out long v) ?? false) && v == live.value ) weight = live.weight;
-					if ( HazardResists.TryGetValue(buff ?? part, out var resist) || (HazardResistByPath.Contains(part) && PathElement(path, out resist)) ) {
+					if ( HazardResists.TryGetValue(buff ?? part, out var resist) || (HazardResistByPath.Contains(part) && (PathElement(path, out resist) || PathElement(aoPath ?? e.GetComponent<Animated>()?.AnimatedObjectPath, out resist))) ) {
 						if ( !statsRead ) { stats = GetPlayer()?.GetStats(); statsRead = true; }
 						weight = ResistScaled(weight, resist, stats);
 					}
