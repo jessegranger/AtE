@@ -182,6 +182,8 @@ namespace AtE {
 		/// <summary>The BuffHazards around the monsters in ents.</summary>
 		public static IEnumerable<Hazard> BuffAreaHazards(List<Entity> ents) {
 			if ( BuffHazards.Count == 0 ) yield break;
+			Dictionary<Offsets.GameStat, int> stats = null;
+			bool statsRead = false;
 			foreach ( var e in ents ) {
 				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
 				foreach ( var (buff, inner, outer, weight) in BuffHazards ) {
@@ -189,7 +191,12 @@ namespace AtE {
 					var pos = e.GetComponent<Positioned>();
 					if ( !IsValid(pos) ) break;
 					var shape = inner > 0 ? new Hazard(pos.GridPos, inner, outer, true) : new Hazard(pos.GridPos, outer);
-					yield return shape with { Weight = weight, Source = buff };
+					byte w = weight;
+					if ( HazardResists.TryGetValue(buff, out var resist) ) {
+						if ( !statsRead ) { stats = GetPlayer()?.GetStats(); statsRead = true; }
+						w = ResistScaled(weight, resist, stats);
+					}
+					yield return shape with { Weight = w, Source = buff };
 				}
 			}
 		}
@@ -329,6 +336,18 @@ namespace AtE {
 			// They fall fast and keep coming, so full weight, not WarningWeight. Where one lands it
 			// leaves burning ground (the FillGroundEffect ground_fire_burn above). Max age: see HazardMaxAgeSec
 			("firestorm_mapboss/rig.ao", null, 6, 50),
+			// the Avatar of Undoing's chaos rain (Metadata/Monsters/ChaosElemental/ChaosElementalMapBoss2, a map boss; 3.30,
+			// paused as it fell): 14 Metadata/Effects/SleepableServerEffect with the animated object
+			// Metadata/Effects/Spells/chaosstorm/rig.ao, 0.13-1.6 s old (one about every 0.13 s), 4-20 cells around the
+			// boss. Like the fireballs above, max age 3 (HazardMaxAgeSec), scaled by chaos resistance (HazardResists); 6 cells
+			// was too large on screen (the user): radius 4
+			("Spells/chaosstorm/rig.ao", null, 4, 50),
+			// and the storms it leaves: invisible monsters Metadata/Monsters/InvisibleFire/InvisibleChaosstorm_ (Actor,
+			// DiesAfterTime, Life, Pathfinding, Targetable...) that wander about; once active they have the aura buff
+			// sandstorm_chaos (11 s, seen 3.8 s in; new ones, 0.3 s old, had none yet), which puts the debuff
+			// sandstorm_chaos (no duration) on the player, who had it 10.6 cells from the nearest. Radius 10 (the user; 12
+			// was too large); chaos damage over time, so weight 30 scaled by chaos resistance, as caustic ground
+			("InvisibleFire/InvisibleChaosstorm", "sandstorm_chaos", 10, 30),
 			// Ambrius, Legion Slayer's (Daresso's map boss) spinning blades left on the ground (3.30.0c, paused with 6 out,
 			// 1.9-6.5 s old): client-only Metadata/Effects/Effect entities (Animated, BaseEvents, LimitedLifespan, Positioned,
 			// Render; see EntityCache.GetLocalEntities), animated object
@@ -364,6 +383,25 @@ namespace AtE {
 			// 24 cells (the user; 6, 12 and 16 were too small). Each one hurts little (the user), so weight 8 stays under
 			// SafeLevel alone and only overlapping blasts make a cell unsafe
 			("/OTs/beacon_aoe", null, 24, 8),
+			// Archnemesis "Volatile Flameblood" (3.30, on a rare Prayer Guard, paused just after one went off): the mod's
+			// Metadata/Monsters/Daemon/Archnemesis/VolatileFlamebloodDaemon_ sits on the monster; a fireball seeks the player
+			// and explodes, leaving a Metadata/Effects/ServerEffect (Animated, BaseEvents, LimitedLifespan, Positioned,
+			// Render) with the animated object .../League_Archnemesis/mechanics/flameblood_volatile_aoe.ao, seen 0.07 s
+			// old, 23 cells from the player. Radius 10 matched the blast on screen (the user); max age (HazardMaxAgeSec)
+			// keeps only the blast. The seeking fireball (seen in flight, 10 cells from the player) is a monster:
+			// Metadata/Monsters/VolatileCore/VolatileCoreArchnemesis, "Volatile Core", rarity Unique, buffs hidden_monster
+			// and accelerate (Actor, Life, Pathfinding, Targetable...). It blows up where it reaches: its blast's radius
+			// around it, moving with it
+			("League_Archnemesis/mechanics/flameblood_volatile_aoe", null, 10, 60),
+			("VolatileCore/VolatileCoreArchnemesis", null, 10, 60),
+			// chaos volatiles that chase the player and pop, leaving chaos damage over time on the ground (3.30, paused after
+			// three popped; the orbs were gone): each pop is a Metadata/Effects/ServerEffect with the animated object
+			// .../League_Azmeri/monster_fx/volatile_dead/volatile_explode.ao (seen 0.37 s old), and leaves a
+			// ground_effects/FillGroundEffect with the buff caustic_cloud (drawn by a client-only ClientOnlyGroundEffect,
+			// .../League_Archnemesis/ground_effects/calamity_of_plagues.ao, on the same cell). GroundEffect+0x38 is 14:
+			// radius 14, weight 30 scaled by chaos resistance (HazardResists). The pop's radius is taken as the Volatile Core's blast (10); max age (HazardMaxAgeSec) keeps only it
+			("volatile_dead/volatile_explode", null, 10, 60),
+			("ground_effects/FillGroundEffect", "caustic_cloud", 14, 30),
 			// Kitava's bloody pools (physical damage over time) in his final fight (3.30, paused with 19 placed, 28-100 cells from
 			// the player): Metadata/Effects/Spells/ground_effects/VisibleServerGroundEffect (Animated, BaseEvents, Buffs,
 			// GroundEffect, Positioned, Render) with the buff ground_devouring_darkness, animated object
@@ -391,6 +429,12 @@ namespace AtE {
 			// source of Blackfire. Paused mid-deploy: 3 segments about 10 cells apart, Render.Bounds 30 x 30 (about 3
 			// cells), the last one on the player. Radius 6 so the circles join into the wall
 			("Daemon/Augury/BlackfireWallObject", null, 6, 50),
+			// Augury empowerment "Blackfire Detonations" (3.30, seen on the Avatar of Undoing, paused):
+			// Monsters/Augury/Daemon/BlackfireDetonationDaemon (sits on the boss, StateMachine tier) sets off client-only
+			// Metadata/Effects/Effect entities (Animated, BaseEvents, LimitedLifespan, Positioned, Render) with the animated
+			// object .../Boss_Empowerments/BlackfireDetonations/blackfire_detonation.ao (one seen, 2.19 s old, 27 cells from
+			// the player). Render.Bounds says nothing of its size: radius 8 is a guess; fire, so scaled by fire resistance
+			("BlackfireDetonations/blackfire_detonation.ao", null, 8, 50),
 			// Augury empowerment "Crow Bombs" (3.30, seen on Kitava alongside the wall, not seen exploding yet):
 			// Monsters/Augury/Daemon/CrowBombDaemon places Metadata/Monsters/Daemon/Augury/CrowBombObject (Animated,
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
@@ -494,8 +538,11 @@ namespace AtE {
 			// the map boss's fireballs (see HazardPaths): seen up to 1.65 s old, still falling; 3 s is a guess at their
 			// fall, so a spent one does not linger if the game keeps listing it
 			["firestorm_mapboss/rig.ao"] = 3,
+			["Spells/chaosstorm/rig.ao"] = 3,
 			// the Corpse Fissure's bursts (see HazardPaths): seen up to 0.7 s old, a new pair every 0.1 s down the line
 			["CorpseFissure/bloodpop.ao"] = 1,
+			["League_Archnemesis/mechanics/flameblood_volatile_aoe"] = 1,
+			["volatile_dead/volatile_explode"] = 1,
 		};
 
 		/// <summary>
@@ -525,6 +572,56 @@ namespace AtE {
 			"/OTs/beacon_aoe", // minions exploding on death: each weak, many overlapping hurt (the user)
 		};
 
+		/// <summary>
+		/// HazardPaths entries (by their buff, or else their path part) and BuffHazards (by their buff) whose weight scales
+		/// with the player's resistance to the damage they do: weight * (100 - resistance) / 100, rounded (eg, 30 at -52%
+		/// chaos resistance is 46; at 75%, 8). Only hazards whose damage type is known; physical ones have no resistance,
+		/// and warnings (WarningWeight) stay as they are.
+		/// </summary>
+		public static readonly Dictionary<string, Offsets.GameStat> HazardResists = new Dictionary<string, Offsets.GameStat> {
+			// chaos
+			["caustic_cloud"] = Offsets.GameStat.ChaosDamageResistancePct, // chaos damage over time (the user)
+			["volatile_dead/volatile_explode"] = Offsets.GameStat.ChaosDamageResistancePct, // the chaos volatiles' pop
+			// fire
+			["ground_fire_burn"] = Offsets.GameStat.FireDamageResistancePct, // burning ground
+			["firestorm_mapboss/rig.ao"] = Offsets.GameStat.FireDamageResistancePct, // a map boss's falling fireballs
+			["Spells/chaosstorm/rig.ao"] = Offsets.GameStat.ChaosDamageResistancePct, // the Avatar of Undoing's chaos rain
+			["sandstorm_chaos"] = Offsets.GameStat.ChaosDamageResistancePct, // and the storms it leaves
+			["League_Archnemesis/mechanics/flameblood_volatile_aoe"] = Offsets.GameStat.FireDamageResistancePct, // Volatile Flameblood's blast
+			["VolatileCore/VolatileCoreArchnemesis"] = Offsets.GameStat.FireDamageResistancePct, // and its seeking fireball
+			["BlackfireDetonations/blackfire_detonation.ao"] = Offsets.GameStat.FireDamageResistancePct, // Augury Blackfire Detonations
+			// lightning
+			["Projectiles/CorruptedBallLightning"] = Offsets.GameStat.LightningDamageResistancePct, // Nightmare Manifest's orbs
+			["archnemesis_mana_donut"] = Offsets.GameStat.LightningDamageResistancePct, // Mana Siphoner's ring (a BuffHazard)
+			// cold
+			["arena_mechanics/ice_flower/Small/small_blast"] = Offsets.GameStat.ColdDamageResistancePct, // the ice flowers' burst
+		};
+
+		/// <summary>
+		/// HazardPaths entries (by their path part) that come in several elements, told apart by a folder in the entity's
+		/// path (see PathElement): their weight scales with the player's resistance to that element, as HazardResists.
+		/// </summary>
+		public static readonly HashSet<string> HazardResistByPath = new HashSet<string> {
+			"/OTs/beacon_aoe", // minions exploding on death: elemental_beacon_v2/ice/..., presumably fire/ and lightning/ too
+		};
+
+		// the resistance for the element a folder in path names (/ice/ or /cold/, /fire/, /lightning/, /chaos/), if any
+		private static bool PathElement(string path, out Offsets.GameStat resist) {
+			resist = default;
+			if ( path.Contains("/ice/") || path.Contains("/cold/") ) resist = Offsets.GameStat.ColdDamageResistancePct;
+			else if ( path.Contains("/fire/") ) resist = Offsets.GameStat.FireDamageResistancePct;
+			else if ( path.Contains("/lightning/") ) resist = Offsets.GameStat.LightningDamageResistancePct;
+			else if ( path.Contains("/chaos/") ) resist = Offsets.GameStat.ChaosDamageResistancePct;
+			else return false;
+			return true;
+		}
+
+		// weight scaled by the player's resistance (stats: the player's, read once per PathHazards; null: unscaled)
+		private static byte ResistScaled(byte weight, Offsets.GameStat resist, Dictionary<Offsets.GameStat, int> stats) {
+			if ( stats == null || !stats.TryGetValue(resist, out int res) ) return weight;
+			return (byte)Math.Clamp((int)Math.Round(weight * (100 - res) / 100.0), 1, DangerMap.Max);
+		}
+
 		// the animated object's clock (s), or NaN
 		private static float AnimationAge(Entity e) {
 			var anim = e.GetComponent<Animated>();
@@ -534,6 +631,8 @@ namespace AtE {
 
 		public static IEnumerable<Hazard> PathHazards(List<Entity> ents) {
 			if ( HazardPaths.Count == 0 ) yield break;
+			Dictionary<Offsets.GameStat, int> stats = null;
+			bool statsRead = false;
 			foreach ( var e in ents ) {
 				string path = e?.Path;
 				if ( path == null ) continue;
@@ -546,6 +645,10 @@ namespace AtE {
 					var pos = e.GetComponent<Positioned>();
 					byte weight = entryWeight;
 					if ( HazardLiveStates.TryGetValue(part, out var live) && (e.GetComponent<StateMachine>()?.TryGetState(live.state, out long v) ?? false) && v == live.value ) weight = live.weight;
+					if ( HazardResists.TryGetValue(buff ?? part, out var resist) || (HazardResistByPath.Contains(part) && PathElement(path, out resist)) ) {
+						if ( !statsRead ) { stats = GetPlayer()?.GetStats(); statsRead = true; }
+						weight = ResistScaled(weight, resist, stats);
+					}
 					string source = HazardStacks.Contains(part) ? $"{part}#{e.Id}" : buff ?? part;
 					// a beam effect (it has a Beam): a line between its ends, radius wide on each side
 					var beam = e.GetComponent<Beam>();
