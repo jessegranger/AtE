@@ -15,7 +15,7 @@ using static AtE.Globals;
 namespace AtE {
 
 	/// <summary>
-	/// A read-only, loopback-only HTTP server for reverse engineering the target's memory layout.
+	/// An HTTP server, on loopback and the LAN address (see StartListener), for reverse engineering the target's memory layout and driving the Mapping routine.
 	/// It exists so a tool (eg Claude Code, via curl) can inspect live memory:
 	///
 	///   /status                       attach state, module base, key addresses
@@ -33,7 +33,7 @@ namespace AtE {
 	/// </summary>
 	public class MemoryServerPlugin : PluginBase {
 
-		public override string HelpText => "Loopback-only HTTP server (read-only) for inspecting game memory while reverse engineering offsets. See the plugin source for endpoints.";
+		public override string HelpText => "HTTP server (loopback and the LAN address) for inspecting game memory while reverse engineering offsets, and controlling the Mapping routine. See /help for endpoints.";
 		public override int SortIndex => 998;
 
 		public int Port = 7788;
@@ -52,9 +52,12 @@ namespace AtE {
 		public override void Render() {
 			base.Render();
 			ImGui.InputInt("Port", ref Port);
-			ImGui.Text(listener != null ? $"Listening on http://127.0.0.1:{listeningPort}/  ({requestCount} requests)" : "Not listening.");
+			ImGui.Text(listener != null ? $"Listening on {ListeningUrls()}  ({requestCount} requests)" : "Not listening.");
 			if ( lastError != null ) {
-				ImGui.Text($"Last error: {lastError}");
+				// (wrapped: it can hold a netsh command or two)
+				ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + 520);
+				ImGui.TextUnformatted($"Last error: {lastError}");
+				ImGui.PopTextWrapPos();
 			}
 		}
 
@@ -97,23 +100,79 @@ namespace AtE {
 			return job.Done.Wait(5000) ? job.Result : "error: timed out waiting for the main thread\n";
 		}
 
-		private void StartListener() {
+		/// <summary>The machine's address on the local network (a private IPv4 address of a working, non-loopback adapter: a 192.168 one first, then one with a gateway), or null.</summary>
+		public static string LanAddress() {
 			try {
-				listener = new HttpListener();
-				listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
-				listener.Start();
-				listeningPort = Port;
-				lastError = null;
-				Log($"MemoryServer: listening on 127.0.0.1:{Port}");
-				var l = listener;
-				Task.Run(() => AcceptLoop(l));
-			} catch ( Exception e ) {
-				lastError = e.Message;
-				Log($"MemoryServer: failed to start: {e.Message}");
-				listener = null;
-				Enabled = false;
-			}
+				var candidates = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+					.Where(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up
+						&& n.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+					.Select(n => (n, props: n.GetIPProperties()))
+					.SelectMany(x => x.props.UnicastAddresses.Select(u => (x.n, x.props, ip: u.Address)))
+					.Where(x => x.ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && IsPrivate(x.ip))
+					// (a 192.168 address first: the home network; a VPN's endpoint is often in 10.x, eg 10.145.252.85, picked
+					// before this; then an adapter with a gateway: the real network, not a virtual one)
+					.OrderByDescending(x => x.ip.GetAddressBytes() is var b && b[0] == 192 && b[1] == 168)
+					.ThenByDescending(x => x.props.GatewayAddresses.Any(g => g.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any)))
+					.ToList();
+				return candidates.FirstOrDefault().ip?.ToString();
+			} catch { return null; }
 		}
+		private static bool IsPrivate(IPAddress ip) {
+			var b = ip.GetAddressBytes();
+			return b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] <= 31) || (b[0] == 192 && b[1] == 168);
+		}
+
+		// the addresses listened on (127.0.0.1, and the LAN address if Windows allowed it), and the LAN address
+		private readonly List<string> listeningOn = new List<string>();
+		private string lanAddress;
+
+		private void StartListener() {
+			lanAddress = LanAddress();
+			// 127.0.0.1 and the LAN address; without administrator rights each needs a URL reservation (seen: with only the
+			// LAN address reserved, 127.0.0.1 was refused too, "Access is denied"). Listens on whichever are allowed (both, or
+			// just one), and names the commands that would allow the others; switched off only if none is allowed.
+			var hosts = lanAddress != null ? new[] { "127.0.0.1", lanAddress } : new[] { "127.0.0.1" };
+			var refused = new List<string>();
+			string error = null;
+			bool ok = TryListen(hosts, out error);
+			if ( !ok && hosts.Length > 1 ) {
+				foreach ( var h in hosts ) {
+					if ( TryListen(new[] { h }, out _) ) { ok = true; refused.AddRange(hosts.Where(x => x != h)); break; }
+				}
+				if ( !ok ) refused.AddRange(hosts);
+			} else if ( !ok ) refused.AddRange(hosts);
+			if ( refused.Count > 0 ) {
+				lastError = $"not listening on {string.Join(" or ", refused)} ({error}); to allow it, run once as administrator: "
+					+ string.Join(" ; ", refused.Select(h => $"netsh http add urlacl url=http://{h}:{Port}/ user=Everyone"));
+				Log($"MemoryServer: {lastError}");
+			}
+			if ( !ok ) Enabled = false;
+		}
+
+		private bool TryListen(string[] hosts, out string error) {
+			error = null;
+			var l = new HttpListener();
+			try {
+				foreach ( var h in hosts ) l.Prefixes.Add($"http://{h}:{Port}/");
+				l.Start();
+			} catch ( Exception e ) {
+				error = e.Message;
+				try { l.Close(); } catch { }
+				listener = null;
+				return false;
+			}
+			listener = l;
+			listeningPort = Port;
+			listeningOn.Clear();
+			listeningOn.AddRange(hosts);
+			lastError = null;
+			Log($"MemoryServer: listening on {string.Join(" and ", hosts.Select(h => $"{h}:{Port}"))}");
+			Task.Run(() => AcceptLoop(l));
+			return true;
+		}
+
+		/// <summary>The URLs it listens on, eg "http://127.0.0.1:7788/, http://192.168.1.20:7788/".</summary>
+		private string ListeningUrls() => string.Join(", ", listeningOn.Select(h => $"http://{h}:{listeningPort}/"));
 
 		private void StopListener() {
 			try {
@@ -141,8 +200,11 @@ namespace AtE {
 			try {
 				Interlocked.Increment(ref requestCount);
 				// a browser page must not be able to drive this (DNS rebinding / cross-origin fetch)
+				// (the Host must be one of ours: loopback, or the LAN address listened on)
 				string host = ctx.Request.Headers["Host"] ?? "";
-				if ( ctx.Request.Headers["Origin"] != null || !(host.StartsWith("127.0.0.1") || host.StartsWith("localhost")) ) {
+				string lan = lanAddress != null && listeningOn.Contains(lanAddress) ? lanAddress : null;
+				bool ours = host.StartsWith("127.0.0.1") || host.StartsWith("localhost") || (lan != null && (host == lan || host.StartsWith(lan + ":")));
+				if ( ctx.Request.Headers["Origin"] != null || !ours ) {
 					status = 403;
 					body = "forbidden\n";
 				} else {
@@ -180,7 +242,7 @@ namespace AtE {
 			switch ( path ) {
 				case "/":
 				case "/help":
-					return Help;
+					return $"listening on {ListeningUrls()}{(lastError != null ? $" ({lastError})" : lanAddress == null ? " (no LAN address found)" : "")}\n" + Help;
 				case "/status":
 					return RunOnMain(Status);
 				case "/ents":
@@ -554,7 +616,7 @@ namespace AtE {
 		}
 
 		private const string Help =
-@"MemoryServer (read-only, loopback only)
+@"MemoryServer (local network: loopback and the LAN address above)
   /status
   /offsets/run[?only=A6,A4.Life[&observers=1]] | /offsets/observe (observers only, no checks) | /offsets/stop | /offsets/report     the Offsets tests (Automation > Offset Tests): start, stop, the results with details
   /mapping/status               the Mapping routine: on or off, its status, the character (level, XP %, life, ES, mana), maps completed, the area, the loop's current step
