@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
@@ -31,6 +32,29 @@ namespace AtE {
 		public static IState Click(RectangleF client, IState next = null) => Click(Center(client), next);
 		public static IState Click(Vector2 client, IState next = null) =>
 			new MoveMouse(Screen(client), new Delay(Latency, new LeftMouseDown(new Delay(Latency, new LeftMouseUp(new Delay(Latency, next))))));
+
+		/// <summary>
+		/// Click and hold at a client position: press the left button, keep it down until started() says what it works on
+		/// has begun (eg, a channel) and afterMs more, or maxMs at most in all, then let go.
+		/// </summary>
+		public static IState HoldClick(Vector2 client, Func<bool> started, uint afterMs, uint maxMs, IState next = null) =>
+			new MoveMouse(Screen(client), new Delay(Latency, new LeftMouseDown(new HoldUntil(started, afterMs, maxMs,
+				new LeftMouseUp(new Delay(Latency, next))))));
+
+		/// <summary>Wait until started() is true and afterMs more have gone by, or maxMs in all (see HoldClick).</summary>
+		private sealed class HoldUntil : State {
+			private readonly Func<bool> started;
+			private readonly long afterMs, maxMs;
+			private long elapsed, startedAt = -1;
+			public HoldUntil(Func<bool> started, uint afterMs, uint maxMs, IState next) : base(next) { this.started = started; this.afterMs = afterMs; this.maxMs = maxMs; }
+			public override string Name => $"HoldUntil({elapsed} ms{(startedAt >= 0 ? $", started at {startedAt}" : "")})";
+			public override IState OnTick(long dt) {
+				elapsed += dt;
+				if ( startedAt < 0 && (started?.Invoke() ?? true) ) startedAt = elapsed;
+				if ( startedAt >= 0 && elapsed - startedAt >= afterMs ) return Next;
+				return elapsed >= maxMs ? Next : this;
+			}
+		}
 
 		/// <summary>Right click the middle of a client rectangle.</summary>
 		public static IState RightClick(RectangleF client, IState next = null) =>

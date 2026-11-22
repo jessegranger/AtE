@@ -71,6 +71,20 @@ namespace AtE {
 			public Func<Entity, string> Blocked;
 			/// <summary>Its minimap icons (MinimapIcons.dat ids), by which one far outside the entity list's range is known (see Known).</summary>
 			public string[] Icons;
+			/// <summary>
+			/// Click and hold, not click: keep the button down until Holding says it has begun and HoldMs more (MaxHoldMs at
+			/// most in all), then let go (eg, Verisium's "Click and hold to channel"). 0: a plain click.
+			/// </summary>
+			public uint HoldMs;
+			/// <summary>With HoldMs: has what the hold works on begun (eg, the channel)? null: from the first frame held.</summary>
+			public Func<Entity, bool> Holding;
+			/// <summary>With HoldMs: the longest to hold in all, if Holding never says it has begun.</summary>
+			public uint MaxHoldMs = 4000;
+			/// <summary>
+			/// After a click (or hold) on one, stay by it this long for the monsters it brings, fighting them, and a little
+			/// longer while they keep coming (see Interactables.TryStay). 0: go on at once.
+			/// </summary>
+			public long StayMs;
 		}
 
 		public static readonly List<Kind> Kinds = new List<Kind>() {
@@ -91,6 +105,19 @@ namespace AtE {
 				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("ore_empty", out long empty) && empty != 0 },
 			new Kind() { Name = "Bismuth Deposit", PathPart = "Settlers/Node/Objects/NodeTypes/", PathEnd = "/Bismuth",
 				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("ore_empty", out long empty) && empty != 0 },
+			// Verisium (3.30, seen live): the node .../NodeTypes/Verisium exactly, minimap icon "OreTypeVerisium" (MinimapIcons.dat
+			// row 644, EntityId 0 in the icon record from afar); label "Click and hold to channel energy into the Verisium outcrop,
+			// intensifying the challenge and enriching your reward"; targetable, states activated = 0, in_progress = 1,
+			// ore_empty = 0, encounter = 0, begun_channelling = 0, channelling = 0, in_zone = 0 before use.
+			// Held, not clicked: until channelling is set, then 2 s more and let go (from the user: a short channel, not a full
+			// charge). Not begun_channelling: it stays 1 after a channel ends (seen live: 1 after an earlier hold of no time,
+			// channelling 0), so it does not say a channel is going now. Monsters come once the channel ends (from the user):
+			// stay and fight them (StayMs).
+			new Kind() { Name = "Verisium", PathPart = "Settlers/Node/Objects/NodeTypes/", PathEnd = "/Verisium", Icons = new[] { "OreTypeVerisium" },
+				HoldMs = 2000, MaxHoldMs = 5000, ClickMs = 8000, StayMs = 6000,
+				Holding = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("channelling", out long ch) && ch != 0,
+				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm)
+					&& ((sm.TryGetState("activated", out long act) && act != 0) || (sm.TryGetState("ore_empty", out long empty) && empty != 0)) },
 			// Orichalcum Ore (3.30, seen live): the node .../NodeTypes/DemonCopper exactly (its parts are DemonCopperObjects/...);
 			// once clicked it read activated = 2, in_progress = 1, ore_empty = 0 (encounter, type, lights too) and was not
 			// targetable. Then its DemonCopperObjects/copper_altar is clicked (label "Interact to begin the encounter.",
@@ -143,12 +170,12 @@ namespace AtE {
 		private long lastClick;
 
 		/// <summary>Forget the clicks and the known ones (eg, the routine started over).</summary>
-		public void Reset() { clicks.Clear(); passedOver.Clear(); known.Clear(); done.Clear(); going = null; area = 0; }
+		public void Reset() { clicks.Clear(); passedOver.Clear(); known.Clear(); done.Clear(); going = null; staying = null; area = 0; }
 
 		// a new area instance: forget all that was about the last
 		private void CheckArea() {
 			uint hash = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
-			if ( hash != area ) { area = hash; clicks.Clear(); passedOver.Clear(); known.Clear(); done.Clear(); going = null; }
+			if ( hash != area ) { area = hash; clicks.Clear(); passedOver.Clear(); known.Clear(); done.Clear(); going = null; staying = null; }
 		}
 
 		// every entity (or label's item) of an enabled kind, with its kind and label
@@ -328,6 +355,7 @@ namespace AtE {
 		/// <summary>Work on using the nearest one (walking to it, clicking it); false if there is none.</summary>
 		public bool TryUse(CombatDriver driver, CombatContext ctx) {
 			UpdateKnown();
+			if ( TryStay(driver, ctx) ) return true;
 			var (ent, kind, label, grid, d) = Next(ctx);
 			if ( ent == null ) return false;
 			// (not when its label is within LabelReach and the middle of the label is on screen: an Augury Card on ground the
@@ -342,8 +370,17 @@ namespace AtE {
 			Status = $"using a {kind.Name}";
 			driver.StopWalking(Status);
 			if ( driver.InputBusy || Time.ElapsedMilliseconds - lastClick < (kind.ClickMs > 0 ? kind.ClickMs : ClickMs) ) return true;
-			var click = label != null ? Ground.ClickLabel(label) : null;
-			click ??= Ground.ClickEntity(ent);
+			IState click = null;
+			if ( kind.HoldMs > 0 ) {
+				// (held: where a click would go, its label's middle else where it stands)
+				if ( Ground.TryGetClickPoint(ent, out var at) && PathFollower.IsSafeToClick(at) ) {
+					var held = ent;
+					click = Inputs.HoldClick(at, () => kind.Holding?.Invoke(held) ?? true, kind.HoldMs, Math.Max(kind.MaxHoldMs, kind.HoldMs));
+				}
+			} else {
+				click = label != null ? Ground.ClickLabel(label) : null;
+				click ??= Ground.ClickEntity(ent);
+			}
 			if ( click == null ) {
 				Status = $"walking to a {kind.Name} (can't click it from here)";
 				driver.WalkTo(grid, Status);
@@ -354,9 +391,45 @@ namespace AtE {
 				lastClick = Time.ElapsedMilliseconds;
 				clicks[ent.Id] = clicks.TryGetValue(ent.Id, out int n) ? n + 1 : 1;
 				kind.Clicked?.Invoke(driver);
-				Log($"{driver.Name}: clicked the {kind.Name} {ent.Id} at {grid} (click {clicks[ent.Id]})");
+				Log($"{driver.Name}: {(kind.HoldMs > 0 ? "holding a click on" : "clicked")} the {kind.Name} {ent.Id} at {grid} (click {clicks[ent.Id]})");
+				if ( kind.StayMs > 0 ) { staying = kind; stayPending = true; }
 			}
 			return true;
+		}
+
+		// after a click on a kind with StayMs: the kind, whether the click (a hold) is still going out, and when to stop waiting
+		private Kind staying;
+		private bool stayPending;
+		private long stayUntil;
+		/// <summary>Staying for a kind's monsters (Kind.StayMs): each time monsters are near, wait at least this much longer once they are gone.</summary>
+		public long StayAfterFightMs = 2000;
+
+		/// <summary>
+		/// After a click on a kind with StayMs, stay by it (StayMs after the click or hold ended) for the monsters it brings:
+		/// stand still while none are near; with one within the driver's EngageRadius, hand back (false) so it is fought
+		/// (the goal's fighting), and wait StayAfterFightMs more once they are gone (for the next wave). True while standing.
+		/// </summary>
+		private bool TryStay(CombatDriver driver, CombatContext ctx) {
+			if ( staying == null ) return false;
+			long now = Time.ElapsedMilliseconds;
+			if ( stayPending ) {
+				if ( driver.InputBusy ) return true; // (the hold is still going out)
+				stayPending = false;
+				stayUntil = now + staying.StayMs;
+				Log($"Interactables: staying by the {staying.Name} up to {staying.StayMs} ms for its monsters");
+			}
+			if ( ctx.Hostiles.Any(h => h.Distance <= driver.EngageRadius) ) {
+				stayUntil = Math.Max(stayUntil, now + StayAfterFightMs);
+				return false; // (fight them)
+			}
+			if ( now < stayUntil ) {
+				Status = $"waiting by the {staying.Name} for its monsters ({(stayUntil - now) / 1000 + 1}s)";
+				driver.StopWalking(Status);
+				return true;
+			}
+			Log($"Interactables: done staying by the {staying.Name}");
+			staying = null;
+			return false;
 		}
 	}
 }
