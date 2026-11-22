@@ -127,6 +127,8 @@ namespace AtE {
 				// invalidate the private caches whenever Address changes
 				path = null;
 				auditPath = null;
+				identityDetails = IntPtr.Zero;
+				identityPath = IntPtr.Zero;
 				ComponentPtrs = null;
 				ComponentCache = null;
 				LastParseTime = 0;
@@ -141,6 +143,30 @@ namespace AtE {
 		public uint Id => IsValid(Address) ? Cache.Id : 0;
 
 		public IntPtr vtablePtr => IsValid(Address) ? Cache.vtable : IntPtr.Zero;
+
+		// The identity of the object this Entity was made for: its details and path pointers when first checked. The game
+		// reuses the memory of animated objects and items for new ones, and EntityCache.TryGetEntity(IntPtr) caches by
+		// address alone, so it checks this to hand out a fresh Entity (fresh caches) when the object at Address changed.
+		// (seen live 3.30.0d with the Path audit: hundreds of animated objects, eg chilled_grd.ao -> necrobolt.ao, and an
+		// item, GoldCoin -> FlaskLife11, at an unchanged address; every time ptrPath changed.)
+		private IntPtr identityDetails, identityPath;
+		/// <summary>When EntityCache last handed this Entity out by address (Time.ElapsedMilliseconds); for eviction.</summary>
+		internal long LastLookup;
+		/// <summary>Made by EntityCache's walk of the entity list (the walk unloads it), not by a lookup by address.</summary>
+		internal bool FromWalk;
+		/// <summary>True if the object at Address is no longer the one this Entity was made for (its details or path
+		/// pointer changed since first checked). The first call records the identity and returns false.</summary>
+		internal bool IsRecycled() {
+			IntPtr d = Cache.ptrDetails;
+			if ( !IsValid(d) ) return false;
+			IntPtr p = Details.Value.ptrPath;
+			if ( identityDetails == IntPtr.Zero ) {
+				identityDetails = d;
+				identityPath = p;
+				return false;
+			}
+			return d != identityDetails || p != identityPath;
+		}
 
 		private string path;
 		private IntPtr pathOrigin = IntPtr.Zero;

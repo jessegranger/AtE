@@ -23,7 +23,21 @@ namespace AtE {
 					if( ent.Address != ptr ) {
 						ent.Address = ptr;
 					}
-					return IsValid(ent);
+					// the game reuses the memory of animated objects and items: if the object at ptr is not the one this
+					// Entity was made for, replace it with a fresh Entity, so no path or components carry over
+					if ( ent.IsRecycled() ) {
+						var fresh = new Entity() { Address = ptr };
+						if ( !IsValid(fresh) ) {
+							ent = null;
+							return false;
+						}
+						fresh.IsRecycled(); // record its identity
+						EntitiesByAddress.TryUpdate(ptr, fresh, ent);
+						Interlocked.Increment(ref recycledCount);
+						ent = fresh;
+					}
+					ent.LastLookup = Time.ElapsedMilliseconds;
+					return true;
 				} else {
 					// Log($"EntityCache: ptr {Describe(ptr)} -> {Describe(ent.Address)} failed to produce valid Entity.");
 				}
@@ -31,6 +45,28 @@ namespace AtE {
 			return false;
 		}
 		private static Entity newEnt(IntPtr a) => new Entity() { Address = a }; // define this out here so we dont have to create a lambda every time
+
+		/// <summary>How many times TryGetEntity(IntPtr) found the game had put another object at a cached address.</summary>
+		public static int RecycledCount => recycledCount;
+		private static int recycledCount;
+
+		// Entities made by TryGetEntity(IntPtr) (animated objects, items, targets) are dropped from the address map when
+		// not looked up for this long; nothing else removes them (the walk only unloads its own)
+		private const long EVICT_AFTER_MS = 5000;
+		private const long EVICT_EVERY_MS = 2000;
+		private static long nextEvict;
+		private static void EvictStale() {
+			long now = Time.ElapsedMilliseconds;
+			if ( now < nextEvict ) return;
+			nextEvict = now + EVICT_EVERY_MS;
+			foreach ( var kv in EntitiesByAddress ) {
+				var e = kv.Value;
+				if ( e != null && !e.FromWalk && now - e.LastLookup > EVICT_AFTER_MS ) {
+					// (not cleared: a holder of it keeps working; the next lookup just makes a new one)
+					((ICollection<KeyValuePair<IntPtr, Entity>>)EntitiesByAddress).Remove(kv);
+				}
+			}
+		}
 
 		/// <summary>
 		/// The "world" entities (things like monsters, players, objects), as of the last complete walk of the entity list.
@@ -183,7 +219,7 @@ namespace AtE {
 						// a known entity at the same address needs no reads: the node says it is still there
 						if ( !EntitiesById.TryGetValue(id, out Entity ent) || ent == null || ent.Address != entPtr ) {
 							// a new id (or the game moved it): validate a fresh Entity (with its own component caches)
-							var fresh = new Entity() { Address = entPtr };
+							var fresh = new Entity() { Address = entPtr, FromWalk = true };
 							if ( !IsValid(fresh) ) {
 								seenIds.Remove(id); // try again next walk (it may still be under construction)
 								continue;
@@ -221,6 +257,7 @@ namespace AtE {
 						// this walk so a later complete walk can unload them
 						prevIds.UnionWith(seenIds);
 					}
+					EvictStale();
 				}
 
 			}
