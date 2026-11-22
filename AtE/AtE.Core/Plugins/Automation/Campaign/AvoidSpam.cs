@@ -214,7 +214,7 @@ namespace AtE {
 		/// <summary>
 		/// Strongbox mods that make the ground around a strongbox dangerous for a while once it opens: the mod's id (among
 		/// the box's ObjectMagicProperties.ExplicitModNames), the circle around the box (radius in cells), its weight, and
-		/// how long it lasts (ms) after the box is seen starting to open, and again after it is seen opened.
+		/// how long it lasts (ms) after the box is seen starting to open (once: not again when it is done opening).
 		/// So a routine clicks the box (Interactables), flees the circle, and comes back to fight what came out.
 		/// </summary>
 		public static readonly List<(string mod, float radius, byte weight, long ms)> StrongboxModHazards = new List<(string, float, byte, long)> {
@@ -223,10 +223,11 @@ namespace AtE {
 			("ChestIceNova", 50, 100, 3000),
 		};
 
-		// strongbox entity id: when it was first seen started (StateMachine started, set by a click, seen live) and opened
-		// (StateMachine opened or Chest.IsOpened) in its current opening; 0: not yet. Removed when the box reads closed again
-		// (it can be opened again), cleared on a new area instance.
-		private static readonly Dictionary<uint, (long startedAt, long openedAt)> strongboxTimes = new Dictionary<uint, (long, long)>();
+		// strongbox entity id: when its current opening was first seen started (StateMachine started, set by a click, seen
+		// live), or NotStarted if it was seen opened (StateMachine opened or Chest.IsOpened) without being seen started.
+		// Removed when the box reads closed again (it can be opened again), cleared on a new area instance.
+		private static readonly Dictionary<uint, long> strongboxTimes = new Dictionary<uint, long>();
+		private const long NotStarted = long.MinValue / 2;
 		private static uint strongboxArea;
 
 		/// <summary>The StrongboxModHazards around the strongboxes in ents that began opening in the last ms.</summary>
@@ -244,17 +245,15 @@ namespace AtE {
 				// (a box can be opened more than once: after an opening it reads opened = 0, started = 0 again, targetable, seen
 				// live 3.30; forget the last opening's times so the next one is timed afresh)
 				if ( !started && !opened ) { strongboxTimes.Remove(e.Id); continue; }
-				strongboxTimes.TryGetValue(e.Id, out var times);
-				if ( times.startedAt == 0 ) times.startedAt = now; // (opened without being seen started: from now too)
-				if ( opened && times.openedAt == 0 ) times.openedAt = now;
-				strongboxTimes[e.Id] = times;
+				// the novas come as it starts opening (the user): time from then only, not again when it is done (opened). One
+				// seen opened without being seen started (eg, opened before it came in sight) has no hazard
+				if ( !strongboxTimes.TryGetValue(e.Id, out long startedAt) ) strongboxTimes[e.Id] = startedAt = started ? now : NotStarted;
 				var magic = e.GetComponent<ObjectMagicProperties>();
 				var pos = e.GetComponent<Positioned>();
 				if ( !IsValid(magic) || !IsValid(pos) ) continue;
 				List<string> mods = null;
 				foreach ( var (mod, radius, weight, ms) in StrongboxModHazards ) {
-					long until = Math.Max(times.startedAt, times.openedAt) + ms;
-					if ( now > until ) continue;
+					if ( now > startedAt + ms ) continue;
 					mods ??= magic.ExplicitModNames.ToList();
 					if ( mods.Contains(mod) ) yield return new Hazard(pos.GridPos, radius) { Weight = weight, Source = $"Strongbox {mod}" };
 				}
