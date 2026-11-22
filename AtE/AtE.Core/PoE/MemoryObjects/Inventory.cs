@@ -234,8 +234,13 @@ namespace AtE {
 			if ( string.Equals(SelectedTabName(), name, StringComparison.OrdinalIgnoreCase) ) return next;
 			var row = FindRow(name);
 			if ( !IsValid(row) || !row.IsVisible ) { Log($"Stash: no tab named \"{name}\" in the tab list."); return null; }
+			// (shown: selected, on a page that is not the one showing before the click, the only one showing, and built: a
+			// page has no children until its tab is first shown, and reading it the frame it turns visible finds nothing)
+			var before = VisibleTabPage?.Address ?? IntPtr.Zero;
 			return Inputs.Click(row.GetClientRect(),
-				State.WaitFor(2000, () => string.Equals(SelectedTabName(), name, StringComparison.OrdinalIgnoreCase), next,
+				State.WaitFor(2000, () => string.Equals(SelectedTabName(), name, StringComparison.OrdinalIgnoreCase)
+					&& VisibleTabPage is Element page && page.Address != before && page.Children.Any()
+					&& TabPages.Children.Count(p => p != null && p.IsVisibleLocal) == 1, next,
 					fail: State.NewState(() => Log($"Stash: tab \"{name}\" did not show after clicking it."), null)));
 		}, next);
 	}

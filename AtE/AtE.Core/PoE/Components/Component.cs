@@ -616,7 +616,24 @@ namespace AtE {
 	}
 
 	public class LimitedLifeSpan : Component<Offsets.Component_Empty> { }
-	public class LocalStats : Component<Offsets.Component_Empty> { }
+	/// <summary>An item's local stats (from its mods, for the item itself), see Offsets.Component_LocalStats.</summary>
+	public class LocalStats : Component<Offsets.Component_LocalStats> {
+		private const int MaxStats = 256; // (more than this: not a stats array)
+		/// <summary>The (stat, value) pairs; empty if they can't be read (eg, an unidentified item has none).</summary>
+		public IEnumerable<Offsets.GameStatArrayEntry> Entries {
+			get {
+				if ( !IsValid(Address) ) return Empty<Offsets.GameStatArrayEntry>();
+				var entries = new ArrayHandle<Offsets.GameStatArrayEntry>(Cache.Stats);
+				return entries.Length <= MaxStats ? entries : Empty<Offsets.GameStatArrayEntry>();
+			}
+		}
+		/// <summary>The stats as a dictionary (the last value wins, for a stat listed twice).</summary>
+		public Dictionary<Offsets.GameStat, int> GetStats() {
+			var d = new Dictionary<Offsets.GameStat, int>();
+			foreach ( var e in Entries ) d[e.Key] = e.Value;
+			return d;
+		}
+	}
 
 	public class Magnetic : Component<Offsets.Component_Magnetic> {
 		public int Force => Cache.Force;
@@ -793,9 +810,15 @@ namespace AtE {
 
 		public IEnumerable<Offsets.ObjectMagicProperties_ModEntry> Mods => new ArrayHandle<Offsets.ObjectMagicProperties_ModEntry>(Cache.Mods);
 
-		public IEnumerable<string> ModNames => Mods.Select(m =>
+		public IEnumerable<string> ModNames => Mods.Select(ModName);
+
+		/// <summary>The shown mods (eg, a strongbox's ChestIceNova), see Offsets.Component_ObjectMagicProperties.ExplicitMods.</summary>
+		public IEnumerable<Offsets.ObjectMagicProperties_ModEntry> ExplicitMods => new ArrayHandle<Offsets.ObjectMagicProperties_ModEntry>(Cache.ExplicitMods);
+		public IEnumerable<string> ExplicitModNames => ExplicitMods.Select(ModName);
+
+		private static string ModName(Offsets.ObjectMagicProperties_ModEntry m) =>
 			PoEMemory.TryRead(m.ptrAt28, out IntPtr strName) &&
-			PoEMemory.TryReadString(strName, Encoding.Unicode, out string name) ? name : $"ptr28:{m.ptrAt28}->{strName}");
+			PoEMemory.TryReadString(strName, Encoding.Unicode, out string name) ? name : $"ptr28:{m.ptrAt28}->{strName}";
 	}
 
 	public class Pathfinding : Component<Offsets.Component_Pathfinding> {

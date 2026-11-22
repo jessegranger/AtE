@@ -213,6 +213,12 @@ namespace AtE {
 			// switched on): choose / apply the cards first, before the inventory sync's key presses (its clicks go into the
 			// chain, see Decide); then the routine goes on
 			if ( TryAugury() ) return;
+			// standing in danger with monsters near (from any hazard, not only the one fought): out of it first, before the
+			// goal's own fighting, looting, interacting (see TryEscapeDanger); not while a goal works in the inventory
+			if ( !(CurrentGoal is Goal g && Working(g).UsesInventory) && TryEscapeDanger(ctx) ) {
+				SetStatus($"{(CurrentGoal is Goal cg ? Working(cg).Name + ": " : "")}{Status}");
+				return;
+			}
 			if ( TrySyncInventory() ) return;
 			if ( TryLevelGems(ctx) ) return;
 			if ( Runner.Current == null || Time.ElapsedMilliseconds - lastSelect > 250 ) {

@@ -40,6 +40,41 @@ namespace AtE {
 		public bool Clearing { get; internal set; }
 		/// <summary>Set by MapLoop for the next StartLoop: enter any of the map's portals that are left (one or more), not only all six.</summary>
 		internal bool ReEnter;
+		/// <summary>Set on entering a map the loop did not mean to (not through EnterMap, and not while clearing one); see LeaveStrayMap.</summary>
+		internal bool Strayed;
+
+		/// <summary>How long LeaveStrayMap waits for the map panel to say Map Complete.</summary>
+		private const long StrayCompleteWaitMs = 3000;
+
+		/// <summary>
+		/// In a map entered by mistake (Strayed: eg, a portal beside the Map Device clicked instead of it): if it is done
+		/// (Map Complete, within StrayCompleteWaitMs), back out through the portal it was entered by (a town portal near;
+		/// with none, ReturnHome's Portal Scroll), then a new lap; if it is not done, a new lap that clears it (as if
+		/// switched on in it).
+		/// </summary>
+		public IState LeaveStrayMap() {
+			var newLap = new Step("Start a new lap", (s, ctx, dt) => {
+				s.Pass();
+				StartLoop();
+				return MapLap();
+			}, null);
+			return new Step("Leave a map entered by mistake", (s, ctx, dt) => {
+				if ( InHideout() ) return newLap;
+				if ( !MapComplete && s.Elapsed < StrayCompleteWaitMs ) { s.Detail = "is it done?"; ctx.Driver.StopWalking("looking at the map entered by mistake"); return s; }
+				string area = GetCurrentArea()?.Name ?? "the map";
+				if ( !MapComplete ) {
+					Log($"{Name}: {area}, entered by mistake, is not done: clearing it");
+					return newLap;
+				}
+				if ( BackpackIsOpen() ) return GameKeys.Press(GameKeys.InventoryKey, new Delay(InventoryPlans.Settle, s));
+				if ( TownPortals().Any() ) {
+					Log($"{Name}: {area}, entered by mistake, is done (Map Complete): going back out through its portal");
+					return EnterFreshPortal("the portal back", TownPortals, null, newLap);
+				}
+				Log($"{Name}: {area}, entered by mistake, is done (Map Complete), and no portal is near: a Portal Scroll");
+				return ReturnHome(newLap);
+			}, newLap);
+		}
 		/// <summary>How many portals a Map Device opens (see SkipToPortals).</summary>
 		public const int MapPortalCount = 6;
 
@@ -175,6 +210,12 @@ namespace AtE {
 		private const int ClearRounds = 3;
 		/// <summary>How long ClearArea waits after a round for the map panel to show the objectives done.</summary>
 		private const long ObjectivesWaitMs = 3000;
+		/// <summary>
+		/// The reveal radius of the closer pass from the second round on (the first pass uses Explorer.RevealRadius): a
+		/// buried map boss (eg, Mud Geyser's Tunneltrap) only comes out when the player is near, and the first pass can
+		/// count its spot as explored from far off.
+		/// </summary>
+		public int SweepRevealRadius = 45;
 
 		/// <summary>
 		/// In a map (name: its area's name; null: the area the player is in when this is reached): if MapRules has rules
@@ -214,7 +255,15 @@ namespace AtE {
 				return ClearRound(area, round + 1, s.Pass());
 			}, next);
 			var boss = new KillMapBoss(this) { Next = check };
-			return new ClearMap(this) { Next = boss };
+			var clear = new ClearMap(this) { Next = boss, Sweep = round >= 2 };
+			if ( round != 2 ) return clear;
+			// (the second round: explore it all again, more closely, whatever the monsters remaining)
+			return new Step($"Explore {area} again, more closely", (s, ctx, dt) => {
+				Log($"{Name}: {area}: exploring it again, counting only {SweepRevealRadius} cells around the player as explored (the first pass: {DefaultExplorer.RevealRadius})");
+				DefaultExplorer.Rescan(SweepRevealRadius);
+				ForgetExploreTarget();
+				return s.Pass();
+			}, clear);
 		}
 
 		/// <summary>The map's objectives: fewer than MonstersLeft monsters remain (none, for 0), and the panel says "Map Complete".</summary>
@@ -240,15 +289,15 @@ namespace AtE {
 			if ( Fight.AnyNear(ctx, 0) ) { s.Detail = "fighting the monsters near"; return new Fight(0, null, s); }
 			ctx.Driver.StopWalking("using a Portal Scroll");
 			if ( BackpackIsOpen() ) return GameKeys.Press(GameKeys.InventoryKey, new Delay(InventoryPlans.Settle, s));
-			// (the map's own portal near, eg back in after a death: through it, no Portal Scroll)
-			var mapPortals = TownPortals().Where(e => e.Path.EndsWith("/MultiplexPortal", StringComparison.Ordinal) && (e.GetComponent<Targetable>()?.IsTargetable ?? true)).ToList();
-			if ( mapPortals.Count > 0 ) {
-				Log($"{Name}: the map's portal is near: going home through it");
-				return EnterFreshPortal("the map's portal", () => TownPortals().Where(e => e.Path.EndsWith("/MultiplexPortal", StringComparison.Ordinal)), null, s.Pass());
+			// (any portal in the map leads home, the map's own or a Portal Scroll's, however far: through the nearest one
+			// open, and no Portal Scroll spent while there is one)
+			var open = TownPortals().Where(e => e.GetComponent<Targetable>()?.IsTargetable ?? true).ToList();
+			if ( open.Count > 0 ) {
+				Log($"{Name}: {open.Count} portal{(open.Count == 1 ? "" : "s")} in the map: going home through the nearest, no Portal Scroll");
+				return EnterFreshPortal("a portal home", TownPortals, null, s.Pass());
 			}
-			var stale = new HashSet<uint>(TownPortals().Select(e => e.Id));
 			var mark = ChatCommand.LastMessage();
-			Func<IEnumerable<Entity>> fresh = () => TownPortals().Where(e => !stale.Contains(e.Id));
+			Func<IEnumerable<Entity>> fresh = TownPortals;
 			scrollPresses += 1;
 			Log($"{Name}: pressing {GameKeys.Text("Use Portal Scroll")} (a Portal Scroll){(scrollPresses > 1 ? $", again (press {scrollPresses} of {ScrollPresses})" : "")}");
 			var enter = EnterFreshPortal("the Portal Scroll's portal", fresh, null, s.Pass());
@@ -268,16 +317,14 @@ namespace AtE {
 		private const int ScrollPresses = 2;
 		private int scrollPresses;
 
-		// town portals (eg, a Portal Scroll's) within 40 cells of the player
-		private static IEnumerable<Entity> TownPortals() {
-			var player = GetPlayer()?.GetComponent<Positioned>();
-			if ( !IsValid(player) ) return Enumerable.Empty<Entity>();
-			var at = player.GridPos;
-			return (GetEntities() ?? Enumerable.Empty<Entity>())
+		// the portals in this area that lead home (in a map: its own, MultiplexPortal, and any Portal Scroll's), however far:
+		// none is ever "old" (a 40 cell limit once took the map's portal, just coming in range, for a new Portal Scroll's, and
+		// then, carried off by a fight, took it for gone)
+		private static IEnumerable<Entity> TownPortals() =>
+			(GetEntities() ?? Enumerable.Empty<Entity>())
 				.Where(e => IsValid(e) && e.Path is string path && path.StartsWith("Metadata/MiscellaneousObjects/", StringComparison.Ordinal) && path.Contains("Portal")
-					&& e.GetComponent<Positioned>() is Positioned pos && IsValid(pos) && Combat.Distance(at, pos.GridPos) < 40)
+					&& e.GetComponent<Positioned>() is Positioned pos && IsValid(pos))
 				.ToList();
-		}
 	}
 
 	/// <summary>
@@ -322,6 +369,12 @@ namespace AtE {
 				routine.ReEnter = true;
 				Log($"{routine.Name}: back in the hideout while clearing {routine.CurrentMap ?? "a map"}: starting a new lap, through its portals if any are left");
 				Current = null;
+			}
+			// (a map entered by mistake, eg a portal beside the Map Device clicked instead of it: out again, or clear it)
+			if ( Current != null && routine.Strayed ) {
+				routine.Strayed = false;
+				Log($"{routine.Name}: entered {routine.CurrentMap ?? "a map"} by mistake (during {Current})");
+				Current = routine.LeaveStrayMap().OnEnter();
 			}
 			if ( Current == null ) {
 				routine.StartLoop();

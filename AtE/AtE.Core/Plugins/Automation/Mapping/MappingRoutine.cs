@@ -57,6 +57,9 @@ namespace AtE {
 			// RareOrEmptySlot rule, equipment only when rare or for an empty slot, is not for here); not life and mana
 			// flasks (taken in the Campaign for the FlaskUpgrader, which does not run here)
 			Looter.Want = item => item == null || !FlaskUpgrader.TryRecovery(item, out _, out _);
+			// (the map boss left alone while HoldBoss: eg, until the map rules' fates are taken, see TakeFates)
+			// (only while it is still frozen, waiting for its cards: unfrozen, it is fought, the fates no longer matter)
+			Ignore = e => HoldBoss && IsMapBoss(e) && Combat.IsFrozenAuguryBoss(e);
 		}
 
 		// (set by BuildRoot, from the base constructor)
@@ -81,11 +84,13 @@ namespace AtE {
 		// (MapLoop, as it builds the first lap) switched on in a map: start the lap at ClearArea
 		internal void StartLoop() {
 			SkipToClear = InMap();
+			HoldBoss = false;
 			// (switched on in the hideout with a map's portals all up: they are a map not run yet, entered at once)
 			// (or, after leaving a map while clearing it, eg dying, any of its portals that are left)
 			int need = ReEnter ? 1 : MapPortalCount;
 			ReEnter = false;
 			Clearing = false;
+			Strayed = false;
 			SkipToPortals = !SkipToClear && InHideout() && MapDevice.MapPortals().Count() >= need;
 			Log($"{Name}: the map loop starts {(SkipToClear ? $"in {GetCurrentArea()?.Name ?? "a map"}: clearing it" : SkipToPortals ? $"in the hideout, with {MapDevice.MapPortals().Count()} map portals up: entering the nearest" : "in the hideout")}");
 		}
@@ -202,7 +207,71 @@ namespace AtE {
 			return sb.ToString();
 		}
 
+		private readonly HashSet<uint> iconsDone = new HashSet<uint>();
+		private uint iconsDoneArea;
+		/// <summary>
+		/// Is a minimap icon's place done with in this area instance: visited or given up on (MarkIconDone), or its entity
+		/// is in range and used: an Augury card whose fate is taken (its icon stays on the map) has StateMachine
+		/// card_chosen = 1 (0 before; seen live, 3.30.0d, Mud Geyser). Not "not targetable": the card is Guarded, so it may
+		/// be untargetable while its guards live, and unused.
+		/// Kept for the area instance, whatever goal or round asks, so a used encounter is not gone back to.
+		/// </summary>
+		public bool IconDone(MinimapIconMarker icon) {
+			uint area = AreaHash();
+			if ( area != iconsDoneArea ) { iconsDoneArea = area; iconsDone.Clear(); }
+			if ( iconsDone.Contains(icon.EntityId) ) return true;
+			var e = icon.Entity;
+			if ( IsValid(e) && e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("card_chosen", out long chosen) && chosen != 0 ) {
+				iconsDone.Add(icon.EntityId);
+				Log($"{Name}: the {icon.Icon} at <{icon.GridPos.X},{icon.GridPos.Y}> is used (card_chosen): not going back to it");
+				return true;
+			}
+			return false;
+		}
+		/// <summary>Count a minimap icon's place as done with, for this area instance (see IconDone).</summary>
+		public void MarkIconDone(MinimapIconMarker icon) { IconDone(icon); iconsDone.Add(icon.EntityId); }
+
+		/// <summary>Leave the map boss alone (not fought) for now: eg, until its rules' fates are taken (see TakeFates).</summary>
+		[NoPersist] public bool HoldBoss;
+		/// <summary>Fates taken in the area instance the player is in (see CombatDriver.FatesTaken).</summary>
+		/// The game's own count, from the augury cards button (AuguryCardsChosen), so it survives a restart of the overlay;
+		/// if that can't be read, the fates the driver saw taken here.
+		public int FatesHere => AuguryCardsChosen() ?? (FatesArea == AreaHash() ? FatesTaken : 0);
+
+		private static readonly System.Text.RegularExpressions.Regex CardsCounter = new System.Text.RegularExpressions.Regex(@"^\s*(\d+)\s*/\s*(\d+)\s*$");
+		/// <summary>Fate cards chosen in this map, from the augury cards button's "N/M" text (its (0, 0) child), or null.</summary>
+		public static int? AuguryCardsChosen() {
+			string text = GetUI()?.AuguryShowCardsButton?.GetChild(0)?.GetChild(0)?.Text;
+			var m = text == null ? null : CardsCounter.Match(text);
+			return m != null && m.Success ? int.Parse(m.Groups[1].Value) : null;
+		}
+		/// <summary>Where the map boss was seen in this area instance (its entity, or a boss minimap icon), or null.</summary>
+		public Offsets.Vector2i? BossSeenAt { get; private set; }
+		private uint bossSeenArea;
+
+		/// <summary>
+		/// Note where the map boss is, if it shows: its entity (IsMapBoss, alive), else a minimap icon of a boss (one whose
+		/// MinimapIcons.dat Id has "Boss", not the Augury bosses'); remembered for this area instance (see BossSeenAt).
+		/// </summary>
+		public void NoteBoss(CombatContext ctx) {
+			uint area = AreaHash();
+			if ( area != bossSeenArea ) { bossSeenArea = area; BossSeenAt = null; }
+			Offsets.Vector2i? at = null;
+			string how = null;
+			var boss = GetEntities()?.FirstOrDefault(e => IsMapBoss(e) && IsAlive(e));
+			if ( boss?.GetComponent<Positioned>() is Positioned pos && IsValid(pos) ) { at = pos.GridPos; how = boss.GetComponent<Render>()?.Name ?? "the map boss"; }
+			else if ( MinimapIcons.All().FirstOrDefault(i => i.Icon != null && i.Icon.Contains("Boss") && !i.Icon.Contains("Augury")) is MinimapIconMarker icon ) {
+				at = new Offsets.Vector2i((int)icon.GridPos.X, (int)icon.GridPos.Y);
+				how = $"its {icon.Icon} icon";
+			}
+			if ( at is Offsets.Vector2i g && (BossSeenAt == null || Combat.Distance(BossSeenAt.Value, g) > 10) ) {
+				if ( BossSeenAt == null ) Log($"{Name}: the map boss is at {g} ({how}): remembered");
+				BossSeenAt = g;
+			}
+		}
+
 		protected override void OnNewArea() {
+			HoldBoss = false;
 			// each area starts its part of the loop over (and a Sequence marked done on leaving the last area is not done here)
 			Root.Forget();
 			UniquesKilled.Clear();
@@ -217,6 +286,12 @@ namespace AtE {
 				HideoutName = area.Name;
 				CurrentMap = null;
 			} else if ( fromPortal && area != null && !area.IsTown ) EnteredMap(area);
+			// (a map entered not by EnterMap, while the loop works outside a map: eg, the click on the Map Device took a
+			// portal just beside it instead, back into the last map; see MapLoop and LeaveStrayMap)
+			else if ( IsActive && !Clearing && area != null && !area.IsTown && InMap() ) {
+				Strayed = true;
+				CurrentMap = area.Name;
+			}
 			// (switched on in a map, or entered it some other way: run it all the same)
 			else if ( CurrentMap == null && InMap() ) CurrentMap = area.Name;
 		}

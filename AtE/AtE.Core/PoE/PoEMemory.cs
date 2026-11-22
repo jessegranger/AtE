@@ -58,6 +58,11 @@ namespace AtE {
 	}
 
 	public static class PoEMemory {
+		/// <summary>When (Time.ElapsedMilliseconds) the current area was entered (OnAreaChange); -1 if none was seen since attaching.</summary>
+		public static long AreaEnteredAt = -1;
+		/// <summary>When the overlay last attached to the game.</summary>
+		public static long AttachedAt = -1;
+
 
 		/// <summary>
 		/// The platform memory backend. All OS-level reads/attach go through this seam.
@@ -473,7 +478,10 @@ namespace AtE {
 				return;
 			}
 
-			OnAreaChange += (_, area) => Log("OnAreaChange: " + area);
+			// (the first area change after attaching is the area found there, not one entered: its time is not known)
+			bool firstArea = true;
+			OnAreaChange += (_, area) => { if ( !firstArea ) AreaEnteredAt = Time.ElapsedMilliseconds; firstArea = false; Log("OnAreaChange: " + area); };
+			AttachedAt = Time.ElapsedMilliseconds; AreaEnteredAt = -1;
 
 			if ( TryLocateGameBuild(out GameBuild) ) {
 				GameVersion = ParseGameVersion(GameBuild);

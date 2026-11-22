@@ -1486,6 +1486,25 @@ namespace AtE {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
 		}
 
+		/// <summary>
+		/// An item's local stats (the ones its mods give the item itself, eg its evasion), as (stat, value) pairs.
+		/// 3.30.0d, seen live on ground items' inner item entities (WorldItem +0x28): 0x50 bytes (the object at +0x50 has
+		/// another vtable, mod+0x34D43B8; LocalStats objects sit among those at uneven spacing). An identified Boots
+		/// (BootsDexInt8) held (739 LocalEvasionAndEnergyShieldPlusPct, 132) and (12997 LocalDisplaySocketedTravelSkills
+		/// DamagePlusPctFinal, 80); an unidentified Jester Mask (HelmetDexInt12) held none: its base defence roll (Evasion
+		/// 286 of 268-308) is not here, nor found anywhere else in the item yet (the range is in Armour's shared values).
+		/// </summary>
+		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_LocalStats {
+			[FieldOffset(0x00)] public readonly IntPtr vtable; // mod+0x36A6618 in 3.30.0d
+			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			// a small object (vtable mod+0x3647C70) whose +0x08 is the item's type record (its path, a std::wstring, is
+			// at +0x90 (length) / +0x98 (text): eg "Metadata/Items/Armours/Helmets/HelmetDexInt12")
+			[FieldOffset(0x10)] public readonly IntPtr ptrTypeHandle;
+			[FieldOffset(0x18)] public readonly IntPtr staticDescriptor; // mod+0x3090EB8, the same in every LocalStats
+			[FieldOffset(0x20)] public readonly ArrayHandle Stats; // of GameStatArrayEntry (8 bytes: stat id, value); then capacity at +0x30
+			// +0x40: a pointer into other objects of the same kind (many share one target): allocator bookkeeping, it seems
+		}
+
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_DiesAfterTime {
 			[FieldOffset(0x00)] public readonly IntPtr vtable;
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
@@ -1865,6 +1884,10 @@ namespace AtE {
 			// Crucible: 8 new bytes here
 			[FieldOffset(0x144)] public MonsterRarity Rarity;
 			[FieldOffset(0x150)] public ArrayHandle Mods;
+			// 3.30 (seen live on an Ornate Strongbox "Casts Ice Nova"): Mods held its hidden/implicit mods (StrongboxHiddenRarity,
+			// ChestSummonAtMapRarity, ChestIncreasedHiddenRarityImplicit1), this one its shown mods (ChestIceNova,
+			// ChestSummonRares, ChestItemQuantity, ChestFreeze); same 0x38-byte ModEntry, the id at ptrAt28*
+			[FieldOffset(0x168)] public ArrayHandle ExplicitMods;
 		}
 		public enum MonsterRarity : int {
 			White,

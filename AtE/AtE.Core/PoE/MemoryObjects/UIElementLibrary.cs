@@ -155,6 +155,11 @@ namespace AtE {
 		public Element HelpOrKillBandit => IsValid(Address) ? getElement(Cache.HelpOrKillBandit) : null;
 		/// <summary>The augury card selection window, opened by clicking a unique monster with the augury_boss_frozen buff.</summary>
 		public Element AuguryCardSelectionWindow => IsValid(Address) ? getElement(Cache.AuguryCardSelectionWindow) : null;
+		/// <summary>
+		/// The augury cards button ("augury_show_cards_button"): its (0, 0) child's Text is the count of fate cards chosen in
+		/// this map, eg "3/3" (seen live, 3.30.0d, Mud Geyser, after taking 3 fates). See MappingRoutine.AuguryCardsChosen.
+		/// </summary>
+		public Element AuguryShowCardsButton => IsValid(Address) ? getElement(Cache.autoAuguryShowCardsButton) : null;
 		// public Element InteractButtonWrapper => IsValid(Address) ? getElement(Cache.InteractButtonWrapper) : null;
 		// public Element SkipAheadButton => IsValid(Address) ? getElement(Cache.SkipAheadButton) : null;
 		// public Element SyndicateHelpButton => IsValid(Address) ? getElement(Cache.SyndicateHelpButton) : null;

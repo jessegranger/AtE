@@ -590,7 +590,7 @@ namespace AtE {
 			? ctx.Hostiles.Count > 0 || ctx.MonstersToClick.Count > 0
 			: radius > ctx.Driver.EngageRadius
 				// (ctx.Hostiles only reaches EngageRadius: look further)
-				? Combat.GetHostiles(ctx.Grid, radius).Any(h => DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, h.GridPos))
+				? Combat.GetHostiles(ctx.Grid, radius).Any(h => ctx.Driver.Wanted(h) && DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, h.GridPos))
 					|| ctx.MonstersToClick.Count > 0
 				: ctx.Hostiles.Any(h => h.Distance <= radius) || ctx.MonstersToClick.Any(h => h.Distance <= radius);
 

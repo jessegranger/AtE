@@ -108,7 +108,7 @@ namespace AtE {
 			ImGui.SameLine();
 			ImGui_HelpMarker("Instead of the cursor, the path goes to where clearing the area should go next: a nearby monster, or the nearest unexplored place.");
 			ImGui.Checkbox("Target Monsters", ref ExploreMonsters);
-			ImGui.Text($"Reveal radius: {Explorer.RevealRadius} cells");
+			ImGui.Text($"Reveal radius: {DefaultExplorer.CurrentRevealRadius} cells");
 			if ( exploreTarget != null ) ImGui.Text($"Next target: {exploreTarget} (found in {exploreTarget.ElapsedMs:F2} ms)");
 			ImGui.Separator();
 

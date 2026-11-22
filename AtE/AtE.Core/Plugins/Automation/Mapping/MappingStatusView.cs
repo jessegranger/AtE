@@ -31,6 +31,12 @@ namespace AtE {
 			public bool MapComplete;
 			public int MapsCompleted, MapsRun;
 			public string NextMap;
+			public double Explored = double.NaN; // (0..1, of the area; NaN if not known)
+			/// <summary>How long in the current area (null: not known); at least, if AreaTimeIsMinimum (entered before the overlay attached).</summary>
+			public System.TimeSpan? InArea;
+			public bool AreaTimeIsMinimum;
+			/// <summary>How long ago AtE.Core.dll was built.</summary>
+			public System.TimeSpan? SinceBuild;
 			public List<string> Steps = new List<string>();
 			public List<string> Skipping = new List<string>();
 		}
@@ -71,6 +77,16 @@ namespace AtE {
 				v.MapComplete = MapComplete;
 				v.UniquesKilled = UniquesKilled.Count;
 			}
+			if ( area != null && v.Area != AreaKind.Hideout && v.Area != AreaKind.Town ) {
+				try { v.Explored = DefaultExplorer.ExploredFraction; } catch { }
+			}
+			long now = Time.ElapsedMilliseconds;
+			if ( PoEMemory.AreaEnteredAt >= 0 ) v.InArea = System.TimeSpan.FromMilliseconds(now - PoEMemory.AreaEnteredAt);
+			else if ( PoEMemory.AttachedAt >= 0 ) { v.InArea = System.TimeSpan.FromMilliseconds(now - PoEMemory.AttachedAt); v.AreaTimeIsMinimum = true; }
+			try {
+				var built = System.IO.File.GetLastWriteTime(typeof(MappingRoutine).Assembly.Location);
+				v.SinceBuild = System.DateTime.Now - built;
+			} catch { }
 			v.MonstersLeft = MonstersLeft;
 			v.MapsCompleted = MapsCompleted;
 			v.MapsRun = MapsRun;

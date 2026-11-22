@@ -282,8 +282,14 @@ namespace AtE {
 			Detail = $"to {Path.Goal}";
 			if ( now - lastClick < ClickIntervalMs ) return Status;
 			int aim = Math.Min(Math.Min(AimAhead, doorCell), Path.Cells.Count - 1);
+			// (not on a locked strongbox: a click there says "This chest is locked", and the walk goes nowhere; unless every
+			// cell ahead is on one, then as before)
+			var noClick = LockedChestSpots(terrain, z);
+			bool Clear(Vector2 at) => noClick.Count == 0 || !noClick.Any(b => Math.Abs(at.X - b.X) < LockedChestHalfWidth && at.Y - b.Y > -LockedChestAbove && at.Y - b.Y < LockedChestBelow);
+			bool anyClear = false;
+			for ( int k = aim; k > 0 && noClick.Count > 0 && !anyClear; k-- ) anyClear = TryGridToScreen(Path.Cells[k], z, out Vector2 sc) && IsSafeToClick(sc) && Clear(sc);
 			for ( ; aim > 0; aim-- ) {
-				if ( TryGridToScreen(Path.Cells[aim], z, out Vector2 screen) && IsSafeToClick(screen) ) {
+				if ( TryGridToScreen(Path.Cells[aim], z, out Vector2 screen) && IsSafeToClick(screen) && (!anyClear || Clear(screen)) ) {
 					if ( MoveKey != VKey.None ) {
 						Run(new MoveMouse(screen + WindowOffset(), new KeyDown(MoveKey, new KeyUp(MoveKey))));
 					} else if ( HoldMouse ) {
@@ -492,6 +498,19 @@ namespace AtE {
 				if ( IsSafeToClick(at) ) return true;
 			}
 			return TryGridToScreen(target, z, out at) && IsSafeToClick(at);
+		}
+
+		/// <summary>The box around a locked strongbox (see AreaObstacles.IsLockedStrongbox) not to click in, in pixels: each side, above (its lid), below its foot.</summary>
+		public static float LockedChestHalfWidth = 70, LockedChestAbove = 120, LockedChestBelow = 45;
+
+		// the screen positions of the locked strongboxes (see AreaObstacles.IsLockedStrongbox) near enough to be on screen
+		private static System.Collections.Generic.List<Vector2> LockedChestSpots(Terrain terrain, float z) {
+			var spots = new System.Collections.Generic.List<Vector2>();
+			foreach ( var o in terrain.Obstacles ) {
+				if ( !o.Path.StartsWith("Metadata/Chests/StrongBoxes/", StringComparison.Ordinal) || !o.IsLocked() ) continue;
+				if ( TryGridToScreen(o.GridPos, z, out Vector2 at) ) spots.Add(at);
+			}
+			return spots;
 		}
 
 		/// <summary>

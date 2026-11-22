@@ -280,7 +280,7 @@ namespace AtE {
 		/// The default: retreat if low on life, else fight, else explore, else stop.
 		/// </summary>
 		protected virtual void Decide(CombatContext ctx) {
-			if ( TryAugury() || TryRetreat(ctx) || TryFight(ctx) || TryInteract(ctx) ) return;
+			if ( TryAugury() || TryEscapeDanger(ctx) || TryRetreat(ctx) || TryFight(ctx) || TryInteract(ctx) ) return;
 			if ( !TryExplore(ctx) ) Stop("the area is explored and clear");
 		}
 
@@ -293,6 +293,62 @@ namespace AtE {
 			if ( percent >= RetreatBelowLifePercent ) return false;
 			if ( !Combat.NearestSafeSpot(ctx.Terrain, ctx.Grid, ctx.Hostiles.Select(h => h.GridPos), RetreatDistance, out var safe) ) return false;
 			WalkTo(safe, $"retreating to {safe} ({percent:F0}% life)");
+			return true;
+		}
+
+		/// <summary>Step out of danger (see TryEscapeDanger) before anything else, with monsters near.</summary>
+		public bool EscapeDanger = true;
+		/// <summary>Keep walking to the cell chosen before while it is safe and scores within this much of the best now (see AvoidSpam.GoalHysteresis).</summary>
+		public float EscapeHysteresis = 8;
+		/// <summary>Forget the cell chosen before after this long.</summary>
+		public long EscapeGoalKeepMs = 2000;
+		/// <summary>Log an escape at most this often.</summary>
+		public long EscapeLogMs = 2000;
+		private Offsets.Vector2i escapeGoal;
+		private long escapeGoalAt = -1000000, lastEscapeLog = -1000000;
+		private int escapeMap = -1;
+		private Offsets.Vector2i escapeFrom;
+		private bool escapeSafe;
+
+		/// <summary>
+		/// With monsters near and the player standing in danger (the DangerMap at SafeLevel or more, from any hazard, not
+		/// only the target's), walk to the best cell out of it (DangerMap.TryFindSafest; one in range and sight of the
+		/// monster being fought, if there is one that good), before fighting, looting or anything else. True if walking out;
+		/// false if safe, or there is nowhere better (then the fight goes on where it is).
+		/// </summary>
+		public bool TryEscapeDanger(CombatContext ctx) {
+			if ( !EscapeDanger || ctx.Hostiles.Count == 0 ) return false;
+			var map = DangerMap.Get();
+			if ( map == null ) return false;
+			int here = map.IsBlocked(ctx.Grid) ? map.HazardDangerAt(ctx.Grid) : map.DangerAt(ctx.Grid); // (the grid may block the player's own cell, near a wall)
+			if ( here < DangerMap.SafeLevel ) return false;
+			// the monster being fought, where it is now (else the nearest): a cell in range and sight of it is better
+			uint targetId = Target?.Entity?.Id ?? 0;
+			var fought = (targetId != 0 ? ctx.Hostiles.FirstOrDefault(h => h.Entity?.Id == targetId) : null)
+				?? ctx.Hostiles.OrderBy(h => h.Distance).First();
+			float range = AttackRange * .8f;
+			bool los = NeedsLineOfSight;
+			bool Good(Offsets.Vector2i c) => Combat.Distance(c, fought.GridPos) <= range && (!los || ctx.Terrain.HasLineOfSight(c, fought.GridPos));
+			long now = Time.ElapsedMilliseconds;
+			Offsets.Vector2i cell;
+			bool safe;
+			if ( map.Number == escapeMap && ctx.Grid.Id == escapeFrom.Id ) {
+				cell = escapeGoal; safe = escapeSafe; // (the same map from the same cell: the same answer)
+			} else {
+				safe = map.TryFindSafest(ctx.Grid, Good, out cell, out float score, 150);
+				if ( now - escapeGoalAt < EscapeGoalKeepMs && escapeGoal.Id != cell.Id && map.IsSafe(escapeGoal) && safe
+					&& map.Score(escapeGoal, Good(escapeGoal)) <= score + EscapeHysteresis ) cell = escapeGoal;
+				escapeMap = map.Number; escapeFrom = ctx.Grid; escapeSafe = safe;
+			}
+			if ( cell.Id == ctx.Grid.Id || !(safe || map.DangerAt(cell) < here) ) return false;
+			escapeGoal = cell;
+			escapeGoalAt = now;
+			if ( now - lastEscapeLog > EscapeLogMs ) {
+				lastEscapeLog = now;
+				var sources = map.Hazards.Where(h => h.EdgeDistance(ctx.Grid) <= DangerMap.Margin).Select(h => h.Source).Distinct().Take(3);
+				Log($"{Name}: in danger {here} at {ctx.Grid} ({string.Join(", ", sources)}): {(safe ? "stepping out" : "nowhere safe near: to the least bad cell")}, to {cell} (danger {map.DangerAt(cell)})");
+			}
+			WalkTo(cell, safe ? $"stepping out of danger ({here}), to {cell}" : $"in danger ({here}), nowhere safe near: to the least bad cell, {cell}");
 			return true;
 		}
 
@@ -311,12 +367,23 @@ namespace AtE {
 		/// within radius cells that can be walked to. Null if none.
 		/// </summary>
 		public Hostile PickTarget(CombatContext ctx, float radius = 0) => radius <= 0 ? ChooseTarget(ctx.Hostiles)
-			: ChooseTarget(Combat.GetHostiles(ctx.Grid, radius).Where(h => DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, h.GridPos)).ToList());
+			: ChooseTarget(Combat.GetHostiles(ctx.Grid, radius).Where(h => Wanted(h) && DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, h.GridPos)).ToList());
+
+		/// <summary>Monsters not to fight for now (eg, a map's boss until its rules allow, see MapRules.FatesFirst); null: none.</summary>
+		[NoPersist] public Func<Entity, bool> Ignore;
+		/// <summary>Is the monster one to fight (not one Ignore leaves alone)?</summary>
+		public bool Wanted(Hostile h) => Ignore == null || h?.Entity == null || !Ignore(h.Entity);
+
+		/// <summary>Fates chosen (a "Select a Fate" window closed after a card was chosen) in the area instance FatesArea.</summary>
+		public int FatesTaken { get; private set; }
+		/// <summary>The area instance (WorldData.AreaHash) FatesTaken counts in.</summary>
+		public uint FatesArea { get; private set; }
+		private bool auguryWasFate; // (the window open now is a fate's, with a card chosen)
 
 		/// <summary>Fight the monsters within radius cells (that can be walked to), instead of EngageRadius; true if fighting.</summary>
 		public bool TryFight(CombatContext ctx, float radius, string skill = null) {
 			if ( ctx.MonstersToClick.FirstOrDefault(h => h.Distance <= radius) is Hostile toClick ) return ClickMonster(ctx, toClick);
-			var near = Combat.GetHostiles(ctx.Grid, radius).Where(h => DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, h.GridPos)).ToList();
+			var near = Combat.GetHostiles(ctx.Grid, radius).Where(h => Wanted(h) && DefaultNavigator.IsReachable(ctx.Terrain, ctx.Grid, h.GridPos)).ToList();
 			Target = ChooseTarget(near);
 			return Target != null && Engage(ctx, Target, skill);
 		}
@@ -349,6 +416,8 @@ namespace AtE {
 
 		/// <summary>How often to click in the augury card selection window.</summary>
 		public long AuguryClickMs = 300;
+		// (the gap between clicks in the augury window, and before the first one: AuguryClickMs plus one InputLatency)
+		private long AuguryClickGap => AuguryClickMs + Inputs.Latency;
 		/// <summary>How long to wait for the window to close after clicking Confirm, before clicking it again.</summary>
 		public long AuguryConfirmRetryMs = 1500;
 		private readonly HashSet<long> auguryCardsClicked = new HashSet<long>();
@@ -402,7 +471,7 @@ namespace AtE {
 		/// <summary>
 		/// While the augury card selection window is open, either:
 		///  - opened by clicking a frozen augury boss (see ClickMonster): click each visible boss card (AuguryParts) once,
-		///    to apply them to the boss, then click Confirm;
+		///    best first (AuguryCardRank), to apply them to the boss, then click Confirm;
 		///  - opened by "Select a Fate" on an AuguryCardObject (see Interactables, FateClicked; or, if not opened that way, when
 		///    no boss cards show but fate cards do): Ctrl + click one of the visible fate cards (see ChooseFateCard), which
 		///    needs no Confirm.
@@ -414,6 +483,13 @@ namespace AtE {
 			var window = GetUI()?.AuguryCardSelectionWindow;
 			if ( !IsValid(window) || !window.IsVisible ) {
 				if ( auguryWindowSeen ) Log($"{Name}: the augury card selection window closed: going on");
+				if ( auguryWindowSeen && auguryWasFate ) {
+					uint area = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
+					if ( area != FatesArea ) { FatesArea = area; FatesTaken = 0; }
+					FatesTaken += 1;
+					Log($"{Name}: a fate taken ({FatesTaken} in this area)");
+				}
+				auguryWasFate = false;
 				auguryWindowSeen = false;
 				auguryCardsClicked.Clear();
 				auguryConfirms = 0;
@@ -427,24 +503,28 @@ namespace AtE {
 			var bossCards = VisibleChildren(parts.bossCards);
 			if ( !auguryWindowSeen ) {
 				auguryWindowSeen = true;
+				// (the first card click waits AuguryClickMs + InputLatency after the window shows, as between clicks: a click
+				// right as it opened was often ignored)
+				lastAuguryClick = now;
 				Log($"{Name}: the augury card selection window ({(parts.invoking ? "a boss's: Invoke Fates" : "Select a Fate")}) is open{(selectingFate || Time.ElapsedMilliseconds - lastFateClick < FateOpenMs ? "" : " (not opened by us: eg, open when switched on)")}: {VisibleChildren(parts.fateCards).Count} fate cards to choose from, {bossCards.Count} held");
 			}
 			// (fate cards to choose from showing: a fate's window, whatever cards are held; 3.30.0d+, seen live: a second Augury
 			// Card's window showed the first one's card held, and taking that for a boss card clicked it and then Confirm forever)
 			// (a boss's window, titled "Invoke Fates", shows empty slots where the fate cards would be: never those)
 			if ( !parts.invoking && (selectingFate || VisibleChildren(parts.fateCards).Count > 0) ) return TrySelectFateCard(window, now);
-			var cards = bossCards;
+			// (applied best first, by AuguryCardRank: "Divine", then "Currency", then "Rarity", then the rest as they show)
+			var cards = bossCards.OrderBy(AuguryCardRank).ToList();
 			var card = cards.FirstOrDefault(c => !auguryCardsClicked.Contains(c.Address.ToInt64()));
 			if ( card != null ) {
 				Status = $"augury: applying card {auguryCardsClicked.Count + 1} of {cards.Count}";
-				if ( InputBusy || now - lastAuguryClick < AuguryClickMs ) return true;
+				if ( InputBusy || now - lastAuguryClick < AuguryClickGap ) return true;
 				var rect = card.GetClientRect();
 				if ( rect.Width <= 0 || rect.Height <= 0 ) { auguryCardsClicked.Add(card.Address.ToInt64()); return true; } // (nothing to click)
 				DefaultFollower.ReleaseMouse();
-				if ( Send(Inputs.Click(rect)) ) {
+				if ( Send(Inputs.Click(rect, new Delay(Inputs.Latency))) ) {
 					auguryCardsClicked.Add(card.Address.ToInt64());
 					lastAuguryClick = now;
-					Log($"{Name}: augury card {auguryCardsClicked.Count} of {cards.Count} clicked");
+					Log($"{Name}: augury card {auguryCardsClicked.Count} of {cards.Count} clicked (rank {AuguryCardRank(card)}: {string.Join("; ", AuguryCardTexts(card).Take(4))})");
 				}
 				return true;
 			}
@@ -452,11 +532,11 @@ namespace AtE {
 			Status = $"augury: {auguryCardsClicked.Count} cards applied, confirming";
 			if ( !IsValid(confirm) || !confirm.IsVisible ) { Status = "augury: no Confirm button (a child of GetChild(2) labelled \"confirm\")"; return true; }
 			if ( TooManyConfirms() ) return true;
-			if ( InputBusy || now - lastAuguryClick < AuguryClickMs || now - lastAuguryConfirm < AuguryConfirmRetryMs ) return true;
+			if ( InputBusy || now - lastAuguryClick < AuguryClickGap || now - lastAuguryConfirm < AuguryConfirmRetryMs ) return true;
 			var at = confirm.GetClientRect();
 			if ( at.Width <= 0 || at.Height <= 0 ) return true;
 			DefaultFollower.ReleaseMouse();
-			if ( Send(Inputs.Click(at)) ) {
+			if ( Send(Inputs.Click(at, new Delay(Inputs.Latency))) ) {
 				lastAuguryClick = lastAuguryConfirm = now;
 				Log($"{Name}: augury Confirm clicked ({auguryCardsClicked.Count} cards)");
 					auguryConfirms += 1;
@@ -475,10 +555,37 @@ namespace AtE {
 				.Select(slot => slot.GetChild(3)?.Text?.Trim())
 				.Where(t => !string.IsNullOrEmpty(t));
 
-		/// <summary>The fate card to choose: the first whose rewards mention "Currency", else the first.</summary>
-		public static Element ChooseFateCard(List<Element> cards) =>
-			cards.FirstOrDefault(c => FateRewards(c).Any(t => t.IndexOf("Currency", StringComparison.OrdinalIgnoreCase) >= 0))
-			?? cards.FirstOrDefault();
+		/// <summary>The words looked for in an augury card's texts, best first (see AuguryCardRank).</summary>
+		public static readonly string[] AuguryCardPreference = { "Divine", "Stacked Deck", "Currency", "Rarity" };
+
+		/// <summary>
+		/// Every text under an augury card (a fate card or a held one), hidden ones too (a reward's text is a tooltip,
+		/// hidden until hovered; see FateRewards).
+		/// </summary>
+		public static IEnumerable<string> AuguryCardTexts(Element card, int maxDepth = 10) {
+			if ( !IsValid(card) ) yield break;
+			var stack = new Stack<(Element e, int depth)>();
+			stack.Push((card, 0));
+			int seen = 0;
+			while ( stack.Count > 0 && seen++ < 2000 ) {
+				var (e, depth) = stack.Pop();
+				var text = e.Text?.Trim();
+				if ( !string.IsNullOrEmpty(text) ) yield return text;
+				if ( depth >= maxDepth ) continue;
+				foreach ( var c in e.Children ) if ( IsValid(c) ) stack.Push((c, depth + 1));
+			}
+		}
+
+		/// <summary>An augury card's rank: the index in AuguryCardPreference of the first word its texts mention, or past them all.</summary>
+		public static int AuguryCardRank(Element card) {
+			var texts = AuguryCardTexts(card).ToList();
+			for ( int i = 0; i < AuguryCardPreference.Length; i++ )
+				if ( texts.Any(t => t.IndexOf(AuguryCardPreference[i], StringComparison.OrdinalIgnoreCase) >= 0) ) return i;
+			return AuguryCardPreference.Length;
+		}
+
+		/// <summary>The fate card to choose: the best by AuguryCardRank ("Divine", then "Currency", then "Rarity"), else the first.</summary>
+		public static Element ChooseFateCard(List<Element> cards) => cards.OrderBy(AuguryCardRank).FirstOrDefault();
 
 		// "Select a Fate": Ctrl + click a fate card (see AuguryParts, ChooseFateCard), which chooses it with no Confirm; if
 		// the window is still open FateCardTimeoutMs after, Ctrl + click the next card not tried yet; with none left, click
@@ -491,13 +598,14 @@ namespace AtE {
 				var card = ChooseFateCard(untried);
 				Status = "augury: selecting a fate";
 				if ( card == null ) { Status = "augury: no fate cards (after the \"0/3\" counter in GetChild(2))"; return true; }
-				if ( InputBusy || now - lastAuguryClick < AuguryClickMs ) return true;
+				if ( InputBusy || now - lastAuguryClick < AuguryClickGap ) return true;
 				var rect = card.GetClientRect();
 				if ( rect.Width <= 0 || rect.Height <= 0 ) { Status = "augury: the first fate card has no size"; return true; }
 				DefaultFollower.ReleaseMouse();
-				if ( Send(Inputs.CtrlClick(rect)) ) {
+				if ( Send(Inputs.CtrlClick(rect, new Delay(Inputs.Latency))) ) {
 					if ( timedOut ) Log($"{Name}: augury: the window is still open {FateCardTimeoutMs} ms after choosing a fate: that one is not valid, trying the next");
 					auguryCardsClicked.Add(card.Address.ToInt64());
+					auguryWasFate = true;
 					lastAuguryClick = fateCardChosenAt = now;
 					lastAuguryConfirm = 0;
 					Log($"{Name}: augury fate chosen (Ctrl + click): {card.GetChild(0, 0, 4)?.Text?.Trim()} ({string.Join("; ", FateRewards(card))})");
@@ -512,11 +620,11 @@ namespace AtE {
 			Status = "augury: fate selected, confirming";
 			if ( !IsValid(confirm) || !confirm.IsVisible ) { Status = "augury: no Confirm button (a child of GetChild(2) labelled \"confirm\")"; return true; }
 			if ( TooManyConfirms() ) return true;
-			if ( InputBusy || now - lastAuguryClick < AuguryClickMs || now - lastAuguryConfirm < AuguryConfirmRetryMs ) return true;
+			if ( InputBusy || now - lastAuguryClick < AuguryClickGap || now - lastAuguryConfirm < AuguryConfirmRetryMs ) return true;
 			var at = confirm.GetClientRect();
 			if ( at.Width <= 0 || at.Height <= 0 ) return true;
 			DefaultFollower.ReleaseMouse();
-			if ( Send(Inputs.Click(at)) ) {
+			if ( Send(Inputs.Click(at, new Delay(Inputs.Latency))) ) {
 				lastAuguryClick = lastAuguryConfirm = now;
 				Log($"{Name}: augury fate Confirm clicked");
 					auguryConfirms += 1;
@@ -691,7 +799,17 @@ namespace AtE {
 		/// </summary>
 		private SkillSlot heldSlot;
 		private Vector2 heldAim;
-		private long lastHoldCall;
+		private long lastHoldCall, heldSince;
+		// this hold: has the IsChannelling stat been seen at 1 yet; and since when it has read 0 after that (-1: not 0)
+		private bool channelSeen;
+		private long channelZeroSince = -1;
+		/// <summary>
+		/// A channelling skill held whose IsChannelling stat was seen at 1, and then reads 0 for this long, was interrupted
+		/// (eg, by a stun: the key is still down but nothing is cast): let go of it, and the next TryHoldChannel presses it
+		/// again. A hold whose stat was never seen at 1 is left alone (seen live: the re-press then never raised it either,
+		/// and let go every 0.7 s, so Scorching Ray never ramped up). (The Stats are read at most a second old.)
+		/// </summary>
+		public long ChannelCheckMs = 1500;
 		/// <summary>A held channelling skill not asked for (by UseSkillPaced) for this long is let go.</summary>
 		public long ChannelIdleMs = 300;
 		/// <summary>Move the cursor after the target (while channelling) once it is this many pixels from where it aims.</summary>
@@ -731,6 +849,9 @@ namespace AtE {
 			heldSlot = slot;
 			heldAim = screenPos;
 			Log($"{Name}: channelling {skill}: holding {slot.KeyCode}");
+			heldSince = Time.ElapsedMilliseconds;
+			channelSeen = false;
+			channelZeroSince = -1;
 			held = true;
 			return true;
 		}
@@ -752,10 +873,32 @@ namespace AtE {
 			if ( !GameFocused ) ReleaseChannel("the game lost the focus");
 			else if ( DefaultFollower.IsActiveFor(this) ) ReleaseChannel("walking");
 			else if ( Time.ElapsedMilliseconds - lastHoldCall > ChannelIdleMs ) ReleaseChannel("not fighting");
+			else if ( ChannelInterrupted() )
+				ReleaseChannel("interrupted: the IsChannelling stat is 0; pressing it again");
+		}
+
+		// the held skill's channel was seen going, and has stopped for ChannelCheckMs since (see ChannelCheckMs)
+		private bool ChannelInterrupted() {
+			long now = Time.ElapsedMilliseconds;
+			bool? on = PlayerChannelling();
+			if ( on == true ) { channelSeen = true; channelZeroSince = -1; return false; }
+			if ( on != false || !channelSeen ) return false;
+			if ( channelZeroSince < 0 ) channelZeroSince = now;
+			return now - channelZeroSince > ChannelCheckMs;
+		}
+
+		// the player's IsChannelling stat: true or false, or null if the stats can't be read
+		private static bool? PlayerChannelling() {
+			var stats = GetPlayer()?.GetStats();
+			if ( stats == null || stats.Count == 0 ) return null;
+			return stats.TryGetValue(Offsets.GameStat.IsChannelling, out int v) && v != 0;
 		}
 
 		/// <summary>True once TryExplore has found nothing left to explore in this area.</summary>
 		public bool ExploreDone => exploreTarget != null && exploreTarget.Kind == ExploreTargetKind.None;
+
+		/// <summary>Forget the place TryExplore was walking to (eg, after DefaultExplorer.Rescan): the next call picks again.</summary>
+		public void ForgetExploreTarget() { exploreTarget = null; exploreArrivedSince = -1; }
 
 		/// <summary>The place TryExplore is walking to (null before the first call).</summary>
 		public ExploreTarget ExploreTarget => exploreTarget;
@@ -772,6 +915,13 @@ namespace AtE {
 		private Offsets.Vector2i exploreProgressTarget;
 		private float exploreBestDistance;
 		private long exploreProgressTime, lastExploreCall;
+		/// <summary>
+		/// Arrived at the place exploring (within ExploreStuckCells), and it is still chosen this long after: give up on it
+		/// at once, not after ExploreStuckMs (seen live: at the start of a map the first place chosen was 2 cells from the
+		/// player, chosen again and again, and the player stood there for the whole 10 s).
+		/// </summary>
+		public long ExploreArrivedMs = 1000;
+		private long exploreArrivedSince = -1;
 
 		/// <summary>Walk to the next unexplored place; false if there is none left.</summary>
 		public bool TryExplore(CombatContext ctx) {
@@ -786,7 +936,16 @@ namespace AtE {
 					exploreBestDistance = d;
 					exploreProgressTime = now;
 				}
-				if ( now - exploreProgressTime > ExploreStuckMs ) {
+				bool arrived = d <= ExploreStuckCells && DefaultFollower.Status == FollowStatus.Arrived;
+				if ( !arrived ) exploreArrivedSince = -1;
+				else if ( exploreArrivedSince < 0 || now - lastExploreCall > 1000 ) exploreArrivedSince = now;
+				if ( arrived && now - exploreArrivedSince > ExploreArrivedMs ) {
+					Log($"{Name}: exploring: at {exploreTarget.GridPos} ({d:F0} cells away) for {ExploreArrivedMs} ms and it is still chosen: counting it as explored");
+					DefaultExplorer.GiveUp(ctx.Terrain, exploreTarget.GridPos, ExploreGiveUpRadius);
+					exploreTarget = null;
+					exploreProgressTime = now;
+					exploreArrivedSince = -1;
+				} else if ( now - exploreProgressTime > ExploreStuckMs ) {
 					Log($"{Name}: exploring: not {ExploreStuckCells:F0} cells nearer {exploreTarget.GridPos} in {ExploreStuckMs} ms (at {ctx.Grid}, {d:F0} cells away; {DefaultFollower.Status}: {DefaultFollower.Detail}): giving up on it, exploring somewhere else");
 					DefaultExplorer.GiveUp(ctx.Terrain, exploreTarget.GridPos, ExploreGiveUpRadius);
 					exploreTarget = null;
@@ -904,7 +1063,7 @@ namespace AtE {
 		}
 		/// <summary>The hostile monsters within the driver's EngageRadius that can be walked to, nearest first.</summary>
 		public List<Hostile> Hostiles => hostiles ??= Combat.GetHostiles(Grid, Driver.EngageRadius)
-			.Where(h => DefaultNavigator.IsReachable(Terrain, Grid, h.GridPos)).ToList();
+			.Where(h => Driver.Wanted(h) && DefaultNavigator.IsReachable(Terrain, Grid, h.GridPos)).ToList();
 		private List<Hostile> monstersToClick;
 		/// <summary>
 		/// The monsters within the driver's EngageRadius to click before fighting (inside a monolith, or a frozen augury

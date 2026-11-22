@@ -10,6 +10,9 @@ namespace AtE {
 	/// close by (or MaxClicks + 1 from anywhere) is taken not to fit in the inventory, and left (blacklisted) until the
 	/// next area. Quest items (their item's path has /QuestItems/) are picked up first; one that does not fit is reported
 	/// (NoRoomForQuestItem) for the routine to stop for help.
+	/// An item clicked with no room for it in the backpack goes on the cursor for a frame, and the game drops it again by
+	/// itself, as a new entity (its label goes, as if picked up; seen live, 3.30.0d: picked up again and again, round and
+	/// round): its size counts as one that did not go in (see MightFit, CheckCursor).
 	/// </summary>
 	public class Looter {
 		/// <summary>Click the label (the game walks the rest of the way) when within this many cells of the item; walk nearer first when further.</summary>
@@ -82,9 +85,32 @@ namespace AtE {
 		private uint pickingId; // the last item clicked, until its label is gone
 		private string pickingPath;
 
+		/// <summary>After an item's label is gone, how long to look for it on the cursor (no room in the backpack for it).</summary>
+		public long CursorCheckMs = 1500;
+		private string pickedPath; // the item whose label went last, while it may still show up on the cursor
+		private string pickingText, goneText; // the label text of the item clicked last; of the one whose label went last
+		private Offsets.Vector2i pickingGrid, goneGrid;
+		private uint goneId;
+		private long goneAt = -100000;
+		/// <summary>A label with the same text as one just gone, this near where it was and this soon, is that item dropped again (no room for it).</summary>
+		public float BackAgainCells = 4;
+		public long BackAgainMs = 3000;
+		private long pickedAt;
+
 		private readonly Dictionary<uint, int> clicks = new Dictionary<uint, int>();
 		private readonly Dictionary<uint, int> allClicks = new Dictionary<uint, int>();
 		private readonly HashSet<uint> blacklist = new HashSet<uint>();
+		// how long each item has been the one worked on (walking to it, clicking it), in this area instance
+		private readonly Dictionary<uint, long> workedMs = new Dictionary<uint, long>();
+		private long lastWorkAt;
+		private uint lastWorked;
+
+		/// <summary>
+		/// Leave an item that has been the one worked on for this long in all (walking to it and clicking it, counted across
+		/// turns: seen live with a full backpack, it went round the labels of items A, B, C, A... for hours, never reaching
+		/// MaxClicks on any one of them).
+		/// </summary>
+		public long MaxWorkMs = 8000;
 		private uint current; // the item being picked up, so it doesn't switch between two at the same distance
 		private long lastClick, lastClickWait;
 		private uint lastClicked;
@@ -94,14 +120,20 @@ namespace AtE {
 			clicks.Clear();
 			allClicks.Clear();
 			blacklist.Clear();
+			workedMs.Clear();
+			noRoom.Clear();
+			failedSizes.Clear();
+			lastWorked = 0;
 			lastClicked = 0;
 			current = 0;
 			pickingId = 0;
+			pickedPath = null;
 		}
 
 		/// <summary>Where the item to pick up next is (the one being picked up, else the nearest); false if there is none.</summary>
 		public bool TryGetTarget(CombatContext ctx, out Offsets.Vector2i grid) {
 			CheckPickedUp(); // (asked first each frame, also after the last item is gone)
+			CheckCursor();
 			var found = Target(ctx);
 			grid = found.grid;
 			return found.item != null;
@@ -120,10 +152,24 @@ namespace AtE {
 		/// <summary>Work on picking up the nearest item; false if there is none to pick up.</summary>
 		public bool TryLoot(CombatContext ctx) {
 			CheckPickedUp();
+			CheckCursor();
 			var (label, item, grid, d) = Target(ctx);
 			if ( item == null ) { current = 0; return false; }
 			current = item.Id;
 			string name = Ground.LabelText(label.Label) ?? "an item";
+
+			// (time spent on it, however it goes: given up on after MaxWorkMs in all)
+			long now = Time.ElapsedMilliseconds;
+			if ( lastWorked == item.Id && now - lastWorkAt < 500 ) workedMs[item.Id] = workedMs.GetValueOrDefault(item.Id) + (now - lastWorkAt);
+			lastWorked = item.Id;
+			lastWorkAt = now;
+			if ( workedMs.GetValueOrDefault(item.Id) > MaxWorkMs ) {
+				Log($"Looter: {name} was not picked up after {MaxWorkMs / 1000} s on it ({allClicks.GetValueOrDefault(item.Id)} clicks, {d:F0} cells away), leaving it");
+				if ( IsQuestItem(item) ) NoRoomForQuestItem = name;
+				blacklist.Add(item.Id);
+				current = 0;
+				return true;
+			}
 
 			// (a click on a label walks there and picks it up, so it is clicked from a distance, and the next item is
 			// clicked as soon as the last one is gone; only the same item waits for the walk before it is clicked again)
@@ -143,6 +189,8 @@ namespace AtE {
 			if ( n >= MaxClicks || all >= MaxClicks + 1 ) { // (+1: a click from further away, that never got it close, eg, it can't be walked to)
 				// clicked from close by, and still on the ground: no room for it
 				Log($"Looter: {name} was not picked up after {all} clicks ({n} from close by), leaving it (no room in the inventory?)");
+				// (clicked from close by and still there: no room for its size; anything as big is left from now on, see MightFit)
+				if ( n >= MaxClicks ) NoteTooBig(item.GetComponent<WorldItem>()?.Item);
 				if ( IsQuestItem(item) ) NoRoomForQuestItem = name;
 				blacklist.Add(item.Id);
 				current = 0;
@@ -153,9 +201,12 @@ namespace AtE {
 				lastClicked = item.Id;
 				pickingId = item.Id;
 				pickingPath = item.GetComponent<WorldItem>()?.Item?.Path;
+				pickingText = name;
+				pickingGrid = grid;
 				lastClickWait = ClickPace + (long)(ClickPacePerCell * d);
 				if ( d <= Reach ) clicks[item.Id] = n + 1;
 				allClicks[item.Id] = all + 1;
+				if ( all > 0 ) Log($"Looter: clicking {name} again (click {all + 1}, {d:F0} cells away)");
 			}
 			return true;
 		}
@@ -165,8 +216,73 @@ namespace AtE {
 			if ( pickingId == 0 ) return;
 			var labels = GetUI()?.LabelsOnGround?.GetAllLabels();
 			if ( labels == null || labels.Any(l => l.Item?.Id == pickingId) ) return;
+			uint pickingIdWas = pickingId;
 			pickingId = 0;
-			if ( pickingPath != null ) PickedUp?.Invoke(pickingPath);
+			pickedPath = pickingPath;
+			pickedAt = Time.ElapsedMilliseconds;
+			goneText = pickingText; goneGrid = pickingGrid; goneAt = pickedAt; goneId = pickingIdWas;
+			// (on the cursor: no room for it, see CheckCursor, looked at now too, as it is there only a frame; not picked up)
+			bool onCursor = pickingPath != null && CursorItem()?.Path == pickingPath;
+			CheckCursor();
+			if ( pickingPath != null && !onCursor ) PickedUp?.Invoke(pickingPath);
+		}
+
+		// the item held on the cursor (server side), or null
+		private static Entity CursorItem() {
+			var igs = PoEMemory.GameRoot?.InGameState;
+			if ( igs == null || !igs.HasCursorItem ) return null;
+			var a = igs.CursorItem;
+			return IsValid(a) ? new Entity() { Address = a } : null;
+		}
+
+		// an item clicked on is on the cursor (its label gone CursorCheckMs ago at most): there was no room for it in the
+		// backpack (the game drops it again by itself, a frame later, as a new entity): its size is noted (NoteTooBig)
+		private void CheckCursor() {
+			if ( pickedPath == null ) return;
+			if ( Time.ElapsedMilliseconds - pickedAt > CursorCheckMs ) { pickedPath = null; return; }
+			var held = CursorItem();
+			if ( held == null || held.Path != pickedPath ) return;
+			pickedPath = null;
+			goneText = null; // (seen here: not again when it is back on the ground)
+			Log($"Looter: {Equipment.ItemName(held) ?? held.Path.Split('/').Last()} went on the cursor, not in the backpack (no room for it)");
+			NoteTooBig(held);
+		}
+
+		// an item that did not go in (left on the ground after clicks from close by, or put on the cursor): anything at
+		// least as wide and as tall is left from now on, see MightFit (stackables and gold aside)
+		private void NoteTooBig(Entity inner) {
+			if ( SizeFree(inner) || !TrySize(inner, out int fw, out int fh) || failedSizes.Any(f => fw >= f.w && fh >= f.h) ) return;
+			failedSizes.RemoveAll(f => f.w >= fw && f.h >= fh);
+			failedSizes.Add((fw, fh));
+			Log($"Looter: a {fw}x{fh} item did not go in: leaving items at least {fw} wide and {fh} tall (too big: {string.Join(", ", failedSizes.Select(f => $"{f.w}x{f.h}"))})");
+		}
+
+		// the items left for want of room (logged once each)
+		private readonly HashSet<uint> noRoom = new HashSet<uint>();
+		// the sizes (w, h) of items that did not go in (clicked from close by, still on the ground), in this area instance
+		private readonly List<(int w, int h)> failedSizes = new List<(int, int)>();
+
+		// an item's size in cells (its Base), or false if it can't be read
+		private static bool TrySize(Entity item, out int w, out int h) {
+			w = h = 0;
+			var b = item?.GetComponent<Base>();
+			if ( !IsValid(b) ) return false;
+			w = b.CellSizeX; h = b.CellSizeY;
+			return w > 0 && h > 0 && w <= 5 && h <= 5;
+		}
+
+		// stackable (currency and the like: it may go on a stack already held) or gold (not in the backpack): no size rule
+		private static bool SizeFree(Entity item) => item?.Path == null || item.Path.Contains("/Gold") || IsValid(item.GetComponent<Stack>());
+
+		/// <summary>
+		/// Might item (inside a WorldItem) still go in the backpack? The backpack itself is not read (it is only known while
+		/// open); instead, once an item of w x h did not go in, every item at least as wide and as tall is left: eg, a 2x3 bow
+		/// failed, so 2x2 and smaller (and 1x4) are still tried; then a 2x2 fails, and 1x3 wands still are; then a 1x3, and
+		/// 1x1 rings and the like still are. Stackables and gold are always tried. Forgotten on a new area instance.
+		/// </summary>
+		public bool MightFit(Entity item) {
+			if ( failedSizes.Count == 0 || SizeFree(item) || !TrySize(item, out int w, out int h) ) return true;
+			return !failedSizes.Any(f => w >= f.w && h >= f.h);
 		}
 
 		// the items on the ground with a label showing, not blacklisted, within MaxDistance
@@ -178,7 +294,20 @@ namespace AtE {
 				if ( item == null || !(item.Path?.Contains("/WorldItem") ?? false) || blacklist.Contains(item.Id) ) continue;
 				var pos = item.GetComponent<Positioned>();
 				if ( !IsValid(pos) || (Leave?.Invoke(Ground.LabelText(label.Label) ?? "") ?? false) ) continue;
-				if ( Want != null && !Want(item.GetComponent<WorldItem>()?.Item) ) continue;
+				var inner = item.GetComponent<WorldItem>()?.Item;
+				if ( Want != null && !Want(inner) ) continue;
+				// (back on the ground as a new entity, where the one just picked up was: it went on the cursor for a moment,
+				// no room for it, and the game dropped it again; a backstop to CheckCursor, which may miss that moment)
+				if ( goneText != null && item.Id != goneId && Time.ElapsedMilliseconds - goneAt <= BackAgainMs
+					&& Ground.LabelText(label.Label) == goneText && Combat.Distance(pos.GridPos, goneGrid) <= BackAgainCells ) {
+					Log($"Looter: {goneText} is back on the ground (a new entity, where it was): there was no room for it");
+					goneText = null;
+					NoteTooBig(inner);
+				}
+				if ( !MightFit(inner) ) {
+					if ( noRoom.Add(item.Id) ) Log($"Looter: {Ground.LabelText(label.Label) ?? "an item"} is too big for the room left (as big as one that did not go in): leaving it");
+					continue;
+				}
 				float d = Combat.Distance(ctx.Grid, pos.GridPos);
 				if ( d <= MaxDistance ) yield return (label, item, pos.GridPos, d);
 			}

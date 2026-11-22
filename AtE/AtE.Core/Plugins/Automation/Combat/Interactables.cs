@@ -23,6 +23,26 @@ namespace AtE {
 	///    area, each with the label "Interact to acquire Voltaxic Sulphite, used within the Azurite Mine"; InteractionAction,
 	///    StateMachine, Targetable; once used, Targetable.IsTargetable goes 1 -> 0 and its label is gone, seen live)
 	///  - a Shrine: Metadata/Shrines/..., used once its Shrine component says it is taken
+	///  - Grasping Coffers: Metadata/Chests/Breach/BreachBoxChestEstablishedThreads (3.30, seen live: four in one area, with
+	///    Chest, InteractionAction, StateMachine, Targetable); used once Chest.IsOpened
+	///  - a Strongbox: Metadata/Chests/StrongBoxes/... (3.30, seen live: .../Ornate, with Chest, InteractionAction,
+	///    StateMachine (states opened, started; both 0 unopened), ObjectMagicProperties, Targetable; Chest.IsOpened 0).
+	///    Used once Chest.IsOpened or either state is set: a click sets started 0 -> 1 (seen live; opened stayed 0, and
+	///    it stayed targetable). One with a mod in AvoidSpam.StrongboxModHazards (eg, ChestIceNova) is opened all the
+	///    same: the danger grid then marks the ground around it for a few seconds, so the routine flees and comes back
+	///  - a Crimson Iron ore node: Metadata/Terrain/Leagues/Settlers/Node/Objects/NodeTypes/CrimsonIron exactly (3.30, seen
+	///    live: InteractionAction, Targetable, StateMachine, MinimapIcon, ControlZone). Its decorations
+	///    .../NodeTypes/CrimsonIronObjects/SmallGrowth (only BaseEvents, Positioned) share the prefix, hence PathEnd.
+	///    Once clicked (seen live): Targetable.IsTargetable 1 -> 0, StateMachine in_progress = 1, growths_alive = 4,
+	///    interactable = 0, activated = 0, ore_empty = 0; its CrimsonIron/SmallGrowthMaps "Corrupted Growth" monsters
+	///    come alive and are fought like any others. Not clicked while untargetable; used once ore_empty is set.
+	///    TODO: confirm live what happens once the growths are dead (whether it goes targetable again to claim the
+	///    iron, and ore_empty)
+	///  - a Bismuth Deposit ore node: .../Settlers/Node/Objects/NodeTypes/Bismuth exactly (3.30.0d, seen live: label
+	///    "Interact to mark this node for mining / Unleashes Elemental energy into the area"; InteractionAction, Targetable,
+	///    StateMachine (activated, in_progress, ore_empty, effect_off), MinimapIcon, ControlZone, a buff bismuth_epk; its
+	///    BismuthMineralTornadoFire/Cold/Lightning invisible monsters near). Used once ore_empty is set, as Crimson Iron.
+	///    TODO: confirm live what changes once clicked
 	/// TODO: confirm live: the Crafting Recipe's entity and what changes once it is used; a shrine's path, label, and
 	/// Shrine.IsTaken (not seen yet); what the Evocator's state is once used (here: Targetable going false, or its label)
 	/// </summary>
@@ -31,6 +51,8 @@ namespace AtE {
 			public string Name;
 			/// <summary>A part of the entity's metadata path (null: matched by LabelText).</summary>
 			public string PathPart;
+			/// <summary>With PathPart: the path must also end with this (eg, the Crimson Iron node, not its CrimsonIronObjects/...).</summary>
+			public string PathEnd;
 			/// <summary>A part of its label's text (null: matched by PathPart).</summary>
 			public string LabelText;
 			/// <summary>Used up, from the entity itself (eg, a shrine taken); null: by Targetable and the label only.</summary>
@@ -50,7 +72,20 @@ namespace AtE {
 			new Kind() { Name = "Crafting Recipe", LabelText = "Crafting Recipe" },
 			new Kind() { Name = "Voltaxic Sulphite Vein", PathPart = "Delve/Objects/DelveMineralVein" },
 			new Kind() { Name = "Shrine", PathPart = "Metadata/Shrines/", Used = e => e.GetComponent<Shrine>() is Shrine s && IsValid(s) && !s.IsAvailable },
+			new Kind() { Name = "Grasping Coffers (Breach)", PathPart = "Chests/Breach/BreachBoxChest", Used = e => e.GetComponent<Chest>() is Chest c && IsValid(c) && c.IsOpened },
+			new Kind() { Name = "Strongbox", PathPart = "Metadata/Chests/StrongBoxes/", Used = IsStrongboxUsed },
+			new Kind() { Name = "Crimson Iron", PathPart = "Settlers/Node/Objects/NodeTypes/", PathEnd = "/CrimsonIron",
+				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("ore_empty", out long empty) && empty != 0 },
+			new Kind() { Name = "Bismuth Deposit", PathPart = "Settlers/Node/Objects/NodeTypes/", PathEnd = "/Bismuth",
+				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("ore_empty", out long empty) && empty != 0 },
 		};
+
+		/// <summary>A strongbox is used once opened, or started (its monsters come while it opens: don't click it again).</summary>
+		private static bool IsStrongboxUsed(Entity e) {
+			if ( e.GetComponent<Chest>() is Chest c && IsValid(c) && c.IsOpened ) return true;
+			return e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm)
+				&& ((sm.TryGetState("opened", out long opened) && opened != 0) || (sm.TryGetState("started", out long started) && started != 0));
+		}
 
 		/// <summary>Is the kind switched on (Combat's Interactables settings, see CombatSection)?</summary>
 		public static bool IsEnabled(Kind kind) => GetPlugin<AutomationPlugin>()?.Combat.IsInteractableEnabled(kind.Name) ?? true;
@@ -90,8 +125,7 @@ namespace AtE {
 				float d = IsValid(pos) ? Combat.Distance(ctx.Grid, pos.GridPos) : float.MaxValue;
 				if ( clicks.TryGetValue(e.Id, out int n) && n >= (kind.MaxClicks > 0 ? kind.MaxClicks : MaxClicks) ) why = $"clicked {n} times";
 				else if ( !(e.GetComponent<Targetable>()?.IsTargetable ?? true) ) why = "not targetable";
-				else if ( kind.Used?.Invoke(e) ?? false ) why = "used";
-				else if ( !IsValid(pos) ) why = "no position";
+				else if ( kind.Used?.Invoke(e) ?? false ) why = "used";				else if ( !IsValid(pos) ) why = "no position";
 				else if ( d > MaxDistance ) why = null; // (too far: not said, it comes nearer)
 				else if ( !DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, pos.GridPos, out _, 15) ) why = "can't be walked to";
 				else { found.Add((e, kind, label, pos.GridPos, d)); return; }
@@ -104,7 +138,8 @@ namespace AtE {
 					}
 				} else {
 					foreach ( var e in GetEntities() ?? Enumerable.Empty<Entity>() ) {
-						if ( e != null && (e.Path?.IndexOf(kind.PathPart, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0 )
+						if ( e != null && (e.Path?.IndexOf(kind.PathPart, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0
+							&& (kind.PathEnd == null || e.Path.EndsWith(kind.PathEnd, StringComparison.OrdinalIgnoreCase)) )
 							Consider(e, kind, labels.FirstOrDefault(l => l.Item?.Address == e.Address));
 					}
 				}

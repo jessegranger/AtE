@@ -107,9 +107,12 @@ namespace AtE {
 
 		// a map of MapTier in the backpack (NextMap if it is one), or null
 		private InventoryItem HeldMap() {
-			var maps = BackpackItems().Where(i => ChooseNextMap.IsMap(i?.Entity) && TierOf(i.Entity) == MapTier).ToList();
+			var maps = BackpackItems().Where(i => ChooseNextMap.IsMap(i?.Entity) && TierOf(i.Entity) == MapTier && !IsUniqueMap(i.Entity)).ToList();
 			return (NextMap is { } n ? maps.FirstOrDefault(i => i.Entity.Id == n.id) : null) ?? maps.FirstOrDefault();
 		}
+
+		/// <summary>How long ActivateMapTier waits for the tier buttons to show (the page is built after its tab is first shown).</summary>
+		public long TierButtonsWaitMs = 2000;
 
 		/// <summary>
 		/// With the stash open on the MapsTab (a Map stash tab): show the maps of tier, then next. Nothing to do if the maps
@@ -129,14 +132,29 @@ namespace AtE {
 		public IState ActivateMapTier(int tier, IState next) => ForceGameFocus(new Step($"Show tier {tier} maps", (s, ctx, dt) => {
 			if ( !StashIsOpen() ) return Fail($"show tier {tier} maps: the stash is not open");
 			if ( ShowsTier(tier) ) return next;
-			var buttons = TierButtons(GetUI()?.StashElement?.VisibleTabPage);
-			if ( buttons.Count == 0 ) return Fail($"show tier {tier} maps: the \"{MapsTab}\" tab has no tier buttons (is it a Map stash tab?)");
+			var page = GetUI()?.StashElement?.VisibleTabPage;
+			var buttons = TierButtons(page);
+			if ( buttons.Count == 0 ) {
+				// (the page may not be built yet, the first frames after its tab is shown: wait for the buttons a while)
+				if ( s.Elapsed < TierButtonsWaitMs ) { s.Detail = "waiting for the tier buttons"; return s; }
+				var top = page?.GetChild(0);
+				string saw = page == null ? "no visible page" : $"visible page {page.Address:X} ({page.Children.Count()} children), its first child "
+					+ (top == null ? "missing" : $"{top.Address:X} with {top.Children.Count()} children: rows of {string.Join(", ", top.Children.Select(r => r?.Children.Count() ?? 0))}");
+				Log($"{Name}: show tier {tier} maps: no tier buttons after {s.Elapsed} ms; saw {saw}");
+				return Fail($"show tier {tier} maps: the \"{MapsTab}\" tab has no tier buttons (is it a Map stash tab?)");
+			}
 			if ( tier < 1 || tier > buttons.Count ) return Fail($"show tier {tier} maps: there are {buttons.Count} tier buttons");
 			var button = buttons[tier - 1];
 			if ( int.TryParse(button.GetChild(0)?.Text?.Trim(), out int count) && count == 0 ) return Fail($"no tier {tier} maps on the \"{MapsTab}\" tab");
 			s.Detail = $"clicking tier {tier} ({count} maps)";
-			return Inputs.Click(button.GetClientRect(), WaitUntil($"tier {tier} maps to show", 2000, () => ShowsTier(tier), next,
-				$"tier {tier} maps did not show after clicking its button"));
+			// (after the click: any visible grid of that tier's maps will do, see GridShowsTier; and if none shows, the log
+			// says what grids the code saw, see MapGridsSeen)
+			return Inputs.Click(button.GetClientRect(), new Step($"Wait for tier {tier} maps to show", (s2, c2, d2) => {
+				if ( GridShowsTier(tier) ) return next;
+				if ( s2.Elapsed <= 2000 ) return s2;
+				Log($"{Name}: show tier {tier} maps: after clicking its button, the maps seen: {MapGridsSeen()}");
+				return Fail($"tier {tier} maps did not show after clicking its button");
+			}, next));
 		}, next));
 
 		/// <summary>
@@ -222,7 +240,7 @@ namespace AtE {
 					: Fail($"use {name}: another currency is in use ({inUse})");
 				var rect = currency.GetClientRect();
 				Log($"{Name}: right clicking {name} at {rect.X + rect.Width / 2:F0},{rect.Y + rect.Height / 2:F0} (try {attempt} of {PickUpTries})");
-				return Inputs.RightClick(rect, ConfirmInUse(name, find, icon, target, attempt, next));
+				return Inputs.RightClick(rect, new Delay(Inputs.Latency, ConfirmInUse(name, find, icon, target, attempt, next)));
 			}, next);
 
 		/// <summary>Look at the mouse now and every CursorLookMs: name's icon there goes on to the left click; no icon for
@@ -249,7 +267,8 @@ namespace AtE {
 
 		private IState ClickTarget(string name, InventoryItem target, IState next) {
 			if ( !IsValid(target) ) return Fail($"use {name}: the item to use it on is gone");
-			return Inputs.Click(target.GetClientRect(), new Delay(InventoryPlans.Settle, next));
+			// (InputLatency between every click: after the right click's confirm, before this one, and after it)
+			return new Delay(Inputs.Latency, Inputs.Click(target.GetClientRect(), new Delay(Inputs.Latency, new Delay(InventoryPlans.Settle, next))));
 		}
 
 		/// <summary>
@@ -268,7 +287,9 @@ namespace AtE {
 				if ( SkipToClear || SkipToPortals ) return next;
 				if ( !StashIsOpen() ) return Fail("roll the map: the stash is not open");
 				if ( !BackpackIsOpen() ) return Fail("roll the map: the inventory is not open");
-				int maps = BackpackItems().Count(i => ChooseNextMap.IsMap(i?.Entity));
+				cursorMapRecoveries = 0;
+				// (a map on the cursor counts: it goes back in the backpack at the first roll)
+				int maps = BackpackItems().Count(i => ChooseNextMap.IsMap(i?.Entity)) + (CursorHoldsMap() ? 1 : 0);
 				if ( maps != 1 ) return Fail($"roll the map: there should be one map in the backpack, there are {maps}");
 				return roll;
 			}, roll));
@@ -278,6 +299,8 @@ namespace AtE {
 		private IState RollStep(int used, IState next) => new Step($"Roll {used + 1}", (s, ctx, dt) => {
 			if ( !StashIsOpen() ) return Fail("roll the map: the stash is not open");
 			if ( !BackpackIsOpen() ) return Fail("roll the map: the inventory is not open");
+			// a map left on the cursor (eg, an extra click picked it up): back in the backpack first
+			if ( CursorHoldsMap() ) return PutCursorMapDown(RollStep(used, next));
 			var map = BackpackMap();
 			var e = map?.Entity;
 			var mods = e?.GetComponent<Mods>();
@@ -287,13 +310,15 @@ namespace AtE {
 			// an unidentified magic or rare map: Scouring does not work on it, so identify it first (a Scroll of Wisdom from
 			// the backpack, checked as the currency is: in use before the map is clicked), then look again
 			if ( mods.Rarity != Offsets.ItemRarity.Normal && !mods.IsIdentified ) {
+				// (read again a moment later: just taken from the stash, an identified map once read as unidentified, and the
+				// Scroll of Wisdom was refused, "already identified")
+				if ( s.Elapsed < UnidentifiedSureMs ) { s.Detail = "looking again: unidentified?"; return s; }
 				Log($"{Name}: roll {used + 1}: {name} is unidentified: identifying it");
 				s.Detail = "identifying";
-				uint unid = e.Id;
 				return UseCurrencyFromBackpack("Scroll of Wisdom", Offsets.PATH_SCROLL_WISDOM, map,
 					WaitUntil($"{name} to be identified", 2000,
-						() => BackpackMap()?.Entity is Entity now && (now.Id != unid || (now.GetComponent<Mods>()?.IsIdentified ?? false)),
-						RollStep(used, next), $"{name} was not identified"));
+						() => CursorItemName() == "" && BackpackMap()?.Entity?.GetComponent<Mods>() is Mods m && IsValid(m) && m.IsIdentified,
+						RollStep(used, next), $"{name} was not identified", () => RollStep(used, next)));
 			}
 			// a corrupted map can't be rolled: it will do as it is (whatever its rarity) if it has none of ProhibitedMods
 			if ( IsCorrupted(e) ) {
@@ -316,12 +341,17 @@ namespace AtE {
 			why ??= $"{mods.Rarity}".ToLowerInvariant();
 			Log($"{Name}: roll {used + 1}: {name} is {why}: {currency}");
 			s.Detail = $"{why}: {currency}";
+			// changed: the map back in the backpack, nothing on the cursor, its Mods read (a read that fails for a frame while
+			// the item updates is not a change; item entities' Ids are all 0, so no use either), and the rarity the currency
+			// gives: not normal after an Alchemy, normal after a Scouring
 			string before = MapSignature(e);
-			uint id = e.Id;
+			bool alchemy = mods.Rarity == Offsets.ItemRarity.Normal;
 			return UseCurrencyFromStash(currency, map,
 				WaitUntil($"{name} to change ({currency})", 2000,
-					() => BackpackMap()?.Entity is Entity now && (now.Id != id || MapSignature(now) != before),
-					RollStep(used + 1, next), $"{name} did not change after the {currency}"));
+					() => CursorItemName() == "" && BackpackMap()?.Entity is Entity now && now.GetComponent<Mods>() is Mods m && IsValid(m)
+						&& MapSignature(now) is string after && after != before
+						&& (alchemy ? m.Rarity != Offsets.ItemRarity.Normal : m.Rarity == Offsets.ItemRarity.Normal),
+					RollStep(used + 1, next), $"{name} did not change after the {currency}", () => RollStep(used + 1, next)));
 		}, next);
 
 		/// <summary>
@@ -557,12 +587,32 @@ namespace AtE {
 		private static List<StashItem> MapsShowing() => StashItems().Where(i => ChooseNextMap.IsMap(i?.Entity)).ToList();
 
 		// the maps of MapTier showing in the stash
-		private IEnumerable<StashItem> MapsOfTier() => MapsShowing().Where(i => TierOf(i.Entity) == MapTier);
+		private IEnumerable<StashItem> MapsOfTier() => MapsShowing().Where(i => TierOf(i.Entity) == MapTier && !IsUniqueMap(i.Entity));
 
-		// the maps showing are all of tier (and there are some)
+		// a unique map: its base is a plain MapKeyTierN (eg, an unidentified one is "Map (Tier 4)"), so only its rarity tells
+		private static bool IsUniqueMap(Entity e) => e?.GetComponent<Mods>() is Mods m && IsValid(m) && m.Rarity == Offsets.ItemRarity.Unique;
+
+		// the maps showing are all of tier, and some are not unique: not the unique maps' section, left open by an earlier
+		// stashing, whose maps have the same MapKeyTierN paths (seen live, 3.30.0d: an unidentified tier 4 unique showing
+		// alone was taken for the tier 4 maps); a unique among the tier's own maps is fine (a stashed unique goes there too)
 		private static bool ShowsTier(int tier) {
 			var maps = MapsShowing();
-			return maps.Count > 0 && maps.All(i => TierOf(i.Entity) == tier);
+			return maps.Count > 0 && maps.All(i => TierOf(i.Entity) == tier) && maps.Any(i => !IsUniqueMap(i.Entity));
+		}
+
+		// some visible grid of maps holds only maps of tier, some not unique (after its button is clicked: the grid shown
+		// before, eg tier 2's after a deposit, may still read as visible a while beside the new one; each tier's grid is
+		// its own element, 3.30.0d, the page's .0.4.N, made the first time that tier is shown)
+		private static bool GridShowsTier(int tier) => MapsShowing().GroupBy(i => i.Parent?.Address ?? IntPtr.Zero)
+			.Any(g => g.All(i => TierOf(i.Entity) == tier) && g.Any(i => !IsUniqueMap(i.Entity)));
+
+		// for the log: the visible grids of maps, each with its maps' tiers (and uniques)
+		private static string MapGridsSeen() {
+			var grids = MapsShowing().GroupBy(i => i.Parent?.Address ?? IntPtr.Zero).ToList();
+			if ( grids.Count == 0 ) return "none";
+			return string.Join("; ", grids.Select(g => $"grid {g.Key:X}: {g.Count()} maps, tiers "
+				+ string.Join(",", g.GroupBy(i => TierOf(i.Entity)).OrderBy(t => t.Key).Select(t => $"{t.Key} x{t.Count()}"))
+				+ $", {g.Count(i => IsUniqueMap(i.Entity))} unique"));
 		}
 
 		// the tier buttons of a Map stash tab's page, in tier order (see ActivateMapTier): the rows of 9 children that each
@@ -634,12 +684,47 @@ namespace AtE {
 		// what a currency item changes on a map: rarity, identified, the explicit mods
 		private static string MapSignature(Entity map) {
 			var mods = map?.GetComponent<Mods>();
-			if ( !IsValid(mods) ) return "";
+			if ( !IsValid(mods) ) return null;
 			return $"{mods.Rarity}|{mods.IsIdentified}|{string.Join(",", mods.ExplicitMods.Select(m => m.GroupName))}";
 		}
 
 		private IState WaitUntil(string what, long timeoutMs, Func<bool> done, IState next, string failWhy) =>
 			new Step($"Wait for {what}", (s, ctx, dt) => done() ? next : s.Elapsed > timeoutMs ? Fail(failWhy) : s, next);
+
+		// as WaitUntil, but on the timeout with a map on the cursor: put it back in the backpack and go on with retry() (at
+		// most MaxCursorMapRecoveries times in a roll), else stop
+		private IState WaitUntil(string what, long timeoutMs, Func<bool> done, IState next, string failWhy, Func<IState> retry) =>
+			new Step($"Wait for {what}", (s, ctx, dt) => {
+				if ( done() ) return next;
+				if ( s.Elapsed <= timeoutMs ) return s;
+				if ( CursorHoldsMap() && cursorMapRecoveries < MaxCursorMapRecoveries ) {
+					cursorMapRecoveries += 1;
+					Log($"{Name}: {failWhy}, and the map is on the cursor: putting it back (recovery {cursorMapRecoveries} of {MaxCursorMapRecoveries})");
+					return PutCursorMapDown(retry());
+				}
+				return Fail(failWhy + (CursorHoldsMap() ? " (the map is on the cursor)" : ""));
+			}, next);
+
+		/// <summary>How long a map must read as unidentified before a Scroll of Wisdom is used on it.</summary>
+		public long UnidentifiedSureMs = 400;
+		/// <summary>Maps put back from the cursor in one roll (see WaitUntil) before it stops.</summary>
+		private const int MaxCursorMapRecoveries = 2;
+		private int cursorMapRecoveries;
+
+		// is a map (an item whose path is a map's) held on the cursor?
+		private static bool CursorHoldsMap() {
+			var igs = PoEMemory.GameRoot?.InGameState;
+			if ( igs == null || igs.ServerInventoryCount(Offsets.InventorySlot.Cursor) <= 0 ) return false;
+			var ent = igs.CursorItem;
+			return IsValid(ent) && ChooseNextMap.IsMap(new Entity() { Address = ent });
+		}
+
+		// put the map on the cursor in the first free cell of the backpack (it is 1x1), then next once the cursor is empty
+		private IState PutCursorMapDown(IState next) {
+			Log($"{Name}: a map is on the cursor: putting it in the backpack");
+			return InventoryPlans.PutHeldInBackpack(1, 1, WaitUntil("the cursor to be empty", 2000, () => CursorItemName() == "", next,
+				"the map on the cursor did not go in the backpack"));
+		}
 
 		private IState Fail(string why) {
 			Log($"{Name}: {why}");

@@ -33,6 +33,14 @@ namespace AtE {
 			_ => "var(--else)",
 		};
 
+		// a span of time, short: "45 s", "12 min", "3 h 05 min", "2 d 4 h"
+		private static string Ago(TimeSpan t) =>
+			t.TotalSeconds < 0 ? "0 s"
+			: t.TotalMinutes < 1 ? $"{t.Seconds} s"
+			: t.TotalHours < 1 ? $"{(int)t.TotalMinutes} min {t.Seconds:D2} s"
+			: t.TotalDays < 1 ? $"{(int)t.TotalHours} h {t.Minutes:D2} min"
+			: $"{(int)t.TotalDays} d {t.Hours} h";
+
 		private static string Bar(string cls, int cur, int max, string left, string right) {
 			double pct = max <= 0 ? 0 : Math.Clamp(100.0 * cur / max, 0, 100);
 			return $"<div class=\"bar {cls}\"><i style=\"width:{pct:F1}%\"></i><b><span>{Esc(left)}</span><span>{Esc(right)}</span></b></div>";
@@ -69,6 +77,8 @@ html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.35 system-
 .mana>i{background:linear-gradient(#4b82f0,#2a52b5)}
 .es>i{background:linear-gradient(#a6e3ff,#58b6e6)}
 .xp>i{background:linear-gradient(#f0c040,#b8861a)}
+.explore{margin-top:8px}
+.explore>i{background:linear-gradient(#4cc96a,#25913f)}
 .card{margin:10px 16px 0;padding:12px 14px;border-radius:14px;background:var(--card)}
 .area{border-left:4px solid}
 .area .t{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
@@ -142,6 +152,7 @@ pre{margin:0;padding:0 14px 12px;font:12px/1.45 ui-monospace,Consolas,monospace;
 				if ( !v.GameFocused ) sb.Append(Chip("var(--warn)", "not focused"));
 				if ( v.AuguryOpen ) sb.Append(Chip("var(--map)", "augury window open"));
 			}
+			if ( v.SinceBuild is TimeSpan built ) sb.Append(Chip("var(--dim)", $"built {Ago(built)} ago"));
 			sb.Append("</div>");
 
 			// the character: life, ES, mana, XP
@@ -160,7 +171,13 @@ pre{margin:0;padding:0 14px 12px;font:12px/1.45 ui-monospace,Consolas,monospace;
 			string kind = v.Area switch {
 				AreaKind.Hideout => "Hideout", AreaKind.Map => v.MapTier is int t ? $"Map · tier {t}" : "Map", AreaKind.Town => "Town", AreaKind.Elsewhere => "Area", _ => "Area",
 			};
-			sb.Append($"<div class=\"card area\" style=\"border-color:{AreaColor(v.Area)}\"><div class=t style=\"color:{AreaColor(v.Area)}\">{kind}</div><div class=n>{Esc(v.AreaName ?? "(not readable)")}</div><div class=facts>");
+			sb.Append($"<div class=\"card area\" style=\"border-color:{AreaColor(v.Area)}\"><div class=t style=\"color:{AreaColor(v.Area)}\">{kind}</div><div class=n>{Esc(v.AreaName ?? "(not readable)")}</div>");
+			if ( !double.IsNaN(v.Explored) ) {
+				double pct = Math.Clamp(v.Explored * 100, 0, 100);
+				sb.Append($"<div class=\"bar explore\"><i style=\"width:{pct:F1}%\"></i><b><span>Explored</span><span>{pct:F0}%</span></b></div>");
+			}
+			sb.Append("<div class=facts>");
+			if ( v.InArea is TimeSpan inArea ) sb.Append($"<span>{(v.AreaTimeIsMinimum ? "over " : "")}{Ago(inArea)} here</span>");
 			if ( v.Area == AreaKind.Map ) {
 				sb.Append($"<span>{(v.MonstersRemaining is int m ? $"{m}" : "50+")} monsters left (want &lt;{v.MonstersLeft})</span>");
 				sb.Append(v.MapComplete ? "<span class=good>Map Complete</span>" : "<span>not complete</span>");

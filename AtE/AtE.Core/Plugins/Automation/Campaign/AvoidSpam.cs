@@ -202,6 +202,53 @@ namespace AtE {
 		}
 
 		/// <summary>
+		/// Strongbox mods that make the ground around a strongbox dangerous for a while once it opens: the mod's id (among
+		/// the box's ObjectMagicProperties.ExplicitModNames), the circle around the box (radius in cells), its weight, and
+		/// how long it lasts (ms) after the box is seen starting to open, and again after it is seen opened.
+		/// So a routine clicks the box (Interactables), flees the circle, and comes back to fight what came out.
+		/// </summary>
+		public static readonly List<(string mod, float radius, byte weight, long ms)> StrongboxModHazards = new List<(string, float, byte, long)> {
+			// "Casts Ice Nova" (3.30, seen live on an Ornate Strongbox, Metadata/Chests/StrongBoxes/Ornate): mod ChestIceNova.
+			// From the user: the novas come once it opens and last 3 s; 100 cells at weight 100
+			("ChestIceNova", 100, 100, 3000),
+		};
+
+		// strongbox entity id: when it was first seen started (StateMachine started, set by a click, seen live) and opened
+		// (StateMachine opened or Chest.IsOpened); 0: not yet. Cleared on a new area instance.
+		private static readonly Dictionary<uint, (long startedAt, long openedAt)> strongboxTimes = new Dictionary<uint, (long, long)>();
+		private static uint strongboxArea;
+
+		/// <summary>The StrongboxModHazards around the strongboxes in ents that began opening in the last ms.</summary>
+		public static IEnumerable<Hazard> StrongboxHazards(List<Entity> ents) {
+			if ( StrongboxModHazards.Count == 0 ) yield break;
+			uint area = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
+			if ( area != strongboxArea ) { strongboxArea = area; strongboxTimes.Clear(); }
+			long now = Time.ElapsedMilliseconds;
+			foreach ( var e in ents ) {
+				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Chests/StrongBoxes/", StringComparison.Ordinal) ) continue;
+				var sm = e.GetComponent<StateMachine>();
+				bool started = IsValid(sm) && sm.TryGetState("started", out long s) && s != 0;
+				bool opened = (e.GetComponent<Chest>() is Chest chest && IsValid(chest) && chest.IsOpened)
+					|| (IsValid(sm) && sm.TryGetState("opened", out long o) && o != 0);
+				if ( !started && !opened ) continue;
+				strongboxTimes.TryGetValue(e.Id, out var times);
+				if ( times.startedAt == 0 ) times.startedAt = now; // (opened without being seen started: from now too)
+				if ( opened && times.openedAt == 0 ) times.openedAt = now;
+				strongboxTimes[e.Id] = times;
+				var magic = e.GetComponent<ObjectMagicProperties>();
+				var pos = e.GetComponent<Positioned>();
+				if ( !IsValid(magic) || !IsValid(pos) ) continue;
+				List<string> mods = null;
+				foreach ( var (mod, radius, weight, ms) in StrongboxModHazards ) {
+					long until = Math.Max(times.startedAt, times.openedAt) + ms;
+					if ( now > until ) continue;
+					mods ??= magic.ExplicitModNames.ToList();
+					if ( mods.Contains(mod) ) yield return new Hazard(pos.GridPos, radius) { Weight = weight, Source = $"Strongbox {mod}" };
+				}
+			}
+		}
+
+		/// <summary>
 		/// Beams a monster channels along the way it faces (Positioned.Rotation, 0 facing -Y), turning as it goes: a part of
 		/// the skill's name, the beam's length and half-width in cells, its weight, and how far ahead (ms) of it to keep
 		/// out of as it turns (at WarningWeight). The turn rate is measured from
@@ -555,6 +602,7 @@ namespace AtE {
 			foreach ( var h in SkillHazards(ents) ) yield return h;
 			foreach ( var h in PathHazards(ents) ) yield return h;
 			foreach ( var h in BuffAreaHazards(ents) ) yield return h;
+			foreach ( var h in StrongboxHazards(ents) ) yield return h;
 			// (projectiles and client-only effects are not among the entities, see EntityCache.GetLocalEntities)
 			foreach ( var h in PathHazards(EntityCache.GetLocalEntities().ToList()) ) yield return h;
 		}

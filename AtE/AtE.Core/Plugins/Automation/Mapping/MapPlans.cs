@@ -12,6 +12,8 @@ namespace AtE {
 	public class MapRules {
 		private readonly List<(string kind, string what)> route = new List<(string, string)>();
 		private readonly List<string> arenas = new List<string>();
+		/// <summary>Fates to take ("Select a Fate" encounters) before the map boss is fought (see FatesFirst); 0: none.</summary>
+		public int Fates { get; private set; }
 
 		/// <summary>Walk to the tiles cut from a .tdt whose path has tilePathPart (see ApproachTiles).</summary>
 		public MapRules Tile(string tilePathPart) { route.Add(("tile", tilePathPart)); return this; }
@@ -19,6 +21,12 @@ namespace AtE {
 		public MapRules Door(string labelText) { route.Add(("door", labelText)); return this; }
 		/// <summary>A boss arena: walk to its tiles (a part of the .tdt path), then kill the map boss (KillMapBoss).</summary>
 		public MapRules BossArena(string tilePathPart) { arenas.Add(tilePathPart); return this; }
+		/// <summary>
+		/// Take n fates (the Augury cards' "Select a Fate", found by their minimap icons, exploring for more) before anything
+		/// else, leaving the map boss alone until then (its encounters go once it is dead); where the boss is seen meanwhile
+		/// is remembered, to go back to (see TakeFates, MappingRoutine.BossSeenAt).
+		/// </summary>
+		public MapRules FatesFirst(int n) { Fates = n; return this; }
 
 		/// <summary>The route, then each boss arena (and its boss), then next: goals chained by Next, built when it is run.</summary>
 		public IState Plan(MappingRoutine routine, IState next) {
@@ -30,10 +38,12 @@ namespace AtE {
 			foreach ( var (kind, what) in Enumerable.Reverse(route) ) {
 				chain = kind == "door" ? new TakeTransition(what) { Next = chain } : new ApproachTiles(what, what) { Next = chain };
 			}
+			if ( Fates > 0 ) chain = new TakeFates(routine, Fates) { Next = chain };
 			return chain;
 		}
 
-		public override string ToString() => string.Join(", ", route.Select(r => $"{r.kind} {r.what}").Concat(arenas.Select(a => $"boss arena {a}")));
+		public override string ToString() => string.Join(", ", (Fates > 0 ? new[] { $"{Fates} fates before the boss" } : Array.Empty<string>())
+			.Concat(route.Select(r => $"{r.kind} {r.what}")).Concat(arenas.Select(a => $"boss arena {a}")));
 	}
 
 	public partial class MappingRoutine {
@@ -43,8 +53,10 @@ namespace AtE {
 		/// listed is just explored and cleared (see ClearArea).
 		/// </summary>
 		[NoPersist] public static readonly Dictionary<string, MapRules> Rules = new Dictionary<string, MapRules>(StringComparer.OrdinalIgnoreCase) {
-			// TODO: Silo's and Mud Geyser's own rules (to be specified), eg:
-			// ["Silo"] = new MapRules().Tile("/some_tile").Door("Some Door").BossArena("/boss_tile"),
+			// Mud Geyser: take 3 fates before the boss (its Augury encounters go once it is dead); the boss (Tunneltrap,
+			// buried until the player is near) is left alone until then, and where it is seen is remembered
+			["Mud Geyser"] = new MapRules().FatesFirst(3),
+			// eg ["Silo"] = new MapRules().Tile("/some_tile").Door("Some Door").BossArena("/boss_tile"),
 		};
 	}
 }

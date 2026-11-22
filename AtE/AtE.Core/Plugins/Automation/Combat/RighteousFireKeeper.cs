@@ -10,6 +10,9 @@ namespace AtE {
 	/// cast again: whenever the player has neither its buff ("righteous_fire") nor the grace period ("grace_period", on
 	/// arriving in an area: casting then would end it early). If a cast does not light it, it is pressed again at most once
 	/// every RetryMs, never spammed.
+	/// It is an instant cast that interrupts nothing, so it goes out at once, in fights and while walking or channelling:
+	/// on a plain key (no modifiers, not a mouse button) it is pressed straight away, as flasks are, past the driver's input
+	/// chain; otherwise it waits for the driver's input to be free (driver.Send).
 	///
 	/// A State that runs forever (OnTick returns this), on the default Machine: Start puts the one Instance there, once.
 	/// It works only while the combat section's chosen driver is on, sending the key through that driver's input.
@@ -31,7 +34,7 @@ namespace AtE {
 		}
 
 		/// <summary>The least time between presses.</summary>
-		public long RetryMs = 10000;
+		public long RetryMs = 1500;
 		/// <summary>How often to look at the build and the skill bar again.</summary>
 		public long RefreshMs = 5000;
 		private long lastPress = -1000000, refreshedAt = -1000000;
@@ -40,10 +43,13 @@ namespace AtE {
 		public override IState OnTick(long dt) {
 			if ( !PoEMemory.IsAttached ) return this;
 			var driver = section?.Current;
-			if ( driver == null || !driver.IsActive || driver.InputBusy ) return this;
+			if ( driver == null || !driver.IsActive ) return this;
 			long now = Time.ElapsedMilliseconds;
 			if ( now - lastPress < RetryMs ) return this;
 			if ( SkillsPausedHere() ) return this; // (no buffs in a town or hideout)
+			// (not into the escape menu, a paused game, or another window: the press would do nothing, every RetryMs)
+			var game = PoEMemory.GameRoot?.InGameState;
+			if ( game == null || game.IsPaused || PoEMemory.GameRoot?.EscapeState?.Menu != null || !PoEMemory.TargetHasFocus ) return this;
 			var player = GetPlayer();
 			if ( !IsValid(player) || HasBuff(player, BuffName) || HasBuff(player, "grace_period") ) return this;
 			if ( now - refreshedAt > RefreshMs ) {
@@ -56,8 +62,14 @@ namespace AtE {
 			var slot = SkillBar.FindSlot(SkillName);
 			var skill = slot?.Skill;
 			if ( skill == null || slot.Key == VKey.None || !skill.CanBeUsed ) return this;
-			// (an instant self-cast: the cursor stays where it is)
-			if ( !driver.Send(Inputs.UseSlotHere(slot, 40)) ) return this;
+			// (an instant self-cast: the cursor stays where it is; a plain key goes out now, whatever else is going on)
+			bool plain = (slot.Key & (VKey.Control | VKey.Shift | VKey.Alt)) == 0 && !SkillBar.ToMouseButton(slot.KeyCode).HasValue;
+			if ( plain ) {
+				var igs = PoEMemory.GameRoot?.InGameState;
+				if ( !CanSendKey(slot.KeyCode) || igs == null || igs.HasInputFocus ) return this;
+				Platform.Current.Input.KeyDown(slot.KeyCode);
+				Platform.Current.Input.KeyUp(slot.KeyCode);
+			} else if ( driver.InputBusy || !driver.Send(Inputs.UseSlotHere(slot, 40)) ) return this;
 			lastPress = now;
 			Log($"RighteousFireKeeper: no {BuffName} buff: casting {SkillName} ({SkillBar.KeyName(slot.Key)})");
 			return this;

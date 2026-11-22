@@ -38,6 +38,7 @@ namespace AtE {
 		private AreaFeature waypoint;
 		private long entitiesUpdated = 0;
 		private void UpdateFromEntities() {
+			UpdateTempWalls();
 			if ( IsLoaded && Time.ElapsedMilliseconds - entitiesUpdated > 500 ) {
 				AreaExits.UpdateFromEntities(exits);
 				if ( waypoint == null || !waypoint.Seen ) waypoint = AreaExits.UpdateWaypoint(waypoint);
@@ -47,6 +48,62 @@ namespace AtE {
 				AreaObstacles.Update(obstacles);
 				entitiesUpdated = Time.ElapsedMilliseconds;
 			}
+		}
+
+		// ---- temporary walls (see AreaTempWalls) ----
+
+		/// <summary>How often to look for temporary walls (they go up suddenly, around the player).</summary>
+		public static long TempWallsMs = 200;
+		// the cells they block now (1), one byte per cell, Width across; and how many
+		private byte[] tempBlocked;
+		private int tempBlockedCount;
+		private string tempWallsKey = "";
+		private long tempWallsUpdated, tempWallsSince;
+
+		/// <summary>The temporary walls standing now (see AreaTempWalls): their cells are not walkable (IsWalkable, Clearance, UnpackClearance).</summary>
+		public IReadOnlyList<AreaTempWalls.Wall> TempWalls { get; private set; } = Array.Empty<AreaTempWalls.Wall>();
+
+		/// <summary>Is the cell blocked by a temporary wall now (see TempWalls)?</summary>
+		public bool TempBlocked(int x, int y) => tempBlockedCount > 0 && InBounds(x, y) && tempBlocked[(y * Width) + x] != 0;
+
+		private void ResetTempWalls() {
+			tempBlocked = null;
+			tempBlockedCount = 0;
+			tempWallsKey = "";
+			TempWalls = Array.Empty<AreaTempWalls.Wall>();
+		}
+
+		// the walls standing now: when they change, block their cells instead, and go up a DoorGeneration (so the
+		// Navigator and the DangerMap build again, and paths planned before are planned again)
+		private void UpdateTempWalls() {
+			long now = Time.ElapsedMilliseconds;
+			if ( !IsLoaded || now - tempWallsUpdated < TempWallsMs ) return;
+			tempWallsUpdated = now;
+			var walls = AreaTempWalls.Standing();
+			string key = string.Join(",", walls.Select(w => w.EntityId).OrderBy(i => i));
+			if ( key == tempWallsKey ) return;
+			if ( tempWallsKey == "" ) tempWallsSince = now;
+			if ( tempBlocked == null || tempBlocked.Length != Width * Height ) tempBlocked = new byte[Width * Height];
+			else Array.Clear(tempBlocked, 0, tempBlocked.Length);
+			int count = 0;
+			foreach ( var w in walls ) {
+				int r = (int)Math.Ceiling(w.Radius);
+				float r2 = w.Radius * w.Radius;
+				for ( int dy = -r; dy <= r; dy++ ) {
+					for ( int dx = -r; dx <= r; dx++ ) {
+						int x = w.GridPos.X + dx, y = w.GridPos.Y + dy;
+						if ( (dx * dx) + (dy * dy) > r2 || !InBounds(x, y) ) continue;
+						int i = (y * Width) + x;
+						if ( tempBlocked[i] == 0 ) { tempBlocked[i] = 1; count += 1; }
+					}
+				}
+			}
+			Log(walls.Count == 0 ? $"Terrain: the temporary walls are gone (after {(now - tempWallsSince) / 1000f:F1} s)"
+				: $"Terrain: {walls.Count} temporary wall pieces (was {TempWalls.Count}), blocking {count} cells, near {walls[0].GridPos}");
+			tempWallsKey = key;
+			TempWalls = walls;
+			tempBlockedCount = count;
+			DoorGeneration += 1;
 		}
 
 		/// <summary>
@@ -155,6 +212,7 @@ namespace AtE {
 			levers = new List<AreaLever>();
 			traps = new List<AreaTrap>();
 			obstacles = new List<AreaObstacle>();
+			ResetTempWalls();
 			DoorGeneration += 1;
 			walkable = projectile = null;
 			loadedFrom = IntPtr.Zero;
@@ -212,6 +270,7 @@ namespace AtE {
 			Width = width;
 			Height = height;
 			BytesPerRow = bytesPerRow;
+			ResetTempWalls();
 			Generation += 1;
 		}
 
@@ -273,6 +332,7 @@ namespace AtE {
 
 		private int Cell(byte[] grid, int x, int y) {
 			if ( grid == null || !InBounds(x, y) ) return 0;
+			if ( tempBlockedCount > 0 && grid == walkable && tempBlocked[(y * Width) + x] != 0 ) return 0; // (a temporary wall, see TempWalls)
 			byte b = grid[(y * BytesPerRow) + (x >> 1)];
 			return (x & 1) == 0 ? b & 0xF : b >> 4;
 		}
@@ -293,6 +353,11 @@ namespace AtE {
 					byte b = walkable[src + (x >> 1)];
 					dest[dst + x] = (byte)(b & 0xF);
 					if ( x + 1 < Width ) dest[dst + x + 1] = (byte)(b >> 4);
+				}
+			}
+			if ( tempBlockedCount > 0 ) {
+				for ( int y = 0; y < Height; y++ ) {
+					for ( int x = 0, row = y * Width; x < Width; x++ ) if ( tempBlocked[row + x] != 0 ) dest[offset + (y * stride) + x] = 0;
 				}
 			}
 		}

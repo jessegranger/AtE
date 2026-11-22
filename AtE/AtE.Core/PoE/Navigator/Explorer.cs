@@ -36,15 +36,27 @@ namespace AtE {
 	/// </summary>
 	public class Explorer {
 
-		/// <summary>Walkable cells within this many cells of the player count as explored.</summary>
-		public const int RevealRadius = 80;
+		/// <summary>Walkable cells within this many cells of the player count as explored (for an area seen the first time; see Rescan).</summary>
+		public int RevealRadius = 90;
+		/// <summary>The reveal radius of the current area's record (RevealRadius, or Rescan's).</summary>
+		public int CurrentRevealRadius => current?.Radius ?? pendingRadius ?? RevealRadius;
+		private int? pendingRadius;
+
+		/// <summary>
+		/// Forget what has been explored in the current area and explore it again, counting only the cells within radius
+		/// of the player as explored (eg, a closer pass for a map boss that only comes out when the player is near).
+		/// </summary>
+		public void Rescan(int radius) {
+			Reset();
+			pendingRadius = radius;
+		}
 		/// <summary>A region (one connected part of an 8x8 block) is worth visiting if it has this many unexplored cells (or half its cells, if smaller).</summary>
 		public int MinUnexplored = 16;
 		/// <summary>Hostile monsters within this many cells (straight line) are targets before exploring.</summary>
 		public int MonsterRadius = 60;
 
 		private class Map {
-			public int Width, Height, TerrainGeneration;
+			public int Width, Height, TerrainGeneration, Radius;
 			public ulong[] Bits; // one bit per cell, row-major
 			public int Walkable, Explored;
 			public int BlocksX; // per 8x8 block of cells (the Navigator's blocks), how many walkable cells are not explored yet
@@ -91,7 +103,7 @@ namespace AtE {
 			int dx0 = player.X - current.LastMarked.X, dy0 = player.Y - current.LastMarked.Y;
 			if ( (dx0 * dx0) + (dy0 * dy0) < 9 ) return; // moved less than 3 cells
 			current.LastMarked = player;
-			const int r = RevealRadius;
+			int r = current.Radius;
 			for ( int dy = -r; dy <= r; dy++ ) {
 				int y = player.Y + dy;
 				if ( y < 0 || y >= current.Height ) continue;
@@ -143,9 +155,11 @@ namespace AtE {
 					Width = terrain.Width,
 					Height = terrain.Height,
 					TerrainGeneration = terrain.Generation,
+					Radius = pendingRadius ?? RevealRadius,
 					Bits = new ulong[((terrain.Width * terrain.Height) + 63) / 64],
 					BlocksX = (terrain.Width + 7) >> 3,
 				};
+				pendingRadius = null;
 				current.BlockUnexplored = new int[current.BlocksX * ((terrain.Height + 7) >> 3)];
 				for ( int y = 0; y < terrain.Height; y++ ) {
 					for ( int x = 0; x < terrain.Width; x++ ) {

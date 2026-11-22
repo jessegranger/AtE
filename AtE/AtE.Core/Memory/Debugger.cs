@@ -277,6 +277,12 @@ namespace AtE {
 									if ( ImGui.Button($"M##{ptr}") ) {
 										Run(new Debugger(ptr).usingStructLabelsFrom(refName));
 									}
+									// (an Entity, by its vtable, eg "Entity3": also browse it as one, eg the item inside a WorldItem, which
+									// is in no EntityCache)
+									if ( refName.StartsWith("Entity", StringComparison.Ordinal) ) {
+										ImGui.SameLine();
+										if ( ImGui.Button($"B##ent{ptr}") ) Run_ObjectBrowser($"Entity {longValue:X}", new Entity() { Address = ptr });
+									}
 								// Use the ElementCache to find ptrs to Elements
 								} else if ( ElementCache.TryGetElement(ptr, out Element elem) ) {
 									ImGui.AlignTextToFramePadding();

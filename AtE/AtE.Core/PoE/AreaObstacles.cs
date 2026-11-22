@@ -23,6 +23,9 @@ namespace AtE {
 			return AreaObstacles.IsStanding(ent);
 		}
 
+		/// <summary>A strongbox opened but locked until its monsters are dead (see AreaObstacles.IsLockedStrongbox).</summary>
+		public bool IsLocked() => EntityCache.TryGetEntity(EntityId, out var ent) && IsValid(ent) && AreaObstacles.IsLockedStrongbox(ent);
+
 		public override string ToString() => $"Obstacle {EntityId} at {GridPos} ({Path?.Split('/').LastOrDefault()})";
 	}
 
@@ -35,6 +38,20 @@ namespace AtE {
 			if ( IsValid(chest) && chest.IsOpened ) return false;
 			var targetable = ent.GetComponent<Targetable>();
 			return !IsValid(targetable) || targetable.IsTargetable;
+		}
+
+		/// <summary>
+		/// A strongbox that was opened (clicked: its StateMachine's started 0 -> 1) but has not dropped its loot yet: it stays
+		/// shut, targetable, until the monsters it summoned are dead (opened stays 0, Chest.IsOpened 0); clicking it then only
+		/// says "This chest is locked" (seen live 3.30.0d, Metadata/Chests/StrongBoxes/Strongbox: started 1, opened 0). Walking
+		/// must not click on it (see PathFollower), nor anything else.
+		/// </summary>
+		public static bool IsLockedStrongbox(Entity ent) {
+			if ( ent?.Path == null || !ent.Path.StartsWith("Metadata/Chests/StrongBoxes/", StringComparison.Ordinal) ) return false;
+			if ( ent.GetComponent<Chest>() is Chest c && IsValid(c) && c.IsOpened ) return false;
+			if ( !(ent.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm)) ) return false;
+			if ( sm.TryGetState("opened", out long opened) && opened != 0 ) return false;
+			return sm.TryGetState("started", out long started) && started != 0 && IsTargetable(ent);
 		}
 
 		/// <summary>Add any standing obstacles in range now; drop those opened, broken or gone.</summary>
