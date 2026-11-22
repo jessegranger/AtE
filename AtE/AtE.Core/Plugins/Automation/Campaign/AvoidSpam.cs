@@ -164,6 +164,11 @@ namespace AtE {
 			// started (CasterGrid) to its Destination. A line from the rhoa to that cell (size 0), 3 either side (the user);
 			// physical, a low danger each (the user): 15, and each rhoa's own (HazardStacks), so overlapping charges stack
 			("RhoaShieldCharge", null, true, 0, 3, 15),
+			// Vivid Watchers (Metadata/Monsters/LeagueHarvest/Green/HarvestSquidT3_; 3.30.0d, paused as one channelled it at a
+			// cell 77 cells up-right of the player): EASHarvestSquidNoodleBeams, beams (Squid/spark_beam_*.ao) striking the
+			// ground again and again (Metadata/Effects/Effect, Squid/spark_beam_impact.ao) scattered 15 to 25 cells around
+			// its Destination, the newest nearest. It hurts while channelled: a real weight, 40 a guess; radius 18 a guess
+			("EASHarvestSquidNoodleBeams", null, false, 18, 0, 40),
 		};
 
 		/// <summary>
@@ -543,6 +548,11 @@ namespace AtE {
 			// (skills HarvestSpawnExplodingPodGreen, HarvestSpawnExplodingPodGreenExplode; not acting). Radius 8 (the user), weight 60
 			// a guess; no resistance (the element is not known). "ExplodingPod" takes the other colours' pods too, presumably
 			("ExplodingPod", null, 8, 60),
+			// Vivid Watchers' slow ball (3.30.0d, paused with one out): a projectile Metadata/Projectiles/HarvestSquidBallLightning
+			// (.../harvest_monsters/scale/Squid/rig.ao, with a Squid/poisonball_beamsmall.ao BeamEffect on it), 0.5 s old;
+			// chaos (the user), despite its name: scaled by chaos resistance (HazardResists). Radius 6 and weight 40 guesses;
+			// drawn 40 cells ahead along its path (HazardLookAhead, the user)
+			("Projectiles/HarvestSquidBallLightning", null, 6, 40),
 			// Augury empowerment "Crow Bombs" (3.30, seen on Kitava alongside the wall, not seen exploding yet):
 			// Monsters/Augury/Daemon/CrowBombDaemon places Metadata/Monsters/Daemon/Augury/CrowBombObject (Animated,
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
@@ -631,6 +641,15 @@ namespace AtE {
 
 		/// <summary>The entities in ents matching HazardPaths.</summary>
 		/// <summary>
+		/// HazardPaths entries (by their path part) that move (a slow projectile): drawn as a line this many cells ahead
+		/// along the way the entity faces (Positioned.Rotation, 0 facing -Y), its radius either side.
+		/// </summary>
+		public static readonly Dictionary<string, float> HazardLookAhead = new Dictionary<string, float> {
+			// the Vivid Watchers' slow chaos ball: its rotation (1.21) pointed it broadly at where the player was (the user: 40)
+			["Projectiles/HarvestSquidBallLightning"] = 40,
+		};
+
+		/// <summary>
 		/// HazardPaths entries (by their path part) whose entities stay in the entity list after they are gone: the most
 		/// seconds one lasts, by its animated object's clock (ClientAnimationController.TimeSpentAnimating, which keeps
 		/// running after it is gone); an older one is not a hazard.
@@ -709,6 +728,7 @@ namespace AtE {
 			// cold
 			["arena_mechanics/ice_flower/Small/small_blast"] = Offsets.GameStat.ColdDamageResistancePct, // the ice flowers' burst
 			["ground_maelstrom_chill"] = Offsets.GameStat.ColdDamageResistancePct, // cold vortices
+			["Projectiles/HarvestSquidBallLightning"] = Offsets.GameStat.ChaosDamageResistancePct, // Vivid Watchers' slow chaos ball
 			["BismuthMineralTornadoCold"] = Offsets.GameStat.ColdDamageResistancePct, // the bismuth encounter's cold tornado
 		};
 
@@ -774,6 +794,11 @@ namespace AtE {
 					var beam = e.GetComponent<Beam>();
 					if ( IsValid(beam) && beam.Start != beam.End ) {
 						yield return new Hazard(WorldToGrid(beam.Start), WorldToGrid(beam.End), radius) { Weight = weight, Source = source };
+					} else if ( IsValid(pos) && HazardLookAhead.TryGetValue(part, out float ahead) ) {
+						// a moving one: from where it is to where it is headed
+						float r = pos.Rotation;
+						var end = new Offsets.Vector2i(pos.GridPos.X + (int)Math.Round(Math.Sin(r) * ahead), pos.GridPos.Y - (int)Math.Round(Math.Cos(r) * ahead));
+						yield return new Hazard(pos.GridPos, end, radius) { Weight = weight, Source = source };
 					} else if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius) { Weight = weight, Source = source };
 					break;
 				}
