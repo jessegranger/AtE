@@ -93,17 +93,37 @@ namespace AtE {
 
 	public class Entity : MemoryObject<Offsets.Entity> {
 		public Cached<Offsets.EntityDetails> Details;
+		// What the last parse of the components read (see ParseComponents), published whole as one object: the EntityCache
+		// thread can parse while the main thread reads, and the map, the base pointers it was made from and the lookup must
+		// agree with each other.
+		private sealed class Parsed {
+			public Dictionary<string, IntPtr> Map; // the name of each Component to the Address of its instance for this Entity
+			public IntPtr[] BasePtrs; // this entity's component base pointers the map was made from
+			public IntPtr Lookup; // and its type's ptrComponentLookup
+		}
+		private Parsed parsed;
 		// maps the Type (of a Component) to the Address of that Component instance for this Entity
-		private Dictionary<string, IntPtr> ComponentPtrs; // we have to parse this all at once
+		private Dictionary<string, IntPtr> ComponentPtrs => parsed?.Map;
 		private Dictionary<string, MemoryObject> ComponentCache; // these are filled in as requested, then re-used if requested a second time
 		private long LastParseTime;
+		private bool lastParseFailed;
 
 		internal static long[] cachedVtablePtr = new long[12];
 		static Entity() {
-			OnAreaChange += (obj, areaName) => {
-				// clear the Entity vtable pointer cache entries on zone change
-				Array.Clear(cachedVtablePtr, 0, cachedVtablePtr.Length);
+			OnAreaChange += (obj, areaName) => ClearAreaCaches();
+			// (Detach drops every OnAreaChange handler, so hook it again on each attach; a new process also means new
+			// addresses for the component names, see componentNames)
+			PoEMemory.OnAttach += (_, __) => {
+				componentNames.Clear();
+				ClearAreaCaches();
+				OnAreaChange += (obj, areaName) => ClearAreaCaches();
 			};
+		}
+		private static void ClearAreaCaches() {
+			// the Entity vtable pointer cache entries
+			Array.Clear(cachedVtablePtr, 0, cachedVtablePtr.Length);
+			// and the component lookups: their memory may be freed and reused for other types in the next area
+			componentLookups.Clear();
 		}
 
 		public Entity() : base() {
@@ -128,9 +148,10 @@ namespace AtE {
 				path = null;
 				identityDetails = IntPtr.Zero;
 				identityPath = IntPtr.Zero;
-				ComponentPtrs = null;
+				parsed = null;
 				ComponentCache = null;
 				LastParseTime = 0;
+				lastParseFailed = false;
 
 			}
 		}
@@ -185,15 +206,11 @@ namespace AtE {
 
 		public bool HasComponent<T>() where T : MemoryObject, new() => IsValid(Address) && GetComponent<T>() != null;
 		public bool HasComponent(string name) {
-			if ( ComponentPtrs == null || (Time.ElapsedMilliseconds - LastParseTime) > 1337 ) {
-				ParseComponents();
-			}
+			EnsureParsed();
 			return ComponentPtrs?.ContainsKey(name) ?? false;
 		}
 		public bool HasComponent() {
-			if ( ComponentPtrs == null || (Time.ElapsedMilliseconds - LastParseTime) > 1337 ) {
-				ParseComponents();
-			}
+			EnsureParsed();
 			return (ComponentPtrs?.Count ?? 0) > 0;
 		}
 
@@ -204,27 +221,27 @@ namespace AtE {
 			if ( Environment.CurrentManagedThreadId != 2 ) {
 				Log($"Warning: GetComponent<{typeof(T).Name}> called from background thread!");
 			}
-			if ( ComponentPtrs == null || (Time.ElapsedMilliseconds - LastParseTime) > 1337 ) {
-				ParseComponents();
-			}
-			if ( ComponentPtrs == null ) {
-				// all the above failed to parse any ptrs, so there are no components
-				ClearComponents();
+			EnsureParsed();
+			var ptrs = ComponentPtrs;
+			if ( ptrs == null ) {
+				// the parse failed, so there are no components
+				ComponentCache = null;
 				return null;
 			}
 
 			string key = ComponentName<T>.Name;
-			if ( ComponentCache != null && ComponentCache.TryGetValue(key, out MemoryObject cachedResult) ) {
+			// (locals: the EntityCache thread can replace these meanwhile, see DropStaleComponents)
+			var cache = ComponentCache;
+			if ( cache != null && cache.TryGetValue(key, out MemoryObject cachedResult) ) {
 				return (T)cachedResult;
 			}
 
-			IntPtr ptr = default;
-			if ( ComponentPtrs?.TryGetValue(key, out ptr) ?? false ) {
+			if ( ptrs.TryGetValue(key, out IntPtr ptr) ) {
 				var ret = new T() { Address = ptr };
-				if ( ComponentCache == null ) {
-					ComponentCache = new Dictionary<string, MemoryObject>();
+				if ( cache == null ) {
+					ComponentCache = cache = new Dictionary<string, MemoryObject>();
 				}
-				ComponentCache[key] = ret;
+				cache[key] = ret;
 				return ret;
 			}
 			return null;
@@ -247,9 +264,7 @@ namespace AtE {
 		}
 
 		public Dictionary<string,IntPtr> GetComponents() {
-			if( ComponentPtrs == null ) {
-				ParseComponents();
-			}
+			EnsureParsed();
 			return ComponentPtrs;
 		}
 
@@ -263,25 +278,24 @@ namespace AtE {
 		/// </summary>
 		public float CreationTime => Animated?.AnimatedObject?.GetComponent<AnimatedRender>()?.CreationTime ?? float.NaN;
 
+		/// <summary>Forget the components, so the next use parses them again from memory.</summary>
 		public void ClearComponents() {
-			ComponentPtrs = null;
-			ComponentCache?.Clear();
+			// (assigned, not cleared: the other thread may be reading the old ones)
+			parsed = null;
 			ComponentCache = null;
+			lastParseFailed = false;
 		}
 		public void DebugComponents() {
 			var componentPtrs = new ArrayHandle<IntPtr>(Cache.ComponentBasePtrs);
 			ImGui.Text($"ComponentsArray claims to have {componentPtrs.Length} items.");
 			ImGui_Address(Details.Value.ptrComponentLookup, "ptrComponentLookup", "ComponentLookup");
-			if ( !PoEMemory.TryRead(Details.Value.ptrComponentLookup, out Offsets.ComponentLookup lookup) ) {
-				ImGui.Text("Failed to read ptrComponentLookup");
-			} else {
-				ImGui.Text($"ComponentLookup Capacity: {lookup.Counter} of {lookup.Capacity}");
-			}
-			var namesArray = new Offsets.NameAndIndexStruct[lookup.Counter];
-			if ( 0 == PoEMemory.TryRead(lookup.ComponentMap, namesArray) ) {
-				ImGui.Text($"ComponentMap: Read 0 bytes, aborting.");
+			IntPtr mapAt = Details.Value.ptrComponentLookup + GetOffset<Offsets.ComponentLookup>("ComponentMap");
+			if ( !PoEMemory.TryRead(mapAt, out Offsets.ArrayHandle handle) ) {
+				ImGui.Text("Failed to read the ComponentMap handle");
 				return;
 			}
+			var namesArray = new ArrayHandle<Offsets.NameAndIndexStruct>(handle).ToArray(limit: COMPONENT_MAX);
+			ImGui.Text($"ComponentMap has {namesArray.Length} entries.");
 
 			foreach(var entry in namesArray ) {
 				ImGui.Text($" - Index: {entry.Index} '{(PoEMemory.TryReadString(entry.ptrName, Encoding.ASCII, out string name0) ? name0 : "")}'");
@@ -296,20 +310,39 @@ namespace AtE {
 
 		private const int COMPONENT_MAX_NAME = 128; // max length of a component name
 
-		private void ParseComponents() {
+		/// <summary>How long a parsed component map is used before it is checked against memory again.</summary>
+		private const long REPARSE_MS = 1337;
+		/// <summary>After a failed parse, how long before trying again (an entity being freed would otherwise parse, and
+		/// log, on every GetComponent).</summary>
+		private const long RETRY_FAILED_MS = 250;
 
-			// Build the map in a local and publish it when done: the EntityCache thread can parse (IsValid, through
-			// HasComponent) while the main thread reads ComponentPtrs, and a Dictionary being filled is not safe to read.
-			var ptrs = new Dictionary<string, IntPtr>();
-			bool publish = true;
-			try {
-				ParseComponents(ptrs, ref publish);
-			} finally {
-				if ( publish ) {
-					ComponentPtrs = ptrs;
-					// (the main thread may be adding to the cache meanwhile: if so, the next parse drops what is stale)
-					try { DropStaleComponents(ptrs); } catch ( InvalidOperationException ) { }
+		// parse the components if they are not parsed yet, or not lately
+		private void EnsureParsed() {
+			long since = Time.ElapsedMilliseconds - LastParseTime;
+			if ( parsed != null ? since <= REPARSE_MS : (lastParseFailed && since < RETRY_FAILED_MS) ) return;
+			ParseComponents();
+		}
+
+		private void ParseComponents() {
+			using ( Perf.Section("ParseComponents") ) {
+				LastParseTime = Time.ElapsedMilliseconds;
+				var was = parsed;
+				var now = ReadComponents(was, out string error);
+				lastParseFailed = now == null;
+				if ( now == null ) {
+					Log($"ParseComponents[{Id}]: {error}");
+					// (a read that failed is not trusted at all, not even in part: the entity is most likely being freed;
+					// assigned, not cleared, as the main thread may be reading the old ones)
+					parsed = null;
+					ComponentCache = null;
+					return;
 				}
+				if ( now == was ) return; // unchanged
+				// Built in a local and published whole: the EntityCache thread can parse (IsValid, through HasComponent)
+				// while the main thread reads ComponentPtrs, and a Dictionary being filled is not safe to read.
+				parsed = now;
+				// (the main thread may be adding to the cache meanwhile: if so, the next parse drops what is stale)
+				try { DropStaleComponents(now.Map); } catch ( InvalidOperationException ) { }
 			}
 		}
 
@@ -333,57 +366,91 @@ namespace AtE {
 			}
 			ComponentCache = kept;
 		}
-		private void ParseComponents(Dictionary<string, IntPtr> ptrs, ref bool publish) {
-			using ( Perf.Section("ParseComponents") ) {
-				LastParseTime = Time.ElapsedMilliseconds;
-				// the Entity has a list of ptr to Component, managed by an ArrayHandle
-				// (these are the .Values of the underlying map)
-				var basePtrsHandle = new ArrayHandle<IntPtr>(Cache.ComponentBasePtrs);
-				if ( basePtrsHandle.Length == 0 || basePtrsHandle.Length > COMPONENT_MAX ) {
-					Log($"ParseComponents[{Id}]: invalid length of basePtrs array: {Describe(basePtrsHandle)}");
-					publish = false;
-					ClearComponents();
-					return;
-				}
-
-				// read out all the pointers at once, so that later accesses dont read each ptr individually
-				var basePtrs = basePtrsHandle.ToArray(limit: COMPONENT_MAX);
-				
-				// the old map structure (a boost map) is replaced with an ArrayHandle (an stl vector)
-				IntPtr ComponentMap_Offset = Details.Value.ptrComponentLookup + GetOffset<Offsets.ComponentLookup>("ComponentMap");
-				if ( !PoEMemory.TryRead(ComponentMap_Offset, out Offsets.ArrayHandle handle) ) {
-					Log($"ParseComponents[{Id}]: failed to read ComponentMap handle from {Describe(ComponentMap_Offset)}");
-					return;
-				}
-				var namesArray = new ArrayHandle<Offsets.NameAndIndexStruct>(handle);
-				foreach ( var entry in namesArray ) {
-					if ( entry.Index < 0 || entry.Index >= basePtrs.Length ) {
-						Log($"ParseComponents[{Id}]: invalid entry index: {entry.Index} should be in [0..{basePtrs.Length}]");
-						return;
-					}
-					if ( !IsValid(entry.ptrName) ) {
-						Log($"ParseComponents[{Id}]: invalid entry name ptr {Describe(entry.ptrName)}");
-						return;
-					}
-					if ( !IsValid(basePtrs[entry.Index]) ) {
-						Log($"ParseComponents[{Id}]: invalid basePtr {Describe(basePtrs[entry.Index])} at index {entry.Index}");
-						return;
-					}
-					if ( !PoEMemory.TryReadString(entry.ptrName, Encoding.ASCII, out string name) ) {
-						Log($"ParseComponents[{Id}]: failed to read component name from ptr {Describe(entry.ptrName)}");
-						return;
-					}
-					if ( name.Length < 3 || name.Length > COMPONENT_MAX_NAME ) {
-						Log($"ParseComponents[{Id}]: invalid component name \"{name}\"");
-						return;
-					}
-					// if ( Id == 400 ) { Log($"ParseComponents[{Id}]: valid component \"{name}\" => index {entry.Index}"); }
-					ptrs[name] = basePtrs[entry.Index];
-				}
-
-				// Log($"Entity[{Id}] Parsed {ComponentPtrs.Count} components");
-				return;
+		// Read this entity's components from memory: was itself if nothing changed since it was read, a new Parsed if
+		// something did, null (and why in error) if the read can not be trusted.
+		//
+		// Two things are read: this entity's own array of pointers to its component instances (Entity.ComponentBasePtrs:
+		// its Life, Positioned, ...), and its type's ComponentLookup (EntityDetails.ptrComponentLookup), the packed array
+		// of a hash map from component name to slot in that array ("Life" -> 3). The lookup is shared by every entity of
+		// one type (checked live, 3.30.0d: 154 entities, 28 types, 28 lookups, none shared between types), so it is
+		// cached by its address (componentLookups).
+		private Parsed ReadComponents(Parsed was, out string error) {
+			error = null;
+			var basePtrsHandle = new ArrayHandle<IntPtr>(Cache.ComponentBasePtrs);
+			int count = basePtrsHandle.Length;
+			if ( count == 0 || count > COMPONENT_MAX ) { error = $"invalid length of basePtrs array: {Describe(basePtrsHandle)}"; return null; }
+			// (all the pointers in one read)
+			var basePtrs = basePtrsHandle.ToArray(limit: COMPONENT_MAX);
+			if ( basePtrs.Length != count ) { error = $"read {basePtrs.Length} of {count} basePtrs"; return null; }
+			for ( int i = 0; i < count; i++ ) {
+				if ( !IsValid(basePtrs[i]) ) { error = $"invalid basePtr {Describe(basePtrs[i])} at index {i}"; return null; }
 			}
+			IntPtr lookup = Details.Value.ptrComponentLookup;
+			if ( !IsValid(lookup) ) { error = $"invalid ptrComponentLookup {Describe(lookup)}"; return null; }
+
+			// the same component instances, and the same type: the same map
+			if ( was != null && was.Lookup == lookup && basePtrs.AsSpan().SequenceEqual(was.BasePtrs) ) return was;
+
+			var names = LookupNames(lookup, count, out error);
+			if ( names == null ) return null;
+			var map = new Dictionary<string, IntPtr>(count);
+			foreach ( var (name, index) in names ) map[name] = basePtrs[index];
+			return new Parsed() { Map = map, BasePtrs = basePtrs, Lookup = lookup };
+		}
+
+		// A type's ComponentLookup, read: each component's name and its slot in an entity's ComponentBasePtrs; and the
+		// entries' array (head and count) it was read from, to tell a lookup changed at the same address.
+		private sealed class ComponentLookupNames {
+			public IntPtr Head;
+			public int Count;
+			public (string name, int index)[] Names;
+		}
+		// by ptrComponentLookup; cleared on each area change and attach (see ClearAreaCaches)
+		private static readonly ConcurrentDictionary<IntPtr, ComponentLookupNames> componentLookups = new ConcurrentDictionary<IntPtr, ComponentLookupNames>();
+		// The component names, by the address of the name: the game's own static strings, in its exe image (seen live
+		// 3.30.0d: mod+0x36129D8 and the like), the same for every entity of every type. Cleared on attach.
+		private static readonly ConcurrentDictionary<IntPtr, string> componentNames = new ConcurrentDictionary<IntPtr, string>();
+
+		// the names and slots in the lookup at ptrLookup, for an entity with count components; null (and why) if it can
+		// not be read, or does not agree with the entity
+		private static (string name, int index)[] LookupNames(IntPtr ptrLookup, int count, out string error) {
+			error = null;
+			IntPtr mapAt = ptrLookup + GetOffset<Offsets.ComponentLookup>("ComponentMap");
+			if ( !PoEMemory.TryRead(mapAt, out Offsets.ArrayHandle handle) ) { error = $"failed to read ComponentMap handle from {Describe(mapAt)}"; return null; }
+			var entries = new ArrayHandle<Offsets.NameAndIndexStruct>(handle);
+			int n = entries.Length;
+			// A torn read (the entity freed, or its memory reused, while it was read) is caught by these: one name for each
+			// component, and the slots exactly 0..count-1, each once (all held, live 3.30.0d, for all 154 entities checked).
+			if ( n != count ) { error = $"the ComponentMap has {n} names for {count} components"; return null; }
+			if ( componentLookups.TryGetValue(ptrLookup, out var known) && known.Head == handle.Head && known.Count == n ) return known.Names;
+
+			// (all the entries in one read)
+			var raw = entries.ToArray(limit: COMPONENT_MAX);
+			if ( raw.Length != n ) { error = $"read {raw.Length} of {n} ComponentMap entries"; return null; }
+			var names = new (string name, int index)[n];
+			var seen = new bool[n];
+			for ( int i = 0; i < n; i++ ) {
+				uint index = raw[i].Index;
+				if ( index >= (uint)n ) { error = $"invalid entry index: {index} should be in [0..{n})"; return null; }
+				if ( seen[index] ) { error = $"entry index {index} is in the ComponentMap twice"; return null; }
+				seen[index] = true;
+				string name = ComponentNameAt(raw[i].ptrName, out error);
+				if ( name == null ) return null;
+				names[i] = (name, (int)index);
+			}
+			componentLookups[ptrLookup] = new ComponentLookupNames() { Head = handle.Head, Count = n, Names = names };
+			return names;
+		}
+
+		// the component name at ptrName (cached, see componentNames); null (and why) if it can not be read
+		private static string ComponentNameAt(IntPtr ptrName, out string error) {
+			error = null;
+			if ( !IsValid(ptrName) ) { error = $"invalid entry name ptr {Describe(ptrName)}"; return null; }
+			if ( componentNames.TryGetValue(ptrName, out string name) ) return name;
+			if ( !PoEMemory.TryReadString(ptrName, Encoding.ASCII, out name) ) { error = $"failed to read component name from ptr {Describe(ptrName)}"; return null; }
+			if ( name.Length < 3 || name.Length > COMPONENT_MAX_NAME ) { error = $"invalid component name \"{name}\""; return null; }
+			componentNames[ptrName] = name;
+			return name;
 		}
 
 		public struct Icon {

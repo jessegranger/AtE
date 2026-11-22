@@ -1184,6 +1184,8 @@ namespace AtE {
 		/// </summary>
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct ComponentLookup {
 			[FieldOffset(0x28)] public readonly IntPtr ComponentMap;
+			// (not counts as of 3.30.0d: both hold heap pointers, the head and end of what looks like the hash map's index
+			// table; the number of entries is ComponentMap's own length)
 			[FieldOffset(0x48)] public readonly long Capacity;
 			[FieldOffset(0x50)] public readonly long Counter;
 		}
