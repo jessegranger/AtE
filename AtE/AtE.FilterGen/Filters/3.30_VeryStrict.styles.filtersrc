@@ -1,0 +1,1033 @@
+// ==============================================================================
+// STYLES - named from each block's FilterBlade !tag. Source only: Style blocks and
+// '//' lines are not written to the .filter. Use one in a block with: SetStyle Name
+// ==============================================================================
+
+Style Links6lt1
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 200 0 0 255
+	PlayAlertSound 1 300
+	PlayEffect Red
+	MinimapIcon 0 Red Diamond
+
+Style Links6lt2
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 200 0 0 255
+	PlayAlertSound 1 300
+	PlayEffect Red
+	MinimapIcon 1 Red Diamond
+
+Style GoldHuge
+	SetFontSize 45
+	SetTextColor 235 200 110 255
+	SetBorderColor 235 200 110 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 2 300
+	PlayEffect Orange
+	MinimapIcon 1 Yellow Cross
+
+Style GoldLarge
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 20 20 0 255
+	PlayEffect Orange Temp
+	MinimapIcon 1 White Cross
+
+Style GoldMedium # used by 2 blocks
+	SetFontSize 40
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 20 20 0 255
+	MinimapIcon 2 Grey Cross
+
+Style GoldSmall
+	SetFontSize 35
+	SetTextColor 180 180 180 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 20 20 0 180
+	MinimapIcon 2 Grey Cross
+
+Style MapsT1 # used by 8 blocks
+	SetFontSize 45
+	SetTextColor 100 0 122 255
+	SetBorderColor 100 0 122 255
+	SetBackgroundColor 255 255 255 255
+	PlayAlertSound 1 300
+	PlayEffect Red
+	MinimapIcon 0 Red Square
+
+Style MapsT2exotic # used by 3 blocks
+	SetFontSize 45
+	SetTextColor 145 30 220 255
+	SetBorderColor 145 30 220 255
+	SetBackgroundColor 200 200 200 255
+	PlayAlertSound 5 300
+	PlayEffect Purple
+	MinimapIcon 1 Purple Square
+
+Style InfluencedT1 # used by 8 blocks
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 20 110 220
+	PlayAlertSound 3 300
+	PlayEffect Yellow
+	MinimapIcon 1 Yellow Diamond
+
+Style InfluencedT2 # used by 9 blocks
+	SetFontSize 40
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 50 130 165
+	PlayEffect Blue Temp
+
+Style ApexScurr # used by 16 blocks
+	SetFontSize 45
+	SetTextColor 255 0 0 255
+	SetBorderColor 255 0 0 255
+	SetBackgroundColor 255 255 255 255
+	PlayAlertSound 6 300
+	PlayEffect Red
+	MinimapIcon 0 Red Star
+
+Style ExoticsArtefact # used by 9 blocks
+	SetFontSize 45
+	SetTextColor 240 0 0 255
+	SetBorderColor 240 0 0 255
+	SetBackgroundColor 70 0 20 255
+	PlayAlertSound 3 300
+	PlayEffect Orange
+	MinimapIcon 0 Orange Pentagon
+
+Style ExoticsT1 # used by 24 blocks
+	SetFontSize 45
+	SetTextColor 0 240 190 255
+	SetBorderColor 0 240 190 255
+	SetBackgroundColor 0 75 30 255
+	PlayAlertSound 3 300
+	PlayEffect Blue
+	MinimapIcon 0 Blue Diamond
+
+Style ExoticsT2 # used by 44 blocks
+	SetFontSize 45
+	SetTextColor 0 240 190 255
+	SetBorderColor 0 240 190 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 3 300
+	PlayEffect Blue
+	MinimapIcon 1 Blue Diamond
+
+Style ExoticsT3 # used by 12 blocks
+	SetFontSize 45
+	SetBorderColor 0 240 190 255
+	PlayAlertSound 3 300
+	PlayEffect Blue
+	MinimapIcon 2 Blue Diamond
+
+Style IdmodsHigh # used by 55 blocks
+	SetFontSize 45
+	SetTextColor 0 240 190 255
+	SetBorderColor 0 240 190 255
+	SetBackgroundColor 47 0 74 255
+	PlayAlertSound 3 300
+	PlayEffect Purple
+	MinimapIcon 1 Purple Diamond
+
+Style IdmodsMedium # used by 14 blocks
+	SetFontSize 45
+	SetTextColor 0 240 190 255
+	SetBorderColor 0 240 190 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 3 300
+	PlayEffect Purple
+	MinimapIcon 1 Purple Diamond
+
+Style ExoticsT1corr # used by 4 blocks
+	SetFontSize 45
+	SetTextColor 0 240 190 255
+	SetBorderColor 250 0 0 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 3 300
+	PlayEffect Blue
+	MinimapIcon 1 Blue Diamond
+
+Style UtilityQuest # used by 6 blocks
+	SetFontSize 45
+	SetTextColor 74 230 58 255
+	SetBorderColor 74 230 58 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 3 300
+	PlayEffect Green
+	MinimapIcon 0 Green Pentagon
+
+Style ExoticsT2corr
+	SetFontSize 45
+	SetBorderColor 250 0 0 255
+	PlayAlertSound 3 300
+	PlayEffect Blue
+	MinimapIcon 2 Blue Diamond
+
+Style ExoticsT3corr
+	SetFontSize 40
+	SetBorderColor 250 0 0 255
+	PlayEffect Blue Temp
+
+Style Leveling5l
+	SetFontSize 45
+	SetTextColor 0 240 190 255
+	SetBorderColor 0 240 190 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 3 300
+	PlayEffect Yellow
+	MinimapIcon 1 Yellow Diamond
+
+Style Links6s5l
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 0 240 190 255
+	SetBackgroundColor 155 138 138 255
+	PlayAlertSound 2 300
+	PlayEffect Blue
+	MinimapIcon 2 Blue Hexagon
+
+Style LinksRecipe # used by 3 blocks
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 155 138 138 255
+	PlayAlertSound 2 300
+	PlayEffect Grey
+	MinimapIcon 2 Grey Hexagon
+
+Style LinksRecipeQuiet
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 155 138 138 255
+
+Style DecoRarelarge # used by 2 blocks
+	SetBorderColor 0 0 0 255
+
+Style DecoRaremedium # used by 4 blocks
+	SetBorderColor 180 180 180 255
+
+Style DecoRaretiny # used by 2 blocks
+	SetBorderColor 50 200 50 255
+
+Style DecoRare4l
+	SetBorderColor 0 140 240 255
+
+Style DecoRareilvltop # used by 4 blocks
+	SetTextColor 245 190 0 255
+
+Style DecoRarecorr
+	SetBorderColor 120 0 0 240
+
+Style DecoRarecorrimp
+	SetBorderColor 250 0 0 255
+
+Style DecoExotic # used by 2 blocks
+	SetBorderColor 0 240 190 255
+	PlayEffect Blue
+	MinimapIcon 2 Blue Diamond
+
+Style UtilityShrunk # used by 10 blocks
+	SetFontSize 35
+	SetBorderColor 0 0 0
+
+Style RaresT1jwlr # used by 3 blocks
+	SetFontSize 45
+	SetBackgroundColor 0 80 30 255
+
+Style UtilityLayer # used by 13 blocks
+	SetFontSize 18
+	SetBorderColor 0 0 0 0
+	SetBackgroundColor 20 20 0 0
+	DisableDropSound True
+
+Style RaresT12
+	SetFontSize 40
+	SetBackgroundColor 20 20 0 255
+
+Style CraftingT1 # used by 2 blocks
+	SetBorderColor 200 200 0 255
+
+Style CraftingT2
+	SetBorderColor 200 200 0 185
+
+Style FlasksT2util # used by 2 blocks
+	SetFontSize 45
+	SetBorderColor 50 200 125
+	SetBackgroundColor 25 100 75
+	PlayEffect Grey Temp
+
+Style FlasksT3util # used by 3 blocks
+	SetFontSize 40
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 25 100 75
+	PlayEffect Grey Temp
+
+Style FlasksUtilcorr
+	SetFontSize 45
+	SetBorderColor 120 0 0 240
+	SetBackgroundColor 25 100 75
+	PlayEffect Grey Temp
+
+Style FlasksT1util
+	SetFontSize 45
+	SetTextColor 50 200 125
+	SetBorderColor 50 200 125
+	SetBackgroundColor 25 100 75
+	PlayAlertSound 3 300
+	PlayEffect Grey
+	MinimapIcon 2 Grey Circle
+
+Style JewelsSpecialcorrupt
+	SetFontSize 45
+	SetTextColor 220 220 0 255
+	SetBorderColor 0 240 190 255
+	SetBackgroundColor 120 120 0 225
+	PlayAlertSound 3 300
+	PlayEffect Blue
+	MinimapIcon 2 Blue Diamond
+
+Style JewelsRareveryhigh # used by 2 blocks
+	SetFontSize 45
+	SetTextColor 220 220 0 255
+	SetBorderColor 240 100 0 255
+	SetBackgroundColor 120 120 0 225
+	PlayEffect Grey
+	MinimapIcon 2 Grey Diamond
+
+Style JewelsAbyss1
+	SetFontSize 40
+	SetTextColor 0 75 250 255
+	SetBorderColor 240 100 0 255
+	SetBackgroundColor 0 20 40 255
+
+Style JewelsRarehigh
+	SetFontSize 45
+	SetTextColor 220 220 0 255
+	SetBorderColor 200 120 0 220
+	SetBackgroundColor 120 120 0 225
+	PlayEffect Grey
+	MinimapIcon 2 Grey Diamond
+
+Style JewelsAbyss2
+	SetFontSize 40
+	SetTextColor 0 75 250 255
+	SetBorderColor 200 120 0 220
+	SetBackgroundColor 0 20 40 255
+
+Style JewelsRare # used by 2 blocks
+	SetFontSize 45
+	SetTextColor 220 220 0 255
+	SetBorderColor 220 220 0 255
+	SetBackgroundColor 120 120 0 225
+
+Style JewelsAbysslvl # used by 2 blocks
+	SetFontSize 40
+	SetTextColor 0 75 250 255
+	SetBorderColor 0 75 250 255
+	SetBackgroundColor 0 20 40 255
+
+Style ApexSjewel # used by 10 blocks
+	SetFontSize 45
+	SetTextColor 150 0 255 255
+	SetBorderColor 240 100 0 255
+	SetBackgroundColor 255 255 255 255
+	PlayAlertSound 1 300
+	PlayEffect Red
+	MinimapIcon 0 Red Star
+
+Style JewelsT2 # used by 18 blocks
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 240 100 0 255
+	PlayAlertSound 2 300
+	PlayEffect Yellow
+	MinimapIcon 1 Yellow Pentagon
+
+Style JewelsT3 # used by 3 blocks
+	SetFontSize 45
+	SetTextColor 150 0 255 255
+	SetBorderColor 240 100 0 255
+	SetBackgroundColor 34 0 67 255
+	PlayAlertSound 2 300
+	PlayEffect Yellow
+	MinimapIcon 1 Yellow Pentagon
+
+Style JewelsT4 # used by 3 blocks
+	SetFontSize 45
+	SetTextColor 150 0 255 255
+	SetBorderColor 240 100 0 255
+	SetBackgroundColor 34 0 67 255
+	PlayAlertSound 2 300
+	PlayEffect White
+	MinimapIcon 2 White Pentagon
+
+Style JewelsT5 # used by 3 blocks
+	SetFontSize 45
+	SetTextColor 150 0 255 255
+	SetBorderColor 150 0 255 255
+	SetBackgroundColor 34 0 67 255
+
+Style HeistT1 # used by 4 blocks
+	SetFontSize 45
+	SetTextColor 245 190 0 255
+	SetBorderColor 255 85 85 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 3 300
+	PlayEffect Yellow
+	MinimapIcon 1 Yellow Raindrop
+
+Style HeistT2 # used by 4 blocks
+	SetFontSize 45
+	SetBorderColor 255 85 85 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 3 300
+	PlayEffect White
+	MinimapIcon 1 White Raindrop
+
+Style HeistT3 # used by 4 blocks
+	SetFontSize 45
+	SetBorderColor 255 85 85 200
+	SetBackgroundColor 35 35 35 240
+	PlayAlertSound 3 300
+	PlayEffect Grey
+	MinimapIcon 1 Grey Raindrop
+
+Style HeistT4 # used by 4 blocks
+	SetFontSize 40
+	SetBorderColor 255 85 85 200
+	SetBackgroundColor 35 35 35 240
+
+Style GemsA # used by 13 blocks
+	SetFontSize 45
+	SetTextColor 20 240 240 255
+	SetBorderColor 240 0 0 255
+	SetBackgroundColor 70 0 20 255
+	PlayAlertSound 1 300
+	PlayEffect Red
+	MinimapIcon 0 Red Triangle
+
+Style ApexSgem
+	SetFontSize 45
+	SetTextColor 0 0 125 255
+	SetBorderColor 0 0 125 255
+	SetBackgroundColor 255 255 255 255
+	PlayAlertSound 6 300
+	PlayEffect Red
+	MinimapIcon 0 Red Star
+
+Style GemsB # used by 6 blocks
+	SetFontSize 45
+	SetTextColor 20 240 240 255
+	SetBorderColor 20 240 240 255
+	SetBackgroundColor 6 0 60 255
+	PlayAlertSound 2 300
+	PlayEffect White
+	MinimapIcon 1 Yellow Triangle
+
+Style GemsVaal
+	SetFontSize 35
+	SetBorderColor 0 0 0
+	SetBackgroundColor 55 0 0 255
+
+Style GemsC # used by 3 blocks
+	SetFontSize 45
+	SetTextColor 30 190 190 255
+	SetBorderColor 30 190 190 255
+	PlayAlertSound 2 300
+	PlayEffect Grey
+	MinimapIcon 1 White Triangle
+
+Style GemsFirstzone
+	SetFontSize 45
+	SetBorderColor 0 0 0
+
+Style GemsVaallvl
+	SetFontSize 45
+	SetBorderColor 0 0 0
+	SetBackgroundColor 55 0 0 255
+	MinimapIcon 2 White Triangle
+
+Style GemsLeveling
+	SetFontSize 40
+	SetBorderColor 0 0 0
+
+Style GemsRest
+	SetFontSize 30
+	SetTextColor 40 130 130 255
+	SetBorderColor 0 0 0
+
+Style ApexSunique # used by 8 blocks
+	SetFontSize 45
+	SetTextColor 175 96 37 255
+	SetBorderColor 175 96 37 255
+	SetBackgroundColor 255 255 255 255
+	PlayAlertSound 6 300
+	PlayEffect Red
+	MinimapIcon 0 Red Star
+
+Style UniquesA # used by 11 blocks
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 175 96 37 255
+	PlayAlertSound 1 300
+	PlayEffect Red
+	MinimapIcon 0 Yellow Star
+
+Style UniquesSpecmulti2 # used by 3 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 240 190 255
+	SetBackgroundColor 175 96 37 255
+	PlayAlertSound 3 300
+	PlayEffect Blue
+	MinimapIcon 1 Blue Star
+
+Style UniquesB # used by 3 blocks
+	SetFontSize 45
+	SetTextColor 175 96 37 255
+	SetBorderColor 175 96 37 255
+	SetBackgroundColor 53 13 13 255
+	PlayAlertSound 3 300
+	PlayEffect Brown
+	MinimapIcon 2 Brown Star
+
+Style UtilityRestex # used by 21 blocks
+	SetFontSize 45
+	SetTextColor 255 0 255 255
+	SetBorderColor 255 0 255 255
+	SetBackgroundColor 100 0 100 255
+	PlayAlertSound 3 300
+	PlayEffect Pink
+	MinimapIcon 0 Pink Circle
+
+Style UniquesSpecmulti1 # used by 7 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 175 96 37 255
+	PlayAlertSound 2 300
+	PlayEffect Blue
+	MinimapIcon 1 Blue Star
+
+Style MapsT1exotic # used by 5 blocks
+	SetFontSize 45
+	SetTextColor 145 30 220 255
+	SetBorderColor 145 30 220 255
+	SetBackgroundColor 235 220 245 255
+	PlayAlertSound 5 300
+	PlayEffect Purple
+	MinimapIcon 0 Purple Square
+
+Style MapsDecozonelow # used by 2 blocks
+	SetBorderColor 0 0 0 255
+
+Style MapsDecozonehigh # used by 2 blocks
+	SetBorderColor 200 200 200 255
+
+Style MapsDecoupgrade # used by 6 blocks
+	SetBorderColor 220 50 0 255
+
+Style MapsDecoimplicit # used by 2 blocks
+	SetBorderColor 255 180 0 255
+
+Style MapsT2 # used by 3 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBackgroundColor 235 235 235 255
+	PlayAlertSound 5 300
+	PlayEffect Yellow
+	MinimapIcon 1 Red Square
+
+Style MapsT3 # used by 3 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBackgroundColor 200 200 200 255
+	PlayAlertSound 5 300
+	PlayEffect Yellow
+	MinimapIcon 1 Red Square
+
+Style MapsT4 # used by 5 blocks
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 4 300
+	PlayEffect White
+	MinimapIcon 1 Yellow Square
+
+Style MapsT5 # used by 5 blocks
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 4 300
+	PlayEffect White
+	MinimapIcon 2 White Square
+
+Style MaplikeT1 # used by 5 blocks
+	SetFontSize 45
+	SetTextColor 255 85 85 255
+	SetBorderColor 255 85 85 255
+	SetBackgroundColor 40 0 30 255
+	PlayAlertSound 5 300
+	PlayEffect Yellow
+	MinimapIcon 1 Yellow UpsideDownHouse
+
+Style LeagueT2 # used by 2 blocks
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 120 200 160 255
+	PlayAlertSound 1 300
+	PlayEffect Red
+	MinimapIcon 0 Red Moon
+
+Style LeagueT3 # used by 8 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 120 200 160 255
+	PlayAlertSound 2 300
+	PlayEffect Yellow
+	MinimapIcon 1 Yellow Moon
+
+Style LeagueT4 # used by 8 blocks
+	SetFontSize 45
+	SetTextColor 120 200 160 255
+	SetBorderColor 120 200 160 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 2 300
+	PlayEffect White
+	MinimapIcon 2 White Moon
+
+Style MaplikeT2
+	SetFontSize 45
+	SetTextColor 220 60 60 255
+	SetBorderColor 220 60 60 255
+	SetBackgroundColor 20 20 0 255
+	PlayAlertSound 4 300
+	PlayEffect White
+	MinimapIcon 2 White UpsideDownHouse
+
+Style FragmentsA # used by 4 blocks
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 180 0 255 255
+	PlayAlertSound 1 300
+	PlayEffect Red
+	MinimapIcon 0 Red Hexagon
+
+Style ApexSfrag
+	SetFontSize 45
+	SetTextColor 180 0 255 255
+	SetBorderColor 180 0 255 255
+	SetBackgroundColor 255 255 255 255
+	PlayAlertSound 6 300
+	PlayEffect Red
+	MinimapIcon 0 Red Star
+
+Style FragmentsB
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 180 0 255 255
+
+Style FragmentsBAlert
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 180 0 255 255
+	PlayAlertSound 2 300
+	PlayEffect Yellow
+	MinimapIcon 1 Yellow Hexagon
+
+Style FragmentsC
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 175 120 230 240
+	PlayAlertSound 2 300
+	PlayEffect White
+	MinimapIcon 2 White Hexagon
+
+Style CurrencyA # used by 16 blocks
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 240 90 35 255
+	PlayAlertSound 1 300
+	PlayEffect Red
+	MinimapIcon 0 Red Circle
+
+Style CurrencyB # used by 16 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 240 90 35 255
+	PlayAlertSound 2 300
+	PlayEffect Yellow
+	MinimapIcon 1 Yellow Circle
+
+Style CurrencyC # used by 19 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 249 150 25 255
+	PlayAlertSound 2 300
+	PlayEffect White
+	MinimapIcon 2 White Circle
+
+Style CurrencyD # used by 12 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 213 159 0 255
+	PlayAlertSound 2 300
+	PlayEffect White
+	MinimapIcon 2 White Circle
+
+Style CurrencyE # used by 9 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 210 178 135 255
+	PlayAlertSound 2 300
+	PlayEffect Grey
+	MinimapIcon 2 Grey Circle
+
+Style CurrencySupply2 # used by 5 blocks
+	SetFontSize 45
+	SetTextColor 190 178 135 255
+	SetBorderColor 190 178 135 255
+	SetBackgroundColor 20 20 0 255
+
+Style CurrencyPortalstack # used by 2 blocks
+	SetFontSize 45
+	SetBorderColor 60 100 200 255
+	SetBackgroundColor 5 8 40 255
+
+Style CurrencyLvlessence
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 213 159 0 255
+	PlayAlertSound 2 300
+	PlayEffect White
+	MinimapIcon 2 Grey Circle
+
+Style CurrencyPortalleveling
+	SetFontSize 45
+	SetBorderColor 30 50 100 255
+	SetBackgroundColor 20 20 0 255
+
+Style CurrencySupply1 # used by 3 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 210 178 135 255
+
+Style CurrencyWisdommany
+	SetFontSize 45
+	SetBorderColor 200 100 60 255
+	SetBackgroundColor 30 5 5 255
+
+Style CurrencyEQuiet # used by 6 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 210 178 135 255
+
+Style CurrencyHeist1
+	SetFontSize 45
+	SetTextColor 255 178 135 255
+	SetBorderColor 255 178 135 255
+	SetBackgroundColor 150 90 70 255
+	PlayEffect Orange
+
+Style CurrencyHeist2
+	SetFontSize 45
+	SetTextColor 255 178 135 255
+	SetBorderColor 255 178 135 255
+	SetBackgroundColor 20 20 0 255
+	PlayEffect Orange Temp
+
+Style CurrencySupply3
+	SetFontSize 40
+	SetTextColor 170 158 130 255
+	SetBorderColor 170 158 130 255
+	SetBackgroundColor 20 20 0 255
+
+Style CurrencyPortal
+	SetFontSize 40
+	SetBorderColor 30 50 100 255
+	SetBackgroundColor 20 20 0 255
+
+Style CurrencyWisdom
+	SetFontSize 40
+	SetBorderColor 100 50 30 255
+	SetBackgroundColor 20 20 0 255
+
+Style SplinterT1single
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 210 20 210 255
+	SetBackgroundColor 65 20 80
+	PlayAlertSound 2 300
+	PlayEffect Purple Temp
+	MinimapIcon 1 Grey Kite
+
+Style SplinterT3single
+	SetFontSize 40
+	SetTextColor 255 255 255 255
+	SetBorderColor 115 115 115 255
+	SetBackgroundColor 65 20 80
+
+Style SplinterT2single
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 130 15 255 255
+	SetBackgroundColor 65 20 80
+	PlayAlertSound 2 300
+	PlayEffect Purple Temp
+	MinimapIcon 2 Grey Kite
+
+Style ApexSdiv # used by 2 blocks
+	SetFontSize 45
+	SetTextColor 0 0 255 255
+	SetBorderColor 0 0 255 255
+	SetBackgroundColor 255 255 255 255
+	PlayAlertSound 6 300
+	PlayEffect Red
+	MinimapIcon 0 Red Star
+
+Style DivinationA
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 0 20 180 255
+	PlayAlertSound 1 300
+	PlayEffect Red
+	MinimapIcon 0 Red Triangle
+
+Style DivinationB
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 0 220 240 255
+	PlayAlertSound 2 300
+	PlayEffect Yellow
+	MinimapIcon 1 Yellow Triangle
+
+Style DivinationC # used by 2 blocks
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 39 141 192 255
+
+Style DivinationCAlert
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 39 141 192 255
+	PlayAlertSound 2 300
+	PlayEffect White
+	MinimapIcon 2 White Triangle
+
+Style DivinationDcurr
+	SetFontSize 45
+	SetTextColor 39 141 192 255
+	SetBorderColor 39 141 192 255
+	SetBackgroundColor 20 20 0 255
+
+Style DivinationD
+	SetFontSize 35
+	SetTextColor 39 141 192 255
+	SetBorderColor 39 141 192 255
+	SetBackgroundColor 20 20 0 255
+
+Style UniquesSpec2xcorr
+	SetFontSize 45
+	SetTextColor 255 255 255 255
+	SetBorderColor 120 0 0 240
+	SetBackgroundColor 175 96 37 255
+	PlayAlertSound 1 300
+	PlayEffect Blue
+	MinimapIcon 0 Blue Star
+
+Style UniquesSpec5l
+	SetFontSize 45
+	SetTextColor 175 96 37 255
+	SetBorderColor 0 240 190 255
+	SetBackgroundColor 53 13 13 255
+	PlayAlertSound 3 300
+	PlayEffect Blue
+	MinimapIcon 2 Blue Star
+
+Style UniquesSpecjewelcorr
+	SetFontSize 45
+	SetTextColor 0 0 0 255
+	SetBorderColor 0 240 190 255
+	SetBackgroundColor 175 96 37 255
+	PlayAlertSound 2 300
+	PlayEffect Blue
+	MinimapIcon 1 Blue Star
+
+Style UniquesSpec1xcorr
+	SetFontSize 45
+	SetTextColor 175 96 37 255
+	SetBorderColor 120 0 0 240
+	SetBackgroundColor 53 13 13 255
+	PlayAlertSound 3 300
+	PlayEffect Blue
+	MinimapIcon 2 Blue Star
+
+Style UniquesSpecboss
+	SetFontSize 45
+	SetTextColor 175 96 37 255
+	SetBorderColor 175 96 37 255
+	SetBackgroundColor 53 13 13 255
+	PlayAlertSound 3 300
+	PlayEffect Blue
+	MinimapIcon 2 Blue Star
+
+Style UniquesC # used by 2 blocks
+	SetFontSize 40
+	SetTextColor 175 96 37 255
+	SetBorderColor 175 96 37 255
+	SetBackgroundColor 20 20 0 255
+
+Style LevelingQuicksilver
+	SetFontSize 45
+	SetTextColor 50 200 125
+	SetBorderColor 50 200 125
+	SetBackgroundColor 25 100 75
+	PlayAlertSound 2 300
+	PlayEffect Grey
+	MinimapIcon 1 Yellow Raindrop
+
+Style LevelingUtilityflask # used by 2 blocks
+	SetFontSize 45
+	SetBorderColor 50 200 125
+	SetBackgroundColor 25 100 75
+	PlayEffect Grey Temp
+	MinimapIcon 2 Grey Raindrop
+
+Style FlasksT3utilQuiet
+	SetFontSize 40
+	SetBorderColor 0 0 0 255
+	SetBackgroundColor 25 100 75
+
+Style LevelingHybridflask # used by 6 blocks
+	SetFontSize 40
+	SetBorderColor 100 0 100
+
+Style LevelingLifeflask # used by 12 blocks
+	SetFontSize 40
+	SetBorderColor 120 0 0
+
+Style LevelingManaflask # used by 12 blocks
+	SetFontSize 40
+	SetBorderColor 0 0 120
+
+Style Leveling4l # used by 2 blocks
+	SetFontSize 45
+	SetBorderColor 0 140 240 255
+	SetBackgroundColor 20 20 0 255
+	PlayEffect Grey
+	MinimapIcon 2 Grey Diamond
+
+Style LevelingRareminion
+	SetFontSize 40
+	SetBorderColor 150 50 150 255
+	SetBackgroundColor 111 67 117 210
+
+Style LvlmiscRarearmourhigh
+	SetFontSize 45
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 20 20 0 255
+
+Style LvlmiscRarearmour
+	SetFontSize 40
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 20 20 0 255
+
+Style LvlmiscRarebodyshield # used by 2 blocks
+	SetFontSize 40
+	SetBackgroundColor 35 35 35 240
+
+Style LevelingRarearcher # used by 10 blocks
+	SetFontSize 40
+	SetBorderColor 0 150 0 255
+	SetBackgroundColor 4 67 4 210
+
+Style LevelingRarecaster # used by 2 blocks
+	SetFontSize 40
+	SetBorderColor 50 50 150 255
+	SetBackgroundColor 43 43 100 210
+
+Style LevelingRaremelee2h # used by 8 blocks
+	SetFontSize 40
+	SetBorderColor 150 50 50 255
+	SetBackgroundColor 100 43 43 210
+
+Style LevelingRaremelee1h # used by 8 blocks
+	SetFontSize 40
+	SetBorderColor 180 180 0 255
+	SetBackgroundColor 150 90 0 210
+
+Style LevelingCasterweapon
+	SetFontSize 40
+	SetBorderColor 0 120 120 255
+	SetBackgroundColor 20 20 0 255
+	PlayEffect Grey Temp
+
+Style LevelingAct1 # used by 4 blocks
+	SetFontSize 40
+	SetBorderColor 0 240 190 255
+	SetBackgroundColor 20 20 0 255
+
+Style LevelingJewellery
+	SetFontSize 40
+	SetBorderColor 255 255 255 255
+	SetBackgroundColor 20 20 0 255
+
+Style LvlmiscProgression # used by 19 blocks
+	SetTextColor 180 180 180
+	SetBorderColor 0 0 0
+	SetBackgroundColor 20 20 0 180
+
+Style Lvlmisc3socketearly
+	SetFontSize 40
+	SetBorderColor 100 100 100 150
+	SetBackgroundColor 20 20 0 180
+
+Style LvlmiscFirstareas
+	SetFontSize 35
+	SetTextColor 180 180 180
+	SetBorderColor 0 0 0 0
+	SetBackgroundColor 20 20 0 180
+
+Style DecoBluemedium # used by 3 blocks
+	SetBorderColor 100 100 100 150
+
+Style DecoBluetiny
+	SetBorderColor 255 255 255 255
+
+Style LvlmiscBlueearly # used by 2 blocks
+	SetFontSize 35
+	SetBackgroundColor 20 20 0 180
+
+Style LvlmiscBluefirstzones # used by 2 blocks
+	SetFontSize 40
+	SetBackgroundColor 20 20 0 180

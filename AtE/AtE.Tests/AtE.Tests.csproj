@@ -21,4 +21,9 @@
     <ProjectReference Include="..\AtE.Core\AtE.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The loot filter generator is an exe; its sources are compiled in here rather than referenced. -->
+    <Compile Include="..\AtE.FilterGen\*.cs" Exclude="..\AtE.FilterGen\Program.cs" Link="FilterGen\%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>
