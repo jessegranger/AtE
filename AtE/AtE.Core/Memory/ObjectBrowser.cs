@@ -286,6 +286,10 @@ namespace AtE {
 				return open;
 			}
 
+			if ( value is LabelOnGround labelOnGround ) {
+				return ImGui.TreeNode($"{prefix} as {type.Name} \"{labelOnGround?.Label?.Text ?? "null"}\"");
+			}
+
 			return ImGui.TreeNode($"{prefix} as {type.Name}");
 
 		}
