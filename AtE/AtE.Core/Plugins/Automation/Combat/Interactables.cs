@@ -67,6 +67,8 @@ namespace AtE {
 			public long ClickMs;
 			/// <summary>Called after each click sent on one (eg, so the window it opens is known to be its own).</summary>
 			public Action<CombatDriver> Clicked;
+			/// <summary>Why not to click it yet (eg, a strongbox while monsters a box summoned are alive), else null; not used up.</summary>
+			public Func<Entity, string> Blocked;
 		}
 
 		public static readonly List<Kind> Kinds = new List<Kind>() {
@@ -77,7 +79,8 @@ namespace AtE {
 			new Kind() { Name = "Voltaxic Sulphite Vein", PathPart = "Delve/Objects/DelveMineralVein" },
 			new Kind() { Name = "Shrine", PathPart = "Metadata/Shrines/", Used = e => e.GetComponent<Shrine>() is Shrine s && IsValid(s) && !s.IsAvailable },
 			new Kind() { Name = "Grasping Coffers (Breach)", PathPart = "Chests/Breach/BreachBoxChest", Used = e => e.GetComponent<Chest>() is Chest c && IsValid(c) && c.IsOpened },
-			new Kind() { Name = "Strongbox", PathPart = "Metadata/Chests/StrongBoxes/", Used = IsStrongboxUsed },
+			new Kind() { Name = "Strongbox", PathPart = "Metadata/Chests/StrongBoxes/", Used = IsStrongboxUsed,
+				Blocked = e => AreaObstacles.ChestSpawnsNear(e) ? "monsters a strongbox summoned are alive near it" : null },
 			new Kind() { Name = "Sentinel", PathPart = "Metadata/MiscellaneousObjects/Sentinel/",
 				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("interacted", out long done) && done != 0 },
 			new Kind() { Name = "Crimson Iron", PathPart = "Settlers/Node/Objects/NodeTypes/", PathEnd = "/CrimsonIron",
@@ -155,6 +158,7 @@ namespace AtE {
 					clicks.Remove(e.Id);
 					why = "used";
 				}
+				else if ( kind.Blocked?.Invoke(e) is string blocked ) why = blocked;
 				else if ( !IsValid(pos) ) why = "no position";
 				else if ( d > MaxDistance ) why = null; // (too far: not said, it comes nearer)
 				else if ( !DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, pos.GridPos, out _, 15) ) why = "can't be walked to";

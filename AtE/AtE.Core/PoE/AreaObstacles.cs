@@ -51,8 +51,22 @@ namespace AtE {
 			if ( ent.GetComponent<Chest>() is Chest c && IsValid(c) && c.IsOpened ) return false;
 			if ( !(ent.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm)) ) return false;
 			if ( sm.TryGetState("opened", out long opened) && opened != 0 ) return false;
-			return sm.TryGetState("started", out long started) && started != 0 && IsTargetable(ent);
+			if ( !IsTargetable(ent) ) return false;
+			if ( sm.TryGetState("started", out long started) && started != 0 ) return true;
+			// (and any box while monsters a strongbox summoned are alive near it: see ChestSpawnsNear)
+			return ChestSpawnsNear(ent);
 		}
+
+		/// <summary>Monsters a strongbox summoned (Combat.IsChestSpawn) alive within this many cells of a box keep it from being clicked.</summary>
+		public static float ChestSpawnReach = 80;
+
+		/// <summary>
+		/// Are monsters a strongbox summoned (Combat.IsChestSpawn, the white circle at their feet) alive near the box ent? Its
+		/// box is locked until they are all dead, whatever the box's own states say (from the user: "we don't try to open any
+		/// box until they are dead"); not clicked then, by Interactables or by walking.
+		/// </summary>
+		public static bool ChestSpawnsNear(Entity ent) => ent.GetComponent<Positioned>() is Positioned pos && IsValid(pos)
+			&& Combat.ChestSpawnsAliveNear(pos.GridPos, ChestSpawnReach);
 
 		/// <summary>Add any standing obstacles in range now; drop those opened, broken or gone.</summary>
 		public static void Update(List<AreaObstacle> obstacles) {

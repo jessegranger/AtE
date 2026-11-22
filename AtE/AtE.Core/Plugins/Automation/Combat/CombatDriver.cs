@@ -33,7 +33,7 @@ namespace AtE {
 
 		/// <summary>
 		/// The monster to fight next, from the hostiles nearest first; null for none. The one of highest
-		/// Combat.TargetPriority (a special target, eg a "Nearby Allies Cannot Die" totem, then unique, rare, magic, normal);
+		/// Combat.TargetPriority (a special target, eg a "Nearby Allies Cannot Die" totem, then unique, rare, a monster a strongbox summoned, magic, normal);
 		/// of those, the target now if it is one, else the nearest. Asked every frame, so a higher one that comes near takes
 		/// over before the target now is dead.
 		/// </summary>

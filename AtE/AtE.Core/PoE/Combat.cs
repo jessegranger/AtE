@@ -151,17 +151,34 @@ namespace AtE {
 		public static bool IsSpecialTarget(Entity ent) => ent?.Path is string path && SpecialTargetPaths.Any(p => path.Contains(p));
 
 		/// <summary>
-		/// How soon to fight h, higher first: a special target (IsSpecialTarget) above all, then by rarity, unique, rare,
-		/// magic, normal.
+		/// The buff on a monster a strongbox summoned when it was opened (the white circle at its feet): the box stays locked
+		/// until all of them are dead. Seen live (3.30, a Metadata/Chests/StrongBoxes/Strongbox, started 1, opened 0): of ~150
+		/// monsters near, only the two Bone Rhoas (RhoaSkeleton) still alive of the ten it summoned (ids 2034..2043, beside
+		/// it) had it; the eight dead ones had no buffs at all.
+		/// </summary>
+		public const string ChestSpawnBuff = "summoned_monster_epk_buff";
+
+		/// <summary>Is ent a live monster a strongbox summoned (ChestSpawnBuff)?</summary>
+		public static bool IsChestSpawn(Entity ent) => ent?.Path != null && ent.Path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
+			&& IsAlive(ent) && HasBuff(ent, ChestSpawnBuff);
+
+		/// <summary>Is a live monster a strongbox summoned (IsChestSpawn) within reach cells of grid?</summary>
+		public static bool ChestSpawnsAliveNear(Offsets.Vector2i grid, float reach) => GetEntities()?.Any(e => IsValid(e)
+			&& e.Path != null && e.Path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
+			&& e.GetComponent<Positioned>() is Positioned pos && IsValid(pos) && Distance(grid, pos.GridPos) <= reach
+			&& IsChestSpawn(e)) ?? false;
+
+		/// <summary>
+		/// How soon to fight h, higher first: a special target (IsSpecialTarget) above all, then unique, rare, a monster
+		/// a strongbox summoned (IsChestSpawn: its box stays locked until they are dead), magic, normal.
 		/// </summary>
 		public static int TargetPriority(Hostile h) => h?.Entity == null ? -1
 			: IsSpecialTarget(h.Entity) ? 100
-			: h.Rarity switch {
-				Offsets.MonsterRarity.Unique => 3,
-				Offsets.MonsterRarity.Rare => 2,
-				Offsets.MonsterRarity.Magic => 1,
-				_ => 0,
-			};
+			: h.Rarity == Offsets.MonsterRarity.Unique ? 4
+			: h.Rarity == Offsets.MonsterRarity.Rare ? 3
+			: IsChestSpawn(h.Entity) ? 2
+			: h.Rarity == Offsets.MonsterRarity.Magic ? 1
+			: 0;
 
 		/// <summary>
 		/// Is ent a mercenary not on the player's side (Metadata/Monsters/Mercenaries/..., not the ...Allied ones): an optional,
