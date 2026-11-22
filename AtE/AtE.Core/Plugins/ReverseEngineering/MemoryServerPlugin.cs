@@ -1050,6 +1050,13 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			if ( machine != null ) {
 				foreach ( var (name, value) in machine.States ) sb.AppendLine($"state {name} = {value}");
 			}
+			var actor = ent.GetComponent<Actor>();
+			if ( IsValid(actor) ) {
+				var action = actor.CurrentAction;
+				var rot = ent.GetComponent<Positioned>();
+				sb.AppendLine($"action flags={actor.ActionFlags} skill={action?.SkillOf(actor)?.Name ?? "(none)"} destination={action?.Destination} rotation={(IsValid(rot) ? rot.Rotation : float.NaN)} animation={actor.AnimationId} actionPtr=0x{(action?.Address ?? IntPtr.Zero).ToInt64():X}");
+				sb.AppendLine($"skills {string.Join(", ", actor.Skills.Select(s => s.Name))}");
+			}
 			var animObj = ent.GetComponent<Animated>()?.AnimatedObject;
 			var cac = animObj?.GetComponent<ClientAnimationController>();
 			if ( cac != null ) {

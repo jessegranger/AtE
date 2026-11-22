@@ -1285,6 +1285,10 @@ namespace AtE {
 			// from here at an object whose fields (see Component_Actor_Action) name his target, its cell and the skill
 			// 3.30.0d: 8 new bytes here
 			[FieldOffset(0x1B8)] public readonly IntPtr ptrAction; // ptr Component_Actor_Action
+			// 3.30.0d: a second action slot, with the same layout, for other kinds of action: Bone Rhoas charging
+			// (RhoaShieldCharge, paused with four out) had it set and ptrAction null, while one meleeing had ptrAction set and
+			// this null. Its Target was the player, TargetGrid the cell charged at, CasterGrid the cell the charge started from
+			[FieldOffset(0x1B0)] public readonly IntPtr ptrOtherAction; // ptr Component_Actor_Action
 			[FieldOffset(0x218)] public readonly Component_ActionFlags ActionFlags;
 
 			// 3.30.0d: 4 new bytes here

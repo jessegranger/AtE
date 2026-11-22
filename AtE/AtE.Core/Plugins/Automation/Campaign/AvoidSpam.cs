@@ -137,7 +137,7 @@ namespace AtE {
 		/// <summary>
 		/// Skills aimed at a cell (the action's Destination, Actor+0x1B0 +0x130) that land there, or along the way to it,
 		/// when the cast ends (no entity of their own until then): a part of the skill's name, and the ground it covers:
-		/// a line (from the caster toward the cell, size cells long, halfWidth either side) or a circle (size cells around
+		/// a line (from the caster toward the cell, size cells long (0: to the cell), halfWidth either side) or a circle (size cells around
 		/// the cell); and its weight (WarningWeight: the cast is not over yet). With a casterPart, only
 		/// a caster whose metadata path has it (for a skill with a common name, eg "Melee").
 		/// </summary>
@@ -159,6 +159,11 @@ namespace AtE {
 			// VikingCycloneMapBoss, VikingUpheavalMapBoss. Not seen landing: 15 cells around the cell was drawn slightly
 			// smaller than the slam's mark on the ground (the user, with a screenshot): 18
 			("Melee", "Viking/VikingMapBoss", false, 18, 0, WarningWeight),
+			// Bone Rhoas (Metadata/Monsters/Rhoas/RhoaSkeleton; 3.30.0d, paused with four charging): RhoaShieldCharge, in the
+			// other action slot (Actor ptrOtherAction), aimed at the player: each rhoa was on the line from where its charge
+			// started (CasterGrid) to its Destination. A line from the rhoa to that cell (size 0), 3 either side (the user);
+			// physical, a low danger each (the user): 15, and each rhoa's own (HazardStacks), so overlapping charges stack
+			("RhoaShieldCharge", null, true, 0, 3, 15),
 		};
 
 		/// <summary>
@@ -339,9 +344,12 @@ namespace AtE {
 					}
 					var dir = new Vector2(at.X - pos.GridPos.X, at.Y - pos.GridPos.Y);
 					if ( dir.LengthSquared() < 1 ) break;
-					dir = Vector2.Normalize(dir) * size;
-					var end = new Offsets.Vector2i(pos.GridPos.X + (int)Math.Round(dir.X), pos.GridPos.Y + (int)Math.Round(dir.Y));
-					yield return new Hazard(pos.GridPos, end, halfWidth) { Weight = weight, Source = part };
+					var end = at;
+					if ( size > 0 ) {
+						dir = Vector2.Normalize(dir) * size;
+						end = new Offsets.Vector2i(pos.GridPos.X + (int)Math.Round(dir.X), pos.GridPos.Y + (int)Math.Round(dir.Y));
+					}
+					yield return new Hazard(pos.GridPos, end, halfWidth) { Weight = weight, Source = HazardStacks.Contains(part) ? $"{part}#{e.Id}" : part };
 					break;
 				}
 				if ( aimed ) continue;
@@ -524,6 +532,11 @@ namespace AtE {
 			// thrown book (Metadata/Projectiles/BookThrow, book_throw.ao; not a hazard itself). Radius 8 a guess, weight 50;
 			// physical (no resistance)
 			("Projectiles/BookTornado", null, 8, 50),
+			// Settlers bismuth mineral encounter (3.30, paused with one out, after interacting with the bismuth): a tornado
+			// Metadata/Monsters/InvisibleFire/BismuthMineralTornadoCold (an invisible monster: Actor, DiesAfterTime, Life,
+			// Monster, Positioned, StateMachine clean_up=0, ...; no buffs), 6 s old, 40 cells from the player. Radius 10 (the
+			// user), weight 50, scaled by cold resistance (HazardResists); fire and lightning ones presumably are ...Fire, ...Lightning
+			("BismuthMineralTornadoCold", null, 10, 50),
 			// Augury empowerment "Crow Bombs" (3.30, seen on Kitava alongside the wall, not seen exploding yet):
 			// Monsters/Augury/Daemon/CrowBombDaemon places Metadata/Monsters/Daemon/Augury/CrowBombObject (Animated,
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
@@ -656,13 +669,14 @@ namespace AtE {
 		};
 
 		/// <summary>
-		/// HazardPaths entries (by their path part) whose hazards add up where they overlap. Each gets a Source of its own
-		/// (path part and entity id), since DangerMap keeps only the most of one Source at a cell: right for one effect
+		/// HazardPaths and AimedSkills entries (by their part) whose hazards add up where they overlap. Each gets a Source of its own
+		/// (part and entity id), since DangerMap keeps only the most of one Source at a cell: right for one effect
 		/// made of many pieces, wrong for separate blasts that each hit.
 		/// </summary>
 		public static readonly HashSet<string> HazardStacks = new HashSet<string> {
 			"/OTs/beacon_aoe", // minions exploding on death: each weak, many overlapping hurt (the user)
 			"Totems/MonsterTotemArchnemesisObelisk", // Archnemesis totems: each one's nova hits (the user)
+			"RhoaShieldCharge", // Bone Rhoas charging (an AimedSkills entry)
 		};
 
 		/// <summary>
@@ -689,6 +703,7 @@ namespace AtE {
 			// cold
 			["arena_mechanics/ice_flower/Small/small_blast"] = Offsets.GameStat.ColdDamageResistancePct, // the ice flowers' burst
 			["ground_maelstrom_chill"] = Offsets.GameStat.ColdDamageResistancePct, // cold vortices
+			["BismuthMineralTornadoCold"] = Offsets.GameStat.ColdDamageResistancePct, // the bismuth encounter's cold tornado
 		};
 
 		/// <summary>

@@ -118,8 +118,11 @@ namespace AtE {
 
 		public int AnimationId => Cache.AnimationId;
 
-		public ActorAction CurrentAction => IsValid(Address) && IsValid(Cache.ptrAction) ?
-			new ActorAction() { Address = Cache.ptrAction } : null;
+		/// <summary>The action being done: from either action slot (ptrAction, else ptrOtherAction), or null.</summary>
+		public ActorAction CurrentAction => !IsValid(Address) ? null
+			: IsValid(Cache.ptrAction) ? new ActorAction() { Address = Cache.ptrAction }
+			: IsValid(Cache.ptrOtherAction) ? new ActorAction() { Address = Cache.ptrOtherAction }
+			: null;
 
 		public IEnumerable<ActorSkill> Skills =>
 			new ArrayHandle<Offsets.ActorSkillArrayEntry>(Cache.ActorSkillsHandle)
@@ -158,10 +161,17 @@ namespace AtE {
 		/// <summary>The cell the action is aimed at (the target's cell).</summary>
 		public Offsets.Vector2i Destination => Cache.TargetGrid;
 
-		/// <summary>The skill of actor being used in this action, or null.</summary>
+		/// <summary>
+		/// The skill of actor being used in this action, or null. One not among actor.Skills (eg, a Bone Rhoa's
+		/// RhoaShieldCharge, a skill object of its own) is read from the pointer.
+		/// </summary>
 		public ActorSkill SkillOf(Actor actor) {
 			var ptr = SkillPtr;
-			return ptr == IntPtr.Zero ? null : actor?.Skills.FirstOrDefault(s => s.Address == ptr);
+			if ( ptr == IntPtr.Zero || actor == null ) return null;
+			var skill = actor.Skills.FirstOrDefault(s => s.Address == ptr);
+			if ( skill != null ) return skill;
+			skill = new ActorSkill(actor) { Address = ptr };
+			return skill.IsValid() ? skill : null;
 		}
 	}
 
