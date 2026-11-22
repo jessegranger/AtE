@@ -671,10 +671,39 @@ namespace AtE {
 		/// augury window open. True while doing so.
 		/// </summary>
 		public bool TryInteract(CombatContext ctx) {
-			if ( !Interactables.AnyEnabled || AuguryIsOpen() || BackpackIsOpen() ) return false;
+			if ( AuguryIsOpen() || BackpackIsOpen() ) return false;
+			if ( TryActivateSentinelDrone() ) return true;
+			if ( !Interactables.AnyEnabled ) return false;
 			if ( ctx.Hostiles.Any(h => h.Distance <= AttackRange) ) return false;
 			if ( !interactables.TryUse(this, ctx) ) return false;
 			Status = interactables.Status;
+			return true;
+		}
+
+		/// <summary>Press the Sentinel drone's key again only after this long (the button takes a moment to change).</summary>
+		public long SentinelDroneKeyMs = 1500;
+		private long lastSentinelDroneKey;
+		private string sentinelKeyNotUnderstood;
+
+		/// <summary>
+		/// Once a Sentinel has been clicked (the Sentinel kind of Interactables, when switched on) its drone button shows
+		/// the key that activates it (UIElementLibrary.SentinelDroneKey): press that key. Done with monsters near too
+		/// (the drone empowers them). True when the key was sent.
+		/// </summary>
+		public bool TryActivateSentinelDrone() {
+			if ( !Interactables.Kinds.Any(k => k.Name == "Sentinel" && Interactables.IsEnabled(k)) ) return false;
+			string text = GetUI()?.SentinelDroneKey;
+			if ( text == null || InputBusy || Time.ElapsedMilliseconds - lastSentinelDroneKey < SentinelDroneKeyMs ) return false;
+			VKey key = GameKeys.Parse(text);
+			if ( key == VKey.None || (key & VKey.Modifiers) != VKey.None ) {
+				if ( sentinelKeyNotUnderstood != text ) Log($"{Name}: the Sentinel drone's key \"{text}\" is not one it can press");
+				sentinelKeyNotUnderstood = text;
+				return false;
+			}
+			if ( !Send(Inputs.Press(key)) ) return false;
+			lastSentinelDroneKey = Time.ElapsedMilliseconds;
+			Status = $"activating the Sentinel drone ({text})";
+			Log($"{Name}: pressed {text} to activate the Sentinel drone");
 			return true;
 		}
 

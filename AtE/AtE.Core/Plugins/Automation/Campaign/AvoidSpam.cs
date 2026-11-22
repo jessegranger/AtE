@@ -214,7 +214,8 @@ namespace AtE {
 		};
 
 		// strongbox entity id: when it was first seen started (StateMachine started, set by a click, seen live) and opened
-		// (StateMachine opened or Chest.IsOpened); 0: not yet. Cleared on a new area instance.
+		// (StateMachine opened or Chest.IsOpened) in its current opening; 0: not yet. Removed when the box reads closed again
+		// (it can be opened again), cleared on a new area instance.
 		private static readonly Dictionary<uint, (long startedAt, long openedAt)> strongboxTimes = new Dictionary<uint, (long, long)>();
 		private static uint strongboxArea;
 
@@ -230,7 +231,9 @@ namespace AtE {
 				bool started = IsValid(sm) && sm.TryGetState("started", out long s) && s != 0;
 				bool opened = (e.GetComponent<Chest>() is Chest chest && IsValid(chest) && chest.IsOpened)
 					|| (IsValid(sm) && sm.TryGetState("opened", out long o) && o != 0);
-				if ( !started && !opened ) continue;
+				// (a box can be opened more than once: after an opening it reads opened = 0, started = 0 again, targetable, seen
+				// live 3.30; forget the last opening's times so the next one is timed afresh)
+				if ( !started && !opened ) { strongboxTimes.Remove(e.Id); continue; }
 				strongboxTimes.TryGetValue(e.Id, out var times);
 				if ( times.startedAt == 0 ) times.startedAt = now; // (opened without being seen started: from now too)
 				if ( opened && times.openedAt == 0 ) times.openedAt = now;

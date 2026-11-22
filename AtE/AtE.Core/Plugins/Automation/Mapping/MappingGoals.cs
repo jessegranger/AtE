@@ -60,7 +60,63 @@ namespace AtE {
 		protected override IState Step(CombatContext ctx) {
 			Detail = routine.MonstersRemaining is int m ? $"{m} monsters remain" : "";
 			routine.NoteBoss(ctx);
-			return FightFirst(ctx) ?? GoToIcon(ctx) ?? Call(new Explore(null));
+			return FightFirst(ctx) ?? WaitForHarvest(ctx) ?? GoToIcon(ctx) ?? Call(new Explore(null));
+		}
+
+		/// <summary>Wait this long at most for one growing Harvest seed (or a started tree with none yet) to hatch.</summary>
+		public long HarvestWaitMs = 20000;
+		/// <summary>Only a started Harvest tree this near (cells) is waited at.</summary>
+		public float HarvestWaitReach = 60;
+		// when each growing thing (a tree's id, a seed's id) was first seen growing, so one that never hatches is not waited on for good
+		private readonly Dictionary<uint, long> harvestGrowingSince = new Dictionary<uint, long>();
+		private bool harvestWaiting;
+
+		/// <summary>
+		/// After Interactables clicks a Harvest tree its seeds grow a while before their monsters come, in waves: don't
+		/// explore away meanwhile, wait by it (fighting what has come: FightFirst runs before this). Seen live (3.30):
+		///   the tree HarvestEncounterTreePurple: state active = 0 (targetable) before the click, 1 (not targetable) while
+		///     its first seeds grow, 2 once monsters are out (the encounter running, more waves still coming)
+		///   each Metadata/MiscellaneousObjects/Harvest/MonsterSeed: hatched = 1 while it grows, 2 once its monster is out
+		///     (withered = 0 all along, colour = 1 on a red tree); 4 seeds at first, 29 a few waves later
+		///   the monsters: Metadata/Monsters/LeagueHarvest/Red/... (Wild Thornwolf, Wild Ursaling, ...), with invisible
+		///     helpers Harvest*Daemon and LeagueHarvest/Red/Objects/HarvestRedExplodingPod
+		/// Waits while a started tree is near and it is still at active = 1 or any seed is still growing (hatched = 1, not
+		/// withered), each for HarvestWaitMs at most from when it was first seen so.
+		/// </summary>
+		private IState WaitForHarvest(CombatContext ctx) {
+			var ents = GetEntities();
+			if ( ents == null ) return null;
+			long now = Time.ElapsedMilliseconds;
+			bool treeNear = false;
+			var growing = new List<uint>();
+			foreach ( var e in ents ) {
+				if ( !IsValid(e) || e.Path == null ) continue;
+				if ( e.Path.Contains("Leagues/Harvest/Objects/HarvestEncounterTree") ) {
+					if ( !(e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("active", out long active) && active != 0) ) continue;
+					if ( !(e.GetComponent<Positioned>() is Positioned pos && IsValid(pos) && Combat.Distance(ctx.Grid, pos.GridPos) <= HarvestWaitReach) ) continue;
+					treeNear = true;
+					if ( active == 1 ) growing.Add(e.Id);
+				} else if ( e.Path.EndsWith("/Harvest/MonsterSeed", StringComparison.Ordinal) ) {
+					if ( e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm)
+						&& sm.TryGetState("hatched", out long hatched) && hatched < 2
+						&& !(sm.TryGetState("withered", out long withered) && withered != 0) )
+						growing.Add(e.Id);
+				}
+			}
+			int waiting = 0;
+			if ( treeNear ) foreach ( uint id in growing ) {
+				if ( !harvestGrowingSince.TryGetValue(id, out long since) ) harvestGrowingSince[id] = since = now;
+				if ( now - since <= HarvestWaitMs ) waiting++;
+			}
+			if ( waiting == 0 ) {
+				if ( harvestWaiting ) { harvestWaiting = false; Log($"{routine.Name}: done waiting at the Harvest tree"); }
+				if ( !treeNear ) harvestGrowingSince.Clear();
+				return null;
+			}
+			if ( !harvestWaiting ) { harvestWaiting = true; Log($"{routine.Name}: the Harvest tree is started, waiting for its monsters"); }
+			Detail = $"waiting for the Harvest monsters ({waiting} growing)";
+			ctx.Driver.StopWalking(Detail);
+			return this;
 		}
 
 		/// <summary>Minimap icons (MinimapIcons.dat ids) of a boss that is not in the entity list until the player is near.</summary>

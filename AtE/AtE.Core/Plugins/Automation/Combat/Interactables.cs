@@ -30,6 +30,10 @@ namespace AtE {
 	///    Used once Chest.IsOpened or either state is set: a click sets started 0 -> 1 (seen live; opened stayed 0, and
 	///    it stayed targetable). One with a mod in AvoidSpam.StrongboxModHazards (eg, ChestIceNova) is opened all the
 	///    same: the danger grid then marks the ground around it for a few seconds, so the routine flees and comes back
+	///  - a Sentinel (eg, "Obsidian Apex Sentinel"): Metadata/MiscellaneousObjects/Sentinel/SentinelRandomEncounterObject
+	///    (3.30, seen live: InteractionAction, StateMachine (interacted = 0 unused), Targetable, MinimapIcon, Functions,
+	///    HeistRewardDisplay); any under .../Sentinel/. Used once interacted is set: a click sets it 0 -> 1 and Targetable
+	///    1 -> 0 (seen live). The drone button it brings up is pressed by CombatDriver.TryActivateSentinelDrone
 	///  - a Crimson Iron ore node: Metadata/Terrain/Leagues/Settlers/Node/Objects/NodeTypes/CrimsonIron exactly (3.30, seen
 	///    live: InteractionAction, Targetable, StateMachine, MinimapIcon, ControlZone). Its decorations
 	///    .../NodeTypes/CrimsonIronObjects/SmallGrowth (only BaseEvents, Positioned) share the prefix, hence PathEnd.
@@ -74,13 +78,33 @@ namespace AtE {
 			new Kind() { Name = "Shrine", PathPart = "Metadata/Shrines/", Used = e => e.GetComponent<Shrine>() is Shrine s && IsValid(s) && !s.IsAvailable },
 			new Kind() { Name = "Grasping Coffers (Breach)", PathPart = "Chests/Breach/BreachBoxChest", Used = e => e.GetComponent<Chest>() is Chest c && IsValid(c) && c.IsOpened },
 			new Kind() { Name = "Strongbox", PathPart = "Metadata/Chests/StrongBoxes/", Used = IsStrongboxUsed },
+			new Kind() { Name = "Sentinel", PathPart = "Metadata/MiscellaneousObjects/Sentinel/",
+				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("interacted", out long done) && done != 0 },
 			new Kind() { Name = "Crimson Iron", PathPart = "Settlers/Node/Objects/NodeTypes/", PathEnd = "/CrimsonIron",
 				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("ore_empty", out long empty) && empty != 0 },
 			new Kind() { Name = "Bismuth Deposit", PathPart = "Settlers/Node/Objects/NodeTypes/", PathEnd = "/Bismuth",
 				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("ore_empty", out long empty) && empty != 0 },
+			// Orichalcum Ore (3.30, seen live): the node .../NodeTypes/DemonCopper exactly (its parts are DemonCopperObjects/...);
+			// once clicked it read activated = 2, in_progress = 1, ore_empty = 0 (encounter, type, lights too) and was not
+			// targetable. Then its DemonCopperObjects/copper_altar is clicked (label "Interact to begin the encounter.",
+			// targetable, states encounter = 0, type = 1, claimed = 0 before; after its click encounter = 1, not targetable, and
+			// the node's encounter = 1 too), and the monsters that come are fought as any
+			new Kind() { Name = "Orichalcum Ore", PathPart = "Settlers/Node/Objects/NodeTypes/", PathEnd = "/DemonCopper",
+				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm)
+					&& ((sm.TryGetState("activated", out long act) && act != 0) || (sm.TryGetState("ore_empty", out long empty) && empty != 0)) },
+			new Kind() { Name = "Orichalcum Altar", PathPart = "Settlers/Node/Objects/NodeTypes/DemonCopperObjects/copper_altar",
+				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm)
+					&& ((sm.TryGetState("encounter", out long enc) && enc != 0) || (sm.TryGetState("claimed", out long claimed) && claimed != 0)) },
+			// Harvest: the tree that starts the encounter (HarvestEncounterTreePurple, and its Yellow/Blue colours), seen 3.30
+			// targetable with the one state active = 0 before it was clicked, active = 1 and not targetable after (its seeds then
+			// grow), 2 once monsters are out (ClearMap.WaitForHarvest waits for them); its roots are HarvestRootFissure* (not clickable)
+			new Kind() { Name = "Harvest Tree", PathPart = "Leagues/Harvest/Objects/HarvestEncounterTree",
+				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("active", out long active) && active != 0 },
 		};
 
-		/// <summary>A strongbox is used once opened, or started (its monsters come while it opens: don't click it again).</summary>
+		/// <summary>A strongbox is used once opened, or started (its monsters come while it opens: don't click it again). Some
+		/// can be opened again: seen live (3.30) a box opened once read opened = 0, started = 0, Chest.IsOpened = 0 and targetable
+		/// again (the same as a fresh box), so it is clicked again (its clicks are forgotten once it reads used, see Next).</summary>
 		private static bool IsStrongboxUsed(Entity e) {
 			if ( e.GetComponent<Chest>() is Chest c && IsValid(c) && c.IsOpened ) return true;
 			return e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm)
@@ -125,10 +149,16 @@ namespace AtE {
 				float d = IsValid(pos) ? Combat.Distance(ctx.Grid, pos.GridPos) : float.MaxValue;
 				if ( clicks.TryGetValue(e.Id, out int n) && n >= (kind.MaxClicks > 0 ? kind.MaxClicks : MaxClicks) ) why = $"clicked {n} times";
 				else if ( !(e.GetComponent<Targetable>()?.IsTargetable ?? true) ) why = "not targetable";
-				else if ( kind.Used?.Invoke(e) ?? false ) why = "used";				else if ( !IsValid(pos) ) why = "no position";
+				else if ( kind.Used?.Invoke(e) ?? false ) {
+					// (the clicks worked: forget them, so one that becomes usable again starts afresh, eg a Strongbox that can
+					// be opened a second time, seen live 3.30: it reads opened = 0, started = 0, targetable again)
+					clicks.Remove(e.Id);
+					why = "used";
+				}
+				else if ( !IsValid(pos) ) why = "no position";
 				else if ( d > MaxDistance ) why = null; // (too far: not said, it comes nearer)
 				else if ( !DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, pos.GridPos, out _, 15) ) why = "can't be walked to";
-				else { found.Add((e, kind, label, pos.GridPos, d)); return; }
+				else { found.Add((e, kind, label, pos.GridPos, d)); passedOver.Remove(e.Id); return; }
 				if ( why != null && passedOver.Add(e.Id) ) Log($"Interactables: passing over the {kind.Name} {e.Id} at {(IsValid(pos) ? pos.GridPos.ToString() : "?")}: {why}");
 			}
 			foreach ( var kind in Kinds.Where(IsEnabled) ) {

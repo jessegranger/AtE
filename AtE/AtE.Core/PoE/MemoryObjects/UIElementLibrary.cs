@@ -160,6 +160,23 @@ namespace AtE {
 		/// this map, eg "3/3" (seen live, 3.30.0d, Mud Geyser, after taking 3 fates). See MappingRoutine.AuguryCardsChosen.
 		/// </summary>
 		public Element AuguryShowCardsButton => IsValid(Address) ? getElement(Cache.autoAuguryShowCardsButton) : null;
+		/// <summary>
+		/// The Sentinel drone button ("sentinel_drone_display"), shown once a Sentinel (Interactables) has been clicked
+		/// (3.30, seen live after clicking an "Obsidian Apex Sentinel"). Its (0, 4) child's Text is the key that activates
+		/// the drone (eg, "F2"), visible while it is ready; once activated (seen live, after pressing F2) (0, 4) is hidden and
+		/// (0, 1), (0, 2), (0, 3) are shown, (0, 3)'s Text a number ("4": charges or seconds, not known). See
+		/// SentinelDroneKey.
+		/// </summary>
+		public Element SentinelDroneDisplay => IsValid(Address) ? getElement(Cache.autoSentinelDroneDisplay) : null;
+		/// <summary>The key that activates the Sentinel drone, while its button shows it is ready (see SentinelDroneDisplay); else null.</summary>
+		public string SentinelDroneKey {
+			get {
+				var display = SentinelDroneDisplay;
+				if ( !IsValid(display) || !display.IsVisible ) return null;
+				var label = display.GetChild(0, 4);
+				return IsValid(label) && label.IsVisible && !string.IsNullOrWhiteSpace(label.Text) ? label.Text.Trim() : null;
+			}
+		}
 		// public Element InteractButtonWrapper => IsValid(Address) ? getElement(Cache.InteractButtonWrapper) : null;
 		// public Element SkipAheadButton => IsValid(Address) ? getElement(Cache.SkipAheadButton) : null;
 		// public Element SyndicateHelpButton => IsValid(Address) ? getElement(Cache.SyndicateHelpButton) : null;
