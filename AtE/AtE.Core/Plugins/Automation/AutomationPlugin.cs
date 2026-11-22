@@ -1,4 +1,4 @@
-using ImGuiNET;
+﻿using ImGuiNET;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -56,6 +56,7 @@ namespace AtE {
 				foreach ( var section in Sections ) section.OnTick(dt);
 			}
 			DefaultFollower.ReleaseIfNotTicked();
+			HeldButtons.Check(); // (the right button never stays down)
 			if ( ShowClicks ) ClickMarks.Draw();
 			return this;
 		}

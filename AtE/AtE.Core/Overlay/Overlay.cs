@@ -1,4 +1,4 @@
-using ImGuiNET;
+﻿using ImGuiNET;
 using System;
 using System.Threading;
 using static AtE.Globals;
@@ -23,6 +23,7 @@ namespace AtE {
 		public static bool IsClosed => closed || !Platform.Current.Window.IsOpen;
 
 		public static void Close() {
+			try { HeldButtons.ReleaseAll("the overlay is closing"); } catch ( Exception ) { } // (no button left down after it is gone)
 			closed = true;
 			Platform.Current.Window.Close();
 		}

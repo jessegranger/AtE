@@ -122,6 +122,9 @@ namespace AtE {
 			// MouseButtonDown.CancelIfReleased; one left down by a routine that stopped kept the player walking)
 			DefaultFollower.ReleaseMouse();
 			Run(MouseHold.Release(MouseBtn.Left));
+			// (and every other button left down, the right one always: nothing should stay held once a routine stops)
+			Run(MouseHold.Release(MouseBtn.Right));
+			HeldButtons.ReleaseAll(why);
 		}
 
 		/// <summary>The ms since the last frame (for Decide).</summary>
