@@ -447,6 +447,16 @@ namespace AtE {
 		public long FateCardTimeoutMs = 8000;
 		private long fateCardChosenAt;
 
+		/// <summary>
+		/// True while a frozen augury boss's cards are not due yet (eg, MappingRoutine.HoldBoss: not all the map's fates
+		/// taken); then a boss's window ("Invoke Fates") that opens anyway, by any stray click or skill, is closed with
+		/// Escape, its cards left alone (see TryAugury). Null: always due.
+		/// </summary>
+		[NoPersist] public Func<bool> BossCardsNotDue;
+		/// <summary>Escape pressed again this often while a boss's window not due yet stays open.</summary>
+		public long AuguryEscapeRetryMs = 1000;
+		private long lastAuguryEscape;
+
 		/// <summary>Is the augury card selection window open (see TryAugury)?</summary>
 		public static bool AuguryIsOpen() {
 			var window = GetUI()?.AuguryCardSelectionWindow;
@@ -526,6 +536,18 @@ namespace AtE {
 			// Card's window showed the first one's card held, and taking that for a boss card clicked it and then Confirm forever)
 			// (a boss's window, titled "Invoke Fates", shows empty slots where the fate cards would be: never those)
 			if ( !parts.invoking && (selectingFate || VisibleChildren(parts.fateCards).Count > 0) ) return TrySelectFateCard(window, now);
+			// (a boss's window, not due yet: opened by accident (a walking click, a skill aimed by it, anything): close it
+			// with Escape, no card clicked, no Confirm; seen live 3.30.0d, Mud Geyser, the boss fought at 2 of 3 fates)
+			if ( parts.invoking && BossCardsNotDue?.Invoke() == true ) {
+				Status = "augury: a boss's card window opened before its cards are due: closing it";
+				if ( InputBusy || now - lastAuguryClick < AuguryClickGap || now - lastAuguryEscape < AuguryEscapeRetryMs ) return true;
+				DefaultFollower.ReleaseMouse();
+				if ( Send(Inputs.Press(VKey.Escape, new Delay(Inputs.Latency))) ) {
+					lastAuguryEscape = now;
+					Log($"{Name}: the boss's card window is open before its cards are due ({bossCards.Count} held): pressed Escape to close it");
+				}
+				return true;
+			}
 			// (applied best first, by AuguryCardRank: "Divine", then "Currency", then "Rarity", then the rest as they show)
 			var cards = bossCards.OrderBy(AuguryCardRank).ToList();
 			var card = cards.FirstOrDefault(c => !auguryCardsClicked.Contains(c.Address.ToInt64()));
@@ -808,6 +830,7 @@ namespace AtE {
 			if ( !TryWorldToScreen(Position(ctx.Player), out Vector2 me) ) return false;
 			var at = (me + targetScreen) / 2;
 			if ( !PathFollower.IsSafeToClick(at) ) at = targetScreen;
+			if ( !PathFollower.TryAimClear(at, out at) ) return false; // (not with the cursor on a frozen augury boss)
 			DefaultFollower.ReleaseMouse();
 			if ( !Send(Inputs.UseSlot(slot, at, 40)) ) return false;
 			lastTotem = Time.ElapsedMilliseconds;
@@ -874,6 +897,8 @@ namespace AtE {
 			var slot = SkillBar.FindSlot(skill);
 			if ( slot?.Skill == null || slot.Key == VKey.None || (slot.Key & (VKey.Control | VKey.Shift | VKey.Alt)) != 0 ) return false;
 			if ( !IsChannelling(slot.Skill) ) return false;
+			// (aimed clear of a frozen augury boss: a press, or the held key, with the cursor on it opens its card window)
+			if ( !PathFollower.TryAimClear(screenPos, out screenPos) ) { ReleaseChannel("the aim is on a monster not to click"); return true; }
 			lastHoldCall = Time.ElapsedMilliseconds;
 			if ( heldSlot != null && heldSlot.Index == slot.Index && heldSlot.Key == slot.Key ) {
 				if ( Vector2.Distance(screenPos, heldAim) > ChannelAimPixels ) {
@@ -1091,6 +1116,8 @@ namespace AtE {
 				return false;
 			}
 			if ( InputBusy ) return false;
+			// (aimed clear of a frozen augury boss: a skill used with the cursor on it opens its card window)
+			if ( !PathFollower.TryAimClear(screenPos, out screenPos) ) return false;
 			DefaultFollower.ReleaseMouse(); // (walking holds the left button: let go of it to fight)
 			return Send(Inputs.UseSlot(slot, screenPos, holdMs));
 		}
@@ -1185,6 +1212,7 @@ namespace AtE {
 				return;
 			}
 			if ( AttackKey.Key == VKey.None || Time.ElapsedMilliseconds - lastAttack < AttackIntervalMs ) return;
+			if ( !PathFollower.TryAimClear(screenPos, out screenPos) ) return; // (not with the cursor on a frozen augury boss)
 			lastAttack = Time.ElapsedMilliseconds;
 			// aim with the real cursor (the game only reads it while focused: MoveMouse waits for that), then press the
 			// skill key (which can be posted)

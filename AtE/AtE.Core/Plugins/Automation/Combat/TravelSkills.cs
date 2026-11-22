@@ -191,6 +191,8 @@ namespace AtE {
 				var skill = slot?.Skill;
 				if ( skill == null || !skill.CanBeUsed || skill.IsOnCooldown ) { notes.Add($"{travel}: {(skill == null ? "not on the bar" : skill.IsOnCooldown ? "on cooldown" : "can't be used")}"); continue; }
 				if ( !TryGridToScreen(cells[end], z, out Vector2 screen) || !PathFollower.IsSafeToClick(screen) ) { notes.Add($"{travel}: landing cell {cells[end]} not safe to click"); continue; }
+				// (not with the cursor on a frozen augury boss: that opens its card window)
+				if ( !PathFollower.ClearOfNoClick(screen) ) { notes.Add($"{travel}: landing cell {cells[end]} is on a monster not to click"); continue; }
 				// let go of the walk, and hold it until the key is out (the cursor stays where the skill was aimed)
 				DefaultFollower.Hold(Math.Max(250, SkillBar.CastTimeMs(skill)) + 100);
 				if ( !send(Inputs.UseSlot(slot, screen, 40)) ) return Fail("input refused");

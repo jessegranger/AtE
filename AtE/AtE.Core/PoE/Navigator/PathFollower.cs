@@ -536,6 +536,41 @@ namespace AtE {
 			return spots;
 		}
 
+		/// <summary>Is screen position at clear of the NoClickMonsters boxes (see TryAimClear)?</summary>
+		public static bool ClearOfNoClick(Vector2 at) { var spots = NoClickMonsterSpots(); return spots.Count == 0 || !InNoClickBox(spots, at); }
+
+		private static bool InNoClickBox(System.Collections.Generic.List<Vector2> spots, Vector2 at) =>
+			spots.Any(b => Math.Abs(at.X - b.X) < NoClickMonsterHalfWidth && at.Y - b.Y > -NoClickMonsterAbove && at.Y - b.Y < NoClickMonsterBelow);
+
+		/// <summary>
+		/// Where to put the cursor to aim a skill at screen position at, clear of the NoClickMonsters boxes: at itself if it
+		/// is clear, else a point on the line from the player through it (nearer the player first, then past it), so a
+		/// skill still goes the same way; false if there is none (then do not aim there at all). A skill pressed with the
+		/// cursor on a frozen augury boss opens its card window like a click (seen live 3.30.0d, Mud Geyser: Scorching Ray on
+		/// a mouse button aimed at a monster in front of Tunneltrap, at 2 of 3 fates).
+		/// </summary>
+		public static bool TryAimClear(Vector2 at, out Vector2 aim) {
+			aim = at;
+			var spots = NoClickMonsterSpots();
+			if ( spots.Count == 0 || !InNoClickBox(spots, at) ) return true;
+			if ( !TryWorldToScreen(Position(GetPlayer()), out Vector2 me) ) return false;
+			var dir = at - me;
+			float len = dir.Length();
+			if ( len < 1 ) return false;
+			dir /= len;
+			// (nearer the player, then past the target, 10 px at a time)
+			for ( float d = len - 10; d >= 30; d -= 10 ) {
+				var p = me + (dir * d);
+				if ( !InNoClickBox(spots, p) && IsSafeToClick(p) ) { aim = p; return true; }
+			}
+			for ( float d = len + 10; d <= len + 400; d += 10 ) {
+				var p = me + (dir * d);
+				if ( !IsSafeToClick(p) ) break;
+				if ( !InNoClickBox(spots, p) ) { aim = p; return true; }
+			}
+			return false;
+		}
+
 		/// <summary>
 		/// Inside the game window, away from the edges and the HUD: the skill bar and flasks along the bottom, and the minimap.
 		/// </summary>

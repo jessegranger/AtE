@@ -62,6 +62,8 @@ namespace AtE {
 			Ignore = e => HoldBoss && IsMapBoss(e) && Combat.IsFrozenAuguryBoss(e);
 			// (and not walked onto: a walking click on the frozen boss opens its card window, with too few fates; seen live
 			// 3.30.0d, Mud Geyser, 2 of 3 fates taken)
+			// (and its card window, if it opens anyway while held, closed with Escape, not applied)
+			BossCardsNotDue = () => HoldBoss;
 			PathFollower.NoClickMonsters = () => !HoldBoss ? null
 				: GetEntities()?.Where(e => e?.Path != null && e.Path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
 					&& IsAlive(e) && Combat.IsFrozenAuguryBoss(e));
