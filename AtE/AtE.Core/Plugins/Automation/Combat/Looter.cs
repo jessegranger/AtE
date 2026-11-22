@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using static AtE.Globals;
 
@@ -91,6 +91,9 @@ namespace AtE {
 		private string pickingText, goneText; // the label text of the item clicked last; of the one whose label went last
 		private Offsets.Vector2i pickingGrid, goneGrid;
 		private uint goneId;
+		// the labels on the ground when the item's label went: one of them is not that item back again (eg, a second
+		// "Map (Tier 6)" dropped beside the first, seen live 3.30.0d, taken for the first one dropped again)
+		private readonly HashSet<uint> goneOthers = new HashSet<uint>();
 		private long goneAt = -100000;
 		/// <summary>A label with the same text as one just gone, this near where it was and this soon, is that item dropped again (no room for it).</summary>
 		public float BackAgainCells = 4;
@@ -221,6 +224,8 @@ namespace AtE {
 			pickedPath = pickingPath;
 			pickedAt = Time.ElapsedMilliseconds;
 			goneText = pickingText; goneGrid = pickingGrid; goneAt = pickedAt; goneId = pickingIdWas;
+			goneOthers.Clear();
+			foreach ( var l in labels ) if ( l.Item != null ) goneOthers.Add(l.Item.Id);
 			// (on the cursor: no room for it, see CheckCursor, looked at now too, as it is there only a frame; not picked up)
 			bool onCursor = pickingPath != null && CursorItem()?.Path == pickingPath;
 			CheckCursor();
@@ -298,7 +303,7 @@ namespace AtE {
 				if ( Want != null && !Want(inner) ) continue;
 				// (back on the ground as a new entity, where the one just picked up was: it went on the cursor for a moment,
 				// no room for it, and the game dropped it again; a backstop to CheckCursor, which may miss that moment)
-				if ( goneText != null && item.Id != goneId && Time.ElapsedMilliseconds - goneAt <= BackAgainMs
+				if ( goneText != null && item.Id != goneId && !goneOthers.Contains(item.Id) && Time.ElapsedMilliseconds - goneAt <= BackAgainMs
 					&& Ground.LabelText(label.Label) == goneText && Combat.Distance(pos.GridPos, goneGrid) <= BackAgainCells ) {
 					Log($"Looter: {goneText} is back on the ground (a new entity, where it was): there was no room for it");
 					goneText = null;
