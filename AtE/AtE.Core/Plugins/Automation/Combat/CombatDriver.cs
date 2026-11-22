@@ -118,12 +118,9 @@ namespace AtE {
 			ReleaseChannel(why);
 			Target = null;
 			if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, why);
-			// (and let go of the left button whoever pressed it: a press still waiting to go out is not sent at all, see
-			// MouseButtonDown.CancelIfReleased; one left down by a routine that stopped kept the player walking)
-			DefaultFollower.ReleaseMouse();
-			Run(MouseHold.Release(MouseBtn.Left));
-			// (and every other button left down, the right one always: nothing should stay held once a routine stops)
-			Run(MouseHold.Release(MouseBtn.Right));
+			DefaultFollower.ReleaseMouse(); // (its own note that it holds the left button down, for walking)
+			// every button and key the overlay has down, and any held press still waiting to go out: nothing it pressed stays
+			// held once a routine stops (a left button left down by a routine that stopped kept the player walking)
 			HeldButtons.ReleaseAll(why);
 		}
 

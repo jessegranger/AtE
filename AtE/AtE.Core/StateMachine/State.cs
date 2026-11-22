@@ -392,6 +392,8 @@ namespace AtE {
 		private static readonly Dictionary<MouseBtn, long> releases = [];
 		/// <summary>How many times button has been let go (see MouseButtonDown.CancelIfReleased).</summary>
 		public static long Releases(MouseBtn button) => releases.TryGetValue(button, out long n) ? n : 0;
+		/// <summary>Count a let go of button without sending one, so a press of it still waiting to go out is not sent.</summary>
+		public static void CancelPending(MouseBtn button) => releases[button] = Releases(button) + 1;
 		public MouseButtonUp(MouseBtn button, IState next = null) : base(next) => Button = button;
 		public override string Name => $"MouseUp({Button})";
 		public override IState OnTick(long dt) {

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Numerics;
 using static AtE.Globals;
 
@@ -37,15 +38,16 @@ namespace AtE {
 	}
 
 	/// <summary>
-	/// The mouse buttons the overlay has pressed and not let go (every press goes through ClickMarkingInput), so none is
-	/// left down: the right button never stays down longer than RightMaxHoldMs (nothing holds it; once one was left down
-	/// after a run and kept every click on the desktop from working), and every button is let go when a routine stops or
-	/// the overlay closes (ReleaseAll).
+	/// The mouse buttons and keys the overlay has pressed and not let go (all input goes through ClickMarkingInput), so it
+	/// lets go of exactly those and nothing else: not a button or key the user is holding. The right button never stays
+	/// down longer than RightMaxHoldMs (nothing holds it; once one was left down after a run and kept every click on the
+	/// desktop from working), and everything still down is let go when a routine stops or the overlay closes (ReleaseAll).
 	/// </summary>
 	public static class HeldButtons {
 		/// <summary>The longest the right button may stay down (a right click is a short press), in ms.</summary>
 		public static long RightMaxHoldMs = 1000;
 		private static readonly Dictionary<MouseBtn, long> downSince = new Dictionary<MouseBtn, long>();
+		private static readonly HashSet<VKey> keysDown = new HashSet<VKey>();
 
 		internal static void Note(MouseBtn btn, bool down) {
 			lock ( downSince ) {
@@ -53,11 +55,19 @@ namespace AtE {
 				else downSince.Remove(btn);
 			}
 		}
+		internal static void Note(VKey key, bool down) {
+			lock ( keysDown ) {
+				if ( down ) keysDown.Add(key);
+				else keysDown.Remove(key);
+			}
+		}
 
 		/// <summary>Is btn down (pressed by the overlay, not let go yet)?</summary>
 		public static bool IsDown(MouseBtn btn) { lock ( downSince ) return downSince.ContainsKey(btn); }
+		/// <summary>Is key down (pressed by the overlay, not let go yet)?</summary>
+		public static bool IsDown(VKey key) { lock ( keysDown ) return keysDown.Contains(key); }
 
-		/// <summary>Let go of the right button if it has been down longer than RightMaxHoldMs; call every frame.</summary>
+		/// <summary>Let go of the right button if the overlay has had it down longer than RightMaxHoldMs; call every frame.</summary>
 		public static void Check() {
 			long since;
 			lock ( downSince ) { if ( !downSince.TryGetValue(MouseBtn.Right, out since) ) return; }
@@ -67,13 +77,20 @@ namespace AtE {
 			Platform.Current.Input.MouseButton(MouseBtn.Right, false);
 		}
 
-		/// <summary>Let go of every mouse button the overlay has down (and the right button, in any case).</summary>
+		/// <summary>
+		/// Let go of every mouse button and key the overlay has pressed and not let go (only those), and drop the held
+		/// presses (MouseHold.Press) still waiting to go out, so none goes out afterwards with nothing left to let it go.
+		/// </summary>
 		public static void ReleaseAll(string why) {
-			List<MouseBtn> down;
-			lock ( downSince ) { down = new List<MouseBtn>(downSince.Keys); }
-			if ( !down.Contains(MouseBtn.Right) ) down.Add(MouseBtn.Right);
-			foreach ( var btn in down ) Platform.Current.Input.MouseButton(btn, false);
-			if ( down.Count > 1 ) Log($"HeldButtons: letting go of {string.Join(", ", down)} ({why})");
+			foreach ( var btn in Enum.GetValues<MouseBtn>() ) MouseButtonUp.CancelPending(btn);
+			List<MouseBtn> buttons;
+			List<VKey> keys;
+			lock ( downSince ) { buttons = new List<MouseBtn>(downSince.Keys); }
+			lock ( keysDown ) { keys = new List<VKey>(keysDown); }
+			if ( buttons.Count == 0 && keys.Count == 0 ) return;
+			Log($"HeldButtons: letting go of {string.Join(", ", buttons.Select(b => b.ToString()).Concat(keys.Select(k => k.ToString())))} ({why})");
+			foreach ( var btn in buttons ) Platform.Current.Input.MouseButton(btn, false);
+			foreach ( var key in keys ) Platform.Current.Input.KeyUp(key);
 		}
 	}
 
@@ -96,14 +113,19 @@ namespace AtE {
 
 		public void MouseButton(MouseBtn btn, bool down) {
 			if ( down ) ClickMarks.Add(Time.ElapsedMilliseconds - lastMoveTime < 100 ? lastMove : keys.GetCursorPos());
+			// (a button the overlay did not press is not let go: it may be the user's, held down)
+			if ( !down && !HeldButtons.IsDown(btn) ) return;
 			HeldButtons.Note(btn, down);
 			inner.MouseButton(btn, down);
 		}
 
-		public void KeyDown(VKey key) => inner.KeyDown(key);
-		public void KeyUp(VKey key) => inner.KeyUp(key);
+		public void KeyDown(VKey key) { HeldButtons.Note(key, true); inner.KeyDown(key); }
+		public void KeyUp(VKey key) { HeldButtons.Note(key, false); inner.KeyUp(key); }
 		public bool CanSendInBackground(VKey key) => inner.CanSendInBackground(key);
-		public void KeySequence(params (VKey key, bool down)[] keys) => inner.KeySequence(keys);
+		public void KeySequence(params (VKey key, bool down)[] keys) {
+			foreach ( var (key, down) in keys ) HeldButtons.Note(key, down);
+			inner.KeySequence(keys);
+		}
 	}
 
 	/// <summary>A platform with its input sink wrapped in a ClickMarkingInput.</summary>
