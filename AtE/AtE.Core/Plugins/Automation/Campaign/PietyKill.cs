@@ -55,8 +55,8 @@ namespace AtE {
 		private static IEnumerable<Hazard> Circles() {
 			foreach ( var e in GetEntities() ?? Enumerable.Empty<Entity>() ) {
 				string path = e?.Path;
-				if ( path == null || path.StartsWith("Metadata/Monsters/") ) continue; // (not her, nor her minions)
-				string ao = path.StartsWith("Metadata/Effects/") ? e.GetComponent<Animated>()?.AnimatedObjectPath : null;
+				if ( path == null || path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal) ) continue; // (not her, nor her minions)
+				string ao = path.StartsWith("Metadata/Effects/", StringComparison.Ordinal) ? e.GetComponent<Animated>()?.AnimatedObjectPath : null;
 				foreach ( var (part, radius) in CircleParts ) {
 					if ( !(path.Contains(part, StringComparison.OrdinalIgnoreCase) || (ao?.Contains(part, StringComparison.OrdinalIgnoreCase) ?? false)) ) continue;
 					var pos = e.GetComponent<Positioned>();
@@ -84,7 +84,7 @@ namespace AtE {
 					return true;
 				}
 				string path = e.Path;
-				string ao = path.StartsWith("Metadata/Effects/") ? e.GetComponent<Animated>()?.AnimatedObjectPath : null;
+				string ao = path.StartsWith("Metadata/Effects/", StringComparison.Ordinal) ? e.GetComponent<Animated>()?.AnimatedObjectPath : null;
 				if ( !BeamParts.Any(part => path.Contains(part, StringComparison.OrdinalIgnoreCase) || (ao?.Contains(part, StringComparison.OrdinalIgnoreCase) ?? false)) ) continue;
 				var pos = e.GetComponent<Positioned>();
 				if ( !IsValid(pos) || Combat.Distance(pos.GridPos, piety) > BeamLength ) continue;
@@ -200,7 +200,7 @@ namespace AtE {
 			lastEffectScan = now;
 			foreach ( var e in GetEntities() ?? Enumerable.Empty<Entity>() ) {
 				string path = e?.Path;
-				if ( path == null || path.StartsWith("Metadata/Monsters/") || path.StartsWith("Metadata/NPC/") || path.StartsWith("Metadata/Items/") ) continue;
+				if ( path == null || path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal) || path.StartsWith("Metadata/NPC/", StringComparison.Ordinal) || path.StartsWith("Metadata/Items/", StringComparison.Ordinal) ) continue;
 				var pos = e.GetComponent<Positioned>();
 				if ( !IsValid(pos) || Combat.Distance(pos.GridPos, piety) > 80 ) continue;
 				string ao = e.GetComponent<Animated>()?.AnimatedObjectPath;

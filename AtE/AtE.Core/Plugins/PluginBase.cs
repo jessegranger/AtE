@@ -153,7 +153,7 @@ namespace AtE {
 				Log($"Parsing ini file: {fileName}...");
 				string sectionName = "";
 				foreach ( var line in File.ReadAllLines(fileName) ) {
-					if ( line.StartsWith("[") ) {
+					if ( line.StartsWith("[", StringComparison.Ordinal) ) {
 						sectionName = line.Substring(1, line.Length - 2);
 						if ( !iniSettings.ContainsKey(sectionName) ) {
 							iniSettings[sectionName] = new Dictionary<string, string>();

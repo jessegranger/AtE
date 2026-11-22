@@ -472,7 +472,7 @@ namespace AtE {
 		/// An NPC by name: the end of its metadata path (eg, "Nessa"; spaces ignored), or its name (Render.Name) has the
 		/// name in it (eg, "Captain Fairgraves").
 		/// </summary>
-		public static Func<Entity, bool> NpcNamed(string name) => e => e?.Path is string path && path.StartsWith("Metadata/NPC/")
+		public static Func<Entity, bool> NpcNamed(string name) => e => e?.Path is string path && path.StartsWith("Metadata/NPC/", StringComparison.Ordinal)
 			&& (string.Equals(path.Substring(path.LastIndexOf('/') + 1), name.Replace(" ", ""), StringComparison.OrdinalIgnoreCase)
 				|| (e.GetComponent<Render>()?.Name?.Contains(name, StringComparison.OrdinalIgnoreCase) ?? false));
 
@@ -579,7 +579,7 @@ namespace AtE {
 		public static readonly List<string> NotQuestGivers = new List<string> { "/Einhar" };
 
 		/// <summary>The NPCs here with a quest marker over their heads (not tried twice yet).</summary>
-		public IEnumerable<Entity> Waiting() => GetEntities()?.Where(e => e?.Path is string path && path.StartsWith("Metadata/NPC/")
+		public IEnumerable<Entity> Waiting() => GetEntities()?.Where(e => e?.Path is string path && path.StartsWith("Metadata/NPC/", StringComparison.Ordinal)
 			&& !NotQuestGivers.Any(n => path.EndsWith(n, StringComparison.OrdinalIgnoreCase))
 			&& (e.GetComponent<NPC>()?.HasIconOverhead ?? false) && !(tries.TryGetValue(e.Address, out int n) && n >= 2)) ?? Enumerable.Empty<Entity>();
 

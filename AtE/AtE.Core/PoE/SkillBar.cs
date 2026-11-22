@@ -330,7 +330,7 @@ namespace AtE {
 				configTime = time;
 				var result = new Dictionary<int, VKey>();
 				foreach ( var line in File.ReadAllLines(configPath) ) {
-					if ( !line.StartsWith("use_bound_skill") ) continue;
+					if ( !line.StartsWith("use_bound_skill", StringComparison.Ordinal) ) continue;
 					var parts = line.Substring("use_bound_skill".Length).Split('=');
 					if ( parts.Length != 2 || !int.TryParse(parts[0], out int n) ) continue;
 					var values = parts[1].Trim().Split(' ');

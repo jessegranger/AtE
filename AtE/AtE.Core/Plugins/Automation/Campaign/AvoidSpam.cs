@@ -80,7 +80,7 @@ namespace AtE {
 			long now = Time.ElapsedMilliseconds;
 			// the beam from each caster to its target
 			foreach ( var e in ents ) {
-				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
+				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal) || !IsAlive(e) ) continue;
 				var actor = e.GetComponent<Actor>();
 				if ( !IsValid(actor) || (actor.ActionFlags & Offsets.Component_ActionFlags.UsingAbility) == 0 ) continue;
 				var action = actor.CurrentAction;
@@ -185,7 +185,7 @@ namespace AtE {
 			Dictionary<Offsets.GameStat, int> stats = null;
 			bool statsRead = false;
 			foreach ( var e in ents ) {
-				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
+				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal) || !IsAlive(e) ) continue;
 				foreach ( var (buff, inner, outer, weight) in BuffHazards ) {
 					if ( !HasBuff(e, buff) ) continue;
 					var pos = e.GetComponent<Positioned>();
@@ -258,7 +258,7 @@ namespace AtE {
 		public static IEnumerable<Hazard> SkillHazards(List<Entity> ents) {
 			if ( HazardSkills.Count == 0 && AimedSkills.Count == 0 && RotatingBeamSkills.Count == 0 ) yield break;
 			foreach ( var e in ents ) {
-				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/") || !IsAlive(e) ) continue;
+				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal) || !IsAlive(e) ) continue;
 				var actor = e.GetComponent<Actor>();
 				if ( !IsValid(actor) || (actor.ActionFlags & Offsets.Component_ActionFlags.UsingAbility) == 0 ) continue;
 				var action = actor.CurrentAction;
@@ -685,7 +685,7 @@ namespace AtE {
 				string path = e?.Path;
 				if ( path == null ) continue;
 				// effects with a generic metadata path (eg, SleepableServerEffect) are told apart by their animated object
-				string aoPath = path.StartsWith("Metadata/Effects/") ? e.GetComponent<Animated>()?.AnimatedObjectPath : null;
+				string aoPath = path.StartsWith("Metadata/Effects/", StringComparison.Ordinal) ? e.GetComponent<Animated>()?.AnimatedObjectPath : null;
 				foreach ( var (part, buff, radius, entryWeight) in HazardPaths ) {
 					if ( !(path.Contains(part) || (aoPath != null && aoPath.Contains(part))) || (buff != null && !HasBuff(e, buff)) ) continue;
 					if ( HazardMaxAgeSec.TryGetValue(part, out float maxAge) && !(AnimationAge(e) <= maxAge) ) break; // (gone; or no clock, taken as gone)

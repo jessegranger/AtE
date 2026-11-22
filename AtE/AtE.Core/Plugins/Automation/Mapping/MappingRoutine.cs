@@ -268,7 +268,7 @@ namespace AtE {
 		/// A map boss, for the default plan: a unique monster. Other uniques count too (eg, a
 		/// Rogue Exile): a map's own plan names its boss (see MapPlans).
 		/// </summary>
-		public static bool IsMapBoss(Entity e) => e?.Path is string path && path.StartsWith("Metadata/Monsters/")
+		public static bool IsMapBoss(Entity e) => e?.Path is string path && path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
 			&& e.GetComponent<ObjectMagicProperties>()?.Rarity == Offsets.MonsterRarity.Unique;
 
 		// ---- showing it ----

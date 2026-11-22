@@ -101,7 +101,7 @@ namespace AtE {
 				}
 			}
 			foreach ( var method in type.GetMethods() ) {
-				if ( (method?.Name.StartsWith("Get") ?? false)
+				if ( (method?.Name.StartsWith("Get", StringComparison.Ordinal) ?? false)
 					&& method.GetParameters().Length == 0
 					&& !method.Name.Equals("GetType")
 					&& !method.IsGenericMethod

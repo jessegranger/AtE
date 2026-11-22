@@ -506,7 +506,7 @@ namespace AtE {
 						IntPtr endAddress = new IntPtr(startAddress.ToInt64() + mem_page.RegionSize);
 						while ( startAddress.ToInt64() < endAddress.ToInt64() ) {
 							if ( TryRead(startAddress, out IntPtr strPtr) ) { // find a ptr to "Data/"
-								if ( TryReadString(strPtr, Encoding.Unicode, out string name) && name.StartsWith("Data/") ) {
+								if ( TryReadString(strPtr, Encoding.Unicode, out string name) && name.StartsWith("Data/", StringComparison.Ordinal) ) {
 									debugScanResults.Add(startAddress);
 									Log($"Adding result: {Describe(startAddress)}");
 								}

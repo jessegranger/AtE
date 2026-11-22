@@ -33,19 +33,13 @@ namespace AtE {
 		private static Entity newEnt(IntPtr a) => new Entity() { Address = a }; // define this out here so we dont have to create a lambda every time
 
 		/// <summary>
-		/// Enumerate the "world" entities (things like monsters, players, objects).
-		/// This doesn't include non-world entities like the items in your backpack.
+		/// The "world" entities (things like monsters, players, objects), as of the last complete walk of the entity list.
+		/// This doesn't include non-world entities like the items in your backpack, nor the ids with the high bit set
+		/// (see GetLocalEntities). A new array is published by each walk, so holding on to one is safe; an entity the
+		/// game removes after the walk has its Address cleared, so it stops passing IsValid.
 		/// </summary>
-		public static IEnumerable<Entity> GetEntities() {
-			foreach(var entry in EntitiesById) {
-				if( IsValid(entry.Value) ) {
-					yield return entry.Value;
-				} else {
-					entsToBeRemoved.Enqueue(entry.Key);
-				}
-			}
-		}
-		private static ConcurrentQueue<uint> entsToBeRemoved = new ConcurrentQueue<uint>();
+		public static IReadOnlyList<Entity> GetEntities() => entities;
+		private static volatile Entity[] entities = Array.Empty<Entity>();
 
 		/// <summary>
 		/// The projectiles in flight, as of the last walk of the entity list. Their ids have the high bit set (0x80000000
@@ -58,40 +52,49 @@ namespace AtE {
 		/// <summary>
 		/// Every entity of the last walk of the entity list that GetEntities skips, its id having the high bit set: the
 		/// projectiles (see GetProjectiles) and the client-only entities (0xC0000000 and up: doodads, critters, client-side
-		/// ground effects).
+		/// ground effects). These are not validated by the walk (most are never looked at); check IsValid before use.
 		/// </summary>
 		public static IReadOnlyList<Entity> GetLocalEntities() => localEntities;
 		private static volatile Entity[] localEntities = Array.Empty<Entity>();
-		// the Entity made for each address of those (so one keeps its cached components from walk to walk)
-		private static readonly Dictionary<IntPtr, Entity> localByAddress = new Dictionary<IntPtr, Entity>();
+		// the Entity made for each address of those, and the id it was made for (so one keeps its cached components from
+		// walk to walk, and a new entity at a reused address gets a new Entity); double-buffered, swapped after each walk
+		private struct LocalEntry { public uint Id; public Entity Ent; }
+		private static Dictionary<IntPtr, LocalEntry> localByAddress = new Dictionary<IntPtr, LocalEntry>();
+		private static Dictionary<IntPtr, LocalEntry> nextLocalByAddress = new Dictionary<IntPtr, LocalEntry>();
 		private static bool IsProjectileId(uint id) => (id & 0xC0000000) == 0x80000000;
-		private static void removeAllPending() {
-			while( entsToBeRemoved.TryDequeue(out uint id) ) {
-				if( EntitiesById.TryRemove(id, out Entity ent) ) {
-					EntitiesByAddress.TryRemove(ent.Address, out _);
-				}
-			}
-		}
 
 		public static EventHandler<Entity> EntityAdded;
 		public static EventHandler<uint> EntityRemoved;
 
 		public static int AddressCount => EntitiesByAddress.Count;
 		public static int IdCount => EntitiesById.Count;
-		private static readonly int idOffset = GetOffset<Offsets.Entity>("Id");
 
 		internal static void Debug() {
+		}
+
+		// drop a world entity the game no longer has: out of both maps, and its Address cleared so held references go invalid
+		private static void Unload(uint id) {
+			if ( EntitiesById.TryRemove(id, out Entity ent) && ent != null ) {
+				if ( ent.Address != IntPtr.Zero ) {
+					// only if the address still maps to this Entity (TryGetEntity(ptr) may have made another there since)
+					((ICollection<KeyValuePair<IntPtr, Entity>>)EntitiesByAddress).Remove(new KeyValuePair<IntPtr, Entity>(ent.Address, ent));
+					ent.Address = IntPtr.Zero;
+				}
+				EntityRemoved?.Invoke(null, id);
+			}
 		}
 
 		internal static void MainThread() {
 			Log($"EntityCache: MainThread starting...");
 
-			// used to make sure we dont visit the same node in this tree structure more than once
-			HashSet<IntPtr> deduper = new HashSet<IntPtr>();
-			// incomingIds is the set of entity ids that we found on the most recent full walk of the tree
-			HashSet<uint> incomingIds = new HashSet<uint>();
-			// the frontier stack is used to explore the tree, it should start and end empty with each walk of the tree
-			Queue<Offsets.EntityListNode> frontier = new Queue<Offsets.EntityListNode>();
+			// the world entity ids found on the last complete walk, and on this one (swapped after each complete walk)
+			HashSet<uint> prevIds = new HashSet<uint>();
+			HashSet<uint> seenIds = new HashSet<uint>();
+			// the nodes still to visit; it starts and ends empty with each walk of the tree
+			Stack<IntPtr> pending = new Stack<IntPtr>();
+			List<Entity> foundEntities = new List<Entity>();
+			List<Entity> foundLocal = new List<Entity>();
+			List<Entity> foundProjectiles = new List<Entity>();
 
 			while( true ) {
 
@@ -115,89 +118,108 @@ namespace AtE {
 				}
 
 				using ( Perf.Section("EntityThread") ) {
-					// while attached, try to find all the entities and update their Address
-					deduper.Clear();
-					incomingIds.Clear();
-					frontier.Clear();
-					removeAllPending();
-
+					IntPtr headPtr;
+					long count;
 					try {
-						if( ! IsValid(PoEMemory.GameRoot?.InGameState ?? null) ) {
+						var igs = PoEMemory.GameRoot?.InGameState;
+						if( ! IsValid(igs) ) {
 							continue;
 						}
-						Offsets.EntityListNode head = PoEMemory.GameRoot.InGameState.EntityListHead;
-						frontier.Enqueue(head);
+						headPtr = igs.EntityListHeadPtr;
+						count = igs.EntitiesCount;
 					} catch ( NullReferenceException ) {
 						continue;
 					}
-					// we are going to skip reading the Ent from the first (head) node
-					bool skippedOne = false;
-					var foundProjectiles = new List<Entity>();
-					var foundLocal = new List<Entity>();
-					while ( frontier.Count > 0 && deduper.Count < 2000 ) {
-						var node = frontier.Dequeue();
-						IntPtr entPtr = node.Entity;
-						if ( ! deduper.Add(entPtr) ) {
+					if ( !PoEMemory.TryRead(headPtr, out Offsets.EntityListNode head) || head.IsNil == 0 ) {
+						continue;
+					}
+
+					pending.Clear();
+					seenIds.Clear();
+					foundEntities.Clear();
+					foundLocal.Clear();
+					foundProjectiles.Clear();
+					nextLocalByAddress.Clear();
+
+					// The map is a red-black tree: walk it from the root through the left and right children only (each
+					// node is read once), stopping at links to the head (the nil leaves). The game can change the tree
+					// while we read it, so a torn read could make a cycle: visit at most the map's size (plus slack).
+					int budget = count > 0 && count < 100_000 ? (int)count + 256 : 20_000;
+					bool complete = true;
+					if ( head.Second != headPtr ) { // an empty map has the head as its root
+						pending.Push(head.Second);
+					}
+					while ( pending.Count > 0 ) {
+						if ( --budget < 0 ) {
+							complete = false;
+							break;
+						}
+						IntPtr nodePtr = pending.Pop();
+						if ( !PoEMemory.TryRead(nodePtr, out Offsets.EntityListNode node) || node.IsNil != 0 ) {
+							complete = false;
 							continue;
 						}
+						if ( node.First != headPtr ) pending.Push(node.First);
+						if ( node.Third != headPtr ) pending.Push(node.Third);
 
-						// probe only the entity id before we construct a full ent
-						if( skippedOne == false ) {
-							skippedOne = true;
-						} else if ( PoEMemory.TryRead(entPtr + idOffset, out uint id)) {
-							if ( (int)id < 0 ) {
-								if ( !localByAddress.TryGetValue(entPtr, out Entity local) ) localByAddress[entPtr] = local = new Entity() { Address = entPtr };
-								if ( IsValid(local) ) {
-									foundLocal.Add(local);
-									if ( IsProjectileId(id) ) foundProjectiles.Add(local);
-								}
-							} else if ( id == 0 ) {
-								// Log($"EntityCache[id={id}] Failed to produce a valid ent, rejecting.");
-							} else {
-								// attempt to construct and cache an Entity instance from this ptr
-								if ( TryGetEntity(entPtr, out Entity ent) ) {
-									if ( IsValid(ent) && ent.Id == id ) {
-										incomingIds.Add(id);
-										EntitiesById[id] = ent;
-									} else {
-										Log($"EntityCache[{id}] Failed to produce a valid ent, rejecting.");
-										EntitiesByAddress.TryRemove(ent.Address, out _);
-										ent.Address = default;
-									}
-								}
+						uint id = node.Id; // the map key is the entity id, so no read of the entity is needed to know it
+						IntPtr entPtr = node.Entity;
+						if ( id == 0 || !IsValid(entPtr) ) {
+							continue;
+						}
+						if ( (int)id < 0 ) {
+							// projectiles and client-only entities: not validated here, most are never looked at
+							if ( !localByAddress.TryGetValue(entPtr, out LocalEntry local) || local.Id != id ) {
+								local = new LocalEntry() { Id = id, Ent = new Entity() { Address = entPtr } };
 							}
+							nextLocalByAddress[entPtr] = local;
+							foundLocal.Add(local.Ent);
+							if ( IsProjectileId(id) ) foundProjectiles.Add(local.Ent);
+							continue;
 						}
-
-						if ( PoEMemory.TryRead(node.First, out Offsets.EntityListNode first) ) {
-							frontier.Enqueue(first);
+						if ( !seenIds.Add(id) ) {
+							continue;
 						}
-						if ( PoEMemory.TryRead(node.Second, out Offsets.EntityListNode second) ) {
-							frontier.Enqueue(second);
+						// a known entity at the same address needs no reads: the node says it is still there
+						if ( !EntitiesById.TryGetValue(id, out Entity ent) || ent == null || ent.Address != entPtr ) {
+							// a new id (or the game moved it): validate a fresh Entity (with its own component caches)
+							var fresh = new Entity() { Address = entPtr };
+							if ( !IsValid(fresh) ) {
+								seenIds.Remove(id); // try again next walk (it may still be under construction)
+								continue;
+							}
+							if ( fresh.Id != id ) {
+								Log($"EntityCache[{id}] entity at {Describe(entPtr)} has id {fresh.Id}, rejecting.");
+								seenIds.Remove(id);
+								continue;
+							}
+							if ( ent != null && ent.Address != IntPtr.Zero ) {
+								((ICollection<KeyValuePair<IntPtr, Entity>>)EntitiesByAddress).Remove(new KeyValuePair<IntPtr, Entity>(ent.Address, ent));
+								ent.Address = IntPtr.Zero;
+							}
+							EntitiesByAddress[entPtr] = fresh;
+							EntitiesById[id] = fresh;
+							ent = fresh;
 						}
-						if ( PoEMemory.TryRead(node.Third, out Offsets.EntityListNode third) ) {
-							frontier.Enqueue(third);
-						}
+						foundEntities.Add(ent);
 					}
-					// now, frontier is empty, and incomingIds is full
+
 					projectiles = foundProjectiles.ToArray();
 					localEntities = foundLocal.ToArray();
-					if ( localByAddress.Count > foundLocal.Count ) {
-						var keep = new HashSet<IntPtr>(foundLocal.Select(e => e.Address));
-						foreach ( var gone in localByAddress.Keys.Where(a => !keep.Contains(a)).ToArray() ) localByAddress.Remove(gone);
-					}
-					var toRemove = EntitiesById.Keys.Where(k => !incomingIds.Contains(k)).ToArray();
-					foreach ( var id in toRemove ) {
-						// note, that we dont remove from EntitiesById, but mark as Invalid
-						// so that, if (when) the game re-uses the Entity id, we re-use the instance
-						if ( EntitiesById.TryGetValue(id, out Entity ent) && ent != null ) {
-							if ( ent.Address != IntPtr.Zero ) {
-								// Log($"EntityCache[{id}] Unloading from cache at old Address {Describe(ent.Address)}...");
-								EntitiesByAddress.TryRemove(ent.Address, out _);
-								// this will leave a record in EntitiesById[id] but the Entity instance contained there will not pass IsValid()
-								ent.Address = IntPtr.Zero;
-								EntityRemoved?.Invoke(null, id);
+					(localByAddress, nextLocalByAddress) = (nextLocalByAddress, localByAddress);
+
+					if ( complete ) {
+						foreach ( uint id in prevIds ) {
+							if ( !seenIds.Contains(id) ) {
+								Unload(id);
 							}
 						}
+						(prevIds, seenIds) = (seenIds, prevIds);
+						entities = foundEntities.ToArray();
+					} else {
+						// a partial walk can't tell what was removed: keep the last snapshot, and remember the ids added
+						// this walk so a later complete walk can unload them
+						prevIds.UnionWith(seenIds);
 					}
 				}
 

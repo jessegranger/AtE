@@ -237,7 +237,7 @@ namespace AtE {
 
 		// which resistances a stat adds to: eg, base_fire_damage_resistance_%, base_resist_all_elements_%, fire_and_cold_damage_resistance_%
 		public static IEnumerable<string> ResistElements(string stat) {
-			if ( !(stat.Contains("resist") && stat.EndsWith("%")) ) yield break;
+			if ( !(stat.Contains("resist") && stat.EndsWith("%", StringComparison.Ordinal)) ) yield break;
 			if ( stat.Contains("maximum") || stat.Contains("penetrat") || stat.Contains("enemy") || stat.Contains("minion") || stat.Contains("totem")
 				|| stat.Contains("ignore") || stat.Contains("while") || stat.Contains("per_") ) yield break;
 			var words = stat.Split('_');
@@ -277,7 +277,7 @@ namespace AtE {
 			if ( spell ) {
 				double added = AddedDamage(sum, "spell");
 				double baseDamage = SpellDamageAt1 * Math.Pow(SpellDamageGrowth, ctx.Level - 1);
-				double speed = 1 + sum(s => s.EndsWith("cast_speed_+%")) / 100;
+				double speed = 1 + sum(s => s.EndsWith("cast_speed_+%", StringComparison.Ordinal)) / 100;
 				return (1 + added / baseDamage) * incFactor * speed * levels;
 			}
 			if ( attack ) {
@@ -327,7 +327,7 @@ namespace AtE {
 			add("block", points((1 - blockOf(ctx.BaseBlock)) / (1 - blockOf(ctx.BaseBlock + GearBlock(items)))) * weight("Block"));
 
 			// life: flat, % of the character's life, and half of the strength
-			double strength = sum(s => s.StartsWith("additional_") && (s.Contains("strength") || s.Contains("all_attributes")));
+			double strength = sum(s => s.StartsWith("additional_", StringComparison.Ordinal) && (s.Contains("strength") || s.Contains("all_attributes")));
 			double life = stat("base_maximum_life") + stat("maximum_life_+%") * ctx.Life / 100 + strength / 2;
 			double pool = Math.Max(1, ctx.Life + ctx.EnergyShield);
 			add("life", life / pool * 100 * PoolPointsPerPercent * weight("Life"));
@@ -356,7 +356,7 @@ namespace AtE {
 
 		/// <summary>The chance to block attacks (%) items give (a shield's local block too).</summary>
 		public static double GearBlock(IEnumerable<ItemInfo> items) =>
-			items.Where(i => i != null).Sum(i => i.Stats.Where(s => s.stat.Contains("block") && s.stat.EndsWith("%")
+			items.Where(i => i != null).Sum(i => i.Stats.Where(s => s.stat.Contains("block") && s.stat.EndsWith("%", StringComparison.Ordinal)
 				&& !s.stat.Contains("spell") && !s.stat.Contains("enemy") && !s.stat.Contains("maximum") && !s.stat.Contains("per_")).Sum(s => (double)s.value));
 
 		/// <summary>The points for adding gear resistance to a base resistance: double below the cap, single to 105%, half beyond.</summary>

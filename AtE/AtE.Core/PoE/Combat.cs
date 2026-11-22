@@ -183,7 +183,7 @@ namespace AtE {
 		public static List<Hostile> GetMonstersToClick(Offsets.Vector2i from, float radius) {
 			var result = new List<Hostile>();
 			foreach ( var ent in GetEntities() ?? Enumerable.Empty<Entity>() ) {
-				if ( ent?.Path == null || !ent.Path.StartsWith("Metadata/Monsters/") || !IsAlive(ent) || ClickReason(ent) == null ) continue;
+				if ( ent?.Path == null || !ent.Path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal) || !IsAlive(ent) || ClickReason(ent) == null ) continue;
 				var h = ToHostile(ent, from);
 				if ( h != null && h.Distance <= radius ) result.Add(h);
 			}

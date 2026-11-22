@@ -180,7 +180,7 @@ namespace AtE {
 			VKey mods = VKey.None;
 			var parts = text.Split('+').Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
 			if ( parts.Count == 0 ) return text.Trim() == "+" ? VKey.Oemplus : VKey.None;
-			if ( text.Trim().EndsWith("+") ) parts.Add("+"); // (eg, "Ctrl++")
+			if ( text.Trim().EndsWith("+", StringComparison.Ordinal) ) parts.Add("+"); // (eg, "Ctrl++")
 			foreach ( var m in parts.Take(parts.Count - 1) ) {
 				switch ( m.ToLowerInvariant() ) {
 					case "ctrl": case "control": mods |= VKey.Control; break;

@@ -167,7 +167,7 @@ namespace AtE {
 			});
 		}
 
-		private static bool IsHailrake(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/")
+		private static bool IsHailrake(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
 			&& string.Equals(e.GetComponent<Render>()?.Name, "Hailrake", StringComparison.OrdinalIgnoreCase);
 		private const string MerveilsLair = "Merveil's Lair";
 		/// <summary>
@@ -190,7 +190,7 @@ namespace AtE {
 		// Merveil herself (a unique: "Merveil, the Siren", seawitchillusion/BossMerveil, then in her second phase "Merveil,
 		// the Twisted", Seawitch/BossMerveil2, a new entity at the same place): not her summons, "Merveil's Attendant", "Merveil's
 		// Daughter" (Seawitch/SeaWitchSpawn), whose deaths marked her killed (3.29.4)
-		private static bool IsMerveil(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/")
+		private static bool IsMerveil(Entity e) => e.Path is string path && path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
 			&& e.GetComponent<Render>()?.Name is string name && name.StartsWith("Merveil", StringComparison.OrdinalIgnoreCase)
 			&& !name.StartsWith("Merveil's", StringComparison.OrdinalIgnoreCase)
 			&& e.GetComponent<ObjectMagicProperties>()?.Rarity == Offsets.MonsterRarity.Unique;

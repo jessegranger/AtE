@@ -45,7 +45,7 @@ namespace AtE {
 		}
 
 		/// <summary>The Vaal Oversoul (Metadata/Monsters/IncaShadowBoss/..., not its spawner, the Dark Altar).</summary>
-		private static bool IsVaalOversoul(Entity e) => e?.Path is string path && path.StartsWith("Metadata/Monsters/")
+		private static bool IsVaalOversoul(Entity e) => e?.Path is string path && path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
 			&& ((path.IndexOf("/IncaShadowBoss/", StringComparison.OrdinalIgnoreCase) >= 0 && path.IndexOf("Spawner", StringComparison.OrdinalIgnoreCase) < 0)
 				|| (e.GetComponent<Render>()?.Name?.Contains("Vaal Oversoul", StringComparison.OrdinalIgnoreCase) ?? false));
 

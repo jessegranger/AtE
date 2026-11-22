@@ -119,9 +119,9 @@ namespace AtE {
 					continue;
 				}
 
-				if ( groupName.StartsWith("FlaskEnchantmentInjectorOnFullCharges") ) {
+				if ( groupName.StartsWith("FlaskEnchantmentInjectorOnFullCharges", StringComparison.Ordinal) ) {
 					Enchanted_UseWhenFull = true;
-				} else if ( groupName.StartsWith("FlaskEnchantmentInjectorOnHittingRareOrUnique") ) {
+				} else if ( groupName.StartsWith("FlaskEnchantmentInjectorOnHittingRareOrUnique", StringComparison.Ordinal) ) {
 					Enchanted_UseWhenHitRare = true;
 				}
 			}
@@ -131,20 +131,20 @@ namespace AtE {
 					continue;
 				}
 
-				if ( groupName.StartsWith("FlaskIncreasedDuration") ) {
+				if ( groupName.StartsWith("FlaskIncreasedDuration", StringComparison.Ordinal) ) {
 					var values = mod.Values(1);
 					Duration = (int)(Duration * ((100 + values.First()) / 100f));
-				} else if ( groupName.StartsWith("FlaskExtraCharges") ) {
+				} else if ( groupName.StartsWith("FlaskExtraCharges", StringComparison.Ordinal) ) {
 					var values = mod.Values(1);
 					if ( values.Count() > 0 ) {
 						Charges_Max += values.First();
 					}
-				} else if ( groupName.StartsWith("FlaskChargesUsed") ) { // value will be like -16 for "16% reduced charges used"
+				} else if ( groupName.StartsWith("FlaskChargesUsed", StringComparison.Ordinal) ) { // value will be like -16 for "16% reduced charges used"
 					var values = mod.Values(1);
 					if( values.Count() > 0 ) {
 						Charges_Per = (int)(Charges_Per * (100 + values.First()) / 100f);
 					}
-				} else if ( groupName.StartsWith("FlaskInstantRecoveryOnLowLife") ) {
+				} else if ( groupName.StartsWith("FlaskInstantRecoveryOnLowLife", StringComparison.Ordinal) ) {
 					IsInstantOnLowLife = true;
 					try {
 						var values = mod.Values(2);
@@ -154,7 +154,7 @@ namespace AtE {
 							LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
 						}
 					} catch ( InvalidOperationException ) { }
-				} else if ( groupName.StartsWith("FlaskFullInstantRecovery") || groupName.StartsWith("FlaskPartialInstantRecovery") ) {
+				} else if ( groupName.StartsWith("FlaskFullInstantRecovery", StringComparison.Ordinal) || groupName.StartsWith("FlaskPartialInstantRecovery", StringComparison.Ordinal) ) {
 					IsInstant = true;
 					var values = mod.Values(2);
 					if ( values.Count() > 1 ) {
@@ -162,21 +162,21 @@ namespace AtE {
 						float recoveryFactor = (100 + lessRecovery) / 100f;
 						LifeHealAmount = (int)(LifeHealAmount * recoveryFactor);
 					}
-				} else if ( groupName.StartsWith("FlaskPoisonImmunity") ) {
+				} else if ( groupName.StartsWith("FlaskPoisonImmunity", StringComparison.Ordinal) ) {
 					Cures_Poisoned = true;
-				} else if ( groupName.StartsWith("FlaskBleedCorruptingBloodImmunity") ) {
+				} else if ( groupName.StartsWith("FlaskBleedCorruptingBloodImmunity", StringComparison.Ordinal) ) {
 					Cures_Bleeding = true;
-				} else if ( groupName.StartsWith("FlaskShockImmunity") ) {
+				} else if ( groupName.StartsWith("FlaskShockImmunity", StringComparison.Ordinal) ) {
 					Cures_Shocked = true;
-				} else if ( groupName.StartsWith("FlaskIgniteImmunity") ) {
+				} else if ( groupName.StartsWith("FlaskIgniteImmunity", StringComparison.Ordinal) ) {
 					Cures_Ignited = true;
-				} else if ( groupName.StartsWith("FlaskChillFreezeImmunity") ) {
+				} else if ( groupName.StartsWith("FlaskChillFreezeImmunity", StringComparison.Ordinal) ) {
 					Cures_Frozen = true;
-				} else if ( groupName.StartsWith("FlaskEffectNotRemovedOnFullMana") ) {
+				} else if ( groupName.StartsWith("FlaskEffectNotRemovedOnFullMana", StringComparison.Ordinal) ) {
 					Effect_NotRemovedOnFullMana = true;
 					ManaHealAmount = (int)(ManaHealAmount * .70f);
 					Duration = (int)(Duration * .70f);
-				} else if ( groupName.StartsWith("FlaskCurseImmunity") ) {
+				} else if ( groupName.StartsWith("FlaskCurseImmunity", StringComparison.Ordinal) ) {
 					Cures_Curse = true;
 				}
 

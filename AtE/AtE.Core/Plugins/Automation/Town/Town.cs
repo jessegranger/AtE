@@ -15,7 +15,7 @@ namespace AtE {
 
 		/// <summary>The NPC called name (eg, "Nessa": its metadata path ends in /Nessa), or null if it is not here.</summary>
 		public static Entity FindNPC(string name) => GetEntities()?.FirstOrDefault(e =>
-			e?.Path is string path && path.StartsWith("Metadata/NPC/")
+			e?.Path is string path && path.StartsWith("Metadata/NPC/", StringComparison.Ordinal)
 			&& string.Equals(path.Substring(path.LastIndexOf('/') + 1), name, StringComparison.OrdinalIgnoreCase));
 
 		public static bool IsOpen(Element window) => IsValid(window) && window.IsVisible;

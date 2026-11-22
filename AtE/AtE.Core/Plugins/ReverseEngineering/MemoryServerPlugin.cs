@@ -206,7 +206,7 @@ namespace AtE {
 				// (the Host must be one of ours: loopback, or the LAN address listened on)
 				string host = ctx.Request.Headers["Host"] ?? "";
 				string lan = lanAddress != null && listeningOn.Contains(lanAddress) ? lanAddress : null;
-				bool ours = host.StartsWith("127.0.0.1") || host.StartsWith("localhost") || (lan != null && (host == lan || host.StartsWith(lan + ":")));
+				bool ours = host.StartsWith("127.0.0.1", StringComparison.Ordinal) || host.StartsWith("localhost", StringComparison.Ordinal) || (lan != null && (host == lan || host.StartsWith(lan + ":")));
 				if ( ctx.Request.Headers["Origin"] != null || !ours ) {
 					status = 403;
 					body = "forbidden\n";
@@ -214,7 +214,7 @@ namespace AtE {
 					string path = ctx.Request.Url.AbsolutePath;
 					// a browser (it asks for HTML): the status page with links; an action does its work, then redirects to it
 					bool browser = (ctx.Request.Headers["Accept"] ?? "").Contains("text/html");
-					string action = path.StartsWith("/mapping/") ? path.Substring("/mapping/".Length) : null;
+					string action = path.StartsWith("/mapping/", StringComparison.Ordinal) ? path.Substring("/mapping/".Length) : null;
 					if ( browser && MappingActions.Contains(action) ) {
 						// (not from another site's page: a link there would carry no Origin, but says so here)
 						string site = ctx.Request.Headers["Sec-Fetch-Site"];
@@ -230,7 +230,7 @@ namespace AtE {
 					} else if ( browser && path == "/mapping/status" ) {
 						string msg = ctx.Request.QueryString["msg"];
 						body = RunOnMain(() => MappingStatusHtml(msg));
-						if ( !body.StartsWith("<") ) body = $"<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><body style=\"background:#0e0f12;color:#e6e6e6;font-family:system-ui\"><p>{WebUtility.HtmlEncode(body)}</p><p><a style=\"color:#5aa0ff\" href=\"/mapping/status\">Retry</a></p>";
+						if ( !body.StartsWith("<", StringComparison.Ordinal) ) body = $"<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><body style=\"background:#0e0f12;color:#e6e6e6;font-family:system-ui\"><p>{WebUtility.HtmlEncode(body)}</p><p><a style=\"color:#5aa0ff\" href=\"/mapping/status\">Retry</a></p>";
 						contentType = "text/html; charset=utf-8";
 					} else {
 						body = Dispatch(path, ctx.Request.QueryString);
@@ -304,7 +304,7 @@ namespace AtE {
 							var pos = ent.GetComponent<Positioned>();
 							if ( !IsValid(pos) ) continue;
 							string path = ent.Path ?? "";
-							char c = path.Contains("/Chests/") ? 'B' : AreaTraps.IsTrapPath(path) ? 'T' : path.EndsWith("/Door") || path.Contains("Door_") ? 'D' : '\0';
+							char c = path.Contains("/Chests/") ? 'B' : AreaTraps.IsTrapPath(path) ? 'T' : path.EndsWith("/Door", StringComparison.Ordinal) || path.Contains("Door_") ? 'D' : '\0';
 							if ( c != '\0' ) marks[((long)pos.GridPos.Y << 32) | (uint)pos.GridPos.X] = c;
 						}
 						if ( IsValid(me) ) marks[((long)me.GridPos.Y << 32) | (uint)me.GridPos.X] = '@';
@@ -633,7 +633,7 @@ namespace AtE {
 					bool ok = pausing ? menu && paused : !menu && !paused;
 					return $"{(ok ? "ok" : "wait")}: escape menu {(menu ? "open" : "closed")}, routine {(paused ? "paused" : "running")}, game {(PoEMemory.GameRoot?.InGameState?.IsPaused ?? false ? "paused" : "running")}";
 				});
-				if ( state.StartsWith("ok") ) return $"{(pausing ? "paused" : "resumed")} ({sw.ElapsedMilliseconds} ms): {state.Substring(4)}\n";
+				if ( state.StartsWith("ok", StringComparison.Ordinal) ) return $"{(pausing ? "paused" : "resumed")} ({sw.ElapsedMilliseconds} ms): {state.Substring(4)}\n";
 			}
 			return $"{(pausing ? "pause" : "resume")}: not done after {PauseWaitMs} ms ({state}); see the log\n";
 		}
@@ -880,7 +880,7 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			sb.AppendLine($"build: {BuildPlan.Problem() ?? $"starting skill {BuildPlan.StartingSkill()}, support {BuildPlan.StartingSupport()}, main skill {BuildPlan.MainSkill()}"}");
 			sb.AppendLine($"quests: {string.Join("; ", Town.QuestNames().Select(q => $"{q}: {Town.QuestStep(q)}"))}");
 			sb.AppendLine($"area: {GetCurrentArea()?.DisplayName}; progress: {CampaignProgress.Summary}; in act {CampaignProgress.CurrentAct}");
-			var givers = GetEntities()?.Where(e => e?.Path?.StartsWith("Metadata/NPC/") ?? false).Select(e => $"{e.Path.Substring(e.Path.LastIndexOf('/') + 1)}{((e.GetComponent<NPC>()?.HasIconOverhead ?? false) ? " (!)" : "")}");
+			var givers = GetEntities()?.Where(e => e?.Path?.StartsWith("Metadata/NPC/", StringComparison.Ordinal) ?? false).Select(e => $"{e.Path.Substring(e.Path.LastIndexOf('/') + 1)}{((e.GetComponent<NPC>()?.HasIconOverhead ?? false) ? " (!)" : "")}");
 			sb.AppendLine($"npcs: {string.Join(", ", givers ?? Enumerable.Empty<string>())}");
 			var rw = Town.QuestRewardWindow;
 			sb.AppendLine($"windows: reward {(Town.IsOpen(rw) ? $"open at 0x{rw.Address.ToInt64():X} ({Town.QuestRewards().Count} rewards: {Town.RewardNames()})" : "closed")}, npc options {(Town.IsOpen(Town.NpcOptions) ? "open" : "closed")}, inventory {(BackpackIsOpen() ? "open" : "closed")}");
@@ -994,6 +994,7 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			sb.AppendLine($"ingame=0x{igs?.Address.ToInt64() ?? 0:X} valid={IsValid(igs)}");
 			sb.AppendLine($"player=0x{(IsValid(igs) ? igs.Player?.Address.ToInt64() ?? 0 : 0):X}");
 			sb.AppendLine($"entities={EntityCache.IdCount}");
+			sb.AppendLine($"pathCacheViolations={Entity.PathCacheViolations}"); // see Entity.AuditPath
 			sb.AppendLine($"time_ms={Time.ElapsedMilliseconds}");
 			return sb.ToString();
 		}
@@ -1011,7 +1012,7 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 				if ( comp != null && !ent.HasComponent(comp) ) continue;
 				if ( n++ >= limit ) { sb.AppendLine("..."); break; }
 				sb.Append($"id={ent.Id} addr=0x{ent.Address.ToInt64():X} {p}");
-				if ( p.StartsWith("Metadata/Monsters/") ) {
+				if ( p.StartsWith("Metadata/Monsters/", StringComparison.Ordinal) ) {
 					var render = ent.GetComponent<Render>();
 					var mods = ent.GetComponent<ObjectMagicProperties>();
 					sb.Append($"  name=\"{(IsValid(render) ? render.Name : null)}\" rarity={(IsValid(mods) ? mods.Rarity.ToString() : "?")} at={ent.GetComponent<Positioned>()?.GridPos}");
@@ -1389,7 +1390,7 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 					break;
 				}
 				default:
-					if ( name.StartsWith("0x") ) {
+					if ( name.StartsWith("0x", StringComparison.Ordinal) ) {
 						addr = Convert.ToInt64(name.Substring(2), 16);
 					} else {
 						err = $"unknown root '{name}'";
@@ -1571,7 +1572,7 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 				line.Append($"{indent}+0x{o:X3} {hex} | i32 {i0,11} {i1,11} | f32 {PlausibleFloat(BitConverter.ToSingle(buf, o)),-10} {PlausibleFloat(BitConverter.ToSingle(buf, o + 4)),-10}");
 				if ( tag != "" ) {
 					line.Append(" | " + tag);
-					if ( tag.StartsWith("ptr") && !InModule(q) ) children.Add((o, q));
+					if ( tag.StartsWith("ptr", StringComparison.Ordinal) && !InModule(q) ) children.Add((o, q));
 				} else if ( q > int.MaxValue || q < int.MinValue ) {
 					line.Append($" | i64 {q}");
 				}
@@ -1762,7 +1763,7 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 				shape = "noisy";
 				rank = 0;
 			}
-			if ( shape == "noisy" && kind.StartsWith("f") ) return; // noisy float views of changing ints are just bit noise
+			if ( shape == "noisy" && kind.StartsWith("f", StringComparison.Ordinal) ) return; // noisy float views of changing ints are just bit noise
 			if ( shape == "noisy" && reports.Count(r => r.Shape == "noisy") >= 12 ) return;
 
 			var text = new StringBuilder();

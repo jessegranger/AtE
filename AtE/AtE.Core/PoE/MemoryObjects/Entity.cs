@@ -29,7 +29,7 @@ namespace AtE {
 				}
 			}
 			// otherwise, recognize vtablePtrs that we haven't seen before, by reading their Path value
-			if ( (ent.Path?.StartsWith("Meta") ?? false) && ent.HasComponent() ) {
+			if ( (ent.Path?.StartsWith("Meta", StringComparison.Ordinal) ?? false) && ent.HasComponent() ) {
 				// Memo-ize the valid Entity pointers the first time we see them
 				bool full = true;
 				for(int i = 0; i < Entity.cachedVtablePtr.Length; i++ ) {
@@ -71,7 +71,7 @@ namespace AtE {
 			.Where(e => 
 				e != null
 				&& e.Id > 0 && e.Id < int.MaxValue
-				&& (e.Path?.StartsWith("Metadata/Monster") ?? false)
+				&& (e.Path?.StartsWith("Metadata/Monster", StringComparison.Ordinal) ?? false)
 				&& (e.GetComponent<Positioned>()?.IsHostile ?? false)) ?? Empty<Entity>();
 
 		public static IEnumerable<Entity> NearbyEnemies(float radius) {
@@ -126,6 +126,7 @@ namespace AtE {
 
 				// invalidate the private caches whenever Address changes
 				path = null;
+				auditPath = null;
 				ComponentPtrs = null;
 				ComponentCache = null;
 				LastParseTime = 0;
@@ -150,10 +151,19 @@ namespace AtE {
 					// if we have a cached path, read from the same pointer
 					IntPtr curPath = Details.Value.ptrPath;
 					if ( path != null && pathOrigin == curPath ) {
+						// audit: now and then, re-read the string in place, to see if it changes behind the same pointer
+						long now = Time.ElapsedMilliseconds;
+						if ( now >= nextPathAudit ) {
+							nextPathAudit = now + PATH_AUDIT_MS;
+							if ( PoEMemory.TryReadString(curPath, Encoding.Unicode, out string reread) ) {
+								AuditPath(reread, curPath, "the string changed behind the same ptrPath");
+							}
+						}
 						return path;
 					} else {
 						// otherwise, read the path and cache it
 						if( PoEMemory.TryReadString(curPath, Encoding.Unicode, out path) ) {
+							AuditPath(path, curPath, pathOrigin == IntPtr.Zero ? null : "ptrPath changed");
 							pathOrigin = curPath;
 							return path;
 							// TODO: if could be that this is a good place to invalidate ComponentPtr as well
@@ -161,6 +171,33 @@ namespace AtE {
 					}
 				}
 				return null;
+			}
+		}
+
+		// Path cache audit (temporary diagnostics). The proposed speed-up is to cache Path for as long as Address is the
+		// same, without reading EntityDetails.ptrPath every frame. That is only safe if an Entity at one address never
+		// changes its path. auditPath is the first path read since Address was set (what that cache would hold); every
+		// later read that differs from it is logged as "PathCache violation", and counted in PathCacheViolations
+		// (MemoryServer /status). If this never logs over a long run, caching Path per Address is safe.
+		private string auditPath;
+		private uint auditId;
+		private long nextPathAudit;
+		private const long PATH_AUDIT_MS = 2000;
+		private static int pathCacheViolations;
+		public static int PathCacheViolations => pathCacheViolations;
+		private void AuditPath(string now, IntPtr ptrPath, string how) {
+			if ( string.IsNullOrEmpty(now) ) return;
+			uint id = Id;
+			if ( auditPath == null ) {
+				auditPath = now;
+				auditId = id;
+				return;
+			}
+			if ( now != auditPath ) {
+				int n = Interlocked.Increment(ref pathCacheViolations);
+				Log($"PathCache violation #{n} ({how ?? "re-read"}): entity at {Describe(Address)} id {auditId} -> {id}, ptrPath {Describe(ptrPath)}: \"{auditPath}\" -> \"{now}\"");
+				auditPath = now; // log each change once
+				auditId = id;
 			}
 		}
 
@@ -194,7 +231,7 @@ namespace AtE {
 				return null;
 			}
 
-			string key = typeof(T).Name;
+			string key = ComponentName<T>.Name;
 			if ( ComponentCache != null && ComponentCache.TryGetValue(key, out MemoryObject cachedResult) ) {
 				return (T)cachedResult;
 			}
@@ -270,20 +307,34 @@ namespace AtE {
 
 		}
 
+		// the component name for a type, computed once per type instead of on every GetComponent<T>
+		private static class ComponentName<T> { public static readonly string Name = typeof(T).Name; }
+
 		private const int COMPONENT_MAX = 64; // max number of components on one entity
 
 		private const int COMPONENT_MAX_NAME = 128; // max length of a component name
 
 		private void ParseComponents() {
 
+			// Build the map in a local and publish it when done: the EntityCache thread can parse (IsValid, through
+			// HasComponent) while the main thread reads ComponentPtrs, and a Dictionary being filled is not safe to read.
+			var ptrs = new Dictionary<string, IntPtr>();
+			bool publish = true;
+			try {
+				ParseComponents(ptrs, ref publish);
+			} finally {
+				if ( publish ) ComponentPtrs = ptrs;
+			}
+		}
+		private void ParseComponents(Dictionary<string, IntPtr> ptrs, ref bool publish) {
 			using ( Perf.Section("ParseComponents") ) {
-				ComponentPtrs = new Dictionary<string, IntPtr>();
 				LastParseTime = Time.ElapsedMilliseconds;
 				// the Entity has a list of ptr to Component, managed by an ArrayHandle
 				// (these are the .Values of the underlying map)
 				var basePtrsHandle = new ArrayHandle<IntPtr>(Cache.ComponentBasePtrs);
 				if ( basePtrsHandle.Length == 0 || basePtrsHandle.Length > COMPONENT_MAX ) {
 					Log($"ParseComponents[{Id}]: invalid length of basePtrs array: {Describe(basePtrsHandle)}");
+					publish = false;
 					ClearComponents();
 					return;
 				}
@@ -320,7 +371,7 @@ namespace AtE {
 						return;
 					}
 					// if ( Id == 400 ) { Log($"ParseComponents[{Id}]: valid component \"{name}\" => index {entry.Index}"); }
-					ComponentPtrs[name] = basePtrs[entry.Index];
+					ptrs[name] = basePtrs[entry.Index];
 				}
 
 				// Log($"Entity[{Id}] Parsed {ComponentPtrs.Count} components");

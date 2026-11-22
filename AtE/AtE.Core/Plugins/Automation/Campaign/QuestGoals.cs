@@ -576,7 +576,7 @@ namespace AtE {
 		public override string Name => $"Kill {Bandit} (the bandit)";
 
 		// Unique only: their guards' names may hold theirs too (eg, the Stuck in The Western Forest after Alira was in sight)
-		private Entity Find() => GetEntities()?.FirstOrDefault(e => e?.Path is string path && path.StartsWith("Metadata/Monsters/")
+		private Entity Find() => GetEntities()?.FirstOrDefault(e => e?.Path is string path && path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
 			&& e.GetComponent<ObjectMagicProperties>()?.Rarity == Offsets.MonsterRarity.Unique
 			&& (e.GetComponent<Render>()?.Name?.Contains(Bandit, StringComparison.OrdinalIgnoreCase) ?? false));
 

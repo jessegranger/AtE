@@ -130,7 +130,7 @@ namespace AtE.Plugins {
 					}
 					icon = SpriteIcon.None;
 					iconSize = 1f;
-					bool isMonster = path.StartsWith("Metadata/Monsters");
+					bool isMonster = path.StartsWith("Metadata/Monsters", StringComparison.Ordinal);
 
 					/*
 					if( ShowHighestCorpseLife && isMonster && !IsAlive(ent) ) {
@@ -145,12 +145,12 @@ namespace AtE.Plugins {
 					*/
 
 					if ( path.Contains("Delve") ) {
-						if ( isMonster || path.EndsWith("DelveLight") ) {
+						if ( isMonster || path.EndsWith("DelveLight", StringComparison.Ordinal) ) {
 							continue;
 						}
 						// debug:
 						// DrawTextAt(ent, ent.Path, Color.White);
-						if ( path.EndsWith("DelveWall") ) {
+						if ( path.EndsWith("DelveWall", StringComparison.Ordinal) ) {
 							if ( IsTargetable(ent) ) {
 								// ImGui_Object("DelveWall", "DelveWall", ent, new HashSet<int>());
 								DrawLineAndLabel(playerScreenPos, ent, Color.Cyan, "Wall");
@@ -159,7 +159,7 @@ namespace AtE.Plugins {
 							} else {
 								// DrawTextAt(ent, "NotTargetable", Color.White);
 							}
-						} else if ( path.StartsWith("Metadata/Chests/DelveChests") ) {
+						} else if ( path.StartsWith("Metadata/Chests/DelveChests", StringComparison.Ordinal) ) {
 							var chest = ent.GetComponent<Chest>();
 							if( !IsValid(chest) ) {
 								continue;

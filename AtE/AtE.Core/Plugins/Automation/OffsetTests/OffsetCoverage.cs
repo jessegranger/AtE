@@ -29,7 +29,7 @@ namespace AtE {
 				}
 			}
 			foreach ( var f in typeof(Offsets).GetFields(BindingFlags.Public | BindingFlags.Static) ) {
-				if ( f.FieldType == typeof(int) && (f.IsInitOnly || f.IsLiteral) && (f.Name.StartsWith("Element_") || f.Name.StartsWith("GameState_") || f.Name.StartsWith("SkillCellIcon_")) ) all.Add($"Offsets.{f.Name}");
+				if ( f.FieldType == typeof(int) && (f.IsInitOnly || f.IsLiteral) && (f.Name.StartsWith("Element_", StringComparison.Ordinal) || f.Name.StartsWith("GameState_", StringComparison.Ordinal) || f.Name.StartsWith("SkillCellIcon_", StringComparison.Ordinal)) ) all.Add($"Offsets.{f.Name}");
 			}
 			return all;
 		}
@@ -43,7 +43,7 @@ namespace AtE {
 			var covered = new SortedSet<string>(StringComparer.Ordinal);
 			unknown = new List<string>();
 			foreach ( var name in DeclaredCovers() ) {
-				if ( name.EndsWith(".*") ) {
+				if ( name.EndsWith(".*", StringComparison.Ordinal) ) {
 					string prefix = name.Substring(0, name.Length - 1);
 					var matches = all.Where(a => a.StartsWith(prefix, StringComparison.Ordinal)).ToList();
 					if ( matches.Count == 0 ) unknown.Add(name); else foreach ( var m in matches ) covered.Add(m);

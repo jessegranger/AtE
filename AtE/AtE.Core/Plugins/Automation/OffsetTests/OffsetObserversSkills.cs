@@ -79,7 +79,7 @@ namespace AtE {
 					c.Eq("InternalName", Str(act.Names.InternalName), c.Key);
 					c.That(Printable(Str(act.Names.DisplayName)), "Names.DisplayName did not read as text");
 					c.That(Printable(Str(act.Names.Description)), "Names.Description did not read as text");
-					c.That(Str(act.Names.IconName)?.StartsWith("Art/") ?? false, $"Names.IconName is {Str(act.Names.IconName)}, expected an Art/ path");
+					c.That(Str(act.Names.IconName)?.StartsWith("Art/", StringComparison.Ordinal) ?? false, $"Names.IconName is {Str(act.Names.IconName)}, expected an Art/ path");
 					// Default Attack has none
 					if ( act.LongDescription != IntPtr.Zero ) {
 						string longText = Str(act.LongDescription); // an empty one reads as null (Default Attack has an empty one)
@@ -222,11 +222,11 @@ namespace AtE {
 					if ( Offsets.IsValid(d.spriteDetails) && PoEMemory.TryRead(d.spriteDetails, out Offsets.SpriteDetails sprite) ) {
 						// "Art/2DItems/Currency/CurrencyIdentification.dds|0,0,0,0|0": the file, the rectangle of its atlas, a number
 						string spriteFile = Str(sprite.strSpriteFile)?.Split('|')[0];
-						c.That(spriteFile?.StartsWith("Art/") ?? false, $"SpriteDetails.strSpriteFile is {Str(sprite.strSpriteFile)}");
+						c.That(spriteFile?.StartsWith("Art/", StringComparison.Ordinal) ?? false, $"SpriteDetails.strSpriteFile is {Str(sprite.strSpriteFile)}");
 						c.GoldenAny($"item.{After(e.Path, "Metadata/Items/")}.sprite", spriteFile);
 					} else c.That(false, "spriteDetails is not a pointer to a SpriteDetails");
 					// a new character's three Scrolls of Wisdom are always in the last slot of the backpack
-					if ( found.slot == "Backpack" && (e.Path?.EndsWith("CurrencyIdentification") ?? false) ) {
+					if ( found.slot == "Backpack" && (e.Path?.EndsWith("CurrencyIdentification", StringComparison.Ordinal) ?? false) ) {
 						c.GoldenAny("item.CurrencyIdentification.slot", $"{found.slot} {item.X},{item.Y}");
 						var stack = e.GetComponent<Stack>();
 						if ( IsValid(stack) ) c.GoldenAny("item.CurrencyIdentification.stack", $"{stack.CurSize}/{stack.MaxSize}");

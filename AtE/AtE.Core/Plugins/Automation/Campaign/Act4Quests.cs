@@ -214,7 +214,7 @@ namespace AtE {
 			rules.When("into The Belly of the Beast", CrystalVeins, beast, new TakeTransition(Belly1) { Where = CrystalVeins });
 			rules.When("to The Crystal Veins", highgate, () => beast() && !diallaInTown(), new EnterArea(CrystalVeins));
 			rules.When("to The Belly of the Beast Level 2", Belly1, beast, new TakeTransition(Belly2) { Where = Belly1, SearchAt = BellyTunnel });
-			bool pietyMonster(Entity e) => e?.Path is string path && path.StartsWith("Metadata/Monsters/")
+			bool pietyMonster(Entity e) => e?.Path is string path && path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
 				&& string.Equals(e.GetComponent<Render>()?.Name?.Trim(), "Piety", StringComparison.OrdinalIgnoreCase);
 			var bowels = Search.Tile("/mapmarkeronly_bellyspikes");
 			rules.When("kill Piety", Belly2, () => beast() && CanReach(pietyMonster), new PietyKill("Piety", pietyMonster, main) { Where = Belly2, SearchAt = bowels });

@@ -111,12 +111,12 @@ namespace AtE {
 				if ( player != null ) {
 					Dump(sb, "player Entity", player.Address, 0x100);
 					var comps = player.GetComponents();
-					foreach ( var s in structs.Where(s => s.StartsWith("Component_")) ) {
+					foreach ( var s in structs.Where(s => s.StartsWith("Component_", StringComparison.Ordinal)) ) {
 						string name = s.Substring("Component_".Length);
 						if ( comps != null && comps.TryGetValue(name, out var addr) ) Dump(sb, $"player component {name}", addr, 0x300);
 					}
 				}
-				if ( structs.Any(s => s.StartsWith("Element") || s.StartsWith("InGameState_UIElements")) && ingame?.UIRoot != null )
+				if ( structs.Any(s => s.StartsWith("Element", StringComparison.Ordinal) || s.StartsWith("InGameState_UIElements", StringComparison.Ordinal)) && ingame?.UIRoot != null )
 					Dump(sb, "UIRoot Element", ingame.UIRoot.Address, 0x300);
 			} catch ( Exception e ) {
 				sb.AppendLine($"(writing this log threw {e.GetType().Name}: {e.Message})");

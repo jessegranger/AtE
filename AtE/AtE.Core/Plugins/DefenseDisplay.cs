@@ -185,7 +185,7 @@ namespace AtE.Plugins {
 					}
 					Vector3 playerPos = player.Position;
 					foreach ( var ent in GetEntities().Take(200) ) {
-						bool isMonster = ent?.Path?.StartsWith("Metadata/Monsters") ?? false;
+						bool isMonster = ent?.Path?.StartsWith("Metadata/Monsters", StringComparison.Ordinal) ?? false;
 						if ( !isMonster ) {
 							continue;
 						}
@@ -243,7 +243,7 @@ namespace AtE.Plugins {
 										} else if( name.Equals("impaled_debuff") ) {
 											// each impale is its own buff; its Charges is the hits remaining (starts at 5), not a stack count
 											impaleStacks += 1;
-										} else if( ShowEnemyCurses && name.StartsWith("curse") ) {
+										} else if( ShowEnemyCurses && name.StartsWith("curse", StringComparison.Ordinal) ) {
 											curses.Add(name);
 										}
 									}

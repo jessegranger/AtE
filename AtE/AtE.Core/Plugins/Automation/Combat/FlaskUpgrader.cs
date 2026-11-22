@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Numerics;
 using static AtE.Globals;
@@ -38,8 +39,8 @@ namespace AtE {
 			kind = null; amount = 0;
 			string last = path?.Split('/').Last();
 			if ( last == null || !FlaskData.Records.TryGetValue(last, out var data) ) return false;
-			if ( last.StartsWith("FlaskLife") ) { kind = "Life"; amount = data.HealAmount; }
-			else if ( last.StartsWith("FlaskMana") ) { kind = "Mana"; amount = data.ManaAmount; }
+			if ( last.StartsWith("FlaskLife", StringComparison.Ordinal) ) { kind = "Life"; amount = data.HealAmount; }
+			else if ( last.StartsWith("FlaskMana", StringComparison.Ordinal) ) { kind = "Mana"; amount = data.ManaAmount; }
 			return kind != null;
 		}
 

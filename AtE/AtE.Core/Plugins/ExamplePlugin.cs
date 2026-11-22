@@ -171,7 +171,7 @@ namespace AtE {
 								// DebugOneComponent<ClientAnimationController>(ent.GetComponent<Animated>()?.AnimatedObject);
 								float timeAlive = ent.GetComponent<Animated>()?.AnimatedObject?.GetComponent<ClientAnimationController>()?.TimeSpentAnimating ?? 0f;
 								ImGui.Text($"{ent.Path} {timeAlive:f} sec");
-								if( ent.Path.StartsWith("Metadata/Monsters/AnimatedItem/AnimatedWeapon") ) {
+								if( ent.Path.StartsWith("Metadata/Monsters/AnimatedItem/AnimatedWeapon", StringComparison.Ordinal) ) {
 									int minionDuration = 0;
 									if( actor.GetSkill("animate_weapon")?.TryGetStat(Offsets.GameStat.MinionDuration, out minionDuration) ?? false ) {
 										float expectedTimeAlive = (minionDuration / 1000f);

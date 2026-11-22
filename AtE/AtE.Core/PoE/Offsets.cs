@@ -955,10 +955,15 @@ namespace AtE {
 		/// In the global list of world entities, each node looks like this.
 		/// Recursively follow all the First,Second,Third links for GetEntities()
 		/// </summary>
+		// A node of the entity map, an MSVC std::map<uint id, Entity*> (a red-black tree). The head (sentinel) node has
+		// IsNil set, its Second is the root and its First/Third the leftmost/rightmost nodes; a missing child points at
+		// the head. 3.30.0d: confirmed with MemoryServer /read: head IsNil=1, a node's Id equals its Entity's Id (+0x88).
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct EntityListNode {
-			[FieldOffset(0x00)] public readonly IntPtr First;
-			[FieldOffset(0x08)] public readonly IntPtr Second;
-			[FieldOffset(0x10)] public readonly IntPtr Third;
+			[FieldOffset(0x00)] public readonly IntPtr First; // left child
+			[FieldOffset(0x08)] public readonly IntPtr Second; // parent (in the head: the root)
+			[FieldOffset(0x10)] public readonly IntPtr Third; // right child
+			[FieldOffset(0x19)] public readonly byte IsNil; // 1 only in the head node
+			[FieldOffset(0x20)] public readonly uint Id; // the map key: the entity id
 			[FieldOffset(0x28)] public readonly IntPtr Entity;
 		}
 

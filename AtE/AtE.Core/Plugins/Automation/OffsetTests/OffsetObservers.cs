@@ -65,7 +65,7 @@ namespace AtE {
 					"Component_Life.ReservedFlatHP", "Component_Life.ReservedPercentHP", "Component_Monster.ptrMonsterData", "Component_ObjectMagicProperties.Rarity",
 					"Component_ObjectMagicProperties.Mods", "Component_Targetable.IsTargetable", "Component_Targetable.IsHighlightable", "Component_Positioned.Reaction",
 					"Component_Monster.entOwner", "Component_ObjectMagicProperties.entOwner", "Component_Targetable.entOwner" },
-				Matches = e => (e.Path?.StartsWith("Metadata/Monsters/") ?? false) && Has(e, "Life") && Has(e, "Positioned") && Has(e, "Render"),
+				Matches = e => (e.Path?.StartsWith("Metadata/Monsters/", StringComparison.Ordinal) ?? false) && Has(e, "Life") && Has(e, "Positioned") && Has(e, "Render"),
 				Key = e => After(e.Path, "Metadata/Monsters/"),
 				Run = (c, ents) => {
 					var e = ents.First();
@@ -105,7 +105,7 @@ namespace AtE {
 				Id = "B.MonsterDeath",
 				Covers = new[] { "Component_Life.CurHP", "Component_Actor.ActionFlags" },
 				WaitingFor = "waiting for a monster to be seen dying",
-				Matches = e => (e.Path?.StartsWith("Metadata/Monsters/") ?? false) && Has(e, "Life"),
+				Matches = e => (e.Path?.StartsWith("Metadata/Monsters/", StringComparison.Ordinal) ?? false) && Has(e, "Life"),
 				Run = (c, ents) => {
 					var alive = c.Scratch.TryGetValue("alive", out object stored) ? (HashSet<uint>)stored : (HashSet<uint>)(c.Scratch["alive"] = new HashSet<uint>());
 					foreach ( var e in ents ) {
@@ -144,7 +144,7 @@ namespace AtE {
 			yield return new ObserverSpec {
 				Id = "B.NPC",
 				Covers = new[] { "Component_NPC.Hidden", "Component_NPC.VisibleOnMinimap", "Component_NPC.Icon", "Component_Targetable.IsTargetable", "Component_Positioned.Reaction", "Component_NPC.entOwner" },
-				Matches = e => (e.Path?.StartsWith("Metadata/NPC/") ?? false) && Has(e, "NPC"),
+				Matches = e => (e.Path?.StartsWith("Metadata/NPC/", StringComparison.Ordinal) ?? false) && Has(e, "NPC"),
 				Key = e => After(e.Path, "Metadata/NPC/"),
 				Run = (c, ents) => {
 					var e = ents.First();
@@ -177,7 +177,7 @@ namespace AtE {
 					foreach ( var e in ents ) {
 						var item = e.GetComponent<WorldItem>()?.Item;
 						if ( !IsValid(item) ) continue;
-						c.That(item.Path?.StartsWith("Metadata/Items/") ?? false, $"the item's path is {item.Path}");
+						c.That(item.Path?.StartsWith("Metadata/Items/", StringComparison.Ordinal) ?? false, $"the item's path is {item.Path}");
 						var labels = GetUI()?.LabelsOnGround;
 						if ( !IsValid(labels) ) return Outcome.Fail("the ItemsOnGroundLabelElement is not an Element");
 						var all = labels.GetAllLabels().ToList();
@@ -331,7 +331,7 @@ namespace AtE {
 						// the starting Driftwood Wand (the wielded one: a Wand1 dropped later has its own levels) is item level 1, requires level 1
 						var panel = GetUI()?.InventoryPanel;
 						bool wielded = IsValid(panel) && new[] { panel.LWeapon, panel.RWeapon }.Where(i => i != null).SelectMany(i => i.Items).Any(i => i.Entity?.Address == e.Address);
-						if ( wielded && e.Path.EndsWith("Wand1") ) {
+						if ( wielded && e.Path.EndsWith("Wand1", StringComparison.Ordinal) ) {
 							c.GoldenAny("item.Wand1.wielded.ItemLevel", mods.Level);
 							c.GoldenAny("item.Wand1.wielded.RequiredLevel", mods.ReqLevel);
 						}

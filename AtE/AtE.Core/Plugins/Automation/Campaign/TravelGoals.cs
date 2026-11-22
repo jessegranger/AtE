@@ -134,7 +134,7 @@ namespace AtE {
 
 		/// <summary>A town portal near the player (Metadata/MiscellaneousObjects/...Portal...), or null.</summary>
 		private static Entity FindPortal(CombatContext ctx) => GetEntities()?
-			.Where(e => IsValid(e) && e.Path is string path && path.StartsWith("Metadata/MiscellaneousObjects/") && path.Contains("Portal"))
+			.Where(e => IsValid(e) && e.Path is string path && path.StartsWith("Metadata/MiscellaneousObjects/", StringComparison.Ordinal) && path.Contains("Portal"))
 			.Select(e => (e, pos: e.GetComponent<Positioned>()))
 			.Where(x => IsValid(x.pos) && Combat.Distance(ctx.Grid, x.pos.GridPos) < 40)
 			.OrderBy(x => Combat.Distance(ctx.Grid, x.pos.GridPos))

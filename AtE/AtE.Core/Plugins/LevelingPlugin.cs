@@ -387,7 +387,7 @@ namespace AtE {
 					string text;
 					foreach(var elem in UiSearch.Visible(dialog)) {
 						if (((text = elem.Text)?.Equals("Continue") ?? false) 
-							|| (text?.StartsWith("Sail to") ?? false)) {
+							|| (text?.StartsWith("Sail to", StringComparison.Ordinal) ?? false)) {
 							return new LeftClickAt(elem.GetClientRect(), 30, 1, new Delay((uint)ClickDelayMilliseconds, this));
 						}
 					}
@@ -398,7 +398,7 @@ namespace AtE {
 					if ( IsValid(continueOption)
 						&& continueOption.IsVisibleLocal
 						&& (((text = continueOption.Text)?.Equals("Continue") ?? false) 
-							|| (text?.StartsWith("Sail to") ?? false))
+							|| (text?.StartsWith("Sail to", StringComparison.Ordinal) ?? false))
 						) {
 
 						ClickElement(continueOption);

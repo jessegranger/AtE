@@ -150,6 +150,9 @@ namespace AtE {
 		internal Offsets.EntityListNode EntityListHead => IsValid(Address)
 			&& IsValid(Data.Value.EntityListHead)
 			&& PoEMemory.TryRead(Data.Value.EntityListHead, out Offsets.EntityListNode tree) ? tree : default;
+		/// <summary>The address of the entity map's head (sentinel) node, and the number of entities in the map.</summary>
+		internal IntPtr EntityListHeadPtr => IsValid(Address) ? Data.Value.EntityListHead : IntPtr.Zero;
+		internal long EntitiesCount => IsValid(Address) ? Data.Value.EntitiesCount : 0;
 
 		public Element UIRoot => IsValid(Address) && ElementCache.TryGetElement(Cache.elemRoot, out Element root) ? root : null;
 

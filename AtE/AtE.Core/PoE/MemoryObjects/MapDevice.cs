@@ -57,7 +57,7 @@ namespace AtE {
 			if ( !PoEMemory.TryRead(ptrAreaNode, out Offsets.AtlasNode_Entry entry) || !IsValid(entry.ptrWorldArea) ) return null;
 			if ( !PoEMemory.TryRead(entry.ptrWorldArea, out Offsets.WorldAreaDetails area) ) return null;
 			// (another kind of child can hold anything at 0x350: an area's id is "Map..." , eg "MapWorldsSilo")
-			if ( !PoEMemory.TryReadString(area.strRawName, System.Text.Encoding.Unicode, out string id, 128) || id == null || !id.StartsWith("Map") ) return null;
+			if ( !PoEMemory.TryReadString(area.strRawName, System.Text.Encoding.Unicode, out string id, 128) || id == null || !id.StartsWith("Map", StringComparison.Ordinal) ) return null;
 			return PoEMemory.TryReadString(area.strName, System.Text.Encoding.Unicode, out string name, 128) ? name : null;
 		}
 

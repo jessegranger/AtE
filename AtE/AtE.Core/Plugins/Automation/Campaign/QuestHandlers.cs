@@ -117,7 +117,7 @@ namespace AtE {
 		/// <summary>A monster whose name (Render.Name) has name in it, without a leading "the" (eg, "the Dweller of the Deep").</summary>
 		public static Func<Entity, bool> MonsterNamed(string name) {
 			string bare = Bare(name);
-			return e => e?.Path is string path && path.StartsWith("Metadata/Monsters/")
+			return e => e?.Path is string path && path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
 				&& (e.GetComponent<Render>()?.Name?.Contains(bare, StringComparison.OrdinalIgnoreCase) ?? false);
 		}
 

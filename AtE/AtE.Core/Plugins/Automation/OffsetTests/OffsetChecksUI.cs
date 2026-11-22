@@ -186,7 +186,7 @@ namespace AtE {
 				c.Eq("slots", slots.Count, SkillBar.SlotCount);
 				var config = new Dictionary<int, int>();
 				try {
-					foreach ( var line in File.ReadAllLines(configPath).Where(l => l.StartsWith("use_bound_skill")) ) {
+					foreach ( var line in File.ReadAllLines(configPath).Where(l => l.StartsWith("use_bound_skill", StringComparison.Ordinal)) ) {
 						var parts = line.Substring("use_bound_skill".Length).Split('=');
 						if ( parts.Length == 2 && int.TryParse(parts[0], out int n) && int.TryParse(parts[1].Trim().Split(' ')[0], out int code) ) config[n - 1] = code;
 					}
@@ -560,7 +560,7 @@ namespace AtE {
 					return c.Result();
 				}
 				if ( !panelShown || !IsValid(backpack) ) return c.Elapsed > 4000 ? Outcome.Fail("the inventory panel did not open") : Outcome.NotYet("waiting for the inventory to open");
-				var item = backpack.Items.FirstOrDefault(i => i.Entity?.Path?.EndsWith("CurrencyIdentification") ?? false) ?? backpack.Items.FirstOrDefault();
+				var item = backpack.Items.FirstOrDefault(i => i.Entity?.Path?.EndsWith("CurrencyIdentification", StringComparison.Ordinal) ?? false) ?? backpack.Items.FirstOrDefault();
 				if ( item == null ) return Outcome.Fail("the backpack holds no item to put the mouse over");
 				void Dump(string name) {
 					var buffer = new byte[0x600];

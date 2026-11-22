@@ -134,7 +134,7 @@ namespace AtE.Plugins {
 				}
 				*/
 
-				if ( DebugMonsters && path.StartsWith("Metadata/Monster")
+				if ( DebugMonsters && path.StartsWith("Metadata/Monster", StringComparison.Ordinal)
 					&& IsHostile(ent)
 					&& IsTargetable(ent)
 					&& IsAlive(ent)
@@ -158,7 +158,7 @@ namespace AtE.Plugins {
 					// ImGui_Object($"ObjectMagicProperties-{ent.Id}", "ObjectMagicProperties", ent.GetComponent<ObjectMagicProperties>(), new HashSet<int>());
 					ImGui.End();
 				}
-				if ( DebugChests && path.StartsWith("Metadata/Chest") ) {
+				if ( DebugChests && path.StartsWith("Metadata/Chest", StringComparison.Ordinal) ) {
 					ImGui.SetNextWindowPos(WorldToScreen(Position(ent)));
 					ImGui.Begin($"Unknown Box##{ent.Id}");
 					ImGui_Object($"Box##{ent.Id}", "Box", ent, new HashSet<int>());
@@ -170,7 +170,7 @@ namespace AtE.Plugins {
 					ent.MinimapIcon = new Entity.Icon() { Size = 0f, Sprite = SpriteIcon.None };
 				}
 
-				if ( path.EndsWith("FuelResupply") ) {
+				if ( path.EndsWith("FuelResupply", StringComparison.Ordinal) ) {
 					DrawLine(WorldToScreen(Position(GetPlayer())), WorldToScreen(Position(ent)), Color.LightGreen);
 				}
 
@@ -179,23 +179,23 @@ namespace AtE.Plugins {
 					iconSize = ent.MinimapIcon.Size;
 				} else if ( ShowMinions && deployed.Contains((ushort)ent.Id) ) {
 					TryGetMinionIcon(ent, out icon, out iconSize);
-				} else if ( ShowLeagueNPCs && path.StartsWith("Metadata/NPC/League/") ) {
+				} else if ( ShowLeagueNPCs && path.StartsWith("Metadata/NPC/League/", StringComparison.Ordinal) ) {
 					if( path.Contains("Azmeri") || path.Contains("Affliction") ) {
 						icon = SpriteIcon.YellowExclamation;
 						iconSize = 1.5f;
 					}
-				} else if ( ShowLeagueResources && path.StartsWith("Metadata/MiscellaneousObjects/Azmeri") ) {
+				} else if ( ShowLeagueResources && path.StartsWith("Metadata/MiscellaneousObjects/Azmeri", StringComparison.Ordinal) ) {
 					TryGetLeagueResourceIcon(ent, out icon, out iconSize);
-				} else if ( ShowLeagueResources && path.StartsWith("Metadata/Terrain/Leagues/") ) {
+				} else if ( ShowLeagueResources && path.StartsWith("Metadata/Terrain/Leagues/", StringComparison.Ordinal) ) {
 					TryGetLeagueResourceIcon(ent, out icon, out iconSize);
 					// icon = SpriteIcon.GreenExclamation;
 					// iconSize = 1.25f;
 					// DrawBottomLeftText($"Unknown terrain: {ent.Path} components: {string.Join(" ", ent.GetComponents().Keys)}", Color.Yellow);
-				} else if ( ShowEnemies && path.StartsWith("Metadata/Monster") && IsAlive(ent) && IsHostile(ent) && IsTargetable(ent) ) {
+				} else if ( ShowEnemies && path.StartsWith("Metadata/Monster", StringComparison.Ordinal) && IsAlive(ent) && IsHostile(ent) && IsTargetable(ent) ) {
 					TryGetEnemyIcon(ent, out icon, out iconSize);
-				} else if ( ShowChests && dt < 33 && path.StartsWith("Metadata/Chest") ) {
+				} else if ( ShowChests && dt < 33 && path.StartsWith("Metadata/Chest", StringComparison.Ordinal) ) {
 					TryGetChestIcon(ent, out icon, out iconSize);
-				} else if ( ShowDelvePath && path.EndsWith("DelveLight") ) {
+				} else if ( ShowDelvePath && path.EndsWith("DelveLight", StringComparison.Ordinal) ) {
 					icon = SpriteIcon.BlightPath;
 					iconSize = 1f;
 				}
@@ -225,34 +225,34 @@ namespace AtE.Plugins {
 			if ( ! IsValid(path, 1) ) {
 				return false;
 			}
-			if ( path.EndsWith("FuelResupply") ) {
+			if ( path.EndsWith("FuelResupply", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.LargeGreenCircle;
 				iconSize = 1.1f;
 			} else if ( path.Contains("Azmeri/SacrificeAltar") ) {
 				icon = SpriteIcon.RedFlag;
 			} else if ( path.Contains("Azmeri/AzmeriFlaskRefill") ) {
 				icon = SpriteIcon.GreenFlag;
-			} else if ( path.EndsWith("Azmeri/AzmeriResourcePrimalist") ) {
+			} else if ( path.EndsWith("Azmeri/AzmeriResourcePrimalist", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.BlightPath;
 				iconSize = 2.9f;
-			} else if ( path.EndsWith("Azmeri/AzmeriResourceWarden") ) {
+			} else if ( path.EndsWith("Azmeri/AzmeriResourceWarden", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.BlightPath;
 				iconSize = 2.9f;
-			} else if ( path.EndsWith("Azmeri/AzmeriResourceVoodoo") ) {
+			} else if ( path.EndsWith("Azmeri/AzmeriResourceVoodoo", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.BlightPath;
 				iconSize = 2.9f;
-			} else if ( path.EndsWith("Azmeri/AzmeriResourceWardenLow") ) {
+			} else if ( path.EndsWith("Azmeri/AzmeriResourceWardenLow", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.BlightPath;
 				iconSize = 1.9f;
-			} else if ( path.EndsWith("Azmeri/AzmeriResourcePrimalistLow") ) {
+			} else if ( path.EndsWith("Azmeri/AzmeriResourcePrimalistLow", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.BlightPath;
 				iconSize = 1.9f;
 			} else if ( path.Contains("Azmeri/AzmeriResourceVoodooLow") ) {
 				icon = SpriteIcon.BlightPath;
 				iconSize = 1.9f;
-			} else if ( path.EndsWith("AzmeriResourceBase") ) {
+			} else if ( path.EndsWith("AzmeriResourceBase", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.BlightPath;
-			} else if ( path.EndsWith("Spawners/WolfSpawner") || path.EndsWith("SpiderEmergeSpawner") ) {
+			} else if ( path.EndsWith("Spawners/WolfSpawner", StringComparison.Ordinal) || path.EndsWith("SpiderEmergeSpawner", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.RedX;
 				iconSize = 1.4f;
 			} else if ( path.Contains("Azmeri/Objects/Spawners/") && (path.Contains("/Harvest") || path.Contains("/Beyond_")) ) {
@@ -260,15 +260,15 @@ namespace AtE.Plugins {
 				iconSize = 1.4f;
 			} else if ( path.Contains("Azmeri/WoodsEntrance") || path.Contains("AzmeriLightBomb") ) {
 				icon = SpriteIcon.None;
-			} else if ( path.EndsWith("IntroTunnelPath") ) {
+			} else if ( path.EndsWith("IntroTunnelPath", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.GreenFlag;
-			} else if ( path.EndsWith("GoldenLantern") ) {
+			} else if ( path.EndsWith("GoldenLantern", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.YellowExclamation;
 				iconSize = 1.75f;
-			} else if ( path.EndsWith("Encounter") ) {
+			} else if ( path.EndsWith("Encounter", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.GreenExclamation;
 				iconSize = 1.75f;
-			} else if ( path.Contains("ResourceChest") || path.EndsWith("PlacementController") || path.EndsWith("Pointer") || path.EndsWith("Lantern") || path.EndsWith("AnchorHigh") ) {
+			} else if ( path.Contains("ResourceChest") || path.EndsWith("PlacementController", StringComparison.Ordinal) || path.EndsWith("Pointer", StringComparison.Ordinal) || path.EndsWith("Lantern", StringComparison.Ordinal) || path.EndsWith("AnchorHigh", StringComparison.Ordinal) ) {
 				icon = SpriteIcon.None;
 			} else if ( DebugUnknownResources ) {
 				DrawBottomLeftText($"Unknown Terrain: {ent.Path}", Color.Yellow);
@@ -315,58 +315,58 @@ namespace AtE.Plugins {
 			// DrawTextAt(WorldToScreen(Position(ent)), $"{ent.Path}", Color.White);
 			icon = SpriteIcon.None; // with size = 1f and Icon = None, we only fall through this path scanning once, then assign to ent.MinimapIcon
 			iconSize = 1f; // once that assigns 1f, the next frame will hit the branch above and return ent.MinimapIcon values
-			if ( path.StartsWith("Metadata/Chests") ) {
+			if ( path.StartsWith("Metadata/Chests", StringComparison.Ordinal) ) {
 				// DrawTextAt(WorldToScreen(Position(ent)), $"Unknown /Chest: {ent.Path}", Color.White);
-				if ( path.StartsWith("Metadata/Chests/QuestChests") ) {
+				if ( path.StartsWith("Metadata/Chests/QuestChests", StringComparison.Ordinal) ) {
 					return false;
-				} else if ( path.StartsWith("Metadata/Chests/LeaguesExpedition/") ) {
+				} else if ( path.StartsWith("Metadata/Chests/LeaguesExpedition/", StringComparison.Ordinal) ) {
 					icon = SpriteIcon.BlueFlag;
 					iconSize = 1.1f;
-				} else if ( path.StartsWith("Metadata/Chests/LeagueAzmeri/") ) {
+				} else if ( path.StartsWith("Metadata/Chests/LeagueAzmeri/", StringComparison.Ordinal) ) {
 					icon = SpriteIcon.BlueFlag;
 					iconSize = 1.1f;
-				} else if ( path.StartsWith("Metadata/Chests/LeagueAbyss/") ) {
+				} else if ( path.StartsWith("Metadata/Chests/LeagueAbyss/", StringComparison.Ordinal) ) {
 					iconSize = 2f;
-					if ( path.EndsWith("Armour") ) {
+					if ( path.EndsWith("Armour", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardArmour;
-					} else if ( path.EndsWith("Currency") ) {
+					} else if ( path.EndsWith("Currency", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardCurrency;
 					} else {
 						icon = SpriteIcon.None;
 						iconText = path;
 					}
 				
-				} else if ( path.StartsWith("Metadata/Chests/LeagueDeepwater/")) {
+				} else if ( path.StartsWith("Metadata/Chests/LeagueDeepwater/", StringComparison.Ordinal)) {
 					iconSize = 2f;
-					if ( path.EndsWith("UniqueArmour") || path.EndsWith("UniqueWeapons") ) {
+					if ( path.EndsWith("UniqueArmour", StringComparison.Ordinal) || path.EndsWith("UniqueWeapons", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardUniques;
-					} else if ( path.EndsWith("Shield") || path.EndsWith("Gloves") || path.EndsWith("Boots") ) {
+					} else if ( path.EndsWith("Shield", StringComparison.Ordinal) || path.EndsWith("Gloves", StringComparison.Ordinal) || path.EndsWith("Boots", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardArmour;
-					} else if ( path.EndsWith("Weapon") ) {
+					} else if ( path.EndsWith("Weapon", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardWeapons;
-					} else if ( path.EndsWith("Jewellery") ) {
+					} else if ( path.EndsWith("Jewellery", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardJewellery;
-					} else if ( path.EndsWith("Maps") ) {
+					} else if ( path.EndsWith("Maps", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardMaps;
-					} else if ( path.EndsWith("Decks") ) {
+					} else if ( path.EndsWith("Decks", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardDivinationCards;
-					} else if ( path.EndsWith("Scarabs") ) {
+					} else if ( path.EndsWith("Scarabs", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardScarabs;
-					} else if ( path.EndsWith("BottledItemChest") ) {
+					} else if ( path.EndsWith("BottledItemChest", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.LargeYellowStar;
-					} else if ( path.EndsWith("CurrencyTreasureChest") ) {
+					} else if ( path.EndsWith("CurrencyTreasureChest", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardCurrency;
-					} else if ( path.EndsWith("ClamTreasureChest") ) {
+					} else if ( path.EndsWith("ClamTreasureChest", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.LargeYellowCross;
 						iconSize = 1.75f;
-					} else if ( path.EndsWith("GoldTreasureChest") ) {
+					} else if ( path.EndsWith("GoldTreasureChest", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.Gold;
 						iconSize = 1.95f;
-					} else if ( path.EndsWith("CoralChest") ) {
+					} else if ( path.EndsWith("CoralChest", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.None;
-					} else if ( path.EndsWith("CursedTreasureChestEncounter") ) {
+					} else if ( path.EndsWith("CursedTreasureChestEncounter", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.None;
-					} else if ( path.EndsWith("BrinerotStoresChestEncounter") ) {
+					} else if ( path.EndsWith("BrinerotStoresChestEncounter", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.None;
 					} else if ( path.Contains("GemcuttersChest") ) {
 						icon = SpriteIcon.RewardGems;
@@ -375,7 +375,7 @@ namespace AtE.Plugins {
 						iconText = path;
 					}
 				
-				} else if ( path.StartsWith("Metadata/Chests/CocoonRot") ) {
+				} else if ( path.StartsWith("Metadata/Chests/CocoonRot", StringComparison.Ordinal) ) {
 					icon = SpriteIcon.MediumGreenStar;
 					iconSize = 1.1f;
 				} else if ( path.Contains("Breach/BreachBoxChest") ) {
@@ -396,11 +396,11 @@ namespace AtE.Plugins {
 				} else if ( path.Contains("Chests/AbyssChest") ) {
 					icon = SpriteIcon.RewardAbyss;
 					iconSize = 1.25f;
-				} else if ( path.EndsWith("/BootyChest") ) {
+				} else if ( path.EndsWith("/BootyChest", StringComparison.Ordinal) ) {
 					icon = SpriteIcon.YellowExclamation;
 					iconSize = 1.75f;
-				} else if ( path.StartsWith("Metadata/Chests/DelveChests/") ) {
-					if ( path.EndsWith("/PathWeapon") ) {
+				} else if ( path.StartsWith("Metadata/Chests/DelveChests/", StringComparison.Ordinal) ) {
+					if ( path.EndsWith("/PathWeapon", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardWeapons;
 						iconSize = 1.75f;
 					} else if ( path.Contains("/DelveAzuriteVeinEncounter") ) {
@@ -424,13 +424,13 @@ namespace AtE.Plugins {
 					} else if ( path.Contains("Fossil") ) {
 						icon = SpriteIcon.RewardFossils;
 						iconSize = 1.85f;
-					} else if ( path.EndsWith("Essence") ) {
+					} else if ( path.EndsWith("Essence", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardEssences;
 						iconSize = 1.95f;
 					} else if ( path.Contains("Offering") ) {
 						icon = SpriteIcon.RewardLabyrinth;
 						iconSize = 1.75f;
-					} else if ( path.EndsWith("ShaperItem") ) {
+					} else if ( path.EndsWith("ShaperItem", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardGenericItems;
 						iconSize = 1.75f;
 					} else if ( path.Contains("Flares") ) {
@@ -440,60 +440,60 @@ namespace AtE.Plugins {
 						icon = SpriteIcon.SmallRedTriangle;
 						iconSize = 1.75f;
 					}
-				} else if ( path.StartsWith("Metadata/Chests/IncursionChest") ) {
+				} else if ( path.StartsWith("Metadata/Chests/IncursionChest", StringComparison.Ordinal) ) {
 					icon = SpriteIcon.RewardGenericItems;
 					iconSize = 1.75f;
 					if ( path.Contains("Currency") ) {
 						icon = SpriteIcon.RewardCurrency;
 					}
-				} else if ( path.StartsWith("Metadata/Chests/LeagueSanctum") ) {
+				} else if ( path.StartsWith("Metadata/Chests/LeagueSanctum", StringComparison.Ordinal) ) {
 					icon = SpriteIcon.RewardGenericItems;
 					iconSize = 1.75f;
-				} else if ( path.StartsWith("Metadata/Chests/LeagueHeist") ) {
+				} else if ( path.StartsWith("Metadata/Chests/LeagueHeist", StringComparison.Ordinal) ) {
 					if ( path.Contains("PrimaryTarget") ) {
 						icon = SpriteIcon.None;
 						iconSize = 0f;
 					}
-				} else if ( path.StartsWith("Metadata/Chests/Labyrinth") ) {
-					if ( path.EndsWith("TrinketChest") ) {
+				} else if ( path.StartsWith("Metadata/Chests/Labyrinth", StringComparison.Ordinal) ) {
+					if ( path.EndsWith("TrinketChest", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.Labyrinth;
 						iconSize = 1.7f;
 					}
-				} else if ( path.StartsWith("Metadata/Chests/SynthesisChests") ) {
+				} else if ( path.StartsWith("Metadata/Chests/SynthesisChests", StringComparison.Ordinal) ) {
 					icon = SpriteIcon.LargeWhiteStar;
 					iconSize = 1.5f;
-				} else if ( path.StartsWith("Metadata/Chests/StrongBox") ) {
-					if ( path.EndsWith("/Arcanist") ) {
+				} else if ( path.StartsWith("Metadata/Chests/StrongBox", StringComparison.Ordinal) ) {
+					if ( path.EndsWith("/Arcanist", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardCurrency;
 						iconSize = 2.95f;
-					} else if ( path.EndsWith("/Jeweller") ) {
+					} else if ( path.EndsWith("/Jeweller", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardJewellery;
 						iconSize = 2.95f;
-					} else if ( path.EndsWith("/Strongbox") || path.EndsWith("/Large") || path.EndsWith("/Ornate") || path.EndsWith("/Artisan") ) {
+					} else if ( path.EndsWith("/Strongbox", StringComparison.Ordinal) || path.EndsWith("/Large", StringComparison.Ordinal) || path.EndsWith("/Ornate", StringComparison.Ordinal) || path.EndsWith("/Artisan", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardGenericItems;
 						iconSize = 2.95f;
-					} else if ( path.EndsWith("/Armory") ) {
+					} else if ( path.EndsWith("/Armory", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardArmour;
 						iconSize = 2.95f;
-					} else if ( path.EndsWith("/StrongboxScarab") ) {
+					} else if ( path.EndsWith("/StrongboxScarab", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardScarabs;
 						iconSize = 2.95f;
-					} else if ( path.EndsWith("/StrongboxDivination") ) {
+					} else if ( path.EndsWith("/StrongboxDivination", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardDivinationCards;
 						iconSize = 2.95f;
-					} else if ( path.EndsWith("/Arsenal") ) {
+					} else if ( path.EndsWith("/Arsenal", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardWeapons;
 						iconSize = 2.95f;
-					} else if ( path.EndsWith("/Gemcutter") ) {
+					} else if ( path.EndsWith("/Gemcutter", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardGems;
 						iconSize = 2.95f;
 					} else if ( path.Contains("/Cartographer") ) {
 						icon = SpriteIcon.RewardMaps;
 						iconSize = 2.95f;
-					} else if ( path.EndsWith("/VaultsOfAtziriUniqueChest") ) {
+					} else if ( path.EndsWith("/VaultsOfAtziriUniqueChest", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardFragments;
 						iconSize = 2.95f;
-					} else if ( path.EndsWith("/VaalTempleChest") ) {
+					} else if ( path.EndsWith("/VaalTempleChest", StringComparison.Ordinal) ) {
 						icon = SpriteIcon.RewardGenericItems;
 						iconSize = 2.95f;
 					} else {
@@ -585,7 +585,7 @@ namespace AtE.Plugins {
 			icon = SpriteIcon.None;
 			iconSize = 1f;
 
-			if ( ent?.Path?.StartsWith("Metadata/Monsters/AnimatedItem") ?? false ) {
+			if ( ent?.Path?.StartsWith("Metadata/Monsters/AnimatedItem", StringComparison.Ordinal) ?? false ) {
 				icon = SpriteIcon.SmallGreenCircle;
 			} else if ( IsAlive(ent) ) {
 				icon = SpriteIcon.GreenX;

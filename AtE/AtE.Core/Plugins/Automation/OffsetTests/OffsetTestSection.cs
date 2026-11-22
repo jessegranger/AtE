@@ -60,7 +60,7 @@ namespace AtE {
 				if ( File.Exists(ParkedFile) )
 					foreach ( var line in File.ReadAllLines(ParkedFile) ) {
 						var t = line.Trim();
-						if ( t.Length == 0 || t.StartsWith("#") ) continue;
+						if ( t.Length == 0 || t.StartsWith("#", StringComparison.Ordinal) ) continue;
 						int hash = t.IndexOf('#');
 						result[(hash < 0 ? t : t.Substring(0, hash)).Trim()] = hash < 0 ? "" : t.Substring(hash + 1).Trim();
 					}

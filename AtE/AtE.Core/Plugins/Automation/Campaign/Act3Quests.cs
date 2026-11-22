@@ -164,7 +164,7 @@ namespace AtE {
 			bool hasKey() => Equipment.HasQuestItem("Tower Key");
 			bool keyOnGround() => GetUI()?.LabelsOnGround?.GetAllLabels()?.Any(l => (Ground.LabelText(l.Label)?.IndexOf("Tower Key", StringComparison.OrdinalIgnoreCase) ?? -1) >= 0) ?? false;
 			bool named(Entity e) => string.Equals(e?.GetComponent<Render>()?.Name?.Trim(), "Piety", StringComparison.OrdinalIgnoreCase);
-			bool pietyMonster(Entity e) => e?.Path is string path && path.StartsWith("Metadata/Monsters/") && named(e);
+			bool pietyMonster(Entity e) => e?.Path is string path && path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal) && named(e);
 			bool inSight() => GetEntities()?.Any(e => e != null && pietyMonster(e)) ?? false;
 			bool killed() => hasKey() || keyOnGround();
 			var arena = Search.Tile("/templeclean_prepiety_roundtop_center");

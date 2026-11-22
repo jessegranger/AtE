@@ -43,7 +43,7 @@ namespace AtE {
 		public static object Parse(string text) {
 			var p = new LuaData(text);
 			p.SkipSpace();
-			if ( p.text.AsSpan(p.pos).StartsWith("return") ) { p.pos += "return".Length; p.SkipSpace(); }
+			if ( p.text.AsSpan(p.pos).StartsWith("return", StringComparison.Ordinal) ) { p.pos += "return".Length; p.SkipSpace(); }
 			var value = p.Value();
 			p.SkipSpace();
 			if ( p.pos < p.text.Length ) throw p.Error("expected the end of the file");
@@ -137,7 +137,7 @@ namespace AtE {
 				|| ((text[pos] == '-' || text[pos] == '+') && (text[pos - 1] == 'e' || text[pos - 1] == 'E'))) ) pos++;
 			var s = text.Substring(start, pos - start);
 			if ( double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double d) ) return d;
-			bool negative = s.StartsWith("-");
+			bool negative = s.StartsWith("-", StringComparison.Ordinal);
 			var hex = negative ? s.Substring(1) : s;
 			if ( hex.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
 				&& long.TryParse(hex.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out long h) ) return negative ? -h : h;

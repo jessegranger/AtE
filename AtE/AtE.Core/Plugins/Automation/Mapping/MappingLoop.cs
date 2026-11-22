@@ -241,10 +241,10 @@ namespace AtE {
 			ctx.Driver.StopWalking("using a Portal Scroll");
 			if ( BackpackIsOpen() ) return GameKeys.Press(GameKeys.InventoryKey, new Delay(InventoryPlans.Settle, s));
 			// (the map's own portal near, eg back in after a death: through it, no Portal Scroll)
-			var mapPortals = TownPortals().Where(e => e.Path.EndsWith("/MultiplexPortal") && (e.GetComponent<Targetable>()?.IsTargetable ?? true)).ToList();
+			var mapPortals = TownPortals().Where(e => e.Path.EndsWith("/MultiplexPortal", StringComparison.Ordinal) && (e.GetComponent<Targetable>()?.IsTargetable ?? true)).ToList();
 			if ( mapPortals.Count > 0 ) {
 				Log($"{Name}: the map's portal is near: going home through it");
-				return EnterFreshPortal("the map's portal", () => TownPortals().Where(e => e.Path.EndsWith("/MultiplexPortal")), null, s.Pass());
+				return EnterFreshPortal("the map's portal", () => TownPortals().Where(e => e.Path.EndsWith("/MultiplexPortal", StringComparison.Ordinal)), null, s.Pass());
 			}
 			var stale = new HashSet<uint>(TownPortals().Select(e => e.Id));
 			var mark = ChatCommand.LastMessage();
@@ -274,7 +274,7 @@ namespace AtE {
 			if ( !IsValid(player) ) return Enumerable.Empty<Entity>();
 			var at = player.GridPos;
 			return (GetEntities() ?? Enumerable.Empty<Entity>())
-				.Where(e => IsValid(e) && e.Path is string path && path.StartsWith("Metadata/MiscellaneousObjects/") && path.Contains("Portal")
+				.Where(e => IsValid(e) && e.Path is string path && path.StartsWith("Metadata/MiscellaneousObjects/", StringComparison.Ordinal) && path.Contains("Portal")
 					&& e.GetComponent<Positioned>() is Positioned pos && IsValid(pos) && Combat.Distance(at, pos.GridPos) < 40)
 				.ToList();
 		}

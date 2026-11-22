@@ -209,7 +209,7 @@ namespace AtE {
 					if ( PoEMemory.TryRead(tile.ptrTileFile, out Offsets.TileFile file) ) {
 						c.That(Offsets.IsValid(file.vtable), "TileFile vtable is not a pointer");
 						string path = file.Path.Value;
-						c.That(path != null && path.EndsWith(".tdt"), $"TileFile.Path is {path ?? "unreadable"}, expected a .tdt");
+						c.That(path != null && path.EndsWith(".tdt", StringComparison.Ordinal), $"TileFile.Path is {path ?? "unreadable"}, expected a .tdt");
 					} else c.That(false, "could not read tile 0's TileFile");
 				} else c.That(false, "could not read tile 0");
 				c.Golden("terrain.tiles", $"{td.TilesX}x{td.TilesY}");
@@ -315,7 +315,7 @@ namespace AtE {
 				c.That(Offsets.IsValid<IntPtr>(player.Cache.ComponentBasePtrs, 50) && player.Cache.ComponentBasePtrs.ItemCount(8) >= 5, "ComponentBasePtrs is not a sane array of components");
 				c.That(player.Id != 0, "Entity.Id is 0");
 				string path = player.Path;
-				c.That(path != null && path.StartsWith("Metadata/Characters/"), $"Entity path is {path ?? "unreadable"}, expected Metadata/Characters/...");
+				c.That(path != null && path.StartsWith("Metadata/Characters/", StringComparison.Ordinal), $"Entity path is {path ?? "unreadable"}, expected Metadata/Characters/...");
 				c.Golden("player.path", path);
 				var components = player.GetComponents();
 				foreach ( var name in playerComponents ) {
@@ -330,12 +330,19 @@ namespace AtE {
 				return c.Result();
 			}, new[] { "A2.InGameStatePointers" }, needsPlayer: false, timeoutMs: 5000);
 
-			yield return Check("A3.EntityList", new[] { "InGameState_Data.EntityListHead", "InGameState_Data.EntitiesCount", "EntityListNode.First", "EntityListNode.Second", "EntityListNode.Third", "EntityListNode.Entity" }, c => {
+			yield return Check("A3.EntityList", new[] { "InGameState_Data.EntityListHead", "InGameState_Data.EntitiesCount", "EntityListNode.First", "EntityListNode.Second", "EntityListNode.Third", "EntityListNode.Entity", "EntityListNode.IsNil", "EntityListNode.Id" }, c => {
 				var data = c.Game.Data.Value;
 				c.That(Offsets.IsValid(data.EntityListHead), "EntityListHead is not a pointer");
 				c.InRange("EntitiesCount", data.EntitiesCount, 1, 20000);
 				var node = c.Game.EntityListHead;
 				c.That(Offsets.IsValid(node.First) || Offsets.IsValid(node.Second) || Offsets.IsValid(node.Third), "the EntityListHead node has no links");
+				c.Eq("head IsNil", (int)node.IsNil, 1);
+				// the root (the head's Second) is a real node: not nil, and its key is its entity's id
+				if ( PoEMemory.TryRead(node.Second, out Offsets.EntityListNode root) ) {
+					c.Eq("root IsNil", (int)root.IsNil, 0);
+					c.That(PoEMemory.TryRead(root.Entity + GetOffset<Offsets.Entity>("Id"), out uint rootEntId) && rootEntId == root.Id,
+						$"the root node's Id {root.Id} is not its entity's id");
+				} else c.That(false, "the root node did not read");
 				var ents = GetEntities().ToList();
 				var player = c.Player;
 				c.That(ents.Count >= 1, "no entities were enumerated");
