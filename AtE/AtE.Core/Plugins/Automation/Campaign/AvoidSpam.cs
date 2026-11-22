@@ -453,6 +453,27 @@ namespace AtE {
 			// each setting off client-only .../League_Archnemesis/mechanics/obelisk_shocknova_01.ao and _02.ao on itself
 			// (0.03-0.43 s old). A small area with high damage (the user): radius 10, weight 120 (the user)
 			("Totems/MonsterTotemArchnemesisObelisk", null, 10, 120),
+			// Betrayal fort siege towers (3.30, paused as a golden shot flew at the player): client-only effects, a
+			// Metadata/Effects/BeamEffect laser sight (.../League_Betrayal/Fort_Seige/physical/laser_sight/laser_sight.ao) from
+			// the tower and a Metadata/Effects/LoopEffect landing marker (.../Fort_Seige/physical/projectile_marker/rig.ao),
+			// both 1.65 s old, the marker 15 cells from the player; then the shot, a BeamEffect
+			// (.../physical/projectile_beam/physicalProjectile.ao), 0.13 s old. The marker is the hazard: a small area (the
+			// user), radius 5 (the user; 8 was too big). Other elements presumably are sibling folders (see HazardResistByPath; physical: none)
+			("/projectile_marker/rig.ao", null, 5, 60),
+			// Garukhan, Stalker of the Endless Dunes (Metadata/Monsters/Garukhan/GarukhanMap, a map boss; 3.30, paused with
+			// two big storms out): a ground_effects/VisibleServerGroundEffect on him with the buff ground_sandstorm (animated
+			// object .../act9/Garukhan/sandstorm/rig.ao), GroundEffect+0x38 18: radius 18; and a large tornado
+			// (Metadata/Monsters/Daemon/GarukhanTornadoDaemon on him), .../act9/Garukhan/large_tornado/LargeTornado
+			// (Animated, Positioned, Render, Transitionable; large_tornado.ao), 33 cells from him, Render.Bounds no help;
+			// radius 18 (the user; 10 was small). Physical (no resistance)
+			("ground_effects/VisibleServerGroundEffect", "ground_sandstorm", 18, 30),
+			("Garukhan/large_tornado/LargeTornado", null, 18, 50),
+			// The Arbiter of Knowledge (Metadata/Monsters/Undying/CityStalkerMaleMapBoss, a map boss; 3.30, paused with
+			// three out): moving storms of books, projectiles Metadata/Projectiles/BookTornado (Animated, BaseEvents,
+			// Positioned, Projectile, Render; .../act3/book_tornado/book_tornado_base.ao), 0.2-4.1 s old, each made by a
+			// thrown book (Metadata/Projectiles/BookThrow, book_throw.ao; not a hazard itself). Radius 8 a guess, weight 50;
+			// physical (no resistance)
+			("Projectiles/BookTornado", null, 8, 50),
 			// Augury empowerment "Crow Bombs" (3.30, seen on Kitava alongside the wall, not seen exploding yet):
 			// Monsters/Augury/Daemon/CrowBombDaemon places Metadata/Monsters/Daemon/Augury/CrowBombObject (Animated,
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
@@ -626,6 +647,7 @@ namespace AtE {
 		public static readonly HashSet<string> HazardResistByPath = new HashSet<string> {
 			"/OTs/beacon_aoe", // minions exploding on death: elemental_beacon_v2/ice/..., presumably fire/ and lightning/ too
 			"Totems/MonsterTotemArchnemesisObelisk", // Archnemesis totems: LeagueArchnemesis/lightning_Obelisk.ao, presumably fire_ and cold_ too
+			"/projectile_marker/rig.ao", // Betrayal fort towers: Fort_Seige/physical/..., presumably fire/, cold/... too
 		};
 
 		// the resistance for the element a folder or file name in path starts with (ice, cold, fire, lightning, chaos:
