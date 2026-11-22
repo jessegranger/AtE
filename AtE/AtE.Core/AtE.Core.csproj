@@ -29,6 +29,13 @@
     <None Remove="Plugins\CombatRoutines\**" />
   </ItemGroup>
 
+  <!-- Development tools, in Debug builds only, so a Release build does not even list them among the plugins: the memory
+       server (a local HTTP API onto game memory) and the BundleBrowser (the game's bundles and .dat tables). -->
+  <ItemGroup Condition="'$(Configuration)' != 'Debug'">
+    <Compile Remove="Plugins\ReverseEngineering\**" />
+    <Compile Remove="Plugins\BundleBrowser\**" />
+  </ItemGroup>
+
   <!-- The portable plugins and ImGui draw helpers call ImGui.* directly; the
        ImGui.NET managed bindings are platform-neutral. The GPU upload/present
        backend that consumes the draw data stays behind IRenderer per platform. -->

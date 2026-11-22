@@ -22,6 +22,10 @@ namespace AtE.Plugins {
 		public override string Name => "Display Danger Map";
 		public override string HelpText => "Draws the DangerMap that AvoidSpam uses (yellow: a little danger, orange, red: a lot)";
 
+		public DangerDisplay() : base() {
+			Enabled = false; // opt-in for a new profile; a persisted INI value still overrides this
+		}
+
 		/// <summary>Draw this many cells each way around the player.</summary>
 		public int DrawRadius = 60;
 		/// <summary>Draw blocks of this many cells across (the most danger in the block), to draw fewer quads.</summary>

@@ -23,6 +23,10 @@ namespace AtE {
 	public class AutomationPlugin : PluginBase {
 		public override string Name => "Automation";
 
+		public AutomationPlugin() : base() {
+			Enabled = false; // opt-in for a new profile; a persisted INI value still overrides this
+		}
+
 		public readonly BuildSection Build = new BuildSection();
 		public readonly NavigationSection Navigation = new NavigationSection();
 		public readonly PassiveTreeSection PassiveTree = new PassiveTreeSection();
