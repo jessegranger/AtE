@@ -52,10 +52,13 @@ namespace AtE {
 		public ClearMap(MappingRoutine routine) => this.routine = routine;
 		public override string Name => routine.MonstersLeft > 0 ? $"Clear the map (until fewer than {routine.MonstersLeft} monsters remain)" : "Clear the map";
 		public override bool Sticky => false;
-		/// <summary>Explore it all (or until Map Complete), however few monsters remain (a later round's closer pass, see ClearRound).</summary>
+		/// <summary>
+		/// Explore it all (or until the objectives are done: Map Complete and few enough monsters), however few monsters
+		/// remain (a later round's closer pass, see ClearRound).
+		/// </summary>
 		public bool Sweep;
 		public override bool CheckDone(CombatContext ctx) => Sweep
-			? routine.MapComplete || (ctx.Driver.ExploreDone && !Fight.AnyNear(ctx, 0))
+			? routine.ObjectivesDone() || (ctx.Driver.ExploreDone && !Fight.AnyNear(ctx, 0))
 			: (routine.MonstersRemaining is int m && m < routine.MonstersLeft) || (ctx.Driver.ExploreDone && !Fight.AnyNear(ctx, 0));
 		protected override IState Step(CombatContext ctx) {
 			Detail = routine.MonstersRemaining is int m ? $"{m} monsters remain" : "";
@@ -188,6 +191,11 @@ namespace AtE {
 	/// clicks its "Select a Fate" and TryAugury chooses a card; with none known, explore for more (the explorer marks what is
 	/// passed as explored, and where the boss is seen is remembered, see MappingRoutine.NoteBoss). Done once Count fates
 	/// are taken in this area, or the map is explored with no encounter left to go to (then the boss is fought anyway).
+	///
+	/// A map has Count encounters (Mud Geyser: always 3, from the user), but an icon only shows on the minimap within some
+	/// range of the player, so: every encounter icon seen is remembered for the area instance (and gone to even when it is
+	/// no longer shown), and with fewer than Count seen once the map is explored, it is explored again more closely
+	/// (CloseRevealRadius, see Explorer.Rescan) before giving up.
 	/// </summary>
 	public class TakeFates : Goal {
 		private readonly MappingRoutine routine;
@@ -206,22 +214,56 @@ namespace AtE {
 		public override bool Sticky => false;
 		public override void Reset() { base.Reset(); going = 0; arrivedAt = -1; }
 
-		private static IEnumerable<MinimapIconMarker> Encounters() =>
-			MinimapIcons.All().Where(i => System.Array.IndexOf(ClearMap.EncounterIcons, i.Icon) >= 0);
+		/// <summary>The second, closer pass for encounters not seen yet: cells within this many of the player count as explored.</summary>
+		public int CloseRevealRadius = 85;
+
+		// the encounter icons seen in the area instance seenArea (by entity id), and whether the closer pass was started there
+		private static readonly Dictionary<uint, MinimapIconMarker> seen = new Dictionary<uint, MinimapIconMarker>();
+		private static uint seenArea;
+		private static bool closePass;
+
+		/// <summary>The encounter icons seen in this area instance: those shown now, and those shown before.</summary>
+		private IEnumerable<MinimapIconMarker> Encounters() {
+			uint area = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
+			if ( area != seenArea ) { seenArea = area; seen.Clear(); closePass = false; }
+			foreach ( var i in MinimapIcons.All() ) {
+				if ( System.Array.IndexOf(ClearMap.EncounterIcons, i.Icon) < 0 ) continue;
+				if ( !seen.ContainsKey(i.EntityId) ) Log($"{routine.Name}: an Augury encounter seen at <{i.GridPos.X},{i.GridPos.Y}> ({seen.Count + 1} seen)");
+				seen[i.EntityId] = i;
+			}
+			return seen.Values;
+		}
+
+		/// <summary>
+		/// Explored, with fewer than Count encounters seen: start the closer pass (once per area instance) and true;
+		/// false if there is nothing more to do (enough seen, or the closer pass is done too).
+		/// </summary>
+		private bool StartClosePass(CombatContext ctx) {
+			if ( closePass || seen.Count >= Count ) return false;
+			closePass = true;
+			Log($"{routine.Name}: explored, with {seen.Count} of {Count} Augury encounters seen: exploring again, counting only {CloseRevealRadius} cells around the player as explored (the icons only show near)");
+			DefaultExplorer.Rescan(CloseRevealRadius);
+			ctx.Driver.ForgetExploreTarget();
+			return true;
+		}
 
 		private bool loggedShort;
 		public override bool CheckDone(CombatContext ctx) {
 			bool done = routine.FatesHere >= Count
-				|| (ctx.Driver.ExploreDone && !Encounters().Any(i => !routine.IconDone(i)) && !Fight.AnyNear(ctx, 0));
+				|| (ctx.Driver.ExploreDone && !Encounters().Any(i => !routine.IconDone(i)) && !Fight.AnyNear(ctx, 0) && !StartClosePass(ctx));
 			// (the map boss is up and can be hurt, not frozen waiting for its cards: the fates are moot now, it is fought)
 			if ( !done && GetEntities()?.FirstOrDefault(e => MappingRoutine.IsMapBoss(e) && IsAlive(e) && !Combat.IsFrozenAuguryBoss(e)) is Entity boss ) {
 				done = true;
 				if ( !loggedShort ) { loggedShort = true; Log($"{routine.Name}: the map boss is up, not frozen ({routine.FatesHere} of {Count} fates taken): fighting it"); }
 			}
 			routine.HoldBoss = !done;
+			if ( done && routine.FatesHere >= Count && !loggedShort ) {
+				loggedShort = true;
+				Log($"{routine.Name}: {routine.FatesHere} of {Count} fates taken ({(MappingRoutine.AuguryCardsChosen() is int n ? $"the cards button says {n}" : "counted here")}): going on to the boss");
+			}
 			if ( done && routine.FatesHere < Count && !loggedShort ) {
 				loggedShort = true;
-				Log($"{routine.Name}: {routine.FatesHere} of {Count} fates taken, and no Augury encounter left to find: going to the boss");
+				Log($"{routine.Name}: {routine.FatesHere} of {Count} fates taken, {seen.Count} encounters seen, explored{(closePass ? " twice" : "")}: no Augury encounter left to find: going to the boss");
 			}
 			return done;
 		}

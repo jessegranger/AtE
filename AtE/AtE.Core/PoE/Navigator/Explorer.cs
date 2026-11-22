@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using static AtE.Globals;
@@ -37,7 +37,7 @@ namespace AtE {
 	public class Explorer {
 
 		/// <summary>Walkable cells within this many cells of the player count as explored (for an area seen the first time; see Rescan).</summary>
-		public int RevealRadius = 90;
+		public int RevealRadius = 110;
 		/// <summary>The reveal radius of the current area's record (RevealRadius, or Rescan's).</summary>
 		public int CurrentRevealRadius => current?.Radius ?? pendingRadius ?? RevealRadius;
 		private int? pendingRadius;
@@ -67,6 +67,9 @@ namespace AtE {
 		private readonly Dictionary<uint, Map> maps = new Dictionary<uint, Map>();
 		private Map current;
 		private uint currentArea;
+
+		/// <summary>Is the record of explored cells the one for terrain (Update has caught up with an area change)?</summary>
+		public bool Covers(Terrain terrain) => terrain != null && current != null && current.Width == terrain.Width && current.Height == terrain.Height;
 
 		/// <summary>The fraction (0..1) of the area's walkable cells that have been explored.</summary>
 		public float ExploredFraction => current == null || current.Walkable == 0 ? 0 : (float)current.Explored / current.Walkable;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -77,6 +77,12 @@ namespace AtE {
 						if ( target.Distance > 20 ) ctx.Driver.WalkTo(Approach(ctx, target.GridPos), $"walking to {Label}");
 						else ctx.Driver.StopWalking("waiting");
 						return this;
+					}
+					// a special target near (eg, a "Nearby Allies Cannot Die" totem): kill it first, or this one can't die
+					// (not while killing a special target itself: two would hand the fight back and forth)
+					if ( !Combat.IsSpecialTarget(ent) && ctx.Hostiles.FirstOrDefault(h => h.Entity?.Id != ent.Id && Combat.IsSpecialTarget(h.Entity)) is Hostile special ) {
+						Detail = $"killing {special} first";
+						return Call(AtE.Fight.AvoidSpamTarget(special, null));
 					}
 					Fight(ctx, target);
 					return this;

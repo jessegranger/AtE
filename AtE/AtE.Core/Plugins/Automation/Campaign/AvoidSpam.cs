@@ -209,8 +209,8 @@ namespace AtE {
 		/// </summary>
 		public static readonly List<(string mod, float radius, byte weight, long ms)> StrongboxModHazards = new List<(string, float, byte, long)> {
 			// "Casts Ice Nova" (3.30, seen live on an Ornate Strongbox, Metadata/Chests/StrongBoxes/Ornate): mod ChestIceNova.
-			// From the user: the novas come once it opens and last 3 s; 100 cells at weight 100
-			("ChestIceNova", 100, 100, 3000),
+			// From the user: the novas come once it opens and last 3 s; 50 cells (100 was too wide) at weight 100
+			("ChestIceNova", 50, 100, 3000),
 		};
 
 		// strongbox entity id: when it was first seen started (StateMachine started, set by a click, seen live) and opened

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Numerics;
 using static AtE.Globals;
@@ -288,8 +288,11 @@ namespace AtE {
 			bool Clear(Vector2 at) => noClick.Count == 0 || !noClick.Any(b => Math.Abs(at.X - b.X) < LockedChestHalfWidth && at.Y - b.Y > -LockedChestAbove && at.Y - b.Y < LockedChestBelow);
 			bool anyClear = false;
 			for ( int k = aim; k > 0 && noClick.Count > 0 && !anyClear; k-- ) anyClear = TryGridToScreen(Path.Cells[k], z, out Vector2 sc) && IsSafeToClick(sc) && Clear(sc);
+			// (never on a monster NoClickMonsters names, eg a frozen augury boss: a click there opens its cards, whatever else)
+			var noClickMonsters = NoClickMonsterSpots();
+			bool ClearOfMonsters(Vector2 at) => noClickMonsters.Count == 0 || !noClickMonsters.Any(b => Math.Abs(at.X - b.X) < NoClickMonsterHalfWidth && at.Y - b.Y > -NoClickMonsterAbove && at.Y - b.Y < NoClickMonsterBelow);
 			for ( ; aim > 0; aim-- ) {
-				if ( TryGridToScreen(Path.Cells[aim], z, out Vector2 screen) && IsSafeToClick(screen) && (!anyClear || Clear(screen)) ) {
+				if ( TryGridToScreen(Path.Cells[aim], z, out Vector2 screen) && IsSafeToClick(screen) && (!anyClear || Clear(screen)) && ClearOfMonsters(screen) ) {
 					if ( MoveKey != VKey.None ) {
 						Run(new MoveMouse(screen + WindowOffset(), new KeyDown(MoveKey, new KeyUp(MoveKey))));
 					} else if ( HoldMouse ) {
@@ -509,6 +512,26 @@ namespace AtE {
 			foreach ( var o in terrain.Obstacles ) {
 				if ( !o.Path.StartsWith("Metadata/Chests/StrongBoxes/", StringComparison.Ordinal) || !o.IsLocked() ) continue;
 				if ( TryGridToScreen(o.GridPos, z, out Vector2 at) ) spots.Add(at);
+			}
+			return spots;
+		}
+
+		/// <summary>
+		/// Monsters a walking click must not land on (eg, the map's frozen augury boss while its fates are not all taken: a
+		/// click on it opens its card window, see MappingRoutine); null or empty for none. A cell ahead on one is not
+		/// clicked, even with no other cell to click.
+		/// </summary>
+		public static Func<System.Collections.Generic.IEnumerable<Entity>> NoClickMonsters;
+		/// <summary>The box around a NoClickMonsters monster not to click in, in pixels: each side, above its foot, below it.</summary>
+		public static float NoClickMonsterHalfWidth = 110, NoClickMonsterAbove = 200, NoClickMonsterBelow = 70;
+
+		// the screen positions of the NoClickMonsters on screen
+		private static System.Collections.Generic.List<Vector2> NoClickMonsterSpots() {
+			var spots = new System.Collections.Generic.List<Vector2>();
+			var monsters = NoClickMonsters?.Invoke();
+			if ( monsters == null ) return spots;
+			foreach ( var e in monsters ) {
+				if ( e != null && TryWorldToScreen(Position(e), out Vector2 at) ) spots.Add(at);
 			}
 			return spots;
 		}

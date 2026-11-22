@@ -1,4 +1,4 @@
-using ImGuiNET;
+﻿using ImGuiNET;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -60,6 +60,11 @@ namespace AtE {
 			// (the map boss left alone while HoldBoss: eg, until the map rules' fates are taken, see TakeFates)
 			// (only while it is still frozen, waiting for its cards: unfrozen, it is fought, the fates no longer matter)
 			Ignore = e => HoldBoss && IsMapBoss(e) && Combat.IsFrozenAuguryBoss(e);
+			// (and not walked onto: a walking click on the frozen boss opens its card window, with too few fates; seen live
+			// 3.30.0d, Mud Geyser, 2 of 3 fates taken)
+			PathFollower.NoClickMonsters = () => !HoldBoss ? null
+				: GetEntities()?.Where(e => e?.Path != null && e.Path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
+					&& IsAlive(e) && Combat.IsFrozenAuguryBoss(e));
 		}
 
 		// (set by BuildRoot, from the base constructor)
@@ -239,9 +244,15 @@ namespace AtE {
 		public int FatesHere => AuguryCardsChosen() ?? (FatesArea == AreaHash() ? FatesTaken : 0);
 
 		private static readonly System.Text.RegularExpressions.Regex CardsCounter = new System.Text.RegularExpressions.Regex(@"^\s*(\d+)\s*/\s*(\d+)\s*$");
-		/// <summary>Fate cards chosen in this map, from the augury cards button's "N/M" text (its (0, 0) child), or null.</summary>
+		/// <summary>
+		/// Fate cards chosen in this map, from the augury cards button's "N/M" text (its (0, 0) child), or null. Only while
+		/// the button shows: hidden, it keeps the last map's text (seen live, 3.30.0d: "3/3", not visible, read as 3 fates
+		/// taken in the next Mud Geyser, so TakeFates ended at once and the boss was fought with 2 cards).
+		/// </summary>
 		public static int? AuguryCardsChosen() {
-			string text = GetUI()?.AuguryShowCardsButton?.GetChild(0)?.GetChild(0)?.Text;
+			var button = GetUI()?.AuguryShowCardsButton;
+			if ( button == null || !button.IsVisible ) return null;
+			string text = button.GetChild(0)?.GetChild(0)?.Text;
 			var m = text == null ? null : CardsCounter.Match(text);
 			return m != null && m.Success ? int.Parse(m.Groups[1].Value) : null;
 		}
@@ -344,6 +355,7 @@ namespace AtE {
 		/// Rogue Exile): a map's own plan names its boss (see MapPlans).
 		/// </summary>
 		public static bool IsMapBoss(Entity e) => e?.Path is string path && path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
+			&& !Combat.IsMercenary(e) // (a unique too, but an optional fight: see Combat.IsMercenary)
 			&& e.GetComponent<ObjectMagicProperties>()?.Rarity == Offsets.MonsterRarity.Unique;
 
 		// ---- showing it ----

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using static AtE.Globals;
@@ -612,7 +612,7 @@ namespace AtE {
 		/// <summary>
 		/// An AvoidSpam of the monster target (with skill, else for a unique the build's main skill, else the driver's
 		/// Attack), that hands back once it is dead, or is no longer one of the hostiles near (out of reach, or it can't be
-		/// damaged for now).
+		/// damaged for now), or one of higher Combat.TargetPriority is near (so the next pick is that one).
 		/// </summary>
 		public static AvoidSpam AvoidSpamTarget(Hostile target, string skill) {
 			var ent = target.Entity;
@@ -621,8 +621,10 @@ namespace AtE {
 			if ( string.IsNullOrWhiteSpace(label) ) label = ent.Path?.Split('/').LastOrDefault() ?? "a monster";
 			Func<string> skillOf = skill != null ? () => skill
 				: target.Rarity == Offsets.MonsterRarity.Unique ? () => BuildPlan.MainSkill() : (Func<string>)null;
+			int priority = Combat.TargetPriority(target);
 			return new AvoidSpam(label, e => e.Id == id, skillOf) {
-				DoneWhen = () => Context == null || !Context.Hostiles.Any(h => h.Entity?.Id == id),
+				DoneWhen = () => Context == null || !Context.Hostiles.Any(h => h.Entity?.Id == id)
+					|| Context.Hostiles.Any(h => Combat.TargetPriority(h) > priority),
 			};
 		}
 	}

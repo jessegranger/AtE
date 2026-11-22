@@ -349,8 +349,33 @@ namespace AtE {
 			try {
 				ParseComponents(ptrs, ref publish);
 			} finally {
-				if ( publish ) ComponentPtrs = ptrs;
+				if ( publish ) {
+					ComponentPtrs = ptrs;
+					// (the main thread may be adding to the cache meanwhile: if so, the next parse drops what is stale)
+					try { DropStaleComponents(ptrs); } catch ( InvalidOperationException ) { }
+				}
 			}
+		}
+
+		// A cached component (ComponentCache) whose pointer is not the one just parsed (changed, or gone) is dropped, so
+		// GetComponent makes it again. Without this the cache outlived every re-parse: an Entity is cached by its address
+		// (EntityCache), and when the game reused an item entity's memory for another item, its old components stayed
+		// (seen live, 3.30.0d: a stash's Orb of Scouring stack read its Base from an old Karui Chopper, so its name was
+		// "Karui Chopper", its size 2x4, and the routine found no Orb of Scouring with 24 of them in the tab).
+		private void DropStaleComponents(Dictionary<string, IntPtr> ptrs) {
+			var cache = ComponentCache;
+			if ( cache == null || cache.Count == 0 ) return;
+			bool anyStale = false;
+			foreach ( var kv in cache ) {
+				if ( !ptrs.TryGetValue(kv.Key, out IntPtr p) || p != kv.Value.Address ) { anyStale = true; break; }
+			}
+			if ( !anyStale ) return;
+			// (a new dictionary, published whole: this can run on the EntityCache thread while the main thread reads the old one)
+			var kept = new Dictionary<string, MemoryObject>();
+			foreach ( var kv in cache ) {
+				if ( ptrs.TryGetValue(kv.Key, out IntPtr p) && p == kv.Value.Address ) kept[kv.Key] = kv.Value;
+			}
+			ComponentCache = kept;
 		}
 		private void ParseComponents(Dictionary<string, IntPtr> ptrs, ref bool publish) {
 			using ( Perf.Section("ParseComponents") ) {

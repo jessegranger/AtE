@@ -120,7 +120,7 @@ namespace AtE {
 			var result = new List<Hostile>();
 			foreach ( var ent in GetEnemies() ) {
 				if ( !IsAlive(ent) || !IsTargetable(ent) || CannotBeDamaged(ent) ) continue;
-				if ( Stalemates.IsIgnored(ent) ) continue;
+				if ( Stalemates.IsIgnored(ent) || IsMercenary(ent) ) continue;
 				var pos = ent.GetComponent<Positioned>();
 				if ( !IsValid(pos) ) continue;
 				var grid = pos.GridPos;
@@ -138,6 +138,38 @@ namespace AtE {
 			result.Sort((a, b) => a.Distance.CompareTo(b.Distance));
 			return result;
 		}
+
+		/// <summary>
+		/// Parts of metadata paths of monsters to kill before anything else (see IsSpecialTarget): the source of an aura that
+		/// keeps the monsters near it alive. "Vaal Totem", Monsters/Totems/TotemAlliesCannotDie ("Nearby Allies Cannot Die",
+		/// seen live 3.30.0d). Not by its buff, monster_aura_cannot_die: the monsters in the aura seem to have it too (two
+		/// skeletons near the totem counted as special, and a Kill handed one to the other and back, for ever).
+		/// </summary>
+		public static readonly List<string> SpecialTargetPaths = new List<string> { "/Totems/TotemAlliesCannotDie" };
+
+		/// <summary>Is ent a monster to kill before any other (a SpecialTargetPaths path)?</summary>
+		public static bool IsSpecialTarget(Entity ent) => ent?.Path is string path && SpecialTargetPaths.Any(p => path.Contains(p));
+
+		/// <summary>
+		/// How soon to fight h, higher first: a special target (IsSpecialTarget) above all, then by rarity, unique, rare,
+		/// magic, normal.
+		/// </summary>
+		public static int TargetPriority(Hostile h) => h?.Entity == null ? -1
+			: IsSpecialTarget(h.Entity) ? 100
+			: h.Rarity switch {
+				Offsets.MonsterRarity.Unique => 3,
+				Offsets.MonsterRarity.Rare => 2,
+				Offsets.MonsterRarity.Magic => 1,
+				_ => 0,
+			};
+
+		/// <summary>
+		/// Is ent a mercenary not on the player's side (Metadata/Monsters/Mercenaries/..., not the ...Allied ones): an optional,
+		/// hard fight (a unique, eg "Ruknara, the Impatient", MercenaryRanger2, seen live 3.30.0d in Mud Geyser, attacked for
+		/// minutes without losing life, as the map boss), so never fought (left out of GetHostiles, and not a map boss).
+		/// </summary>
+		public static bool IsMercenary(Entity ent) => ent?.Path is string path && path.Contains("/Monsters/Mercenaries/")
+			&& !path.Contains("Allied");
 
 		/// <summary>
 		/// Does ent have the stat CannotBeDamaged = 1 (eg, a monster that is invulnerable for now); not worth attacking.

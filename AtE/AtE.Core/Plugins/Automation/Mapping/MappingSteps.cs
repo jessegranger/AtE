@@ -424,16 +424,27 @@ namespace AtE {
 			return Drag(from, from + delta, new Delay(250, SelectAreaStep(area, drags + 1, next)));
 		}, next);
 
-		// a spot near the middle of the screen with no area node near it, so pressing there doesn't click one
+		// a spot near the middle of the screen with no area node near it, and on no other element of the Atlas or the panel,
+		// so pressing there drags the Atlas, not clicks something (seen live, 3.30.0d: the dead middle is the Atlas's own
+		// "29/100" counter, child 194, a button that takes the press, with discs (196-198) and a button (195) round it;
+		// corner buttons and icons are children 137-160; children 0-3 are the full-size background layers)
 		private static bool FindEmptyAtlasSpot(MapDevice device, Vector2 center, float height, out Vector2 spot) {
 			var nodes = device.AreaNodes.Select(p => p.node.GetClientRect()).Select(r => new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2))
 				.Where(p => Vector2.Distance(p, center) < height * 0.4f).ToList();
+			const float margin = 15f;
+			var panel = device.GetClientRect();
+			// (the visible children of the Atlas and of the panel, but not the Atlas itself, the MapLoader, or the
+			// background layers: anything half the screen wide or more)
+			var blocks = (device.Atlas?.Children ?? Enumerable.Empty<Element>()).Concat(device.Children.Skip(1))
+				.Where(e => IsValid(e) && e.IsVisibleLocal).Select(e => e.GetClientRect())
+				.Where(r => r.Width > 0 && r.Height > 0 && r.Width < panel.Width / 2 && r.Height < panel.Height / 2)
+				.Select(r => new System.Drawing.RectangleF(r.X - margin, r.Y - margin, r.Width + 2 * margin, r.Height + 2 * margin)).ToList();
 			float clearance = 40f;
-			for ( float rad = 0; rad < height * 0.25f; rad += clearance / 2 ) {
+			for ( float rad = 0; rad < height * 0.3f; rad += clearance / 2 ) {
 				for ( int i = 0; i < 16; i++ ) {
 					double a = i * Math.PI / 8;
 					var s = center + new Vector2((float)Math.Cos(a) * rad, (float)Math.Sin(a) * rad);
-					if ( nodes.All(p => Vector2.Distance(p, s) > clearance) ) { spot = s; return true; }
+					if ( nodes.All(p => Vector2.Distance(p, s) > clearance) && !blocks.Any(r => r.Contains(s.X, s.Y)) ) { spot = s; return true; }
 					if ( rad == 0 ) break;
 				}
 			}

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using static AtE.Globals;
@@ -250,12 +250,22 @@ namespace AtE {
 				}
 				if ( s.Elapsed < ObjectivesWaitMs ) { s.Detail = "waiting for the map panel"; return s; }
 				string missing = $"{(MonstersRemaining is int m ? $"{m}" : "more than 50")} monsters remain (fewer than {MonstersLeft} wanted), Map Complete: {MapComplete}";
-				if ( round >= ClearRounds ) return Fail($"clear {area}: still not done after {round} rounds: {missing}");
+				if ( round >= ClearRounds ) {
+					// (Map Complete: the map is done, only the monster count is short (eg, monsters out of reach): go on, rather
+					// than stop and stand in the map)
+					if ( MapComplete ) {
+						MapsCompleted += 1;
+						Log($"{Name}: {area}: still {missing} after {round} rounds: Map Complete, so going on ({MapsCompleted} maps completed)");
+						return s.Pass();
+					}
+					return Fail($"clear {area}: still not done after {round} rounds: {missing}");
+				}
 				Log($"{Name}: {area}: {missing}: clearing again (round {round + 1} of {ClearRounds})");
 				return ClearRound(area, round + 1, s.Pass());
 			}, next);
 			var boss = new KillMapBoss(this) { Next = check };
 			var clear = new ClearMap(this) { Next = boss, Sweep = round >= 2 };
+			if ( round > 2 ) return new Step($"Clear {area} again", (s, ctx, dt) => { ForgetExploreTarget(); return s.Pass(); }, clear);
 			if ( round != 2 ) return clear;
 			// (the second round: explore it all again, more closely, whatever the monsters remaining)
 			return new Step($"Explore {area} again, more closely", (s, ctx, dt) => {

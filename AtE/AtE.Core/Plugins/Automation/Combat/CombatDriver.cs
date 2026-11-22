@@ -31,8 +31,22 @@ namespace AtE {
 		/// <summary>True if attacks need a clear line for projectiles (from the player to the target).</summary>
 		public virtual bool NeedsLineOfSight => true;
 
-		/// <summary>The monster to fight next, from the hostiles nearest first; null for none.</summary>
-		protected virtual Hostile ChooseTarget(System.Collections.Generic.List<Hostile> hostiles) => hostiles.FirstOrDefault();
+		/// <summary>
+		/// The monster to fight next, from the hostiles nearest first; null for none. The one of highest
+		/// Combat.TargetPriority (a special target, eg a "Nearby Allies Cannot Die" totem, then unique, rare, magic, normal);
+		/// of those, the target now if it is one, else the nearest. Asked every frame, so a higher one that comes near takes
+		/// over before the target now is dead.
+		/// </summary>
+		protected virtual Hostile ChooseTarget(System.Collections.Generic.List<Hostile> hostiles) {
+			Hostile best = null;
+			int bestPriority = -1;
+			uint current = Target?.Entity?.Id ?? 0;
+			foreach ( var h in hostiles ) {
+				int p = Combat.TargetPriority(h);
+				if ( p > bestPriority || (p == bestPriority && current != 0 && h.Entity?.Id == current) ) { best = h; bestPriority = p; }
+			}
+			return best;
+		}
 
 		/// <summary>
 		/// Attack target, which is in range (and in sight); screenPos is where it is on the screen (safe to click).
@@ -923,8 +937,14 @@ namespace AtE {
 			return stats.TryGetValue(Offsets.GameStat.IsChannelling, out int v) && v != 0;
 		}
 
-		/// <summary>True once TryExplore has found nothing left to explore in this area.</summary>
-		public bool ExploreDone => exploreTarget != null && exploreTarget.Kind == ExploreTargetKind.None;
+		/// <summary>
+		/// True once TryExplore has found nothing left to explore in this area instance (its last pick was made here:
+		/// "explored everything" from the last map does not carry over to the next, seen live 3.30.0d, two Mud Geysers in
+		/// a row: the next one's fates and first clearing round ended at once).
+		/// </summary>
+		public bool ExploreDone => exploreTarget != null && exploreTarget.Kind == ExploreTargetKind.None && exploreTargetArea == CurrentAreaHash();
+		private uint exploreTargetArea; // (the area instance, WorldData.AreaHash, exploreTarget was picked in)
+		private static uint CurrentAreaHash() => PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
 
 		/// <summary>Forget the place TryExplore was walking to (eg, after DefaultExplorer.Rescan): the next call picks again.</summary>
 		public void ForgetExploreTarget() { exploreTarget = null; exploreArrivedSince = -1; }
@@ -986,6 +1006,9 @@ namespace AtE {
 			if ( exploreTarget == null || now - exploreTargetTime > 500 || DefaultFollower.Status == FollowStatus.Arrived ) {
 				exploreTarget = DefaultExplorer.FindNextTarget(DefaultNavigator, ctx.Terrain, ctx.Grid, monsters: false);
 				exploreTargetTime = now;
+				exploreTargetArea = CurrentAreaHash();
+				// (nothing found only because the explorer's record is not this terrain's yet, just after an area change: not done)
+				if ( exploreTarget.Kind == ExploreTargetKind.None && !DefaultExplorer.Covers(ctx.Terrain) ) { exploreTarget = null; return true; }
 			}
 			if ( exploreTarget.Kind == ExploreTargetKind.None ) return false;
 			WalkTo(exploreTarget.GridPos, $"exploring {exploreTarget.GridPos} ({DefaultExplorer.ExploredFraction:P0} explored)");
@@ -1096,9 +1119,11 @@ namespace AtE {
 		private List<Hostile> monstersToClick;
 		/// <summary>
 		/// The monsters within the driver's EngageRadius to click before fighting (inside a monolith, or a frozen augury
-		/// boss; see Combat.ClickReason), nearest first.
+		/// boss; see Combat.ClickReason), nearest first. Not those Driver.Ignore leaves alone: eg, the map's frozen augury
+		/// boss while its fates are not all taken, which a click would open the card window of (seen live 3.30.0d, Mud
+		/// Geyser: the boss clicked with 1 of 3 fates).
 		/// </summary>
-		public List<Hostile> MonstersToClick => monstersToClick ??= Combat.GetMonstersToClick(Grid, Driver.EngageRadius);
+		public List<Hostile> MonstersToClick => monstersToClick ??= Combat.GetMonstersToClick(Grid, Driver.EngageRadius).Where(Driver.Wanted).ToList();
 	}
 
 	/// <summary>
