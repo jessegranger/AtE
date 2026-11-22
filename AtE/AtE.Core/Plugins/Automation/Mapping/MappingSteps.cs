@@ -281,6 +281,8 @@ namespace AtE {
 		/// MaxRolls. A corrupted map (which can't be rolled) is done as it is, whatever its rarity, if it has none of
 		/// ProhibitedMods (identified first if need be), and stops it if it has one.
 		/// </summary>
+		/// <summary>Time after RollMap starts before the maps in the backpack are counted (the backpack reads late just after stashing).</summary>
+		public long RollMapSettleMs = 300;
 		public IState RollMap(IState next) {
 			var roll = RollStep(0, next);
 			return ForceGameFocus(new Step("Roll the map", (s, ctx, dt) => {
@@ -288,6 +290,8 @@ namespace AtE {
 				if ( !StashIsOpen() ) return Fail("roll the map: the stash is not open");
 				if ( !BackpackIsOpen() ) return Fail("roll the map: the inventory is not open");
 				cursorMapRecoveries = 0;
+				// (a moment first: just after stashing and taking the map out, the backpack still read 2 maps)
+				if ( s.Elapsed < RollMapSettleMs ) { s.Detail = "letting the backpack settle"; return s; }
 				// (a map on the cursor counts: it goes back in the backpack at the first roll)
 				int maps = BackpackItems().Count(i => ChooseNextMap.IsMap(i?.Entity)) + (CursorHoldsMap() ? 1 : 0);
 				if ( maps != 1 ) return Fail($"roll the map: there should be one map in the backpack, there are {maps}");
