@@ -248,11 +248,21 @@ namespace AtE {
 		}
 
 		private bool loggedShort;
+		/// <summary>How long the map boss has to be seen up, hurtable and not frozen before the rule gives way to it.</summary>
+		public long UnfrozenMs = 1000;
+		private long unfrozenSince = -1;
 		public override bool CheckDone(CombatContext ctx) {
 			bool done = routine.FatesHere >= Count
 				|| (ctx.Driver.ExploreDone && !Encounters().Any(i => !routine.IconDone(i)) && !Fight.AnyNear(ctx, 0) && !StartClosePass(ctx));
-			// (the map boss is up and can be hurt, not frozen waiting for its cards: the fates are moot now, it is fought)
-			if ( !done && GetEntities()?.FirstOrDefault(e => MappingRoutine.IsMapBoss(e) && IsAlive(e) && !Combat.IsFrozenAuguryBoss(e)) is Entity boss ) {
+			// (the map boss is up and can be hurt, not frozen waiting for its cards: the fates are moot now, it is fought.
+			// Only once it is targetable, can be damaged and has shown no frozen buff for UnfrozenMs: a buried boss (Mud
+			// Geyser's Tunneltrap) showed up without the buff at first, and the rule ended at 2 of 3 fates, seen live 3.30.0d)
+			var up = !done ? GetEntities()?.FirstOrDefault(e => MappingRoutine.IsMapBoss(e) && IsAlive(e) && IsTargetable(e)
+				&& !Combat.CannotBeDamaged(e) && !Combat.IsFrozenAuguryBoss(e)) : null;
+			long now = Time.ElapsedMilliseconds;
+			if ( up == null ) unfrozenSince = -1;
+			else if ( unfrozenSince < 0 ) unfrozenSince = now;
+			if ( up != null && now - unfrozenSince >= UnfrozenMs ) {
 				done = true;
 				if ( !loggedShort ) { loggedShort = true; Log($"{routine.Name}: the map boss is up, not frozen ({routine.FatesHere} of {Count} fates taken): fighting it"); }
 			}
