@@ -91,6 +91,18 @@ namespace AtE {
 		private string pickingText, goneText; // the label text of the item clicked last; of the one whose label went last
 		private Offsets.Vector2i pickingGrid, goneGrid;
 		private uint goneId;
+		// the items in the backpack (server side, readable with it closed) when the item was clicked last; when its label went
+		private int pickingBackpack = -1, goneBackpack = -1;
+
+		// how many items are in the backpack (the server's inventory, read even with the inventory closed); -1 if unreadable
+		private static int BackpackCount() => PoEMemory.GameRoot?.InGameState?.ServerInventoryCount(Offsets.InventorySlot.MainInventory) ?? -1;
+
+		// the item whose label went last went into the backpack: one more item there than when it was clicked (a stackable
+		// may join a stack instead, so this proves it went in, but not the other way)
+		private bool GoneWentIn() {
+			int now = BackpackCount();
+			return goneBackpack >= 0 && now > goneBackpack;
+		}
 		// the labels on the ground when the item's label went: one of them is not that item back again (eg, a second
 		// "Map (Tier 6)" dropped beside the first, seen live 3.30.0d, taken for the first one dropped again)
 		private readonly HashSet<uint> goneOthers = new HashSet<uint>();
@@ -110,7 +122,7 @@ namespace AtE {
 		// per label text: the items clicked with it that were new (not on the ground at the first click), the labels on the
 		// ground at the first click (so several real items of one name, eg three "Map (Tier 6)", are not one coming back),
 		// and when the first click was
-		private readonly Dictionary<string, (HashSet<uint> ids, HashSet<uint> before, long first)> textClicks = new Dictionary<string, (HashSet<uint>, HashSet<uint>, long)>();
+		private readonly Dictionary<string, (HashSet<uint> ids, HashSet<uint> before, long first, int backpack)> textClicks = new Dictionary<string, (HashSet<uint>, HashSet<uint>, long, int)>();
 		public long BackAgainMs = 3000;
 		private long pickedAt;
 
@@ -132,8 +144,10 @@ namespace AtE {
 		private long lastClick, lastClickWait;
 		private uint lastClicked;
 
-		/// <summary>Forget the blacklist (on entering a new area instance).</summary>
+		/// <summary>Forget the blacklist and the queue (on entering a new area instance).</summary>
 		public void Reset() {
+			known.Clear();
+			going = null;
 			clicks.Clear();
 			textClicks.Clear();
 			allClicks.Clear();
@@ -148,8 +162,97 @@ namespace AtE {
 			pickedPath = null;
 		}
 
+		private uint area;
+		// a new area instance: forget all that was about the last (its entity ids mean nothing here)
+		private void CheckArea() {
+			uint hash = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
+			if ( hash != area ) { area = hash; Reset(); }
+		}
+
+		/// <summary>An item seen on the ground worth picking up, not picked up yet (see Known).</summary>
+		public class KnownItem {
+			public uint Id;
+			public Offsets.Vector2i GridPos;
+			public string Text;
+			public override string ToString() => $"{Text} at {GridPos} (item {Id})";
+		}
+
+		/// <summary>
+		/// The items seen in this area instance worth picking up (their label showing, at any distance, wanted, and might
+		/// fit), not picked up yet, in the order they were seen: not forgotten when a fight takes the player far away. Where
+		/// a routine would only be exploring it walks back to the first of these (TryGoToKnown, from CombatDriver.TryExplore,
+		/// before the interactables known), and TryLoot picks it up once it is near. One leaves the queue once it is picked
+		/// up, left (too big for the room left, given up on, or not wanted after all), reached with no label of it there, or
+		/// not reached in KnownGiveUpMs.
+		/// </summary>
+		public IReadOnlyList<KnownItem> Known => known;
+		/// <summary>Any items in the queue (see Known)?</summary>
+		public bool HasKnown => known.Count > 0;
+		/// <summary>Within this many cells of a queued item's place with no label of it showing: it leaves the queue.</summary>
+		public float KnownArriveCells = 10;
+		/// <summary>Time to get back to a queued item before giving up on it.</summary>
+		public long KnownGiveUpMs = 45000;
+		private readonly List<KnownItem> known = new List<KnownItem>();
+		private KnownItem going;
+		private long goingSince;
+
+		private void Forget(uint id, string why) {
+			var k = known.FirstOrDefault(x => x.Id == id);
+			if ( k == null ) return;
+			known.Remove(k);
+			if ( going == k ) going = null;
+			Log($"Looter: {k} leaves the queue: {why} ({known.Count} queued)");
+		}
+
+		// the ids of the items with a label on the ground now
+		private static HashSet<uint> LabelIds() {
+			var ids = new HashSet<uint>();
+			foreach ( var l in GetUI()?.LabelsOnGround?.GetAllLabels() ?? Enumerable.Empty<LabelOnGround>() ) if ( l.Item != null ) ids.Add(l.Item.Id);
+			return ids;
+		}
+
+		// the queue brought up to date with the items worth picking up (Items, any distance) and the labels showing
+		private void UpdateKnown(List<(LabelOnGround label, Entity item, Offsets.Vector2i grid, float distance)> items) {
+			foreach ( var i in items ) {
+				var k = known.FirstOrDefault(x => x.Id == i.item.Id);
+				if ( k == null ) {
+					known.Add(k = new KnownItem() { Id = i.item.Id, GridPos = i.grid, Text = Ground.LabelText(i.label.Label) ?? "an item" });
+					Log($"Looter: queued {k} ({known.Count} queued)");
+				} else k.GridPos = i.grid;
+			}
+			if ( known.Count == 0 ) return;
+			var showing = LabelIds();
+			// (its label shows, and it is not among those worth picking up now: left, eg too big, given up on, not wanted)
+			foreach ( var k in known.ToList() ) {
+				if ( showing.Contains(k.Id) && !items.Any(i => i.item.Id == k.Id) ) Forget(k.Id, "left (too big, given up on, or not wanted)");
+			}
+		}
+
+		/// <summary>
+		/// Walk back to the first item in the queue (see Known); false if there is none. Called where a routine would explore
+		/// (CombatDriver.TryExplore); TryLoot, which runs before that, picks it up once it is within MaxDistance.
+		/// </summary>
+		public bool TryGoToKnown(CombatContext ctx) {
+			CheckArea();
+			if ( known.Count == 0 ) return false;
+			long now = Time.ElapsedMilliseconds;
+			var showing = LabelIds();
+			foreach ( var k in known.ToList() ) {
+				float d = Combat.Distance(ctx.Grid, k.GridPos);
+				if ( d <= KnownArriveCells && !showing.Contains(k.Id) ) { Forget(k.Id, "reached, and it is not there"); continue; }
+				if ( going != k ) { going = k; goingSince = now; Log($"Looter: going back to {k}, {d:F0} cells away ({known.Count} queued)"); }
+				if ( now - goingSince > KnownGiveUpMs ) { Forget(k.Id, $"not reached in {KnownGiveUpMs / 1000} s ({d:F0} cells away)"); continue; }
+				if ( !DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, k.GridPos, out var spot) ) { Forget(k.Id, "can't be walked to"); continue; }
+				Status = $"going back to {k.Text}, {d:F0} cells away ({known.Count} queued)";
+				ctx.Driver.WalkTo(spot, Status);
+				return true;
+			}
+			return false;
+		}
+
 		/// <summary>Where the item to pick up next is (the one being picked up, else the nearest); false if there is none.</summary>
 		public bool TryGetTarget(CombatContext ctx, out Offsets.Vector2i grid) {
+			CheckArea();
 			CheckPickedUp(); // (asked first each frame, also after the last item is gone)
 			CheckCursor();
 			var found = Target(ctx);
@@ -159,7 +262,9 @@ namespace AtE {
 
 		// the item being picked up, if it is still there, else the nearest; quest items first
 		private (LabelOnGround label, Entity item, Offsets.Vector2i grid, float distance) Target(CombatContext ctx) {
-			var items = Items(ctx).ToList();
+			var all = Items(ctx).ToList();
+			UpdateKnown(all);
+			var items = all.Where(i => i.distance <= MaxDistance).ToList();
 			if ( items.Count == 0 ) return default;
 			var quest = items.Where(i => IsQuestItem(i.item)).ToList();
 			if ( quest.Count > 0 ) items = quest;
@@ -169,6 +274,7 @@ namespace AtE {
 
 		/// <summary>Work on picking up the nearest item; false if there is none to pick up.</summary>
 		public bool TryLoot(CombatContext ctx) {
+			CheckArea();
 			CheckPickedUp();
 			CheckCursor();
 			var (label, item, grid, d) = Target(ctx);
@@ -215,12 +321,15 @@ namespace AtE {
 				return true;
 			}
 			// (the same text clicked as RepeatEntities different items lately: it keeps coming back, no room for it)
-			if ( name != null && all == 0 ) {
+			// (not gold: never a want of room, and piles of the same amount are common, seen live: "12 Gold" left as one coming back)
+			if ( name != null && all == 0 && !IsGold(item.GetComponent<WorldItem>()?.Item) ) {
 				long tnow = Time.ElapsedMilliseconds;
-				if ( !textClicks.TryGetValue(name, out var tc) || tnow - tc.first > RepeatMs ) {
+				int bp = BackpackCount();
+				// (one more item in the backpack than at the first click: they go in, so they are several, eg maps landing one after another)
+				if ( !textClicks.TryGetValue(name, out var tc) || tnow - tc.first > RepeatMs || (tc.backpack >= 0 && bp > tc.backpack) ) {
 					var before = new HashSet<uint>();
 					foreach ( var l in GetUI()?.LabelsOnGround?.GetAllLabels() ?? Enumerable.Empty<LabelOnGround>() ) if ( l.Item != null ) before.Add(l.Item.Id);
-					tc = (new HashSet<uint> { item.Id }, before, tnow);
+					tc = (new HashSet<uint> { item.Id }, before, tnow, bp);
 				} else if ( !tc.before.Contains(item.Id) ) tc.ids.Add(item.Id);
 				textClicks[name] = tc;
 				if ( tc.ids.Count >= RepeatEntities ) {
@@ -239,6 +348,7 @@ namespace AtE {
 				pickingPath = item.GetComponent<WorldItem>()?.Item?.Path;
 				pickingText = name;
 				pickingGrid = grid;
+				pickingBackpack = BackpackCount();
 				lastClickWait = ClickPace + (long)(ClickPacePerCell * d);
 				if ( d <= Reach ) clicks[item.Id] = n + 1;
 				allClicks[item.Id] = all + 1;
@@ -254,9 +364,11 @@ namespace AtE {
 			if ( labels == null || labels.Any(l => l.Item?.Id == pickingId) ) return;
 			uint pickingIdWas = pickingId;
 			pickingId = 0;
+			// (picked up, or dropped again as a new entity: either way this one is gone)
+			Forget(pickingIdWas, "picked up");
 			pickedPath = pickingPath;
 			pickedAt = Time.ElapsedMilliseconds;
-			goneText = pickingText; goneGrid = pickingGrid; goneAt = pickedAt; goneId = pickingIdWas;
+			goneText = pickingText; goneGrid = pickingGrid; goneAt = pickedAt; goneId = pickingIdWas; goneBackpack = pickingBackpack;
 			goneOthers.Clear();
 			foreach ( var l in labels ) if ( l.Item != null ) goneOthers.Add(l.Item.Id);
 			// (on the cursor: no room for it, see CheckCursor, looked at now too, as it is there only a frame; not picked up)
@@ -310,7 +422,8 @@ namespace AtE {
 		}
 
 		// stackable (currency and the like: it may go on a stack already held) or gold (not in the backpack): no size rule
-		private static bool SizeFree(Entity item) => item?.Path == null || item.Path.Contains("/Gold") || IsValid(item.GetComponent<Stack>());
+		private static bool SizeFree(Entity item) => item?.Path == null || IsGold(item) || IsValid(item.GetComponent<Stack>());
+		private static bool IsGold(Entity item) => item?.Path?.Contains("/Gold") ?? false;
 
 		/// <summary>
 		/// Might item (inside a WorldItem) still go in the backpack? The backpack itself is not read (it is only known while
@@ -323,7 +436,7 @@ namespace AtE {
 			return !failedSizes.Any(f => w >= f.w && h >= f.h);
 		}
 
-		// the items on the ground with a label showing, not blacklisted, within MaxDistance
+		// the items on the ground with a label showing, not blacklisted, wanted, and might fit (at any distance)
 		private IEnumerable<(LabelOnGround label, Entity item, Offsets.Vector2i grid, float distance)> Items(CombatContext ctx) {
 			var labels = GetUI()?.LabelsOnGround?.GetAllLabels();
 			if ( labels == null ) yield break;
@@ -336,8 +449,11 @@ namespace AtE {
 				if ( Want != null && !Want(inner) ) continue;
 				// (back on the ground as a new entity, where the one just picked up was: it went on the cursor for a moment,
 				// no room for it, and the game dropped it again; a backstop to CheckCursor, which may miss that moment)
+				// (not when the backpack holds one more item than at the click: it went in, and this is another of the same name,
+				// eg three "Map (Tier 5)" from a chest landing one after another, seen live 3.30.0d: the later ones were left)
 				if ( goneText != null && item.Id != goneId && !goneOthers.Contains(item.Id) && Time.ElapsedMilliseconds - goneAt <= BackAgainMs
-					&& Ground.LabelText(label.Label) == goneText && Combat.Distance(pos.GridPos, goneGrid) <= BackAgainCells ) {
+					&& Ground.LabelText(label.Label) == goneText && Combat.Distance(pos.GridPos, goneGrid) <= BackAgainCells
+					&& !GoneWentIn() ) {
 					Log($"Looter: {goneText} is back on the ground (a new entity, where it was): there was no room for it");
 					goneText = null;
 					NoteTooBig(inner);
@@ -346,8 +462,7 @@ namespace AtE {
 					if ( noRoom.Add(item.Id) ) Log($"Looter: {Ground.LabelText(label.Label) ?? "an item"} is too big for the room left (as big as one that did not go in): leaving it");
 					continue;
 				}
-				float d = Combat.Distance(ctx.Grid, pos.GridPos);
-				if ( d <= MaxDistance ) yield return (label, item, pos.GridPos, d);
+				yield return (label, item, pos.GridPos, Combat.Distance(ctx.Grid, pos.GridPos));
 			}
 		}
 	}

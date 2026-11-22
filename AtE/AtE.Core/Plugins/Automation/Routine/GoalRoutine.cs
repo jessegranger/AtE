@@ -414,6 +414,13 @@ namespace AtE {
 			return true;
 		}
 
+		protected override bool TryGoToKnownLoot(CombatContext ctx) {
+			if ( !PickUpItems || BackpackIsOpen() || !Looter.TryGoToKnown(ctx) ) return false;
+			SetStatus(Looter.Status);
+			return true;
+		}
+		protected override bool HasKnownLoot => PickUpItems && Looter.HasKnown;
+
 		// pick up an item, if there is one; true if doing so, or fighting the monsters near it (or near the player) first
 		private bool TryLoot(CombatContext ctx) {
 			if ( !PickUpItems || BackpackIsOpen() || !Looter.TryGetTarget(ctx, out var item) ) return false;

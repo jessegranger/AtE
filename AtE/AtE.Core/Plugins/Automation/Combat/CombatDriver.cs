@@ -945,7 +945,13 @@ namespace AtE {
 		/// a row: the next one's fates and first clearing round ended at once).
 		/// </summary>
 		public bool ExploreDone => exploreTarget != null && exploreTarget.Kind == ExploreTargetKind.None && exploreTargetArea == CurrentAreaHash()
-			&& !interactables.HasKnown; // (and no interactable known and not used yet left to go to: see Interactables.Known)
+			&& !interactables.HasKnown // (and no interactable known and not used yet left to go to: see Interactables.Known)
+			&& !HasKnownLoot; // (nor an item seen and not picked up yet: see Looter.Known)
+
+		/// <summary>Walk back to an item seen and not picked up yet (see Looter.Known), before exploring; true if doing so.</summary>
+		protected virtual bool TryGoToKnownLoot(CombatContext ctx) => false;
+		/// <summary>Any items seen and not picked up yet to go back to (see Looter.Known)?</summary>
+		protected virtual bool HasKnownLoot => false;
 		private uint exploreTargetArea; // (the area instance, WorldData.AreaHash, exploreTarget was picked in)
 		private static uint CurrentAreaHash() => PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
 
@@ -976,11 +982,13 @@ namespace AtE {
 		private long exploreArrivedSince = -1;
 
 		/// <summary>
-		/// Walk to the next unexplored place; false if there is none left. But first to the first interactable known and not
+		/// Walk to the next unexplored place; false if there is none left. But first back to an item seen and not picked up
+		/// yet (TryGoToKnownLoot, see Looter.Known), then to the first interactable known and not
 		/// used yet (Interactables.Known: its entity seen, or its minimap icon from afar), if any; the explorer marks what is
 		/// passed on the way as explored.
 		/// </summary>
 		public bool TryExplore(CombatContext ctx) {
+			if ( TryGoToKnownLoot(ctx) ) return true; // (the items seen first, then the interactables known)
 			if ( interactables.TryGoToKnown(this, ctx) ) { Status = interactables.Status; return true; }
 			long now = Time.ElapsedMilliseconds;
 			// progress: the nearest the player has been to the place, since it was chosen (a new place, more than
