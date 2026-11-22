@@ -95,8 +95,22 @@ namespace AtE {
 		// "Map (Tier 6)" dropped beside the first, seen live 3.30.0d, taken for the first one dropped again)
 		private readonly HashSet<uint> goneOthers = new HashSet<uint>();
 		private long goneAt = -100000;
-		/// <summary>A label with the same text as one just gone, this near where it was and this soon, is that item dropped again (no room for it).</summary>
-		public float BackAgainCells = 4;
+		/// <summary>
+		/// A label with the same text as one just gone, this near where it was and this soon, is that item dropped again (no
+		/// room for it). Wide: the game drops it at the player's feet, which was 18 cells from where it lay (seen live 3.30.0d).
+		/// </summary>
+		public float BackAgainCells = 25;
+		/// <summary>
+		/// A label text clicked as this many different items (each a new entity) within RepeatMs is one item that keeps
+		/// coming back (no room for it, dropped again each time): it counts as too big. The last backstop, for when neither
+		/// CheckCursor nor the back-on-the-ground check sees it (each new entity is clicked only once, so nothing was logged).
+		/// </summary>
+		public int RepeatEntities = 3;
+		public long RepeatMs = 60000;
+		// per label text: the items clicked with it that were new (not on the ground at the first click), the labels on the
+		// ground at the first click (so several real items of one name, eg three "Map (Tier 6)", are not one coming back),
+		// and when the first click was
+		private readonly Dictionary<string, (HashSet<uint> ids, HashSet<uint> before, long first)> textClicks = new Dictionary<string, (HashSet<uint>, HashSet<uint>, long)>();
 		public long BackAgainMs = 3000;
 		private long pickedAt;
 
@@ -121,6 +135,7 @@ namespace AtE {
 		/// <summary>Forget the blacklist (on entering a new area instance).</summary>
 		public void Reset() {
 			clicks.Clear();
+			textClicks.Clear();
 			allClicks.Clear();
 			blacklist.Clear();
 			workedMs.Clear();
@@ -198,6 +213,24 @@ namespace AtE {
 				blacklist.Add(item.Id);
 				current = 0;
 				return true;
+			}
+			// (the same text clicked as RepeatEntities different items lately: it keeps coming back, no room for it)
+			if ( name != null && all == 0 ) {
+				long tnow = Time.ElapsedMilliseconds;
+				if ( !textClicks.TryGetValue(name, out var tc) || tnow - tc.first > RepeatMs ) {
+					var before = new HashSet<uint>();
+					foreach ( var l in GetUI()?.LabelsOnGround?.GetAllLabels() ?? Enumerable.Empty<LabelOnGround>() ) if ( l.Item != null ) before.Add(l.Item.Id);
+					tc = (new HashSet<uint> { item.Id }, before, tnow);
+				} else if ( !tc.before.Contains(item.Id) ) tc.ids.Add(item.Id);
+				textClicks[name] = tc;
+				if ( tc.ids.Count >= RepeatEntities ) {
+					Log($"Looter: {name} was clicked as {tc.ids.Count} different items in {(tnow - tc.first) / 1000} s: it keeps coming back, no room for it");
+					NoteTooBig(item.GetComponent<WorldItem>()?.Item);
+					blacklist.Add(item.Id);
+					textClicks.Remove(name);
+					current = 0;
+					return true;
+				}
 			}
 			if ( ctx.Driver.Send(click) ) {
 				lastClick = Time.ElapsedMilliseconds;
