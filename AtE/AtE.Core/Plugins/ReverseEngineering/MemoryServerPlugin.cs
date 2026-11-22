@@ -998,7 +998,6 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			sb.AppendLine($"ingame=0x{igs?.Address.ToInt64() ?? 0:X} valid={IsValid(igs)}");
 			sb.AppendLine($"player=0x{(IsValid(igs) ? igs.Player?.Address.ToInt64() ?? 0 : 0):X}");
 			sb.AppendLine($"entities={EntityCache.IdCount}");
-			sb.AppendLine($"pathCacheViolations={Entity.PathCacheViolations}"); // see Entity.AuditPath
 			sb.AppendLine($"entityAddresses={EntityCache.AddressCount} recycled={EntityCache.RecycledCount}"); // see EntityCache.TryGetEntity(IntPtr)
 			sb.AppendLine($"time_ms={Time.ElapsedMilliseconds}");
 			return sb.ToString();

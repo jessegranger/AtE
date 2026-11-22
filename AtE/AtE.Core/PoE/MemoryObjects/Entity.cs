@@ -126,7 +126,6 @@ namespace AtE {
 
 				// invalidate the private caches whenever Address changes
 				path = null;
-				auditPath = null;
 				identityDetails = IntPtr.Zero;
 				identityPath = IntPtr.Zero;
 				ComponentPtrs = null;
@@ -168,62 +167,19 @@ namespace AtE {
 			return d != identityDetails || p != identityPath;
 		}
 
+		// The path is read once and kept for as long as Address is the same: an entity at one address never changes its
+		// path. (Checked live, 3.30.0d, by an audit that re-read it: the only changes were objects the game put at a reused
+		// address, which EntityCache now gives a fresh Entity, see IsRecycled; the walk makes a fresh one for a new id.)
 		private string path;
-		private IntPtr pathOrigin = IntPtr.Zero;
 		public string Path {
 			get {
 				if ( !IsValid(Address) ) return null;
-				if ( IsValid(Details.Value.ptrPath) ) {
-					// if we have a cached path, read from the same pointer
-					IntPtr curPath = Details.Value.ptrPath;
-					if ( path != null && pathOrigin == curPath ) {
-						// audit: now and then, re-read the string in place, to see if it changes behind the same pointer
-						long now = Time.ElapsedMilliseconds;
-						if ( now >= nextPathAudit ) {
-							nextPathAudit = now + PATH_AUDIT_MS;
-							if ( PoEMemory.TryReadString(curPath, Encoding.Unicode, out string reread) ) {
-								AuditPath(reread, curPath, "the string changed behind the same ptrPath");
-							}
-						}
-						return path;
-					} else {
-						// otherwise, read the path and cache it
-						if( PoEMemory.TryReadString(curPath, Encoding.Unicode, out path) ) {
-							AuditPath(path, curPath, pathOrigin == IntPtr.Zero ? null : "ptrPath changed");
-							pathOrigin = curPath;
-							return path;
-							// TODO: if could be that this is a good place to invalidate ComponentPtr as well
-						}
-					}
+				if ( path != null ) return path;
+				IntPtr ptrPath = Details.Value.ptrPath;
+				if ( IsValid(ptrPath) && PoEMemory.TryReadString(ptrPath, Encoding.Unicode, out string read) && !string.IsNullOrEmpty(read) ) {
+					path = read;
 				}
-				return null;
-			}
-		}
-
-		// Path cache audit (temporary diagnostics). The proposed speed-up is to cache Path for as long as Address is the
-		// same, without reading EntityDetails.ptrPath every frame. That is only safe if an Entity at one address never
-		// changes its path. auditPath is the first path read since Address was set (what that cache would hold); every
-		// later read that differs from it is logged as "PathCache violation", and counted in PathCacheViolations
-		// (MemoryServer /status). If this never logs over a long run, caching Path per Address is safe.
-		private string auditPath;
-		private uint auditId;
-		private long nextPathAudit;
-		private const long PATH_AUDIT_MS = 2000;
-		private static int pathCacheViolations;
-		public static int PathCacheViolations => pathCacheViolations;
-		private void AuditPath(string now, IntPtr ptrPath, string how) {
-			if ( string.IsNullOrEmpty(now) ) return;
-			uint id = Id;
-			if ( auditPath == null ) {
-				auditPath = now;
-				auditId = id;
-				return;
-			}
-			if ( now != auditPath ) {
-				int n = Interlocked.Increment(ref pathCacheViolations);
-				Log($"PathCache violation #{n} ({how ?? "re-read"}): entity at {Describe(Address)} id {auditId} -> {id}, ptrPath {Describe(ptrPath)}: \"{auditPath}\" -> \"{now}\"");
-				auditPath = now; // log each change once
-				auditId = id;
+				return path;
 			}
 		}
 
