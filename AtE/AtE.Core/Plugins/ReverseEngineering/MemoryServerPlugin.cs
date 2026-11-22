@@ -410,6 +410,10 @@ namespace AtE {
 					});
 				case "/labels":
 					return RunOnMain(LabelsText);
+				case "/known":
+					// the Mapping routine's queue of interactables known and not used yet (seen, or by minimap icon), first first
+					return RunOnMain(() => GetPlugin<AutomationPlugin>()?.Combat?.Routines.OfType<MappingRoutine>().FirstOrDefault()?.Interactables.KnownText()
+						?? "error: no Mapping routine" + NL);
 				case "/gamekeys":
 					// (not read yet: try reading them now, from the Options panel's element tree, without opening it)
 					return RunOnMain(() => {

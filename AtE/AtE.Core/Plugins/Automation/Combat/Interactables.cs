@@ -69,6 +69,8 @@ namespace AtE {
 			public Action<CombatDriver> Clicked;
 			/// <summary>Why not to click it yet (eg, a strongbox while monsters a box summoned are alive), else null; not used up.</summary>
 			public Func<Entity, string> Blocked;
+			/// <summary>Its minimap icons (MinimapIcons.dat ids), by which one far outside the entity list's range is known (see Known).</summary>
+			public string[] Icons;
 		}
 
 		public static readonly List<Kind> Kinds = new List<Kind>() {
@@ -79,7 +81,9 @@ namespace AtE {
 			new Kind() { Name = "Voltaxic Sulphite Vein", PathPart = "Delve/Objects/DelveMineralVein" },
 			new Kind() { Name = "Shrine", PathPart = "Metadata/Shrines/", Used = e => e.GetComponent<Shrine>() is Shrine s && IsValid(s) && !s.IsAvailable },
 			new Kind() { Name = "Grasping Coffers (Breach)", PathPart = "Chests/Breach/BreachBoxChest", Used = e => e.GetComponent<Chest>() is Chest c && IsValid(c) && c.IsOpened },
-			new Kind() { Name = "Strongbox", PathPart = "Metadata/Chests/StrongBoxes/", Used = IsStrongboxUsed,
+			// (its minimap icon is "Strongbox", MinimapIcons.dat row 637: seen live 3.30, two on the map out of the entity
+			// list's range, one with EntityId 848, the farther one with EntityId 0)
+			new Kind() { Name = "Strongbox", PathPart = "Metadata/Chests/StrongBoxes/", Used = IsStrongboxUsed, Icons = new[] { "Strongbox" },
 				Blocked = e => AreaObstacles.ChestSpawnsNear(e) ? "monsters a strongbox summoned are alive near it" : null },
 			new Kind() { Name = "Sentinel", PathPart = "Metadata/MiscellaneousObjects/Sentinel/",
 				Used = e => e.GetComponent<StateMachine>() is StateMachine sm && IsValid(sm) && sm.TryGetState("interacted", out long done) && done != 0 },
@@ -138,8 +142,167 @@ namespace AtE {
 		private readonly HashSet<uint> passedOver = new HashSet<uint>(); // (logged once each, in this area instance)
 		private long lastClick;
 
-		/// <summary>Forget the clicks (eg, the routine started over).</summary>
-		public void Reset() { clicks.Clear(); passedOver.Clear(); area = 0; }
+		/// <summary>Forget the clicks and the known ones (eg, the routine started over).</summary>
+		public void Reset() { clicks.Clear(); passedOver.Clear(); known.Clear(); done.Clear(); going = null; area = 0; }
+
+		// a new area instance: forget all that was about the last
+		private void CheckArea() {
+			uint hash = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
+			if ( hash != area ) { area = hash; clicks.Clear(); passedOver.Clear(); known.Clear(); done.Clear(); going = null; }
+		}
+
+		// every entity (or label's item) of an enabled kind, with its kind and label
+		private static IEnumerable<(Entity ent, Kind kind, LabelOnGround label)> Candidates(List<LabelOnGround> labels) {
+			var ents = GetEntities()?.ToList() ?? new List<Entity>();
+			foreach ( var kind in Kinds.Where(IsEnabled) ) {
+				if ( kind.LabelText != null ) {
+					foreach ( var l in labels ) {
+						if ( (Ground.LabelText(l.Label)?.IndexOf(kind.LabelText, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0 ) yield return (l.Item, kind, l);
+					}
+				} else {
+					foreach ( var e in ents ) {
+						if ( e != null && (e.Path?.IndexOf(kind.PathPart, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0
+							&& (kind.PathEnd == null || e.Path.EndsWith(kind.PathEnd, StringComparison.OrdinalIgnoreCase)) )
+							yield return (e, kind, labels.FirstOrDefault(l => l.Item?.Address == e.Address));
+					}
+				}
+			}
+		}
+
+		// why e can't be used (again): given up on, not targetable, or used up; else null. A used one's clicks are forgotten.
+		private string UsedUp(Entity e, Kind kind) {
+			if ( clicks.TryGetValue(e.Id, out int n) && n >= (kind.MaxClicks > 0 ? kind.MaxClicks : MaxClicks) ) return $"clicked {n} times";
+			if ( !(e.GetComponent<Targetable>()?.IsTargetable ?? true) ) return "not targetable";
+			if ( kind.Used?.Invoke(e) ?? false ) {
+				// (the clicks worked: forget them, so one that becomes usable again starts afresh, eg a Strongbox that can
+				// be opened a second time, seen live 3.30: it reads opened = 0, started = 0, targetable again)
+				clicks.Remove(e.Id);
+				return "used";
+			}
+			return null;
+		}
+
+		/// <summary>One known to be in the area and not used yet: its entity seen, or its minimap icon from afar (see Known).</summary>
+		public class KnownInteractable {
+			public string Kind;
+			/// <summary>Its entity's id; 0 when not known (a far minimap icon can have EntityId 0, seen live 3.30).</summary>
+			public uint EntityId;
+			public Offsets.Vector2i GridPos;
+			/// <summary>How it became known: "seen" (its entity) or "minimap icon".</summary>
+			public string Source;
+			public override string ToString() => $"{Kind} at {GridPos}{(EntityId != 0 ? $", entity {EntityId}" : "")} ({Source})";
+		}
+
+		/// <summary>
+		/// The ones known in this area instance and not used yet, in the order they became known: any entity of an enabled
+		/// kind seen (at any distance), and any minimap icon in a kind's Icons (the icons are known for the whole area, also
+		/// out of the entity list's range). Where a routine would only be exploring it walks to the first of these instead
+		/// (TryGoToKnown, from CombatDriver.TryExplore; the explorer marks what is passed as explored), and TryUse clicks it
+		/// once it is near. One leaves the queue once it is seen used up, or is reached with nothing to use there, or is not
+		/// reached in KnownGiveUpMs; one blocked (Kind.Blocked) stays, passed over for the next until it is not.
+		/// </summary>
+		public IReadOnlyList<KnownInteractable> Known => known;
+		/// <summary>Any known ones left to go to (see Known), not counting those blocked for now?</summary>
+		public bool HasKnown => known.Any(k => !IsBlocked(k));
+
+		// its entity is in range and its kind says not to click it yet (Kind.Blocked)
+		private static bool IsBlocked(KnownInteractable k) => k.EntityId != 0 && EntityCache.TryGetEntity(k.EntityId, out var e) && IsValid(e)
+			&& Kinds.FirstOrDefault(kd => kd.Name == k.Kind)?.Blocked?.Invoke(e) != null;
+		/// <summary>Within this many cells of a known one's place with nothing to use there: it leaves the queue.</summary>
+		public float KnownArriveCells = 12;
+		/// <summary>Time to get to a known one before giving up on it.</summary>
+		public long KnownGiveUpMs = 45000;
+		private readonly List<KnownInteractable> known = new List<KnownInteractable>();
+		// those that left the queue (used up, or given up on): not queued again from an icon (from its entity, once usable again)
+		private readonly List<(string kind, uint id, Offsets.Vector2i grid)> done = new List<(string, uint, Offsets.Vector2i)>();
+		private KnownInteractable going;
+		private long goingSince, lastKnownUpdate;
+		private const float SamePlaceCells = 4; // (an icon and an entity of the same kind this near are the same one)
+
+		private static bool Same(string kind, uint id, Offsets.Vector2i grid, string kind2, uint id2, Offsets.Vector2i grid2) =>
+			kind == kind2 && ((id != 0 && id == id2) || Combat.Distance(grid, grid2) <= SamePlaceCells);
+
+		private void Drop(KnownInteractable k, string why) {
+			known.Remove(k);
+			done.Add((k.Kind, k.EntityId, k.GridPos));
+			if ( going == k ) going = null;
+			Log($"Interactables: {k} leaves the queue: {why} ({known.Count} known)");
+		}
+
+		/// <summary>Bring Known up to date (twice a second at most, unless force).</summary>
+		public void UpdateKnown(bool force = false) {
+			CheckArea();
+			long now = Time.ElapsedMilliseconds;
+			if ( !force && now - lastKnownUpdate < 500 ) return;
+			lastKnownUpdate = now;
+			var labels = GetUI()?.LabelsOnGround?.GetAllLabels()?.ToList() ?? new List<LabelOnGround>();
+			foreach ( var (e, kind, _) in Candidates(labels) ) {
+				if ( !IsValid(e) || !(e.GetComponent<Positioned>() is Positioned pos && IsValid(pos)) ) continue;
+				var k = known.FirstOrDefault(x => Same(x.Kind, x.EntityId, x.GridPos, kind.Name, e.Id, pos.GridPos));
+				if ( UsedUp(e, kind) is string why ) {
+					if ( k != null ) Drop(k, why);
+					else if ( !done.Any(d => Same(d.kind, d.id, d.grid, kind.Name, e.Id, pos.GridPos)) ) done.Add((kind.Name, e.Id, pos.GridPos));
+					continue;
+				}
+				// (usable: one seen usable again after it was used up, eg a Strongbox opened a second time, is queued again)
+				done.RemoveAll(d => Same(d.kind, d.id, d.grid, kind.Name, e.Id, pos.GridPos));
+				if ( k == null ) {
+					known.Add(k = new KnownInteractable() { Kind = kind.Name, EntityId = e.Id, GridPos = pos.GridPos, Source = "seen" });
+					Log($"Interactables: queued the {k} ({known.Count} known)");
+				} else { k.EntityId = e.Id; k.GridPos = pos.GridPos; }
+			}
+			var iconKinds = Kinds.Where(kind => kind.Icons != null && IsEnabled(kind)).ToList();
+			if ( iconKinds.Count == 0 ) return;
+			foreach ( var icon in MinimapIcons.All() ) {
+				var kind = iconKinds.FirstOrDefault(kd => System.Array.IndexOf(kd.Icons, icon.Icon) >= 0);
+				if ( kind == null ) continue;
+				if ( icon.EntityId != 0 && IsValid(icon.Entity) ) continue; // (its entity is in range: decided above)
+				var grid = new Offsets.Vector2i((int)icon.GridPos.X, (int)icon.GridPos.Y);
+				if ( done.Any(d => Same(d.kind, d.id, d.grid, kind.Name, icon.EntityId, grid)) ) continue;
+				var k = known.FirstOrDefault(x => Same(x.Kind, x.EntityId, x.GridPos, kind.Name, icon.EntityId, grid));
+				if ( k == null ) {
+					known.Add(k = new KnownInteractable() { Kind = kind.Name, EntityId = icon.EntityId, GridPos = grid, Source = "minimap icon" });
+					Log($"Interactables: queued the {k} ({known.Count} known)");
+				} else if ( k.EntityId == 0 ) k.EntityId = icon.EntityId;
+			}
+		}
+
+		/// <summary>
+		/// Walk to the first known one (see Known) that is not blocked; false if there is none (so exploring goes on).
+		/// Called where a routine would explore (CombatDriver.TryExplore).
+		/// </summary>
+		public bool TryGoToKnown(CombatDriver driver, CombatContext ctx) {
+			if ( !AnyEnabled ) return false;
+			UpdateKnown();
+			long now = Time.ElapsedMilliseconds;
+			foreach ( var k in known.ToList() ) {
+				if ( IsBlocked(k) ) continue; // (eg, a strongbox while monsters a box summoned live)
+				Entity e = k.EntityId != 0 && EntityCache.TryGetEntity(k.EntityId, out var ent) && IsValid(ent) ? ent : null;
+				float d = Combat.Distance(ctx.Grid, k.GridPos);
+				if ( d <= KnownArriveCells ) {
+					// (here, and TryUse, which runs before exploring, did not take it: nothing to use here)
+					Drop(k, e == null ? "reached, and nothing there" : "reached, and not usable");
+					continue;
+				}
+				if ( going != k ) { going = k; goingSince = now; Log($"Interactables: going to the {k}, {d:F0} cells away ({known.Count} known)"); }
+				if ( now - goingSince > KnownGiveUpMs ) { Drop(k, $"not reached in {KnownGiveUpMs} ms ({d:F0} cells away)"); continue; }
+				if ( !DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, k.GridPos, out var spot) ) { Drop(k, "can't be walked to"); continue; }
+				Status = $"going to a {k.Kind} at {k.GridPos}, {d:F0} cells away ({known.Count} known)";
+				driver.WalkTo(spot, Status);
+				return true;
+			}
+			return false;
+		}
+
+		/// <summary>The queue (Known) as text, first first (brought up to date now).</summary>
+		public string KnownText() {
+			UpdateKnown(force: true);
+			var sb = new System.Text.StringBuilder();
+			sb.AppendLine($"{known.Count} known interactables, first first:");
+			foreach ( var k in known ) sb.AppendLine("  " + k);
+			if ( done.Count > 0 ) sb.AppendLine($"{done.Count} used up or given up: " + string.Join(", ", done.Select(d => $"{d.kind} at {d.grid}")));
+			return sb.ToString();
+		}
 
 		/// <summary>The one to use next: the nearest, not used, not given up on, that can be walked to; null if none.</summary>
 		private (Entity ent, Kind kind, LabelOnGround label, Offsets.Vector2i grid, float distance) Next(CombatContext ctx) {
@@ -150,14 +313,7 @@ namespace AtE {
 				string why = null;
 				var pos = e.GetComponent<Positioned>();
 				float d = IsValid(pos) ? Combat.Distance(ctx.Grid, pos.GridPos) : float.MaxValue;
-				if ( clicks.TryGetValue(e.Id, out int n) && n >= (kind.MaxClicks > 0 ? kind.MaxClicks : MaxClicks) ) why = $"clicked {n} times";
-				else if ( !(e.GetComponent<Targetable>()?.IsTargetable ?? true) ) why = "not targetable";
-				else if ( kind.Used?.Invoke(e) ?? false ) {
-					// (the clicks worked: forget them, so one that becomes usable again starts afresh, eg a Strongbox that can
-					// be opened a second time, seen live 3.30: it reads opened = 0, started = 0, targetable again)
-					clicks.Remove(e.Id);
-					why = "used";
-				}
+				if ( UsedUp(e, kind) is string usedUp ) why = usedUp;
 				else if ( kind.Blocked?.Invoke(e) is string blocked ) why = blocked;
 				else if ( !IsValid(pos) ) why = "no position";
 				else if ( d > MaxDistance ) why = null; // (too far: not said, it comes nearer)
@@ -165,26 +321,13 @@ namespace AtE {
 				else { found.Add((e, kind, label, pos.GridPos, d)); passedOver.Remove(e.Id); return; }
 				if ( why != null && passedOver.Add(e.Id) ) Log($"Interactables: passing over the {kind.Name} {e.Id} at {(IsValid(pos) ? pos.GridPos.ToString() : "?")}: {why}");
 			}
-			foreach ( var kind in Kinds.Where(IsEnabled) ) {
-				if ( kind.LabelText != null ) {
-					foreach ( var l in labels ) {
-						if ( (Ground.LabelText(l.Label)?.IndexOf(kind.LabelText, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0 ) Consider(l.Item, kind, l);
-					}
-				} else {
-					foreach ( var e in GetEntities() ?? Enumerable.Empty<Entity>() ) {
-						if ( e != null && (e.Path?.IndexOf(kind.PathPart, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0
-							&& (kind.PathEnd == null || e.Path.EndsWith(kind.PathEnd, StringComparison.OrdinalIgnoreCase)) )
-							Consider(e, kind, labels.FirstOrDefault(l => l.Item?.Address == e.Address));
-					}
-				}
-			}
+			foreach ( var (e, kind, label) in Candidates(labels) ) Consider(e, kind, label);
 			return found.OrderBy(f => f.Item5).FirstOrDefault();
 		}
 
 		/// <summary>Work on using the nearest one (walking to it, clicking it); false if there is none.</summary>
 		public bool TryUse(CombatDriver driver, CombatContext ctx) {
-			uint hash = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
-			if ( hash != area ) { area = hash; clicks.Clear(); passedOver.Clear(); }
+			UpdateKnown();
 			var (ent, kind, label, grid, d) = Next(ctx);
 			if ( ent == null ) return false;
 			// (not when its label is within LabelReach and the middle of the label is on screen: an Augury Card on ground the

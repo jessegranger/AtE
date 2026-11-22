@@ -680,6 +680,8 @@ namespace AtE {
 			&& (e.GetComponent<Targetable>()?.IsTargetable ?? true);
 
 		private readonly Interactables interactables = new Interactables();
+		/// <summary>The interactables this driver clicks (see TryInteract), and those known and not used yet (Interactables.Known).</summary>
+		public Interactables Interactables => interactables;
 
 		/// <summary>
 		/// Use the nearest thing worth clicking in range (see Interactables: an augury card's "Select a Fate", a Demonic
@@ -945,7 +947,8 @@ namespace AtE {
 		/// "explored everything" from the last map does not carry over to the next, seen live 3.30.0d, two Mud Geysers in
 		/// a row: the next one's fates and first clearing round ended at once).
 		/// </summary>
-		public bool ExploreDone => exploreTarget != null && exploreTarget.Kind == ExploreTargetKind.None && exploreTargetArea == CurrentAreaHash();
+		public bool ExploreDone => exploreTarget != null && exploreTarget.Kind == ExploreTargetKind.None && exploreTargetArea == CurrentAreaHash()
+			&& !interactables.HasKnown; // (and no interactable known and not used yet left to go to: see Interactables.Known)
 		private uint exploreTargetArea; // (the area instance, WorldData.AreaHash, exploreTarget was picked in)
 		private static uint CurrentAreaHash() => PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
 
@@ -975,8 +978,13 @@ namespace AtE {
 		public long ExploreArrivedMs = 1000;
 		private long exploreArrivedSince = -1;
 
-		/// <summary>Walk to the next unexplored place; false if there is none left.</summary>
+		/// <summary>
+		/// Walk to the next unexplored place; false if there is none left. But first to the first interactable known and not
+		/// used yet (Interactables.Known: its entity seen, or its minimap icon from afar), if any; the explorer marks what is
+		/// passed on the way as explored.
+		/// </summary>
 		public bool TryExplore(CombatContext ctx) {
+			if ( interactables.TryGoToKnown(this, ctx) ) { Status = interactables.Status; return true; }
 			long now = Time.ElapsedMilliseconds;
 			// progress: the nearest the player has been to the place, since it was chosen (a new place, more than
 			// ExploreStuckCells from the last, starts over; time spent not exploring, eg fighting, does not count)
