@@ -537,6 +537,12 @@ namespace AtE {
 			// Monster, Positioned, StateMachine clean_up=0, ...; no buffs), 6 s old, 40 cells from the player. Radius 10 (the
 			// user), weight 50, scaled by cold resistance (HazardResists); fire and lightning ones presumably are ...Fire, ...Lightning
 			("BismuthMineralTornadoCold", null, 10, 50),
+			// Harvest exploding pods (3.30, paused with three about to burst, in a green Harvest plot): Metadata/Monsters/
+			// LeagueHarvest/Green/Objects/HarvestGreenExplodingPod (Animated, BaseEvents, Positioned, Render, StateMachine
+			// idling=1, yoinked=0), 2.6 s old, each with a Monsters/Daemon/HarvestGreenStationaryVolatileDaemon on its cell
+			// (skills HarvestSpawnExplodingPodGreen, HarvestSpawnExplodingPodGreenExplode; not acting). Radius 8 (the user), weight 60
+			// a guess; no resistance (the element is not known). "ExplodingPod" takes the other colours' pods too, presumably
+			("ExplodingPod", null, 8, 60),
 			// Augury empowerment "Crow Bombs" (3.30, seen on Kitava alongside the wall, not seen exploding yet):
 			// Monsters/Augury/Daemon/CrowBombDaemon places Metadata/Monsters/Daemon/Augury/CrowBombObject (Animated,
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
