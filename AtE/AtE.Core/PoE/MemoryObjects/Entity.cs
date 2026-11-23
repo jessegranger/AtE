@@ -20,7 +20,14 @@ namespace AtE {
 			// Optimization: use the vtable ptr to quickly classify an Entity as valid
 			// this avoids reading the whole Path as a unicode string instead
 			long vtablePtr = ent.vtablePtr.ToInt64();
-			
+			// A vtable is in the game's image; anything else is not an Entity. (Seen live 3.30.0d: every live entity, 171
+			// of them, had the one vtable mod+0x34CE060. Freed entities, still pointed at from elsewhere, had a heap address
+			// or 0 there, the allocator's own use of the first 8 bytes, with their details, path and components still
+			// readable: they passed the Path and HasComponent check below and filled the vtable cache with garbage.)
+			if ( !Entity.IsVtableInModule(vtablePtr) ) {
+				return false;
+			}
+
 			// If we've already memo-ized the current pointers, check them:
 			for(int i = 0; i < Entity.cachedVtablePtr.Length; i++ ) {
 				long p = Entity.cachedVtablePtr[i];
@@ -109,17 +116,34 @@ namespace AtE {
 		private bool lastParseFailed;
 
 		internal static long[] cachedVtablePtr = new long[12];
+
+		// The game's image, [moduleLo, moduleHi), read once per attach: BaseAddress and ModuleSize are not cheap (on
+		// Windows each is Process.MainModule, which lists the modules again), and this is asked thousands of times a frame.
+		private static long moduleLo, moduleHi;
+		/// <summary>Is v an address in the game's image, as an Entity's vtable is (see IsValid(Entity))?</summary>
+		internal static bool IsVtableInModule(long v) {
+			if ( moduleHi == 0 ) {
+				var mem = PoEMemory.Memory;
+				long lo = mem?.BaseAddress.ToInt64() ?? 0, size = lo == 0 ? 0 : mem.ModuleSize;
+				if ( lo == 0 || size <= 0 ) return false;
+				moduleLo = lo;
+				moduleHi = lo + size;
+			}
+			return v >= moduleLo && v < moduleHi;
+		}
 		static Entity() {
 			OnAreaChange += (obj, areaName) => ClearAreaCaches();
 			// (Detach drops every OnAreaChange handler, so hook it again on each attach; a new process also means new
 			// addresses for the component names, see componentNames)
 			PoEMemory.OnAttach += (_, __) => {
+				moduleLo = moduleHi = 0; // (a new process: its image is somewhere else)
 				componentNames.Clear();
 				ClearAreaCaches();
 				OnAreaChange += (obj, areaName) => ClearAreaCaches();
 			};
 		}
 		private static void ClearAreaCaches() {
+			Log("Entity: Clearing component caches...");
 			// the Entity vtable pointer cache entries
 			Array.Clear(cachedVtablePtr, 0, cachedVtablePtr.Length);
 			// and the component lookups: their memory may be freed and reused for other types in the next area
@@ -320,6 +344,15 @@ namespace AtE {
 		private void EnsureParsed() {
 			long since = Time.ElapsedMilliseconds - LastParseTime;
 			if ( parsed != null ? since <= REPARSE_MS : (lastParseFailed && since < RETRY_FAILED_MS) ) return;
+			// (not an Entity now: its vtable is not in the game's image, eg freed, and its leftover component pointers are
+			// junk; no components, and nothing logged)
+			if ( !IsVtableInModule(vtablePtr.ToInt64()) ) {
+				LastParseTime = Time.ElapsedMilliseconds;
+				lastParseFailed = true;
+				parsed = null;
+				ComponentCache = null;
+				return;
+			}
 			ParseComponents();
 		}
 
@@ -328,9 +361,11 @@ namespace AtE {
 				LastParseTime = Time.ElapsedMilliseconds;
 				var was = parsed;
 				var now = ReadComponents(was, out string error);
+				bool failedBefore = lastParseFailed;
 				lastParseFailed = now == null;
 				if ( now == null ) {
-					Log($"ParseComponents[{Id}]: {error}");
+					// (once per failing spell, not every retry)
+					if ( !failedBefore ) Log($"ParseComponents[{Id}]: {error}");
 					// (a read that failed is not trusted at all, not even in part: the entity is most likely being freed;
 					// assigned, not cleared, as the main thread may be reading the old ones)
 					parsed = null;
