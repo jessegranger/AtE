@@ -253,6 +253,13 @@ namespace AtE {
 		public override bool CheckDone(CombatContext ctx) => done;
 
 		protected override IState Step(CombatContext ctx) {
+			// in Act 1's The Twilight Strand the chat can't be opened (a new character), and no quest is done yet: nothing to read
+			if ( GetCurrentArea() is WorldArea here && here.Act == 1 && GoToArea.Is(here, "The Twilight Strand") ) {
+				Log("Campaign: /passives: in The Twilight Strand (Act 1): no quests done yet, not sent");
+				CampaignProgress.ReadPassives(new List<string> { "0 total Passive Skill Points" });
+				done = true;
+				return this;
+			}
 			ctx.Driver.StopWalking("reading /passives");
 			long now = Time.ElapsedMilliseconds;
 			if ( sentAt == 0 ) {

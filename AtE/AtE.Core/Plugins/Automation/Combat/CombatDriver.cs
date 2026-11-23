@@ -117,6 +117,12 @@ namespace AtE {
 			Status = why;
 			ReleaseChannel(why);
 			Target = null;
+			// the passive points it started spending (TrySpendPoints): stopped too, not left clicking on the tree
+			if ( spending ) {
+				spending = false;
+				var allocator = GetPlugin<AutomationPlugin>()?.PassiveTree?.Allocator;
+				if ( allocator?.IsActive == true ) allocator.Stop($"stopped with {Name}: {why}");
+			}
 			if ( DefaultFollower.IsActiveFor(this) ) DefaultFollower.Stop(FollowStatus.Idle, why);
 			DefaultFollower.ReleaseMouse(); // (its own note that it holds the left button down, for walking)
 			// every button and key the overlay has down, and any held press still waiting to go out: nothing it pressed stays

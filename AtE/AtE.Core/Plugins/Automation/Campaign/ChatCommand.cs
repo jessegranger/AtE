@@ -36,7 +36,7 @@ namespace AtE {
 			if ( !PoEMemory.TargetHasFocus || game == null || game.HasInputFocus ) return SendStepwise(command, next);
 			string saved = null;
 			return State.NewState(() => {
-				saved = ImGui.GetClipboardText();
+				saved = ClipboardText();
 				ImGui.SetClipboardText(command);
 				typing = true;
 				typingSince = Time.ElapsedMilliseconds;
@@ -54,6 +54,16 @@ namespace AtE {
 					Platform.Current.Input.KeySequence((VKey.Escape, true), (VKey.Escape, false));
 				}
 			}, next)));
+		}
+
+		/// <summary>
+		/// The clipboard's text, or "" if it has none (empty, or not text, eg an image). ImGui.GetClipboardText turns the
+		/// null the native call gives then into a NullReferenceException (one each time, and the debugger stops on it, caught
+		/// or not): the native call is checked for null instead.
+		/// </summary>
+		private static unsafe string ClipboardText() {
+			byte* text = ImGuiNative.igGetClipboardText();
+			return text == null ? "" : System.Runtime.InteropServices.Marshal.PtrToStringUTF8((IntPtr)text) ?? "";
 		}
 
 		/// <summary>Send command a key at a time: Enter, wait for the chat input to have focus, Ctrl + V, Enter.</summary>
