@@ -759,6 +759,9 @@ namespace AtE {
 			ImGui.SameLine();
 			ImGui_HelpMarker("Map mods not to run, separated by commas: parts of the mod's name (eg, Reflect) or its display name. A map is rolled until it is a rare with none of them.");
 			ImGui.SliderInt("Max Rolls", ref MaxRolls, 1, 100);
+			ImGui.InputText("Fates First Maps", ref FatesFirstMaps, 1000);
+			ImGui.SameLine();
+			ImGui_HelpMarker("Maps (area names, separated by commas, eg Mud Geyser, Shore) where the Augury fates are all taken before the map boss is fought; the boss is left alone until then. Only for maps whose layout allows it.");
 		}
 
 		/// <summary>

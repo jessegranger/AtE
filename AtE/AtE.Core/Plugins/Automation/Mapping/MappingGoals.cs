@@ -251,20 +251,34 @@ namespace AtE {
 		/// <summary>How long the map boss has to be seen up, hurtable and not frozen before the rule gives way to it.</summary>
 		public long UnfrozenMs = 1000;
 		private long unfrozenSince = -1;
+		// the monsters seen frozen for their cards (the augury buff) in the area instance frozenArea, by entity id: only
+		// one of these, up and unfrozen, ends the rule early
+		private static readonly HashSet<uint> seenFrozen = new HashSet<uint>();
+		private static uint frozenArea;
+		private static void NoteFrozen() {
+			uint area = PoEMemory.GameRoot?.InGameState?.WorldData?.AreaHash ?? 0;
+			if ( area != frozenArea ) { frozenArea = area; seenFrozen.Clear(); }
+			foreach ( var e in GetEntities() ?? Enumerable.Empty<Entity>() ) {
+				if ( e?.Path != null && e.Path.StartsWith("Metadata/Monsters/", System.StringComparison.Ordinal) && IsAlive(e) && Combat.IsFrozenAuguryBoss(e) ) seenFrozen.Add(e.Id);
+			}
+		}
 		public override bool CheckDone(CombatContext ctx) {
 			bool done = routine.FatesHere >= Count
 				|| (ctx.Driver.ExploreDone && !Encounters().Any(i => !routine.IconDone(i)) && !Fight.AnyNear(ctx, 0) && !StartClosePass(ctx));
 			// (the map boss is up and can be hurt, not frozen waiting for its cards: the fates are moot now, it is fought.
 			// Only once it is targetable, can be damaged and has shown no frozen buff for UnfrozenMs: a buried boss (Mud
 			// Geyser's Tunneltrap) showed up without the buff at first, and the rule ended at 2 of 3 fates, seen live 3.30.0d)
-			var up = !done ? GetEntities()?.FirstOrDefault(e => MappingRoutine.IsMapBoss(e) && IsAlive(e) && IsTargetable(e)
-				&& !Combat.CannotBeDamaged(e) && !Combat.IsFrozenAuguryBoss(e)) : null;
+			// (and only a monster seen frozen for its cards in this area: any unique passes IsMapBoss, and a Tormented
+			// Warlord, up and not frozen, ended the rule at 1 of 3 fates in Mud Geyser, seen live 3.30.0d)
+			if ( !done ) NoteFrozen();
+			var up = !done ? GetEntities()?.FirstOrDefault(e => seenFrozen.Contains(e.Id) && MappingRoutine.IsMapBoss(e) && IsAlive(e)
+				&& IsTargetable(e) && !Combat.CannotBeDamaged(e) && !Combat.IsFrozenAuguryBoss(e)) : null;
 			long now = Time.ElapsedMilliseconds;
 			if ( up == null ) unfrozenSince = -1;
 			else if ( unfrozenSince < 0 ) unfrozenSince = now;
 			if ( up != null && now - unfrozenSince >= UnfrozenMs ) {
 				done = true;
-				if ( !loggedShort ) { loggedShort = true; Log($"{routine.Name}: the map boss is up, not frozen ({routine.FatesHere} of {Count} fates taken): fighting it"); }
+				if ( !loggedShort ) { loggedShort = true; Log($"{routine.Name}: the map boss ({up.GetComponent<Render>()?.Name ?? up.Path}, {up.Id}) was frozen for its cards and is up now ({routine.FatesHere} of {Count} fates taken): fighting it"); }
 			}
 			routine.HoldBoss = !done;
 			if ( done && routine.FatesHere >= Count && !loggedShort ) {

@@ -52,19 +52,48 @@ namespace AtE {
 		private uint mapHash; // the area hash of CurrentMap
 		private long lastWatch;
 
+		/// <summary>
+		/// The maps (by area name, separated by commas) where FatesFirstCount fates (the Augury "Select a Fate" encounters)
+		/// are taken before the map boss is fought, the boss left alone until then (see TakeFates). Opt-in per map: some
+		/// layouts make it impossible. Mud Geyser: its encounters go once the boss (Tunneltrap, buried until the player is
+		/// near) is dead.
+		/// </summary>
+		public string FatesFirstMaps = "Mud Geyser, Shore";
+		/// <summary>The fates taken first in each of FatesFirstMaps: a map always has 3 Augury encounters (from the user).</summary>
+		public const int FatesFirstCount = 3;
+
+		/// <summary>Is area one of FatesFirstMaps?</summary>
+		public bool IsFatesFirstMap(string area) => !string.IsNullOrWhiteSpace(area) && (FatesFirstMaps ?? "")
+			.Split(',').Any(m => string.Equals(m.Trim(), area.Trim(), StringComparison.OrdinalIgnoreCase));
+
+		/// <summary>The rules for area: its entry in Rules (if any), plus FatesFirst if it is one of FatesFirstMaps; null for none.</summary>
+		public MapRules RulesFor(string area) {
+			Rules.TryGetValue(area ?? "", out var rules);
+			if ( !IsFatesFirstMap(area) ) return rules;
+			return (rules?.Clone() ?? new MapRules()).FatesFirst(FatesFirstCount);
+		}
+
+		/// <summary>
+		/// In one of FatesFirstMaps with fewer than FatesFirstCount fates taken: a frozen augury boss's cards are not due.
+		/// Only the count decides, never a guess about the boss (up, dead, which one): wrong about that, the guards are
+		/// still needed, and with the boss dead they do nothing anyway.
+		/// </summary>
+		public bool FatesNotDue() => InMap() && IsFatesFirstMap(GetCurrentArea()?.Name) && FatesHere < FatesFirstCount;
+
 		public MappingRoutine() {
 			// everything, normal and magic equipment too (it is all stashed, see StashEverything; the Campaign's
 			// RareOrEmptySlot rule, equipment only when rare or for an empty slot, is not for here); not life and mana
 			// flasks (taken in the Campaign for the FlaskUpgrader, which does not run here)
 			Looter.Want = item => item == null || !FlaskUpgrader.TryRecovery(item, out _, out _);
-			// (the map boss left alone while HoldBoss: eg, until the map rules' fates are taken, see TakeFates)
-			// (only while it is still frozen, waiting for its cards: unfrozen, it is fought, the fates no longer matter)
-			Ignore = e => HoldBoss && IsMapBoss(e) && Combat.IsFrozenAuguryBoss(e);
-			// (and not walked onto: a walking click on the frozen boss opens its card window, with too few fates; seen live
-			// 3.30.0d, Mud Geyser, 2 of 3 fates taken)
-			// (and its card window, if it opens anyway while held, closed with Escape, not applied)
-			BossCardsNotDue = () => HoldBoss;
-			PathFollower.NoClickMonsters = () => !HoldBoss ? null
+			// The guards on a frozen augury boss, while its cards are not due (FatesNotDue: by the fates taken alone, not
+			// HoldBoss, which TakeFates drops when it thinks the boss is up; seen live 3.30.0d, Mud Geyser: it took a
+			// Tormented Warlord for the boss at 1 of 3 fates, the guards went off, and the boss got 2 cards):
+			// (left alone: not fought, not clicked; only while it is frozen, waiting for its cards)
+			Ignore = e => IsMapBoss(e) && Combat.IsFrozenAuguryBoss(e) && FatesNotDue();
+			// (its card window, if it opens anyway, by any stray click or skill, closed with Escape, not applied)
+			BossCardsNotDue = FatesNotDue;
+			// (not walked onto, nor aimed at by a skill: either opens its card window)
+			PathFollower.NoClickMonsters = () => !FatesNotDue() ? null
 				: GetEntities()?.Where(e => e?.Path != null && e.Path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal)
 					&& IsAlive(e) && Combat.IsFrozenAuguryBoss(e));
 		}
@@ -271,7 +300,10 @@ namespace AtE {
 			if ( area != bossSeenArea ) { bossSeenArea = area; BossSeenAt = null; }
 			Offsets.Vector2i? at = null;
 			string how = null;
-			var boss = GetEntities()?.FirstOrDefault(e => IsMapBoss(e) && IsAlive(e));
+			// (the one frozen for its cards first: any unique passes IsMapBoss, eg a Tormented Warlord, remembered as the boss
+			// in Mud Geyser, seen live 3.30.0d)
+			var boss = GetEntities()?.FirstOrDefault(e => IsMapBoss(e) && IsAlive(e) && Combat.IsFrozenAuguryBoss(e))
+				?? GetEntities()?.FirstOrDefault(e => IsMapBoss(e) && IsAlive(e));
 			if ( boss?.GetComponent<Positioned>() is Positioned pos && IsValid(pos) ) { at = pos.GridPos; how = boss.GetComponent<Render>()?.Name ?? "the map boss"; }
 			else if ( MinimapIcons.All().FirstOrDefault(i => i.Icon != null && i.Icon.Contains("Boss") && !i.Icon.Contains("Augury")) is MinimapIconMarker icon ) {
 				at = new Offsets.Vector2i((int)icon.GridPos.X, (int)icon.GridPos.Y);

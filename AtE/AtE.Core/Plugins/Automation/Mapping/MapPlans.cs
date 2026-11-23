@@ -27,6 +27,13 @@ namespace AtE {
 		/// is remembered, to go back to (see TakeFates, MappingRoutine.BossSeenAt).
 		/// </summary>
 		public MapRules FatesFirst(int n) { Fates = n; return this; }
+		/// <summary>A copy (so a rule added to it, eg FatesFirst, does not change the one in Rules).</summary>
+		public MapRules Clone() {
+			var c = new MapRules() { Fates = Fates };
+			c.route.AddRange(route);
+			c.arenas.AddRange(arenas);
+			return c;
+		}
 
 		/// <summary>The route, then each boss arena (and its boss), then next: goals chained by Next, built when it is run.</summary>
 		public IState Plan(MappingRoutine routine, IState next) {
@@ -53,9 +60,7 @@ namespace AtE {
 		/// listed is just explored and cleared (see ClearArea).
 		/// </summary>
 		[NoPersist] public static readonly Dictionary<string, MapRules> Rules = new Dictionary<string, MapRules>(StringComparer.OrdinalIgnoreCase) {
-			// Mud Geyser: take 3 fates before the boss (its Augury encounters go once it is dead); the boss (Tunneltrap,
-			// buried until the player is near) is left alone until then, and where it is seen is remembered
-			["Mud Geyser"] = new MapRules().FatesFirst(3),
+			// (the maps where the fates are taken before the boss are a setting, FatesFirstMaps: see RulesFor)
 			// eg ["Silo"] = new MapRules().Tile("/some_tile").Door("Some Door").BossArena("/boss_tile"),
 		};
 	}

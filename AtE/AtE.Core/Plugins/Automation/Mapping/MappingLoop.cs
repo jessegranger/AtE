@@ -230,7 +230,8 @@ namespace AtE {
 			Clearing = true;
 			string area = name ?? GetCurrentArea()?.Name ?? "the area";
 			var after = ClearRound(area, 1, s.Pass());
-			if ( !Rules.TryGetValue(area, out var rules) ) {
+			var rules = RulesFor(area);
+			if ( rules == null ) {
 				Log($"{Name}: clearing {area} (no rules for it: explore and kill)");
 				return after;
 			}
