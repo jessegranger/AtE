@@ -148,7 +148,8 @@ namespace AtE {
 			rules.When("fight the Sleepy Dead until Tolman shows", Quay, () => hargan() && InSite(),
 				new FightUntil("the Resurrection Site", () => CanReach(tolmanAlive) || tolmanDead() || loveDone(), main) { Where = Quay });
 			rules.When("into the Resurrection Site", Quay, () => hargan() && has(ankh), siteDoor);
-			Entity ankhChest() => MinimapIcons.QuestObjects().Select(m => m.Entity)
+			// (hidden icons too: its icon is hidden once it is opened, and ankhOpened goes by the chest)
+			Entity ankhChest() => MinimapIcons.All().Where(m => m.IsQuestObject).Select(m => m.Entity)
 				.FirstOrDefault(e => e?.Path?.IndexOf("/AnkhChest", StringComparison.OrdinalIgnoreCase) >= 0);
 			bool ankhOpened() => ankhChest() is Entity e && (e.GetComponent<Chest>()?.IsOpened ?? false);
 			Offsets.Vector2i? ankhAt(CombatContext c) => ankhChest()?.GetComponent<Positioned>()?.GridPos;

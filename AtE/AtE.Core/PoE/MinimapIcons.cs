@@ -17,13 +17,15 @@ namespace AtE {
 		public int IconIndex;
 		public Vector2 GridPos;
 		public uint EntityId;
+		/// <summary>Is the icon drawn on the map (eg, not once its quest chest is opened)? See Offsets.MinimapIconRecord.IsVisible.</summary>
+		public bool IsVisible;
 
 		/// <summary>The entity, while it is in range (in the entity list), else null.</summary>
 		public Entity Entity => EntityCache.TryGetEntity(EntityId, out Entity ent) ? ent : null;
 
 		public bool IsQuestObject => Icon == "QuestObject";
 
-		public override string ToString() => $"{Icon} <{GridPos.X},{GridPos.Y}> id {EntityId}";
+		public override string ToString() => $"{Icon} <{GridPos.X},{GridPos.Y}> id {EntityId}{(IsVisible ? "" : " (hidden)")}";
 	}
 
 	public static class MinimapIcons {
@@ -58,12 +60,13 @@ namespace AtE {
 					IconIndex = r.IconIndex,
 					GridPos = new Vector2(r.GridPos.X, r.GridPos.Y),
 					EntityId = r.EntityId,
+					IsVisible = r.IsVisible,
 				});
 			}
 			return result;
 		}
 
-		/// <summary>The quest markers (QuestObject icons, eg quest chests) of the current area, near or far.</summary>
-		public static IEnumerable<MinimapIconMarker> QuestObjects() => All().Where(m => m.IsQuestObject);
+		/// <summary>The quest markers (QuestObject icons, eg quest chests) of the current area, near or far, that are drawn on the map (not an opened chest's).</summary>
+		public static IEnumerable<MinimapIconMarker> QuestObjects() => All().Where(m => m.IsQuestObject && m.IsVisible);
 	}
 }

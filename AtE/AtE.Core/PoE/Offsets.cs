@@ -825,7 +825,12 @@ namespace AtE {
 			[FieldOffset(0x14)] public readonly Vector2i GridPos; // the same cells as Positioned.GridPos
 			[FieldOffset(0x60)] public readonly IntPtr ptrEntity;
 			[FieldOffset(0xA0)] public readonly uint EntityId; // this id is set even when the Entity is not loaded yet (so ptrEntity can be null)
-			// 0xA8, 0xA9: read 1, 1 in most records; 0, 0 on a far LabyrinthDoor never approached (3.30, Estate Walkways). Not known (seen/revealed?)
+			// 3.30.0d, seen live (Act 8, RhoaChests): 1 while the icon is drawn on the map, 0 once it is not: 0 on an opened quest chest's QuestObject
+			// (its Chest.IsOpened 1), 1 on the two not opened, and 0 on a QuestItem the user saw no icon for; also 0 on a far LabyrinthDoor never
+			// approached (3.30, Estate Walkways). (One snapshot: not yet seen to flip as a chest is opened.)
+			[FieldOffset(0xA8)] public readonly byte IsVisibleByte;
+			public bool IsVisible => IsVisibleByte != 0;
+			// 0xA9: 1 in most records; 0 on that LabyrinthDoor (seen/revealed?)
 		}
 
 		// 3.30, a row of LabyrinthSectionLayout.dat (stride 0x6C; rows are packed: unaligned)

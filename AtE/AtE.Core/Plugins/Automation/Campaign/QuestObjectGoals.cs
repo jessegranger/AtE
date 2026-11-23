@@ -103,8 +103,9 @@ namespace AtE {
 
 		private static Offsets.Vector2i Grid(MinimapIconMarker m) => new Offsets.Vector2i((int)m.GridPos.X, (int)m.GridPos.Y);
 
-		private List<MinimapIconMarker> Left(CombatContext ctx) => MinimapIcons.QuestObjects()
-			.Where(m => !done.Contains(m.EntityId) && DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, Grid(m), out _, 25))
+		// (the one it is at even once its icon is hidden, as it is when opened: it waits there for the drop, see SettleMs)
+		private List<MinimapIconMarker> Left(CombatContext ctx) => MinimapIcons.All()
+			.Where(m => m.IsQuestObject && (m.IsVisible || m.EntityId == at) && !done.Contains(m.EntityId) && DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, Grid(m), out _, 25))
 			.ToList();
 
 		public override bool CheckDone(CombatContext ctx) => Had() >= Count || (anySeen && Left(ctx).Count == 0);
