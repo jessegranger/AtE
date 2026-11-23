@@ -80,8 +80,8 @@ namespace AtE {
 
 		/// <summary>One lap of the loop, from the hideout back to the hideout, ending in the next lap (built when it is reached).</summary>
 		public IState MapLap() =>
-			StashEverything(PickNextMap(RollMap(OpenMap(
-				ClearArea(null, ReturnHome(NextLap()))))));
+			StashEverything(RestockScrolls(PickNextMap(RollMap(OpenMap(
+				ClearArea(null, ReturnHome(NextLap())))))));
 
 		// the end of a lap: build the next one (and let go of this one)
 		private IState NextLap() => new Step("Next lap", (s, ctx, dt) => {

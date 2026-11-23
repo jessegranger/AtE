@@ -90,6 +90,41 @@ namespace AtE {
 			}, next);
 		}
 
+		/// <summary>
+		/// With the stash open: for a Scroll of Wisdom, then a Portal Scroll, if there is none in the backpack, show the
+		/// CurrencyTab and Ctrl + click a stack of them into the backpack; stops (null) if the tab has none. (The dump keeps
+		/// them in the backpack, see BackpackPlugin's restock list, so this is only when the last one was used: seen live
+		/// 3.30.0d, the run stopped at RollMap with "no Scroll of Wisdom in the backpack".) Then next.
+		/// </summary>
+		public IState RestockScrolls(IState next) =>
+			RestockScroll("Scroll of Wisdom", Offsets.PATH_SCROLL_WISDOM, RestockScroll("Portal Scroll", Offsets.PATH_SCROLL_PORTAL, next));
+
+		/// <summary>How long after showing the CurrencyTab to look for a stack before deciding there is none (the page is built after its tab is shown).</summary>
+		private const long StashPageWaitMs = 1000;
+
+		private IState RestockScroll(string name, string path, IState next) {
+			bool held() => BackpackItems().Any(i => i?.Entity?.Path == path);
+			var take = new Step($"Take a stack of {name}", (s, ctx, dt) => {
+				if ( !StashIsOpen() ) return Fail($"restock {name}: the stash is not open");
+				var stack = StashItems().FirstOrDefault(i => i?.Entity?.Path == path);
+				if ( stack == null ) {
+					if ( s.Elapsed < StashPageWaitMs ) { s.Detail = $"looking for {name} on the \"{CurrencyTab}\" tab"; return s; }
+					return Fail($"out of {name}: none in the backpack, and none on the \"{CurrencyTab}\" tab");
+				}
+				var r = stack.GetClientRect();
+				Log($"{Name}: Ctrl + clicking a stack of {name} on the \"{CurrencyTab}\" tab at {r.X + r.Width / 2:F0},{r.Y + r.Height / 2:F0}");
+				return Inputs.CtrlClick(r, WaitUntil($"{name} in the backpack", 2000, held, next,
+					$"restock {name}: Ctrl + clicking its stack did not put it in the backpack"));
+			}, next);
+			var tab = Tab(CurrencyTab, take);
+			return ForceGameFocus(new Step($"Restock {name}", (s, ctx, dt) => {
+				if ( SkipToClear || SkipToPortals || held() ) return next;
+				if ( !StashIsOpen() ) return Fail($"restock {name}: the stash is not open");
+				Log($"{Name}: no {name} in the backpack: taking a stack from the \"{CurrencyTab}\" tab");
+				return tab;
+			}, tab));
+		}
+
 		/// <summary>With the stash open: show the MapsTab, ActivateMapTier(MapTier), Ctrl + click a map of that tier into the backpack (it becomes NextMap), then next.</summary>
 		public IState PickNextMap(IState next) {
 			var tab = Tab(MapsTab, ActivateMapTier(MapTier, TakeMap(next)));

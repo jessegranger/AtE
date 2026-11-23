@@ -43,6 +43,17 @@ namespace AtE {
 			("DeathBreathRight", 150, -100, 0),
 			("DeathBreathLeft", 150, 0, 100),
 			("DeathBreathMiddle", 150, -45, 45),
+			// Essence blood orbs (3.30.0d, paused in the Flooded Depths with several out): Metadata/Monsters/Daemon/
+			// EssenceBloodProjectileDaemon, small monsters (placed by an EssenceDaemonBloodProjectileDaemon, skill
+			// EssenceSummonBloodProjectileDaemon) that cast EssenceBloodProjectileNova, bursting into a ring of
+			// Projectiles/BloodProjectile (see HazardPaths), then die. While it is cast: a circle around the orb, as far as the
+			// projectiles fly in about 0.4 s (radius 15 a guess)
+			("EssenceBloodProjectileNova", 15, -180, 180),
+			// Brutus, Lord Incarcerator (Metadata/Monsters/Brute/BossBrute; 3.30.0d, paused mid-cast): BrutusGroundSlam (his
+			// action named it this time), Destination 32 cells ahead along his facing (rotation 0.424). It sends a wide wave of
+			// blood spines (see HazardPaths, groundspineblood): an earlier one spread about 50 cells across, its front at
+			// least 35 to 40 cells out and still coming. +-35 degrees, 60 cells long (guesses)
+			("BrutusGroundSlam", 60, -35, 35),
 		};
 
 		/// <summary>
@@ -313,9 +324,20 @@ namespace AtE {
 			yield return new Hazard(pos.GridPos, length, facing, from, to) { Weight = WarningWeight, Source = part + " (turning)" };
 		}
 
-		/// <summary>The slices of the HazardSkills, the AimedSkills and RotatingBeamSkills, being used now by any monster in ents.</summary>
+		/// <summary>
+		/// Skills that make the ground around the caster itself dangerous while it uses them (eg, slams on the spot): a part of
+		/// the skill's name, the circle's radius in cells, and its weight (it hurts while used: a real weight).
+		/// </summary>
+		public static readonly List<(string skillPart, float radius, byte weight)> CasterSkills = new List<(string, float, byte)> {
+			// Brutus, Lord Incarcerator (Metadata/Monsters/Brute/BossBrute; 3.30.0d, paused mid-move): slams three times in the
+			// same place, EmptyActionAttackBrutusMultiSlam (Destination 9 cells from him); his other skills include
+			// BrutusMultiSlamImpact. High danger, radius 15 (12 was small), on him (the user)
+			("BrutusMultiSlam", 15, 100),
+		};
+
+		/// <summary>The slices of the HazardSkills, the AimedSkills, RotatingBeamSkills and CasterSkills, being used now by any monster in ents.</summary>
 		public static IEnumerable<Hazard> SkillHazards(List<Entity> ents) {
-			if ( HazardSkills.Count == 0 && AimedSkills.Count == 0 && RotatingBeamSkills.Count == 0 ) yield break;
+			if ( HazardSkills.Count == 0 && AimedSkills.Count == 0 && RotatingBeamSkills.Count == 0 && CasterSkills.Count == 0 ) yield break;
 			foreach ( var e in ents ) {
 				if ( e?.Path == null || !e.Path.StartsWith("Metadata/Monsters/", StringComparison.Ordinal) || !IsAlive(e) ) continue;
 				var actor = e.GetComponent<Actor>();
@@ -357,6 +379,14 @@ namespace AtE {
 					break;
 				}
 				if ( aimed ) continue;
+				foreach ( var (part, radius, weight) in CasterSkills ) {
+					if ( name.IndexOf(part, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
+					aimed = true;
+					var pos = e.GetComponent<Positioned>();
+					if ( IsValid(pos) ) yield return new Hazard(pos.GridPos, radius) { Weight = weight, Source = part };
+					break;
+				}
+				if ( aimed ) continue;
 				foreach ( var (part, length, fromDeg, toDeg) in HazardSkills ) {
 					if ( name.IndexOf(part, StringComparison.OrdinalIgnoreCase) < 0 ) continue;
 					var pos = e.GetComponent<Positioned>();
@@ -387,6 +417,22 @@ namespace AtE {
 			// outside them): entities with only Animated, Positioned, Render, Transitionable. Render.Bounds is 19.6 x 19.6 x 289
 			// (about 2 cells across, a tall pillar), so the drawing is narrow: 12 cells is a guess at the damaging radius, on the safe side
 			("merveil/water_geyser/WaterGeyser", null, 12, 40),
+			// her first phase's falling ice storm (Metadata/Monsters/seawitchillusion/BossMerveil, skill MerveilIcestorm;
+			// 3.30.0d, paused with it falling): Metadata/Effects/SleepableServerEffect entities (Animated, BaseEvents,
+			// LimitedLifespan, Positioned, Render) with the animated object .../Spells/ice_storm/icestorm_01.ao, 18 at once,
+			// 0.02-0.68 s old, scattered over about 30 cells, each leaving chilled ground (left out, above). A later cast's
+			// pieces were icestorm_04.ao, so any icestorm_ (not the ice_storm_impact.ao beside them, which would count each
+			// piece twice now that they stack). Each piece: radius
+			// 4 (the user; 6 was big), weight 40 a guess, scaled by cold resistance; they fall in turn, so one can be hit by
+			// several and they stack (HazardStacks, the user); gone after 1 s (HazardMaxAgeSec). (Matches any ice storm
+			// effect, presumably a player's Ice Storm too.)
+			("ice_storm/icestorm_", null, 4, 40),
+			// her ice spears (MerveilIceSpear; 3.30.0d, paused): projectiles Metadata/Projectiles/MerveilFishSpear
+			// (.../Microtransactions/Spells/icespear/fish/rig.ao). They gather in front of her (0.27-0.93 s old, all within 7
+			// cells, facing her aim), then fly out along their rotation (2.0-2.5 s old ones 40-110 cells out). Look ahead 25
+			// cells (HazardLookAhead), radius 3, weight 40 (guesses), scaled by cold resistance; each spear hits, so they stack
+			// (HazardStacks); gone after 3 s (HazardMaxAgeSec)
+			("Projectiles/MerveilFishSpear", null, 3, 40),
 			// General Gravicius's fireballs that fall from the sky (3.29.3, paused with 19 placed, 9-60 cells around him): entities
 			// Metadata/Effects/SleepableServerEffect (Animated, BaseEvents, LimitedLifespan, Positioned, Render) whose animated
 			// object is "HellfireBarrageEffect", matched by its .ao path (see Animated.AnimatedObjectPath). Render.Bounds is
@@ -552,6 +598,17 @@ namespace AtE {
 			// chaos (the user), despite its name: scaled by chaos resistance (HazardResists). Radius 6 and weight 40 guesses;
 			// drawn 40 cells ahead along its path (HazardLookAhead, the user)
 			("Projectiles/HarvestSquidBallLightning", null, 6, 40),
+			// Essence blood orbs' projectiles (see HazardSkills, EssenceBloodProjectileNova; 3.30.0d, paused): Metadata/
+			// Projectiles/BloodProjectile (.../monsters_effects/blood_elemental/projectile.ao), a ring of them flying out from
+			// where an orb burst, fast (16 cells in 0.42 s), each facing away from it (rotation, so HazardLookAhead).
+			// Physical. Radius 2, 15 cells ahead and weight 30 guesses
+			("Projectiles/BloodProjectile", null, 2, 30),
+			// Brutus, Lord Incarcerator (Metadata/Monsters/Brute/BossBrute; 3.30.0d, paused as a wide wave of blood spines came
+			// at the player): client-only Metadata/Effects/Effect spines (.../Microtransactions/Spells/ground_slam/blood_spines/
+			// groundspineblood_01-03.ao) erupting in a band across his front, newest (0 s) at the front 20 cells from the player,
+			// oldest (1 s) back near him. His action named no skill (skills BrutusGroundSlam, BrutusMultiSlamImpact,
+			// BrutusSpikedGround...), so the spines themselves: radius 6, weight 40 and a 1 s life (HazardMaxAgeSec) guesses
+			("ground_slam/blood_spines/groundspineblood", null, 6, 40),
 			// Augury empowerment "Crow Bombs" (3.30, seen on Kitava alongside the wall, not seen exploding yet):
 			// Monsters/Augury/Daemon/CrowBombDaemon places Metadata/Monsters/Daemon/Augury/CrowBombObject (Animated,
 			// BaseEvents, Positioned, Render, StateMachine spawn=1), animated object .../Boss_Empowerments/CrowBombs/crow_bomb.ao,
@@ -646,6 +703,10 @@ namespace AtE {
 		public static readonly Dictionary<string, float> HazardLookAhead = new Dictionary<string, float> {
 			// the Vivid Watchers' slow chaos ball: its rotation (1.21) pointed it broadly at where the player was (the user: 40)
 			["Projectiles/HarvestSquidBallLightning"] = 40,
+			// the Essence blood orbs' projectiles: fast (about 38 cells/s), so about 0.4 s ahead
+			["Projectiles/BloodProjectile"] = 15,
+			// Merveil's ice spears
+			["Projectiles/MerveilFishSpear"] = 25,
 		};
 
 		/// <summary>
@@ -658,6 +719,15 @@ namespace AtE {
 			// flying (0.2 s old) and one landed (1.9 s); the next was 5.2 s old and gone. Nothing else told them apart (their
 			// Projectile, Animated, Positioned and Render matched once landed), and the gone ones stayed listed for 45 s and more
 			["Projectiles/CorruptedBallLightning"] = 5,
+			// the Essence blood orbs' projectiles: paused, ones 3.95 and 7.49 s old were still listed far out but gone on screen
+			// (the user), the 0.42 s ones flying: 3 s (the user)
+			["Projectiles/BloodProjectile"] = 3,
+			// Merveil's falling ice: each impact 0.7 s at most when seen (with a LimitedLifespan)
+			["ice_storm/icestorm_"] = 1,
+			// Merveil's ice spears: one 3.42 s old was out past the arena's exit blocker
+			["Projectiles/MerveilFishSpear"] = 3,
+			// Brutus's blood spines: the wave's newest are at its front, the ones behind it 1 s old (a guess)
+			["ground_slam/blood_spines/groundspineblood"] = 1,
 			// the ice flowers (see HazardPaths): a small one burst at 2.05 s, so 2.5 s to a flower; a burst is brief
 			["arena_mechanics/ice_flower/Small/small_blast"] = 0.6f,
 			["arena_mechanics/ice_flower/Main/main_ice_flower"] = 2.5f,
@@ -701,6 +771,8 @@ namespace AtE {
 			"/OTs/beacon_aoe", // minions exploding on death: each weak, many overlapping hurt (the user)
 			"Totems/MonsterTotemArchnemesisObelisk", // Archnemesis totems: each one's nova hits (the user)
 			"RhoaShieldCharge", // Bone Rhoas charging (an AimedSkills entry)
+			"ice_storm/icestorm_", // Merveil's falling ice: each piece falls in turn and hits (the user)
+			"Projectiles/MerveilFishSpear", // Merveil's ice spears: several fly the same line, each hits
 		};
 
 		/// <summary>
@@ -727,6 +799,8 @@ namespace AtE {
 			// cold
 			["arena_mechanics/ice_flower/Small/small_blast"] = Offsets.GameStat.ColdDamageResistancePct, // the ice flowers' burst
 			["ground_maelstrom_chill"] = Offsets.GameStat.ColdDamageResistancePct, // cold vortices
+			["ice_storm/icestorm_"] = Offsets.GameStat.ColdDamageResistancePct, // Merveil's falling ice
+			["Projectiles/MerveilFishSpear"] = Offsets.GameStat.ColdDamageResistancePct, // Merveil's ice spears
 			["Projectiles/HarvestSquidBallLightning"] = Offsets.GameStat.ChaosDamageResistancePct, // Vivid Watchers' slow chaos ball
 			["BismuthMineralTornadoCold"] = Offsets.GameStat.ColdDamageResistancePct, // the bismuth encounter's cold tornado
 		};
