@@ -433,6 +433,12 @@ namespace AtE {
 			// cells (HazardLookAhead), radius 3, weight 40 (guesses), scaled by cold resistance; each spear hits, so they stack
 			// (HazardStacks); gone after 3 s (HazardMaxAgeSec)
 			("Projectiles/MerveilFishSpear", null, 3, 40),
+			// Runes of the Searing Exarch (a map's Exarch mechanic; 3.30.0d, paused near one): Metadata/Monsters/Daemon/
+			// UberMapExarchDaemon, an invisible monster (Actor, Life, StateMachine...; no skills or buffs) with the animated
+			// object Metadata/Monsters/CleansingFireCell/CleansingFireCell.ao, a dozen over the map. StateMachine rune_of_fire
+			// read 0 on the one by the player (seen on screen) and five others, and 1 << 32 on six older ones far off, taken
+			// as spent (HazardGoneStates). High damage (the user): weight 100, not scaled by resistance; radius 15 a guess
+			("Daemon/UberMapExarchDaemon", null, 15, 100),
 			// General Gravicius's fireballs that fall from the sky (3.29.3, paused with 19 placed, 9-60 cells around him): entities
 			// Metadata/Effects/SleepableServerEffect (Animated, BaseEvents, LimitedLifespan, Positioned, Render) whose animated
 			// object is "HellfireBarrageEffect", matched by its .ao path (see Animated.AnimatedObjectPath). Render.Bounds is
@@ -760,6 +766,8 @@ namespace AtE {
 			["Daemon/Augury/CorpseFissureDaemonFissureLine"] = ("explode", 1),
 			// the Hellscape flesh elite's blood orbs: explode is 0 while one falls, 1 once it has burst
 			["FleshFaction/objects/FleshElite1BloodOrbBomb"] = ("explode", 1),
+			// Runes of the Searing Exarch: rune_of_fire read 0 on the live one, 1 << 32 (as read: 8 bytes) on older ones, taken as spent
+			["Daemon/UberMapExarchDaemon"] = ("rune_of_fire", 1L << 32),
 		};
 
 		/// <summary>
