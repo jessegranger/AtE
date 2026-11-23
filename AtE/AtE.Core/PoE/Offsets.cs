@@ -1978,6 +1978,10 @@ namespace AtE {
 
 		[StructLayout(LayoutKind.Explicit, Pack = 1)] public struct Component_Positioned {
 			[FieldOffset(0x08)] public readonly IntPtr entOwner;
+			// Reaction: which side the entity is on. 3.30.0d, seen live: 1 (friendly) on the player (a Dex character) and on
+			// the player's own Caustic Arrow ground (a FillGroundEffect with caustic_cloud, the same as a monster's); 0
+			// (hostile) on monsters (a Savage Crab, a Gravel Eater). The 0x7F mask in IsHostile is not explained by these.
+			// (0x1F1 below is presumably an older offset.)
 			[FieldOffset(0x1E0)] public readonly byte Reaction;
 			// [FieldOffset(0x1F1)] public readonly byte Reaction;
 			public bool IsHostile => (Reaction & 0x7F) != 1;

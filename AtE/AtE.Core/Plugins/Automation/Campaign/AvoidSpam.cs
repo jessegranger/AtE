@@ -777,6 +777,9 @@ namespace AtE {
 				if ( path == null ) continue;
 				// effects with a generic metadata path (eg, SleepableServerEffect) are told apart by their animated object
 				string aoPath = path.StartsWith("Metadata/Effects/", StringComparison.Ordinal) ? e.GetComponent<Animated>()?.AnimatedObjectPath : null;
+				// the player's own ground (eg, Caustic Arrow's caustic_cloud, the same FillGroundEffect as a monster's) is friendly:
+				// its Positioned Reaction reads 1, as the player's does (monsters read 0; 3.30.0d, seen live)
+				if ( path.Contains("/ground_effects/") && e.GetComponent<Positioned>() is Positioned own && IsValid(own) && !own.IsHostile ) continue;
 				foreach ( var (part, buff, radius, entryWeight) in HazardPaths ) {
 					if ( !(path.Contains(part) || (aoPath != null && aoPath.Contains(part))) || (buff != null && !HasBuff(e, buff)) ) continue;
 					if ( HazardMaxAgeSec.TryGetValue(part, out float maxAge) && !(AnimationAge(e) <= maxAge) ) break; // (gone; or no clock, taken as gone)
