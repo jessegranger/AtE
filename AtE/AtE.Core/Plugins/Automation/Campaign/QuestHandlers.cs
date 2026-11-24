@@ -45,7 +45,7 @@ namespace AtE {
 			bool inSight() => GetEntities()?.Any(e => e != null && isBoss(e)) ?? false;
 			return new QuestHandler(quest, new Sequence($"{quest}: kill {boss}",
 				door == null ? null : new TakeTransition(door) { Where = area, DoneWhen = inSight },
-				new Orbit(boss, isBoss, skill ?? BuildPlan.MainSkill) { Where = area, SearchAt = searchAt })) {
+				new Orbit(boss, isBoss, skill ?? BuildPlan.MainSkill) { Where = area, SearchAt = searchAt, SearchPastMonsters = searchAt == Search.TheOnlyExit })) {
 				Active = step => IsKillStep(step, boss),
 			};
 		}

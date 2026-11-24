@@ -64,15 +64,6 @@ namespace AtE {
 		public virtual string WhereNow(CombatContext ctx) => Where;
 		/// <summary>True if, once done, it stays done (its done-ness can't be read back later); false to check it every time.</summary>
 		public virtual bool Sticky => true;
-		/// <summary>
-		/// True if this being done (read from the game) shows the goals before it are done (eg, the support socketed: the
-		/// chest was opened). Only for what stays true: not being in an area, or a window being shut.
-		/// </summary>
-		public virtual bool ProvesEarlier => false;
-		/// <summary>Set to say whether this one proves the goals before it done, in place of its type's ProvesEarlier.</summary>
-		public bool? Proves;
-		/// <summary>True if a later goal being done shows this one was done (see ProvesEarlier); false if this must be checked itself.</summary>
-		public virtual bool ProvenBy(IEnumerable<Goal> later) => true;
 		/// <summary>True if it no longer matters, the campaign having got past it to later goals (eg, Default Attack on a slot, once Fireball is on it).</summary>
 		public virtual bool SupersededBy(IEnumerable<Goal> later) => false;
 		/// <summary>True if it works in the inventory panel; while on any other goal the campaign closes it.</summary>
@@ -82,10 +73,16 @@ namespace AtE {
 		/// <summary>Walk past the monsters: no fighting, and no picking up items (which fights the monsters near them) while on this.</summary>
 		public bool IgnoreMonsters;
 		/// <summary>
-		/// Where to look for what it is after (eg, Search.TheOnlyExit, for a boss in the way out): walk there, past the
-		/// monsters. Null (or a null answer): explore the area, fighting on the way.
+		/// Where to look for what it is after (eg, Search.TheOnlyExit, for a boss in the way out): walk there, fighting on
+		/// the way (past the monsters if SearchPastMonsters). Null (or a null answer): explore the area, fighting on the way.
 		/// </summary>
 		public Func<CombatContext, Offsets.Vector2i?> SearchAt;
+		/// <summary>
+		/// Walk to SearchAt past the monsters, not fighting them (eg, The Twilight Strand's way out, to Hillock). Off, the
+		/// walk fights on the way: a SearchAt once always walked past them, and the campaign walked past all the trash on
+		/// the way to anything with a SearchAt (seen live 3.30.0d, Act 3: "look for Crafting Recipe", 1000 cells).
+		/// </summary>
+		public bool SearchPastMonsters;
 
 		/// <summary>
 		/// Not done while this is true, whatever CheckDone says or was saved (eg, "Kill Merveil" while the quest tracker
@@ -135,12 +132,12 @@ namespace AtE {
 		protected IState GoTo(string label, Offsets.Vector2i pos, float reach, float fightRadius = 0) =>
 			Call(new Navigate(label, _ => pos, reach) { FightRadius = IgnoreMonsters ? -1 : fightRadius });
 
-		/// <summary>Look for what, not in sight yet: walk toward SearchAt (past the monsters), or explore a while (fighting on the way).</summary>
+		/// <summary>Look for what, not in sight yet: walk toward SearchAt, or explore a while (fighting on the way, unless IgnoreMonsters; to SearchAt, nor if SearchPastMonsters).</summary>
 		protected IState Search(CombatContext ctx, string what, string skill = null) {
 			var at = SearchAt?.Invoke(ctx);
 			if ( at.HasValue ) {
 				Detail = $"looking for {what} on the way to {at.Value}";
-				return Call(new Navigate($"look for {what}", _ => at, 3) { FightRadius = -1, LegMs = 1000 });
+				return Call(new Navigate($"look for {what}", _ => at, 3) { FightRadius = IgnoreMonsters || SearchPastMonsters ? -1 : 0, LegMs = 1000 });
 			}
 			Detail = $"looking for {what}";
 			return Call(new Explore($"look for {what}") { FightSkill = skill, FightRadius = IgnoreMonsters ? -1 : 0 });
@@ -160,8 +157,6 @@ namespace AtE {
 	public class Sequence : Goal {
 		private readonly string name;
 		public readonly List<Goal> Goals;
-		/// <summary>How many goals past the first incomplete one to read from the game, for one that proves the earlier ones done.</summary>
-		public int Lookahead = 8;
 
 		public Sequence(string name, params Goal[] goals) { this.name = name; Goals = goals.Where(g => g != null).ToList(); }
 		public override string Name => name;
@@ -196,27 +191,17 @@ namespace AtE {
 
 		/// <summary>
 		/// Choose the leaf goal to work on, or null if it is done. First its own check (DoneWhen, eg "Complete Act 1": a
-		/// later act is available): if that says done, none of its goals are looked at. Else its goals in order: a goal
-		/// done (read from the game) is marked complete (and if it ProvesEarlier, so are the ones before it, looking at
-		/// most Lookahead goals past the first not complete); a complete goal that is not Sticky is asked again. The first
-		/// not done becomes Current (and, for a Sequence, chooses inside it).
+		/// later act is available): if that says done, none of its goals are looked at. Else its goals in order, each by its
+		/// own check: a goal done is marked complete; a complete goal that is not Sticky is asked again. The first not done
+		/// becomes Current (and, for a Sequence, chooses inside it).
+		///
+		/// A later goal being done does not show the ones before it are (that guess once marked Lost in Love done, its
+		/// Clarissa not talked to, seen live 3.30.0d). Done before a resume is only what can be read now: an area reached
+		/// (its waypoint unlocked), a quest item held, or the quest's own state (the tracker's step, /passives).
 		/// </summary>
 		public Goal Select(CombatContext ctx) {
 			Current = null;
 			if ( DoneWhen?.Invoke() ?? false ) { MarkDone(this); return null; }
-			int first = Goals.FindIndex(g => !g.IsComplete);
-			if ( first >= 0 ) {
-				// a goal a little further on that is done shows the ones before it are
-				int last = Math.Min(Goals.Count - 1, first + Lookahead);
-				for ( int i = last; i > first; i-- ) {
-					var g = Goals[i];
-					if ( g.IsComplete || !(g.Proves ?? g.ProvesEarlier) || !g.IsDone(ctx) ) continue;
-					for ( int k = first; k < i; k++ ) {
-						if ( Goals[k].ProvenBy(Goals.Skip(k + 1).Take(i - k)) ) MarkDone(Goals[k]);
-					}
-					break;
-				}
-			}
 			for ( int i = 0; i < Goals.Count; i++ ) {
 				var g = Goals[i];
 				if ( g.IsComplete && g.Sticky && !(g.NotDoneWhile?.Invoke() ?? false) ) continue;

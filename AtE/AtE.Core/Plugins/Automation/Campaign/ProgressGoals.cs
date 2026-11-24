@@ -428,7 +428,6 @@ namespace AtE {
 		private long lastClick;
 		public Activate(string labelText) => LabelText = labelText;
 		public override string Name => $"Activate the {LabelText}";
-		public override bool ProvesEarlier => true;
 		public override void Reset() { base.Reset(); clicks = 0; }
 
 		private LabelOnGround Find() => GetUI()?.LabelsOnGround?.GetAllLabels()

@@ -50,7 +50,6 @@ namespace AtE {
 
 		public override string Name => $"Open the {Count} {Label}s, and pick up what they drop" + (spots == null ? "" : $" ({spots.Count(s => s.Done)} done)");
 		public override void Reset() { base.Reset(); spots = null; }
-		public override bool ProvesEarlier => true;
 
 		public override bool CheckDone(CombatContext ctx) => (spots != null && spots.Count(s => s.Done) >= Count) || QuestItemsInBackpack() >= Count;
 
@@ -223,7 +222,6 @@ namespace AtE {
 		/// <param name="labelText">Its label on the ground (eg, "Blackguard Chest"); null: any chest.</param>
 		public OpenChest(string label, string labelText = null) { Label = label; LabelText = labelText; }
 		public override string Name => $"Open {Label}";
-		public override bool ProvesEarlier => true;
 		public override void Reset() { base.Reset(); clickedChest = IntPtr.Zero; clicks = 0; }
 
 		public override bool CheckDone(CombatContext ctx) {
@@ -369,7 +367,6 @@ namespace AtE {
 			Label = label; TilePathPart = tilePathPart; TopTilePathPart = topTilePathPart; Labels = labels;
 		}
 		public override string Name => $"Climb {Label}";
-		public override bool ProvesEarlier => true;
 
 		private bool CanWalkTo(CombatContext ctx, AreaFeature f) => DefaultNavigator.TrySnapReachable(ctx.Terrain, ctx.Grid, f.GridPos, out _, TileReach);
 
@@ -475,7 +472,6 @@ namespace AtE {
 		}
 
 		public override string Name => $"Use the {Label}";
-		public override bool ProvesEarlier => true;
 		public override void Reset() { base.Reset(); clicks = 0; }
 
 		private static Entity Find(string pathPart) => GetEntities().FirstOrDefault(e => IsValid(e) && (e.Path?.Contains(pathPart) ?? false));

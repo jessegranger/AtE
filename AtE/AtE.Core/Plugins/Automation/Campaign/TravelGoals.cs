@@ -208,7 +208,6 @@ namespace AtE {
 		public override string Name => $"Put the {Flask} in flask slot {Slot}";
 		public override bool Sticky => false;
 		public override bool UsesInventory => true;
-		public override bool ProvesEarlier => false; // (done also when there is no such flask)
 		public override void Reset() { base.Reset(); holding = placing = false; }
 
 		private bool IsFlask(Entity e) => string.Equals(Equipment.ItemName(e), Flask, StringComparison.OrdinalIgnoreCase);
@@ -285,7 +284,6 @@ namespace AtE {
 		public override string Name => "Socket the gems as the build plans" + (moves > 0 ? $" ({moves} moves)" : "");
 		public override bool Sticky => false;
 		public override bool UsesInventory => true;
-		public override bool ProvesEarlier => false;
 		public override void Reset() { base.Reset(); moves = 0; busyUntil = lastCheck = 0; lookedOpen = lastDone = false; lastTodo = null; unchanged = 0; }
 		private string lastTodo;
 		private int unchanged;
@@ -393,7 +391,6 @@ namespace AtE {
 	public class BindPlannedSkills : Goal {
 		public override string Name => "Put the skills on the bar as the build plans";
 		public override bool Sticky => false;
-		public override bool ProvesEarlier => false;
 
 		// (slot, skill) the plan wants and can have now (the gem is socketed), not there yet
 		private static IEnumerable<(int slot, string skill)> Todo() {

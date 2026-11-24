@@ -174,8 +174,6 @@ namespace AtE {
 		public KillMapBoss(MappingRoutine routine) : base("the map boss", MappingRoutine.IsMapBoss, BuildPlan.MainSkill) {
 			// (not in sight: to where it was seen in this map, if it was, see MappingRoutine.BossSeenAt; else explore)
 			SearchAt = ctx => { routine.NoteBoss(ctx); return routine.BossSeenAt; };
-			// (a unique killed while clearing, eg a Rogue Exile, does not show the map is cleared)
-			Proves = false;
 			// (a unique killed is not enough while a map boss is still alive in sight: Mud Geyser's map completed only after a
 			// second RootSpiderHiddenMapBoss died, after Tunneltrap; one alive but burrowed is waited for, see AvoidSpam)
 			DoneWhen = () => routine.MapComplete

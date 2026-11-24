@@ -911,7 +911,7 @@ EXPR = root then steps. roots: 0xHEX base gameroot ingame player ent(ID) comp(ID
 			foreach ( var (parent, goal, depth) in routine.Leaves() ) {
 				if ( parent != shown ) { shown = parent; sb.AppendLine($"{new string(' ', depth * 2)}{parent.Name}{(parent.IsComplete ? " [x]" : "")}"); }
 				string mark = goal.IsComplete ? "[x]" : goal == routine.CurrentGoal ? "[>]" : "[ ]";
-				sb.AppendLine($"  {new string(' ', depth * 2)}{mark} {goal.Name}{(goal.Where == null ? "" : $" @ {goal.Where}")}  proves={goal.Proves ?? goal.ProvesEarlier} {goal.Detail}");
+				sb.AppendLine($"  {new string(' ', depth * 2)}{mark} {goal.Name}{(goal.Where == null ? "" : $" @ {goal.Where}")}  {goal.Detail}");
 			}
 			return sb.ToString();
 		}

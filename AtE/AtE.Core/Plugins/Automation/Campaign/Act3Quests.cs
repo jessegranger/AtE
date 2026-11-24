@@ -33,6 +33,10 @@ namespace AtE {
 			const string love = "Lost in Love";
 			bool rescueStep() => StepOf(love)?.StartsWith("Defeat the guard", StringComparison.OrdinalIgnoreCase) ?? false;
 			bool tolmanStep() => StepOf(love)?.StartsWith("Find Tolman", StringComparison.OrdinalIgnoreCase) ?? false;
+			// past "Find Tolman": a later step of the quest. (Not just "not the Tolman step": that is true at "Defeat the
+			// guards" too, and a done Activate proves the goals before it done: seen live 3.30.0d, the Guard Captain was
+			// killed and Clarissa left untalked to, the rest of the quest marked done at once.)
+			bool pastTolman() => StepOf(love) != null && !rescueStep() && !tolmanStep();
 			bool isPiety(Entity e) => e?.Path?.IndexOf("Axis/PietyEscape", StringComparison.OrdinalIgnoreCase) >= 0;
 			// Piety gone: seen targetable (fought), then not there or not targetable for PietyGoneMs (latched)
 			bool pietyFought = false, pietyGone = false;
@@ -64,8 +68,8 @@ namespace AtE {
 				ToSarnEncampment(Slums, Crematorium),
 				new EnterArea(Slums) { Where = TownOf(3), DoneWhen = () => InAny(Slums, Crematorium) },
 				new TakeTransition(Crematorium) { Where = Slums, SearchAt = Search.Exit(Crematorium, "/act3_prison_entrance"), DoneWhen = () => InAny(Crematorium) },
-				new Orbit("Piety", isPiety, main) { Where = Crematorium, SearchAt = questMarker, DoneWhen = () => PietyGone() || !tolmanStep() },
-				new Activate("Tolman") { Where = Crematorium, SearchAt = questMarker, DoneWhen = () => !tolmanStep() },
+				new Orbit("Piety", isPiety, main) { Where = Crematorium, SearchAt = questMarker, DoneWhen = () => PietyGone() || pastTolman() },
+				new Activate("Tolman") { Where = Crematorium, SearchAt = questMarker, DoneWhen = pastTolman },
 				new PickUpQuestItem("Tolman's Bracelet") { Where = Crematorium },
 				recipe)) {
 				Active = step => step != null && (

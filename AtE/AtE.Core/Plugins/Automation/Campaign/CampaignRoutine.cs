@@ -86,14 +86,14 @@ namespace AtE {
 					new BindSkill("Default Attack", BuildPlan.MainSlot),
 					new PickUp("Dying Exile", "Click"),
 					new Kill("the Dying Exile's zombie", "Monsters/Zombies/ZombieBite", "Default Attack", range: 25),
-					new PickUp("the starting skill gem", Equipment.IsSkillGem) { Proves = true, DoneWhen = () => Equipment.OwnedGems().Any(Equipment.IsSkillGem) },
+					new PickUp("the starting skill gem", Equipment.IsSkillGem) { DoneWhen = () => Equipment.OwnedGems().Any(Equipment.IsSkillGem) },
 					new SocketGem(skill),
 					new BindSkill(skill, BuildPlan.MainSlot),
 					// on the way to Hillock, who stands in the only way out: walk past the monsters
-					new PickUp("Large Chest", "Open") { SearchAt = Search.TheOnlyExit },
-					new PickUp("the starting support gem", Equipment.IsSupportGem) { SearchAt = Search.TheOnlyExit, Proves = true, DoneWhen = () => Equipment.OwnedGems().Any(Equipment.IsSupportGem) },
+					new PickUp("Large Chest", "Open") { SearchAt = Search.TheOnlyExit, SearchPastMonsters = true },
+					new PickUp("the starting support gem", Equipment.IsSupportGem) { SearchAt = Search.TheOnlyExit, SearchPastMonsters = true, DoneWhen = () => Equipment.OwnedGems().Any(Equipment.IsSupportGem) },
 					new SocketGem(support, skill),
-					new Orbit("Hillock", "Hillock", skill) { SearchAt = Search.TheOnlyExit },
+					new Orbit("Hillock", "Hillock", skill) { SearchAt = Search.TheOnlyExit, SearchPastMonsters = true },
 					new EnterArea(LioneyesWatch)
 				) { DoneWhen = () => GetCurrentArea() is WorldArea here && !GoToArea.Is(here, TwilightStrand) },
 				quests,
@@ -133,8 +133,9 @@ namespace AtE {
 			) { DoneWhen = () => CampaignProgress.ActDone(2) };
 		}
 
-		// Act 3: its quests (the ones written so far), then the rest, not written yet
-		private Sequence Act3() => new Sequence("Complete Act 3", Quests(3), new NotSpecified("the rest of Act 3")) { DoneWhen = () => CampaignProgress.ActDone(3) };
+		// Act 3: its quests (see Act3Quests; The Sceptre of God's last step, the exit to The Aqueduct, is the way on to Act 4)
+		private Sequence Act3() => new Sequence("Complete Act 3", Quests(3), StopAfter(10000, "the way on to Act 4 (the quests did not get there)")) {
+			DoneWhen = () => CampaignProgress.ActDone(3) };
 
 		// Act 4: its quests (The Eternal Nightmare, then Return to Oriath, whose Oriath Portal ends the act; see Act4Quests)
 		// (the quests with nothing to do for a moment, eg a step the tracker has not updated yet, is not the end: wait a while

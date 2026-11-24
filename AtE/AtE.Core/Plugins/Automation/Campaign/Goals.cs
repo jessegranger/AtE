@@ -12,7 +12,6 @@ namespace AtE {
 		/// <param name="skill">The skill to fight with, eg "Fireball"; null uses the driver's Attack.</param>
 		public ClearArea(string skill = null) => Skill = skill;
 		public override string Name => "Clear the area";
-		public override bool ProvesEarlier => false; // a cleared area says nothing about what was picked up or bound
 		public override bool CheckDone(CombatContext ctx) => ctx.Driver.ExploreDone && ctx.Hostiles.Count == 0;
 		protected override IState Step(CombatContext ctx) => FightFirst(ctx, 0, Skill) ?? Call(new Explore(null) { FightSkill = Skill });
 	}
@@ -45,7 +44,6 @@ namespace AtE {
 			Label = label; Match = match; SkillOf = skill; Range = range; NeedsLineOfSight = needsLineOfSight;
 		}
 		public override string Name => $"Kill {Label}{(Skill == null ? "" : $" with {Skill}")}";
-		public override bool ProvesEarlier => true;
 		public override void Reset() { base.Reset(); killed = seen = false; }
 
 		private IEnumerable<Entity> Matches() => GetEntities()?.Where(e => e != null && Match(e)) ?? Empty<Entity>();
@@ -90,7 +88,7 @@ namespace AtE {
 			}
 			// not in sight: go back to where it was last seen, else keep looking
 			if ( seen ) {
-				if ( SearchAt == null && FightFirst(ctx, 0, Skill) is IState fight ) { Detail = "fighting on the way"; return fight; }
+				if ( !(SearchAt != null && SearchPastMonsters) && FightFirst(ctx, 0, Skill) is IState fight ) { Detail = "fighting on the way"; return fight; }
 				Detail = "going back to where it was last seen";
 				return Call(new Navigate(Label, _ => lastSeen, 5) { FightRadius = -1, LegMs = 1000 });
 			}
@@ -362,7 +360,7 @@ namespace AtE {
 			if ( label == null || !IsValid(pos) ) return Search(ctx, What);
 			if ( !IsNear(ctx, pos.GridPos, Reach, out _, out float d) ) {
 				Detail = $"{d:F0} cells away";
-				return Call(new Navigate(What, _ => pos.GridPos, Reach) { FightRadius = IgnoreMonsters || SearchAt != null ? -1 : 0, LegMs = 1000 });
+				return Call(new Navigate(What, _ => pos.GridPos, Reach) { FightRadius = IgnoreMonsters || (SearchAt != null && SearchPastMonsters) ? -1 : 0, LegMs = 1000 });
 			}
 			ctx.Driver.StopWalking(Verb);
 			Detail = "clicking it";
@@ -385,9 +383,6 @@ namespace AtE {
 		public BindSkill(Func<string> skill, int slot = -1) { this.skill = skill; Slot = slot; }
 		public override string Name => Slot < 0 ? $"Put {Skill} on the skill bar" : $"Put {Skill} on slot {GemPlan.SlotLabels.ElementAtOrDefault(Slot) ?? Slot.ToString()}";
 		public override bool Sticky => false;
-		public override bool ProvesEarlier => true;
-		// only by a later one putting something else on the same slot (eg, Fireball in place of Default Attack)
-		public override bool ProvenBy(IEnumerable<Goal> later) => Slot >= 0 && later.OfType<BindSkill>().Any(b => b.Slot == Slot);
 		// reached a later one putting something else on the same slot: don't put this back over it
 		public override bool SupersededBy(IEnumerable<Goal> later) {
 			if ( Slot < 0 ) return false;
@@ -592,7 +587,6 @@ namespace AtE {
 		public override void Reset() { base.Reset(); picked = false; }
 		public override bool Sticky => false;
 		public override bool UsesInventory => true;
-		public override bool ProvesEarlier => !OnlyIfPossible;
 
 		private InventoryItem GemInBackpack(string name) => BackpackItems().FirstOrDefault(i => Equipment.IsGem(i.Entity, name));
 		private static InventoryItem Weapon() => GetUI()?.InventoryPanel?.LWeapon?.Items.FirstOrDefault(i => IsValid(i.Entity?.GetComponent<Sockets>()));
