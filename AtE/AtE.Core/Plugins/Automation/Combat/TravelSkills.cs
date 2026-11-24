@@ -152,7 +152,8 @@ namespace AtE {
 			if ( !DefaultFollower.IsActiveFor(owner) || DefaultFollower.Status != FollowStatus.Walking ) return Fail($"the follower is not walking for this owner ({DefaultFollower.Status})");
 			long now = Time.ElapsedMilliseconds;
 			if ( busy() || now - lastUse < PaceMs ) return Fail(busy() ? "input still going out" : $"used one {now - lastUse} ms ago (PaceMs {PaceMs})");
-			if ( GetCurrentArea()?.IsTown ?? false ) return Fail("in town"); // (skills are paused in town)
+			// (not in a town or a hideout: skills are paused there, see WorldArea.SkillsPausedHere)
+			if ( SkillsPausedHere() ) return Fail("in town or a hideout");
 			var cells = DefaultFollower.Path?.Cells;
 			if ( cells == null || cells.Count < 2 ) return Fail("no path");
 
