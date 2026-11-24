@@ -175,6 +175,9 @@ namespace AtE {
 			// started (CasterGrid) to its Destination. A line from the rhoa to that cell (size 0), 3 either side (the user);
 			// physical, a low danger each (the user): 15, and each rhoa's own (HazardStacks), so overlapping charges stack
 			("RhoaShieldCharge", null, true, 0, 3, 15),
+			// the Vaal Oversoul (Metadata/Monsters/IncaShadowBoss/BossIncaShadow; 3.30.0d, paused mid-slam): IncaBossExplosion,
+			// a big slam in front of it, Destination 17 cells ahead along its facing. A circle there, radius 25 a guess
+			("IncaBossExplosion", null, false, 15, 0, WarningWeight),
 			// Vivid Watchers (Metadata/Monsters/LeagueHarvest/Green/HarvestSquidT3_; 3.30.0d, paused as one channelled it at a
 			// cell 77 cells up-right of the player): EASHarvestSquidNoodleBeams, beams (Squid/spark_beam_*.ao) striking the
 			// ground again and again (Metadata/Effects/Effect, Squid/spark_beam_impact.ao) scattered 15 to 25 cells around
@@ -439,6 +442,11 @@ namespace AtE {
 			// read 0 on the one by the player (seen on screen) and five others, and 1 << 32 on six older ones far off, taken
 			// as spent (HazardGoneStates). High damage (the user): weight 100, not scaled by resistance; radius 15 a guess
 			("Daemon/UberMapExarchDaemon", null, 15, 100),
+			// the Vaal Oversoul's falling rocks (BossIncaShadow channelling IncaBossRocks; 3.30.0d, paused): client-only
+			// Metadata/Effects/Effect rocks (.../monsters_effects/act2/inca_boss/rock_fall/rockdrop_01-04.ao), 0.13-2.07 s
+			// old, scattered around the player and beyond. Like Merveil's falling ice: each its own (they fall in turn and
+			// stack, HazardStacks), radius 5 and weight 40 guesses, physical; gone after 2 s (HazardMaxAgeSec)
+			("inca_boss/rock_fall/rockdrop_", null, 5, 40),
 			// General Gravicius's fireballs that fall from the sky (3.29.3, paused with 19 placed, 9-60 cells around him): entities
 			// Metadata/Effects/SleepableServerEffect (Animated, BaseEvents, LimitedLifespan, Positioned, Render) whose animated
 			// object is "HellfireBarrageEffect", matched by its .ao path (see Animated.AnimatedObjectPath). Render.Bounds is
@@ -732,6 +740,8 @@ namespace AtE {
 			["ice_storm/icestorm_"] = 1,
 			// Merveil's ice spears: one 3.42 s old was out past the arena's exit blocker
 			["Projectiles/MerveilFishSpear"] = 3,
+			// the Vaal Oversoul's falling rocks: up to 2.07 s old when seen
+			["inca_boss/rock_fall/rockdrop_"] = 2,
 			// Brutus's blood spines: the wave's newest are at its front, the ones behind it 1 s old (a guess)
 			["ground_slam/blood_spines/groundspineblood"] = 1,
 			// the ice flowers (see HazardPaths): a small one burst at 2.05 s, so 2.5 s to a flower; a burst is brief
@@ -781,6 +791,7 @@ namespace AtE {
 			"RhoaShieldCharge", // Bone Rhoas charging (an AimedSkills entry)
 			"ice_storm/icestorm_", // Merveil's falling ice: each piece falls in turn and hits (the user)
 			"Projectiles/MerveilFishSpear", // Merveil's ice spears: several fly the same line, each hits
+			"inca_boss/rock_fall/rockdrop_", // the Vaal Oversoul's falling rocks
 		};
 
 		/// <summary>
