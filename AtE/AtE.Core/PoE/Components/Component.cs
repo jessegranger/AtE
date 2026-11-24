@@ -235,6 +235,8 @@ namespace AtE {
 		public bool IsValid() => (!isDisposing) && (!isDisposed) && (SkillGem?.Value.NamePtr ?? default) != IntPtr.Zero;
 
 		public ushort Id => Cache.Id;
+		/// <summary>The skill's key: a buff it gives has it as its SourceSkillKey.</summary>
+		public uint Key => Cache.Key;
 
 		private string name = null;
 		public string Name => name != null
@@ -428,6 +430,10 @@ namespace AtE {
 			: null);
 
 		public byte Charges => Cache.Charges;
+		/// <summary>The entity id of who gave the buff.</summary>
+		public uint SourceEntityId => Cache.SourceEntityId;
+		/// <summary>The skill that gave the buff (its ActorSkill.Key).</summary>
+		public uint SourceSkillKey => Cache.SourceSkillKey;
 		public float Timer => Cache.Timer;
 		public float MaxTime => Cache.MaxTime;
 

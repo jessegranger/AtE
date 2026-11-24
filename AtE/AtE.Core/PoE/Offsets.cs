@@ -1023,6 +1023,7 @@ namespace AtE {
 			[FieldOffset(0x4c0)] public readonly IntPtr SkillBar; // Name = "skills_bar"
 			[FieldOffset(0x4c8)] public readonly IntPtr HiddenSkillBar; // Name = "skills_list"
 			[FieldOffset(0x4f0)] public readonly IntPtr autoPvpNotificationManager; // Name = "pvp_notification_manager"
+			[FieldOffset(0x518)] public readonly IntPtr HelpOrKillBandit; // Name = null
 			[FieldOffset(0x520)] public readonly IntPtr autoSpectatingBanner; // Name = "spectating_banner"
 			[FieldOffset(0x528)] public readonly IntPtr autoWaitingBanner; // Name = "waiting_banner"
 			[FieldOffset(0x530)] public readonly IntPtr autoHideoutEditModeBanner; // Name = "hideout_edit_mode_banner"
@@ -1066,10 +1067,6 @@ namespace AtE {
 			[FieldOffset(0x720)] public readonly IntPtr Map; // Name = "map_overlay"
 			[FieldOffset(0x728)] public readonly IntPtr ItemsOnGroundLabelElement; // Name = null
 			[FieldOffset(0x760)] public readonly IntPtr autoModalDialogOverlay; // Name = "modal_dialog_overlay"
-			// [FieldOffset(0x7a8)] public readonly IntPtr RootBuffPanel; // Name = (not a pointer: 0x000100003F800000)
-			[FieldOffset(0x7b0)] public readonly IntPtr HelpOrKillBandit; // Name = (not an Element: points at a pair of equal pointers)
-			// [FieldOffset(0x7d8)] public readonly IntPtr NpcDialog; // Name = (not a pointer: 0x7)
-			// [FieldOffset(0x7e0)] public readonly IntPtr NpcOptions; // Name = (not a pointer: 0x8)
 			[FieldOffset(0x7e8)] public readonly IntPtr autoTopIconsLayout; // Name = "top_icons_layout"
 			[FieldOffset(0x7f0)] public readonly IntPtr QuestRewardWindow; // Name = null
 			[FieldOffset(0x7f8)] public readonly IntPtr autoInventoryViewItemSelector; // Name = "InventoryViewItemSelector"
@@ -1349,6 +1346,9 @@ namespace AtE {
 			// [FieldOffset(0x0C)] public readonly byte KeyBindFlags; // unknown how this works but it changes when you change your skill key binds in the UI
 			[FieldOffset(0x48)] public readonly IntPtr ptrSelf;
 			[FieldOffset(0x50)] public readonly ushort Id;
+			// 3.30.0d, seen live: these 4 bytes (Id and the next two) are in each buff the skill puts on the player, at its
+			// Buff.SourceSkillKey (Precision 0x09298001, Herald of Agony 0xC9568008, Clarity 0x1C668881)
+			[FieldOffset(0x50)] public readonly uint Key;
 			// 3.29.4: ptrGemEffects moved 0x58 -> 0x68 (+0x10): the only ptr of Default Attack that leads (ptr, then ptr again, then a string) to "PlayerMelee".
 			// 0x58 now points into a table of action names ("Melee", "SandSpitterProjectile"...) and is what the other 12 skills of a character (Move, Dance...) have
 			[FieldOffset(0x68)] public readonly IntPtr ptrGemEffects;
@@ -1650,7 +1650,8 @@ namespace AtE {
 			[FieldOffset(0x1C)] public readonly float Timer;
 			// [FieldOffset(0x20)] public readonly float UnkFloat20;
 			// [FieldOffset(0x24)] public readonly int UnkInt24;
-			// [FieldOffset(0x28)] public readonly int UnkInt28;
+			// 3.30.0d, seen live: the entity id of who gave the buff (396, the player, on his own auras and herald)
+			[FieldOffset(0x28)] public readonly uint SourceEntityId;
 			// [FieldOffset(0x2c)] public readonly int UnkInt2c;
 			// [FieldOffset(0x30)] public readonly int UnkInt30;
 			// [FieldOffset(0x34)] public readonly int UnkInt34;
@@ -1660,7 +1661,9 @@ namespace AtE {
 			[FieldOffset(0x40)] public readonly byte Charges; // 3.29.3: confirmed (endurance/frenzy_charge, fortification); impaled_debuff uses it as hits remaining (5 -> 0)
 			// [FieldOffset(0x4a)] public readonly int UnkInt4A;
 			// [FieldOffset(0x44)] public readonly int UnkInt44;
-			// [FieldOffset(0x48)] public readonly int UnkInt48;
+			// 3.30.0d, seen live: the skill that gave the buff: its ActorSkill.Key (the 4 bytes at its Id), on
+			// player_aura_accuracy_and_crits (Precision), herald_of_agony and player_aura_mana_regen (Clarity)
+			[FieldOffset(0x48)] public readonly uint SourceSkillKey;
 			// [FieldOffset(0x4c)] public readonly int UnkInt4c;
 			// [FieldOffset(0x50)] public readonly int UnkInt50;
 			// [FieldOffset(0x54)] public readonly int UnkInt54;
