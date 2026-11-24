@@ -33,15 +33,20 @@ namespace AtE {
 
 		/// <summary>
 		/// The buff a reservation skill puts on the player, by the skill's internal name (eg, "vitality"); one not
-		/// listed is looked for as "player_aura_" and the internal name.
+		/// listed is looked for as "player_aura_" and the internal name, except a herald's, whose buff is its internal
+		/// name itself (3.30.0d, seen live: Herald of Agony, internal name herald_of_agony, buff herald_of_agony; looked
+		/// for as player_aura_herald_of_agony, it was taken for off).
 		/// </summary>
 		public static readonly Dictionary<string, string> BuffNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
 			{ "vitality", "player_aura_life_regen" },
 			{ "clarity", "player_aura_mana_regen" },
+			{ "precision", "player_aura_accuracy_and_crits" }, // (3.30.0d, seen live: not player_aura_precision, so it was toggled off)
 		};
 
 		public static string BuffName(ActorSkill skill) =>
-			skill?.InternalName is string name ? (BuffNames.TryGetValue(name, out var buff) ? buff : $"player_aura_{name}") : null;
+			skill?.InternalName is string name ? (BuffNames.TryGetValue(name, out var buff) ? buff
+				: name.StartsWith("herald_", StringComparison.OrdinalIgnoreCase) ? name
+				: $"player_aura_{name}") : null;
 
 		/// <summary>Does the skill reserve mana or life (or is it an aura).</summary>
 		public static bool IsReservation(ActorSkill skill) => skill != null
@@ -61,8 +66,18 @@ namespace AtE {
 			}
 		}
 
-		/// <summary>Is the skill's buff on the player.</summary>
-		public static bool IsOn(ActorSkill skill) => HasBuff(GetPlayer(), BuffName(skill));
+		/// <summary>
+		/// Is the skill's buff on the player: a buff the player gave himself with that skill (its SourceSkillKey, so no
+		/// name is needed), or one with its BuffName.
+		/// </summary>
+		public static bool IsOn(ActorSkill skill) {
+			var player = GetPlayer();
+			if ( skill == null || !IsValid(player) ) return false;
+			uint key = skill.Key;
+			if ( key != 0 && player.GetComponent<Buffs>() is Buffs buffs && IsValid(buffs)
+				&& buffs.GetBuffs().Any(b => IsValid(b.Address) && b.SourceSkillKey == key && b.SourceEntityId == player.Id) ) return true;
+			return HasBuff(player, BuffName(skill));
+		}
 
 		/// <summary>The planned reservation skills that are off (and not in their cooldown).</summary>
 		public IEnumerable<ActorSkill> Off() {
